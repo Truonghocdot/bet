@@ -20,6 +20,10 @@ class GamePeriodResource extends BaseResource
     protected static ?string $model = GamePeriod::class;
     protected static UnitEnum|string|null $navigationGroup = 'Cược';
     protected static ?string $navigationLabel = 'Kỳ game';
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 

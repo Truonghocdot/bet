@@ -21,6 +21,8 @@ class AffiliateLinkResource extends BaseResource
     protected static UnitEnum|string|null $navigationGroup = 'Tiếp thị liên kết';
     protected static ?string $navigationLabel = 'Liên kết theo dõi';
 
+    
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
     protected static ?string $recordTitleAttribute = 'tracking_code';

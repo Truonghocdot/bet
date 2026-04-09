@@ -20,8 +20,12 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class PaymentReceivingAccountResource extends BaseResource
 {
     protected static ?string $model = PaymentReceivingAccount::class;
-    protected static UnitEnum|string|null $navigationGroup = 'Thanh toán';
+    protected static UnitEnum|string|null $navigationGroup = 'Thiết lập';
     protected static ?string $navigationLabel = 'Tài khoản nhận tiền';
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 

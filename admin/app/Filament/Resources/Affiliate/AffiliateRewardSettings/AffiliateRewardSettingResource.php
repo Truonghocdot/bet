@@ -20,8 +20,16 @@ class AffiliateRewardSettingResource extends BaseResource
     protected static ?string $model = AffiliateRewardSetting::class;
     protected static UnitEnum|string|null $navigationGroup = 'Tiếp thị liên kết';
     protected static ?string $navigationLabel = 'Cấu hình thưởng';
+    protected static ?string $modelLabel = 'Cấu hình thưởng';
+    protected static ?string $pluralModelLabel = 'Cấu hình thưởng';
+    protected static bool $hasTitleCaseModelLabel = false;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
 
     protected static ?string $recordTitleAttribute = 'name';
 

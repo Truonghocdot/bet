@@ -22,6 +22,10 @@ class WithdrawalRequestResource extends BaseResource
     protected static ?string $model = WithdrawalRequest::class;
     protected static UnitEnum|string|null $navigationGroup = 'Tài chính';
     protected static ?string $navigationLabel = 'Yêu cầu rút';
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 

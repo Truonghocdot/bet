@@ -1,28 +1,32 @@
 <?php
 
-namespace App\Filament\Resources\Transaction\AccountWithdrawalInfos\Schemas;
+namespace App\Filament\Resources\Users\RelationManagers;
 
 use App\Enum\Wallet\UnitTransaction;
+use App\Filament\Resources\Transaction\AccountWithdrawalInfos\AccountWithdrawalInfoResource;
 use App\Support\Filament\EnumPresenter;
+use Filament\Forms\Components\Hidden;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
+use Filament\Tables\Table;
 
-class AccountWithdrawalInfoForm
+class AccountWithdrawalInfosRelationManager extends RelationManager
 {
-    public static function configure(Schema $schema): Schema
+    protected static string $relationship = 'accountWithdrawalInfos';
+    protected static ?string $relatedResource = AccountWithdrawalInfoResource::class;
+    protected static ?string $title = 'Tài khoản rút';
+
+    public function form(Schema $schema): Schema
     {
         return $schema->components([
             Section::make('Thông tin tài khoản rút')
                 ->schema([
-                    Select::make('user_id')
-                        ->label('Người dùng')
-                        ->relationship('user', 'name')
-                        ->searchable()
-                        ->preload()
-                        ->required(),
+                    Hidden::make('user_id')
+                        ->default(fn ($livewire) => $livewire->getOwnerRecord()->getKey()),
                     Select::make('unit')
                         ->label('Đơn vị')
                         ->options(EnumPresenter::options(UnitTransaction::class))
@@ -43,6 +47,13 @@ class AccountWithdrawalInfoForm
                         ->label('Mặc định'),
                 ])
                 ->columns(2),
+        ]);
+    }
+
+    public function table(Table $table): Table
+    {
+        return $table->headerActions([
+            \Filament\Actions\CreateAction::make(),
         ]);
     }
 }

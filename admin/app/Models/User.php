@@ -4,8 +4,15 @@ namespace App\Models;
 
 use App\Enum\User\RoleUser;
 use App\Enum\User\UserStatus;
+use App\Models\Affiliate\AffiliateProfile;
+use App\Models\Bet\BetTicket;
+use App\Models\Transaction\AccountWithdrawalInfo;
+use App\Models\Transaction\Transaction;
+use App\Models\Transaction\WithdrawalRequest;
+use App\Models\Wallet\Wallet;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -45,27 +52,68 @@ class User extends Authenticatable
 
     public function wallets(): HasMany
     {
-        return $this->hasMany(\App\Models\Wallet\Wallet::class);
+        return $this->hasMany(Wallet::class);
     }
 
     public function transactions(): HasMany
     {
-        return $this->hasMany(\App\Models\Transaction\Transaction::class);
+        return $this->hasMany(Transaction::class);
     }
 
     public function withdrawalRequests(): HasMany
     {
-        return $this->hasMany(\App\Models\Transaction\WithdrawalRequest::class);
+        return $this->hasMany(WithdrawalRequest::class);
     }
 
     public function gameTickets(): HasMany
     {
-        return $this->hasMany(\App\Models\Bet\BetTicket::class);
+        return $this->hasMany(BetTicket::class);
     }
 
     public function affiliateProfile(): HasOne
     {
-        return $this->hasOne(\App\Models\Affiliate\AffiliateProfile::class);
+        return $this->hasOne(AffiliateProfile::class);
+    }
+
+    public function accountWithdrawalInfos(): HasMany
+    {
+        return $this->hasMany(AccountWithdrawalInfo::class);
+    }
+
+    public function affiliateLinks(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            \App\Models\Affiliate\AffiliateLink::class,
+            AffiliateProfile::class,
+            'user_id',
+            'affiliate_profile_id',
+            'id',
+            'id',
+        );
+    }
+
+    public function affiliateReferrals(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            \App\Models\Affiliate\AffiliateReferral::class,
+            AffiliateProfile::class,
+            'user_id',
+            'affiliate_profile_id',
+            'id',
+            'id',
+        );
+    }
+
+    public function affiliateRewardLogs(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            \App\Models\Affiliate\AffiliateRewardLog::class,
+            AffiliateProfile::class,
+            'user_id',
+            'affiliate_profile_id',
+            'id',
+            'id',
+        );
     }
 
     public function referredByReferrals(): HasMany

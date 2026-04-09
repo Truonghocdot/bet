@@ -28,7 +28,7 @@ class ExchangeRatePage extends Page
 
     protected static ?string $slug = 'settings/exchange-rate-usdt-vnd';
 
-    protected static UnitEnum|string|null $navigationGroup = 'Hệ thống';
+    protected static UnitEnum|string|null $navigationGroup = 'Thiết lập';
 
     protected static ?string $navigationLabel = 'Tỷ giá USDT/VND';
 

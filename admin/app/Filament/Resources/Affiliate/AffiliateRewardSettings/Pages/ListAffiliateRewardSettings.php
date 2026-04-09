@@ -10,6 +10,11 @@ class ListAffiliateRewardSettings extends ListRecords
 {
     protected static string $resource = AffiliateRewardSettingResource::class;
 
+    public function getBreadcrumb(): string
+    {
+        return 'Danh sách cấu hình thưởng';
+    }
+
     protected function getHeaderActions(): array
     {
         return [

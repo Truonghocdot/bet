@@ -22,6 +22,10 @@ class TransactionResource extends BaseResource
     protected static ?string $model = Transaction::class;
     protected static UnitEnum|string|null $navigationGroup = 'Tài chính';
     protected static ?string $navigationLabel = 'Giao dịch';
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 

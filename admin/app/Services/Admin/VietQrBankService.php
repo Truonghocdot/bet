@@ -163,7 +163,7 @@ class VietQrBankService
                 'transfer_supported' => (bool) data_get($item, 'transferSupported', data_get($item, 'isTransfer', false)),
                 'lookup_supported' => (bool) data_get($item, 'lookupSupported', false),
                 'support' => is_numeric(data_get($item, 'support')) ? (int) data_get($item, 'support') : null,
-                'raw_payload' => $item,
+                'raw_payload' => json_encode($item, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 'synced_at' => now(),
                 'updated_at' => now(),
                 'created_at' => now(),

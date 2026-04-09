@@ -22,6 +22,10 @@ class UserResource extends BaseResource
     protected static ?string $model = User::class;
     protected static UnitEnum|string|null $navigationGroup = 'Hệ thống';
     protected static ?string $navigationLabel = 'Người dùng';
+    public static function shouldRegisterNavigation(): bool
+    {
+        return true;
+    }
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
@@ -45,7 +49,14 @@ class UserResource extends BaseResource
     public static function getRelations(): array
     {
         return [
-            //
+            \Filament\Resources\RelationManagers\RelationGroup::make('Tài chính', [
+                RelationManagers\WalletsRelationManager::class,
+                RelationManagers\TransactionsRelationManager::class,
+                RelationManagers\WithdrawalRequestsRelationManager::class,
+                RelationManagers\AccountWithdrawalInfosRelationManager::class,
+            ]),
+            RelationManagers\BetTicketsRelationManager::class,
+            RelationManagers\AffiliateProfileRelationManager::class,
         ];
     }
 

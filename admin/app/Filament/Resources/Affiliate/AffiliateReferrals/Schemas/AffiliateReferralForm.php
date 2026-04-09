@@ -5,9 +5,9 @@ namespace App\Filament\Resources\Affiliate\AffiliateReferrals\Schemas;
 use App\Enum\Affiliate\AffiliateReferralStatus;
 use App\Support\Filament\EnumPresenter;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class AffiliateReferralForm

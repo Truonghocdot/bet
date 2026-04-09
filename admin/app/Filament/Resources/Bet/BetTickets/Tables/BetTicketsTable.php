@@ -7,13 +7,8 @@ use App\Enum\Bet\BetTicketType;
 use App\Enum\Bet\GameType;
 use App\Enum\Wallet\UnitTransaction;
 use App\Support\Filament\EnumPresenter;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\ForceDeleteBulkAction;
-use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
 class BetTicketsTable
@@ -36,18 +31,8 @@ class BetTicketsTable
                 TextColumn::make('settled_at')->label('Chốt lúc')->dateTime()->toggleable(),
                 TextColumn::make('created_at')->label('Đặt lúc')->dateTime()->sortable(),
             ])
-            ->filters([
-                TrashedFilter::make(),
-            ])
             ->recordActions([
                 EditAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
-                ]),
             ]);
     }
 }

@@ -5,7 +5,7 @@ namespace App\Filament\Resources\Wallet\WalletLedgerEntries\Schemas;
 use App\Enum\Wallet\LedgerDirection;
 use App\Support\Filament\EnumPresenter;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Section;
+use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
