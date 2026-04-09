@@ -7,6 +7,7 @@
 - `Transaction/*`: enum cho nạp/rút
 - `Bet/*`: enum cho game round-based (Wingo/K3/Lottery)
 - `Affiliate/*`: enum cho referral theo mốc
+- `Payment/*`: enum cho tài khoản nhận tiền (bank/crypto)
 
 ## Quy tắc bắt buộc
 
@@ -32,3 +33,12 @@ Enum chính:
   - `PENDING`: đã ghi nhận mốc nhưng chưa trả
   - `PAID`: đã cộng ví và ghi ledger
   - `CANCELED`: hủy chi trả
+
+## Payment receiving account
+
+- `PaymentReceivingAccountType`:
+  - `BANK`: tài khoản ngân hàng
+  - `CRYPTO`: ví tiền ảo / blockchain address
+- `PaymentReceivingAccountStatus`:
+  - `ACTIVE`: được hiển thị cho UI/API
+  - `INACTIVE`: ẩn khỏi UI/API

@@ -48,6 +48,11 @@ Tài liệu này mô tả schema DB cho:
 - `affiliate_referrals.status` -> `App\Enum\Affiliate\AffiliateReferralStatus`
 - `affiliate_reward_logs.status` -> `App\Enum\Affiliate\AffiliateRewardStatus`
 
+### Payment Receiving Account
+
+- `payment_receiving_accounts.type` -> `App\Enum\Payment\PaymentReceivingAccountType`
+- `payment_receiving_accounts.status` -> `App\Enum\Payment\PaymentReceivingAccountStatus`
+
 ## 4) Core tables
 
 ### `users`
@@ -171,6 +176,50 @@ Thông tin tài khoản nhận rút của user.
 - `created_at`: timestamp
 - `updated_at`: timestamp
 - `deleted_at`: timestamp nullable
+
+### `payment_receiving_accounts`
+
+Danh sách tài khoản hệ thống dùng để nhận tiền nạp từ user.  
+Đây là bảng cấu hình nội bộ cho admin, không phải tài khoản của user.
+
+- `id`: bigint unsigned
+- `code`: varchar(50)
+- `name`: varchar(100)
+- `type`: tinyint
+- `unit`: tinyint
+- `provider_code`: varchar(50) nullable
+- `account_name`: varchar(255) nullable
+- `account_number`: varchar(255) nullable
+- `wallet_address`: varchar(255) nullable
+- `network`: varchar(50) nullable
+- `qr_code_path`: varchar(255) nullable
+- `instructions`: text nullable
+- `status`: tinyint
+- `is_default`: boolean
+- `sort_order`: int unsigned
+- `created_at`: timestamp
+- `updated_at`: timestamp
+- `deleted_at`: timestamp nullable
+
+Constraint/index:
+
+- unique(`code`)
+- index(`type`, `unit`, `status`)
+- index(`is_default`, `status`)
+
+Nghiệp vụ:
+
+- `type = BANK`:
+  - `provider_code`, `account_name`, `account_number` là dữ liệu chính.
+  - `unit` thường là `VND`.
+  - `wallet_address` và `network` để `null`.
+- `type = CRYPTO`:
+  - `wallet_address`, `network` là dữ liệu chính.
+  - `unit` thường là `USDT`.
+  - `account_number` có thể để `null` hoặc dùng như mã tham chiếu nội bộ nếu cần.
+- Chỉ `status = ACTIVE` mới được API/public UI hiển thị.
+- `is_default = true` dùng để chọn sẵn tài khoản mặc định cho từng `unit` hoặc từng `type`.
+- `sort_order` dùng để sắp xếp hiển thị khi có nhiều tài khoản nhận tiền.
 
 ## 6) Bet flow chi tiết
 
