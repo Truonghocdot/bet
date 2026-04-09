@@ -2,6 +2,7 @@
 
 namespace App\Enum\Transaction;
 
+// Loại giao dịch
 enum TypeTransaction: int
 {
     case DEPOSIT = 1;

@@ -5,6 +5,7 @@
 Tài liệu này mô tả schema DB cho:
 
 - ví tiền, nạp/rút
+- tỷ giá USDT/VND dùng chung cho Laravel và Gin
 - game cược theo kỳ quay: `Wingo`, `K3`, `Lottery`
 - settlement và audit tài chính
 - affiliate referral theo mốc số người mời hợp lệ
@@ -220,6 +221,95 @@ Nghiệp vụ:
 - Chỉ `status = ACTIVE` mới được API/public UI hiển thị.
 - `is_default = true` dùng để chọn sẵn tài khoản mặc định cho từng `unit` hoặc từng `type`.
 - `sort_order` dùng để sắp xếp hiển thị khi có nhiều tài khoản nhận tiền.
+
+### `vietqr_banks`
+
+Danh mục ngân hàng Việt Nam lấy từ API VietQR.  
+Đây là bảng reference để dùng chung cho admin, API và các service khác.  
+Service Laravel sẽ đồng bộ dữ liệu từ nguồn `https://api.vietqr.io/v2/banks`, lưu vào DB, sau đó prime sang cache và Redis raw JSON.
+
+- `id`: bigint unsigned
+- `source_id`: int unsigned
+- `code`: varchar(50)
+- `name`: varchar(255)
+- `short_name`: varchar(100)
+- `bin`: varchar(20)
+- `logo`: varchar(255) nullable
+- `transfer_supported`: boolean
+- `lookup_supported`: boolean
+- `support`: tinyint nullable
+- `raw_payload`: json nullable
+- `synced_at`: timestamp nullable
+- `created_at`: timestamp
+- `updated_at`: timestamp
+
+Constraint/index:
+
+- unique(`source_id`)
+- unique(`code`)
+- unique(`bin`)
+- index(`short_name`)
+- index(`transfer_supported`, `lookup_supported`)
+
+Nghiệp vụ:
+
+- API VietQR trả về danh sách ngân hàng ở `data[]`.
+- `raw_payload` giữ nguyên object gốc để tương thích khi API bổ sung field mới.
+- Cron `banks:sync-vietqr` sẽ:
+  - gọi API VietQR
+  - upsert toàn bộ ngân hàng vào DB
+  - xóa các ngân hàng không còn trong danh sách nguồn
+  - prime cache Laravel
+  - ghi raw JSON sang Redis key dùng chung cho service khác
+- Laravel cache key: `admin:vietqr:banks:snapshot`
+- Redis shared key raw JSON: `shared:vietqr:banks`
+- Redis connection dùng chung: `shared`
+- Service khác, bao gồm Gin, chỉ cần đọc raw JSON từ Redis key này là dùng lại được ngay, không phụ thuộc serializer của Laravel.
+- TTL cache mặc định: 24 giờ, phù hợp với danh mục ngân hàng ít thay đổi.
+
+## 5) Tỷ giá USDT/VND
+
+### `exchange_rate_settings`
+
+Bảng cấu hình 1 dòng cho tỷ giá `USDT/VND`.  
+Đây là nguồn sự thật trong DB, còn Redis / Cache chỉ là lớp runtime để đọc nhanh và chia sẻ sang service Gin.
+
+- `id`: bigint unsigned
+- `code`: varchar(50)
+- `base_currency`: varchar(10)
+- `quote_currency`: varchar(10)
+- `rate`: decimal(20,8)
+- `source_rate`: decimal(20,8) nullable
+- `auto_sync`: boolean
+- `source_name`: varchar(100) nullable
+- `last_synced_at`: timestamp nullable
+- `updated_by`: bigint unsigned nullable
+- `note`: text nullable
+- `created_at`: timestamp
+- `updated_at`: timestamp
+
+Constraint:
+
+- unique(`code`)
+
+Nghiệp vụ:
+
+- Chỉ có 1 dòng `code = USDT_VND`.
+- `rate` là tỷ giá áp dụng thực tế cho toàn hệ thống.
+- `source_rate` là tỷ giá lấy từ nguồn provider hoặc nguồn đồng bộ gần nhất.
+- Nếu `auto_sync = true`, cron có thể ghi đè `rate` bằng `source_rate`.
+- Nếu `auto_sync = false`, cron chỉ cập nhật `source_rate`, `source_name`, `last_synced_at`, còn `rate` giữ nguyên để admin chỉnh tay.
+- Khi admin chỉnh trong Filament page:
+  - cập nhật DB
+  - đẩy snapshot vào cache Laravel
+  - ghi raw JSON sang Redis key dùng chung cho Gin
+- Laravel cache key: `admin:exchange-rate:usdt-vnd:snapshot`
+- Redis shared key raw JSON: `shared:exchange-rate:usdt-vnd`
+- Redis connection dùng chung: `shared`
+- Gin chỉ đọc raw JSON từ Redis key này, không dùng serializer / cache store của Laravel.
+- Nếu Redis key bị mất, service Laravel phải tự prime lại từ DB khi page hoặc command truy cập.
+- Command đồng bộ: `rates:sync-usdt-vnd`
+- Lịch chạy: mỗi 5 phút, không cho chạy chồng nhau.
 
 ## 6) Bet flow chi tiết
 

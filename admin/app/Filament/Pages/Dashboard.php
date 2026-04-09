@@ -2,9 +2,8 @@
 
 namespace App\Filament\Pages;
 
-use Filament\Pages\Page;
+use Filament\Pages\Dashboard as PagesDashboard;
 
-class Dashboard extends Page
+class Dashboard extends PagesDashboard
 {
-    protected string $view = 'filament.pages.dashboard';
 }

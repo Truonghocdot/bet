@@ -26,6 +26,11 @@ class WithdrawalRequest extends Model
         'reason_rejected',
         'reviewed_by',
         'reviewed_at',
+        'paid_by',
+        'paid_at',
+        'transfer_reference',
+        'transfer_proof_path',
+        'admin_note',
     ];
 
     protected function casts(): array
@@ -37,6 +42,7 @@ class WithdrawalRequest extends Model
             'net_amount' => 'decimal:8',
             'status' => WithdrawalStatus::class,
             'reviewed_at' => 'datetime',
+            'paid_at' => 'datetime',
         ];
     }
 
@@ -58,5 +64,10 @@ class WithdrawalRequest extends Model
     public function reviewedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function paidBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'paid_by');
     }
 }

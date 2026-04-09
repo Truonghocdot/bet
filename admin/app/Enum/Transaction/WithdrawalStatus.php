@@ -2,6 +2,8 @@
 
 namespace App\Enum\Transaction;
 
+
+// Trạng thái rút tiền
 enum WithdrawalStatus: int
 {
     case PENDING = 1;

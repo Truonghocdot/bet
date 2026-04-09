@@ -2,6 +2,8 @@
 
 namespace App\Enum\Transaction;
 
+
+// Trạng thái giao dịch
 enum TransactionStatus: int
 {
     case PENDING = 1;
