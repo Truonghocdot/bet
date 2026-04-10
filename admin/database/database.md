@@ -24,6 +24,9 @@ Tài liệu này mô tả schema DB cho:
 
 - `users.role` -> `App\Enum\User\RoleUser`
 - `users.status` -> `App\Enum\User\UserStatus`
+- `auth_otp_requests.channel` -> `App\Enum\Auth\OtpChannel`
+- `auth_otp_requests.purpose` -> `App\Enum\Auth\OtpPurpose`
+- `auth_otp_requests.status` -> `App\Enum\Auth\OtpStatus`
 - `wallets.unit` -> `App\Enum\Wallet\UnitTransaction`
 - `wallets.status` -> `App\Enum\Wallet\WalletStatus`
 - `wallet_ledger_entries.direction` -> `App\Enum\Wallet\LedgerDirection`
@@ -79,6 +82,75 @@ Index:
 - unique(`email`)
 - unique(`phone`)
 - index(`role`, `status`)
+
+### `auth_otp_requests`
+
+Lưu yêu cầu OTP cho các mục đích auth, trước mắt dùng cho `forgot password`.
+
+- `id`: bigint unsigned
+- `user_id`: bigint unsigned nullable
+- `channel`: tinyint
+- `purpose`: tinyint
+- `target`: varchar(255)
+- `otp_hash`: varchar(255)
+- `otp_last4`: varchar(10)
+- `request_token`: varchar(100)
+- `attempt_count`: int unsigned default `0`
+- `max_attempts`: int unsigned default `5`
+- `expires_at`: timestamp
+- `verified_at`: timestamp nullable
+- `used_at`: timestamp nullable
+- `locked_at`: timestamp nullable
+- `sent_at`: timestamp nullable
+- `status`: tinyint
+- `meta`: json nullable
+- `created_at`: timestamp
+- `updated_at`: timestamp
+
+Constraint/index:
+
+- unique(`request_token`)
+- index(`user_id`, `purpose`, `status`)
+- index(`channel`, `target`, `purpose`, `status`)
+- index(`expires_at`, `status`)
+
+Nghiệp vụ:
+
+- Chỉ lưu `otp_hash`, không lưu OTP plaintext.
+- Mỗi lần tạo OTP reset password mới phải hủy các OTP `PENDING` cũ cùng user/channel/purpose.
+- OTP dùng một lần:
+  - sau khi đổi mật khẩu thành công phải chuyển `status = USED`
+  - set `used_at`
+- Nếu nhập sai quá `max_attempts` thì chuyển `status = LOCKED`.
+- Response public cho bước gửi OTP phải là generic, không để lộ tài khoản có tồn tại hay không.
+
+### `auth_action_limits`
+
+Bảng audit mềm cho anti-spam / abuse.
+
+- `id`: bigint unsigned
+- `scope`: varchar(50)
+- `action`: varchar(50)
+- `subject_key`: varchar(255)
+- `hit_count`: int unsigned
+- `window_started_at`: timestamp
+- `window_ended_at`: timestamp
+- `last_hit_at`: timestamp
+- `meta`: json nullable
+- `created_at`: timestamp
+- `updated_at`: timestamp
+
+Index:
+
+- index(`scope`, `action`)
+- index(`subject_key`, `action`)
+- index(`window_ended_at`)
+
+Nghiệp vụ:
+
+- Bảng này không thay thế Redis rate limit.
+- Redis là lớp chặn nhanh runtime.
+- DB chỉ dùng để audit, phân tích abuse, hiển thị ERP nếu cần.
 
 ### `wallets`
 
@@ -679,3 +751,6 @@ Constraint:
 - Settlement job phải có lock theo `period_id` để tránh chạy song song.
 - Chỉ xét giao dịch nạp `COMPLETED` cho affiliate.
 - Điều kiện tối thiểu 50k nên để config hoặc env, không hard-code trong service.
+- Auth anti-spam phải có cả Redis key runtime và DB audit nếu hệ thống cần điều tra abuse.
+- OTP reset password chỉ lưu hash, không lưu plaintext trong DB.
+- Luồng `forgot password` phải trả response generic để tránh lộ user enumeration.

@@ -1,0 +1,33 @@
+package http
+
+import (
+	"net/http"
+
+	authmiddleware "gin/internal/auth/middleware"
+	"gin/internal/service"
+)
+
+func NewRouter(
+	_ any,
+	authService *service.AuthService,
+	sessionService *service.GameSessionService,
+	betService *service.BetService,
+) http.Handler {
+	mux := http.NewServeMux()
+
+	healthHandler := NewHealthHandler()
+	authHandler := NewAuthHandler(authService)
+	gameHandler := NewGameHandler(sessionService, betService)
+	authn := authmiddleware.NewAuthentication(authService)
+
+	mux.HandleFunc("GET /healthz", healthHandler.ServeHTTP)
+	mux.HandleFunc("POST /v1/auth/register", authHandler.Register)
+	mux.HandleFunc("POST /v1/auth/login", authHandler.Login)
+	mux.HandleFunc("POST /v1/auth/forgot-password", authHandler.ForgotPassword)
+	mux.HandleFunc("POST /v1/auth/forgot-password/verify-otp", authHandler.VerifyForgotPasswordOTP)
+	mux.HandleFunc("POST /v1/auth/reset-password", authHandler.ResetPassword)
+	mux.Handle("GET /v1/auth/me", authn.Require(http.HandlerFunc(authHandler.Me)))
+	mux.Handle("POST /v1/games/", authn.Require(http.HandlerFunc(gameHandler.ServeHTTP)))
+
+	return mux
+}
