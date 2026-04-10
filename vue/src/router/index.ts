@@ -3,7 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/home' },
-  { path: '/play', redirect: '/play/wingo' },
+  { path: '/play', redirect: '/play' },
   {
     path: '/auth',
     name: 'auth',

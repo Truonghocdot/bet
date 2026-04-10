@@ -91,7 +91,7 @@ export const quickActions = [
   { title: 'Nạp tiền', symbol: 'add_card', to: '/deposit', accent: '#004edb' },
   { title: 'Thông báo', symbol: 'notifications', to: '/notifications', accent: '#b71211' },
   { title: 'Hoạt động', symbol: 'campaign', to: '/promotion', accent: '#6c5a00' },
-  { title: 'Phòng chơi', symbol: 'sports_esports', to: '/play/wingo', accent: '#7e9cff' },
+  { title: 'Phòng chơi', symbol: 'sports_esports', to: '/play', accent: '#7e9cff' },
   { title: 'Cá nhân', symbol: 'person', to: '/account', accent: '#004edb' },
 ]
 

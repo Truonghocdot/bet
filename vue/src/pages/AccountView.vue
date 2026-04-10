@@ -1,21 +1,72 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
 import { notificationItems } from '@/data/site'
+import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
+import { useWalletStore } from '@/stores/wallet'
 
 const router = useRouter()
 const auth = useAuthStore()
+const wallet = useWalletStore()
 
 const profile = computed(() => auth.user)
 const affiliate = computed(() => auth.affiliateProfile)
 const unreadNotifications = computed(() => notificationItems.filter((item) => item.unread).length)
 
+const vndWallet = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
+const usdtWallet = computed(() => wallet.wallets.find((item) => item.unit === 2) ?? null)
+
+const walletCards = computed(() => [
+  {
+    unit: 1,
+    label: 'Ví VND',
+    symbol: 'payments',
+    accent: 'from-primary to-primary-container',
+    wallet: vndWallet.value,
+    fractionDigits: 0,
+    helper: 'Dùng cho nạp, rút và các giao dịch nội địa.',
+  },
+  {
+    unit: 2,
+    label: 'Ví USDT',
+    symbol: 'currency_bitcoin',
+    accent: 'from-[#0056e1] to-[#7e9cff]',
+    wallet: usdtWallet.value,
+    fractionDigits: 2,
+    helper: 'Dùng cho nạp USDT và các giao dịch crypto.',
+  },
+])
+
+function walletStatusLabel(status?: number | null) {
+  if (status === 1) return 'Đang hoạt động'
+  if (status === 2) return 'Đang khóa'
+  return 'Chưa rõ'
+}
+
+function walletBalance(value: string | number | null | undefined, fractionDigits = 0) {
+  return formatViMoney(value ?? 0, fractionDigits)
+}
+
+async function loadWalletSummary() {
+  if (!auth.isAuthenticated) return
+  try {
+    await wallet.fetchSummary()
+  } catch {
+    // Wallet state already stores the error for the UI.
+  }
+}
+
 function logout() {
   auth.logout()
+  wallet.reset()
   void router.replace('/auth')
 }
+
+onMounted(() => {
+  void loadWalletSummary()
+})
 </script>
 
 <template>
@@ -35,15 +86,51 @@ function logout() {
       </div>
     </section>
 
-    <section class="grid gap-2 md:grid-cols-[1.25fr_0.75fr]">
-      <article class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(0,78,219,0.05)] md:min-h-[132px] md:p-5">
-        <span class="block text-[0.72rem] font-extrabold uppercase text-on-surface-variant">Ví Của Tôi</span>
-        <strong class="mt-8 block text-[1.35rem] font-black text-primary">Đang đồng bộ</strong>
-        <p class="mt-2 text-[0.76rem] text-on-surface-variant">
-          Số dư sẽ được đồng bộ từ API ví khi backend sẵn sàng.
+    <section class="grid gap-2 md:grid-cols-2">
+      <article
+        v-for="item in walletCards"
+        :key="item.unit"
+        class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(0,78,219,0.05)] md:min-h-[172px] md:p-5"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <span class="block text-[0.72rem] font-extrabold uppercase text-on-surface-variant">{{ item.label }}</span>
+            <strong class="mt-4 block text-[1.8rem] font-black text-primary">
+              <template v-if="wallet.loading && !item.wallet">Đang đồng bộ...</template>
+              <template v-else>{{ walletBalance(item.wallet?.balance, item.fractionDigits) }}</template>
+            </strong>
+          </div>
+          <div class="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br text-white" :class="item.accent">
+            <span class="material-symbols-outlined">{{ item.symbol }}</span>
+          </div>
+        </div>
+
+        <div class="mt-4 grid gap-2 rounded-[16px] bg-slate-50 px-4 py-3 text-[0.8rem] text-on-surface-variant">
+          <div class="flex items-center justify-between gap-3">
+            <span>Số dư khả dụng</span>
+            <span class="font-bold text-on-surface">{{ walletBalance(item.wallet?.balance, item.fractionDigits) }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span>Đang khóa</span>
+            <span class="font-bold text-on-surface">{{ walletBalance(item.wallet?.locked_balance, item.fractionDigits) }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span>Trạng thái</span>
+            <span class="font-bold text-on-surface">{{ walletStatusLabel(item.wallet?.status) }}</span>
+          </div>
+        </div>
+
+        <p class="mt-3 text-[0.76rem] text-on-surface-variant">
+          {{ item.helper }}
         </p>
       </article>
+    </section>
 
+    <p v-if="wallet.error" class="rounded-[16px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-sm font-semibold text-[#b71211]">
+      {{ wallet.error }}
+    </p>
+
+    <section class="grid gap-2 md:grid-cols-[1.25fr_0.75fr]">
       <div class="grid gap-2.5">
         <RouterLink to="/deposit" class="grid min-h-14 place-items-center rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-extrabold text-white transition-transform active:scale-95">
           Nạp tiền
@@ -52,6 +139,23 @@ function logout() {
           Rút tiền
         </button>
       </div>
+
+      <article class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(0,78,219,0.05)] md:p-5">
+        <span class="block text-[0.72rem] font-extrabold uppercase text-on-surface-variant">Thông tin ví</span>
+        <p class="mt-3 text-[0.82rem] leading-6 text-on-surface-variant">
+          Hệ thống đang lấy dữ liệu từ bảng <strong>wallets</strong>. Khi backend trả về số dư thật, màn này sẽ luôn đồng bộ theo token đăng nhập hiện tại.
+        </p>
+        <div class="mt-4 grid gap-2 rounded-[16px] bg-slate-50 px-4 py-3 text-[0.8rem] text-on-surface-variant">
+          <div class="flex items-center justify-between gap-3">
+            <span>Ví hiển thị</span>
+            <span class="font-bold text-on-surface">{{ wallet.wallets.length }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span>Đồng bộ gần nhất</span>
+            <span class="font-bold text-on-surface">{{ profile?.updated_at ? 'Có dữ liệu' : 'Đang chờ' }}</span>
+          </div>
+        </div>
+      </article>
     </section>
 
     <section class="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.05)]">
@@ -106,9 +210,9 @@ function logout() {
       </button>
     </section>
 
-      <button class="min-h-14 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#b71211] transition-transform active:scale-95" @click="logout">
-        Đăng xuất tài khoản
-      </button>
+    <button class="min-h-14 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#b71211] transition-transform active:scale-95" @click="logout">
+      Đăng xuất tài khoản
+    </button>
 
     <p class="mt-3 text-center text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[#abadb2]">
       Phiên bản 2.4.0 • FF789 Gaming Ecosystem

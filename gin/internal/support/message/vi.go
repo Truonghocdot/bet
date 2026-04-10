@@ -49,6 +49,7 @@ const (
 	BetAccepted                    = "Lệnh cược đã được tiếp nhận"
 	DepositAccepted                = "Yêu cầu nạp tiền đã được tiếp nhận"
 	DepositCreated                 = "Yêu cầu nạp tiền đã được tạo"
+	WalletSummarySuccess           = "Lấy thông tin ví thành công"
 	AuthSecretRequired             = "Thiếu AUTH_TOKEN_SECRET"
 	AuthTTLRequired                = "AUTH_TOKEN_TTL phải lớn hơn 0"
 	TokenFormatInvalid             = "Định dạng token không hợp lệ"

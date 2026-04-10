@@ -1,7 +1,9 @@
 package app
 
 import (
+	"bufio"
 	"os"
+	"strings"
 	"strconv"
 	"time"
 )
@@ -39,6 +41,8 @@ type Config struct {
 }
 
 func LoadConfig() Config {
+	loadEnvFiles(".env", "../.env", "../../.env")
+
 	return Config{
 		ServiceName:                      getEnv("APP_NAME", "gin-core"),
 		HTTPAddr:                         getEnv("HTTP_ADDR", ":8081"),
@@ -69,6 +73,47 @@ func LoadConfig() Config {
 		RegisterLimitIP:                  getEnvInt("AUTH_REGISTER_LIMIT_IP", 5),
 		RegisterLimitEmail:               getEnvInt("AUTH_REGISTER_LIMIT_EMAIL", 3),
 		RegisterLimitPhone:               getEnvInt("AUTH_REGISTER_LIMIT_PHONE", 3),
+	}
+}
+
+func loadEnvFiles(paths ...string) {
+	for _, path := range paths {
+		file, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+
+			if strings.HasPrefix(line, "export ") {
+				line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
+			}
+
+			key, value, ok := strings.Cut(line, "=")
+			if !ok {
+				continue
+			}
+
+			key = strings.TrimSpace(key)
+			value = strings.TrimSpace(value)
+			value = strings.Trim(value, `"'`)
+
+			if key == "" {
+				continue
+			}
+
+			if os.Getenv(key) == "" {
+				_ = os.Setenv(key, value)
+			}
+		}
+
+		_ = file.Close()
+		break
 	}
 }
 

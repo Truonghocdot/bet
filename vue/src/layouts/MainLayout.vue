@@ -8,7 +8,7 @@ const navItems = [
   { label: 'Trang chủ', icon: 'home', to: '/home' },
   { label: 'Hoạt động', icon: 'campaign', to: '/promotion' },
   { label: 'Nạp tiền', icon: 'redeem', to: '/deposit' },
-  { label: 'Phòng chơi', icon: 'analytics', to: '/play/wingo' },
+  { label: 'Phòng chơi', icon: 'analytics', to: '/play' },
   { label: 'Tôi', icon: 'person', to: '/account' },
 ]
 

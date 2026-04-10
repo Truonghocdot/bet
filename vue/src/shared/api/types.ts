@@ -118,3 +118,19 @@ export type DepositStatusResponse = {
   receiving_account?: ReceivingAccount | null
 }
 
+export type WalletSummaryItem = {
+  id: number
+  unit: number
+  unit_code: string
+  unit_label: string
+  balance: string
+  locked_balance: string
+  status: number
+  created_at: string
+  updated_at: string
+}
+
+export type WalletSummaryResponse = {
+  message: string
+  wallets: WalletSummaryItem[]
+}

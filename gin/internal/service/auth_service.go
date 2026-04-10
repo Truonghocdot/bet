@@ -138,6 +138,9 @@ func (s *AuthService) Login(ctx context.Context, request auth.LoginRequest, meta
 	profile, hash, err := s.repository.FindByAccount(ctx, account)
 	if err != nil {
 		s.registerLoginFailure(ctx, meta, account)
+		if errors.Is(err, repopg.ErrAccountNotFound) {
+			return auth.AuthResponse{}, ErrInvalidCredentials
+		}
 		return auth.AuthResponse{}, err
 	}
 

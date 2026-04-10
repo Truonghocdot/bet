@@ -89,7 +89,7 @@ const featuredNews = computed(() => newsArticles.filter((article) => article.fea
         <h3 class="m-0 text-[1.05rem] font-black md:text-[1.15rem]">Phòng chơi nổi bật</h3>
         <p class="mt-1 text-[0.76rem] text-on-surface-variant">Danh sách các game-room đang mở, sẵn sàng join.</p>
       </div>
-      <RouterLink to="/play/wingo" class="inline-flex items-center gap-1 text-[0.78rem] font-extrabold text-primary">
+      <RouterLink to="/play" class="inline-flex items-center gap-1 text-[0.78rem] font-extrabold text-primary">
         Xem phòng <span class="material-symbols-outlined text-[1rem]">chevron_right</span>
       </RouterLink>
     </section>
