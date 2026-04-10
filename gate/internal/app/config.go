@@ -7,20 +7,24 @@ import (
 )
 
 type Config struct {
-	ServiceName    string
-	HTTPAddr       string
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
-	ShutdownTimout time.Duration
+	ServiceName        string
+	HTTPAddr           string
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	ShutdownTimout     time.Duration
+	GinInternalBaseURL string
+	GinInternalToken   string
 }
 
 func LoadConfig() Config {
 	return Config{
-		ServiceName:    getEnv("APP_NAME", "gate"),
-		HTTPAddr:       getEnv("HTTP_ADDR", ":8082"),
-		ReadTimeout:    getEnvDuration("HTTP_READ_TIMEOUT", 10*time.Second),
-		WriteTimeout:   getEnvDuration("HTTP_WRITE_TIMEOUT", 10*time.Second),
-		ShutdownTimout: getEnvDuration("HTTP_SHUTDOWN_TIMEOUT", 10*time.Second),
+		ServiceName:        getEnv("APP_NAME", "gate"),
+		HTTPAddr:           getEnv("HTTP_ADDR", ":8082"),
+		ReadTimeout:        getEnvDuration("HTTP_READ_TIMEOUT", 10*time.Second),
+		WriteTimeout:       getEnvDuration("HTTP_WRITE_TIMEOUT", 10*time.Second),
+		ShutdownTimout:     getEnvDuration("HTTP_SHUTDOWN_TIMEOUT", 10*time.Second),
+		GinInternalBaseURL: getEnv("GIN_INTERNAL_BASE_URL", "http://localhost:8081"),
+		GinInternalToken:   getEnv("GIN_INTERNAL_TOKEN", ""),
 	}
 }
 

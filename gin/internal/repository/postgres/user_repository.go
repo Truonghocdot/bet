@@ -75,7 +75,7 @@ func (r *UserRepository) CreateRegisteredUser(ctx context.Context, params Regist
 		return auth.UserProfile{}, err
 	}
 
-	if err := r.insertDefaultWallet(ctx, tx, createdUser.ID); err != nil {
+	if err := r.insertDefaultWallets(ctx, tx, createdUser.ID); err != nil {
 		return auth.UserProfile{}, err
 	}
 
@@ -213,11 +213,18 @@ func (r *UserRepository) insertUser(ctx context.Context, tx *sql.Tx, params Regi
 	return result, nil
 }
 
-func (r *UserRepository) insertDefaultWallet(ctx context.Context, tx *sql.Tx, userID int64) error {
+func (r *UserRepository) insertDefaultWallets(ctx context.Context, tx *sql.Tx, userID int64) error {
+	if _, err := tx.ExecContext(ctx, `
+		insert into wallets (user_id, unit, balance, locked_balance, status, created_at, updated_at)
+		values ($1, $2, 0, 0, $3, now(), now())
+	`, userID, user.WalletUnitVND, user.WalletStatusActive); err != nil {
+		return err
+	}
+
 	_, err := tx.ExecContext(ctx, `
 		insert into wallets (user_id, unit, balance, locked_balance, status, created_at, updated_at)
 		values ($1, $2, 0, 0, $3, now(), now())
-	`, userID, user.WalletUnitVND, user.WalletStatusActive)
+	`, userID, user.WalletUnitUSDT, user.WalletStatusActive)
 
 	return err
 }

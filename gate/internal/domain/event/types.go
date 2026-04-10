@@ -16,3 +16,14 @@ type NotificationRequest struct {
 	Message string         `json:"message"`
 	Meta    map[string]any `json:"meta"`
 }
+
+type DepositApplyRequest struct {
+	Provider       string         `json:"provider"`
+	ProviderStatus string         `json:"provider_status"`
+	ClientRef      string         `json:"client_ref"`
+	ProviderTxnID  string         `json:"provider_txn_id"`
+	Amount         string         `json:"amount"`
+	Currency       string         `json:"currency"`
+	PaidAt         time.Time      `json:"paid_at"`
+	Raw            map[string]any `json:"raw"`
+}

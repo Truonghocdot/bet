@@ -200,6 +200,7 @@ Giao dịch nạp/rút.
 - `id`: bigint unsigned
 - `user_id`: bigint unsigned
 - `wallet_id`: bigint unsigned
+- `client_ref`: varchar(100) nullable, unique
 - `unit`: tinyint
 - `type`: tinyint
 - `amount`: decimal(20,8)
@@ -208,12 +209,34 @@ Giao dịch nạp/rút.
 - `status`: tinyint
 - `provider`: varchar(50) nullable
 - `provider_txn_id`: varchar(100) nullable
+- `receiving_account_id`: bigint unsigned nullable
+- `meta`: json nullable
 - `reason_failed`: text nullable
 - `approved_by`: bigint unsigned nullable
 - `approved_at`: timestamp nullable
 - `created_at`: timestamp
 - `updated_at`: timestamp
 - `deleted_at`: timestamp nullable
+
+Constraint/index:
+
+- unique(`client_ref`)
+- index(`provider`, `provider_txn_id`)
+- index(`receiving_account_id`)
+
+Nghiệp vụ:
+
+- `client_ref` là mã giao dịch do `gin` sinh ra để theo dõi một lần nạp từ lúc khởi tạo đến lúc webhook xác nhận.
+- `receiving_account_id` trỏ về `payment_receiving_accounts`, tức tài khoản nhận tiền mà hệ thống đã chọn ngẫu nhiên cho user ở thời điểm tạo lệnh nạp.
+- `meta` lưu payload gốc của provider, QR payload, hoặc dữ liệu đối soát phụ trợ.
+- Luồng nạp chuẩn:
+  1. `gin` tạo transaction trạng thái `PENDING`.
+  2. `gin` chọn `payment_receiving_accounts` đang `ACTIVE`.
+  3. `gate` nhận webhook callback từ provider, không cần xác thực webhook.
+  4. `gate` chuyển payload đã chuẩn hóa sang `gin` internal endpoint.
+  5. `gin` kiểm tra `client_ref` / `provider_txn_id`, cộng ví, ghi ledger và chuyển transaction sang `COMPLETED`.
+- Với `VietQR/Sepay`, `provider` nên là `sepay_vietqr`.
+- Với `USDT`, `provider` nên là `usdt_gateway` hoặc tên provider thực tế sau này.
 
 ### `withdrawal_requests`
 
@@ -293,6 +316,8 @@ Nghiệp vụ:
 - Chỉ `status = ACTIVE` mới được API/public UI hiển thị.
 - `is_default = true` dùng để chọn sẵn tài khoản mặc định cho từng `unit` hoặc từng `type`.
 - `sort_order` dùng để sắp xếp hiển thị khi có nhiều tài khoản nhận tiền.
+- `gin` đọc danh sách active accounts từ Redis shared key `shared:payment:receiving-accounts:v1`; nếu cache không có thì fallback DB.
+- Đây là nguồn dữ liệu duy nhất cho màn nạp tiền của user.
 
 ### `vietqr_banks`
 

@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	ginclient "gate/internal/integration/gin"
 	"gate/internal/service"
 	httptransport "gate/internal/transport/http"
 )
@@ -18,7 +19,8 @@ type App struct {
 
 func New() (*App, error) {
 	config := LoadConfig()
-	webhookService := service.NewWebhookService()
+	ginClient := ginclient.NewClient(config.GinInternalBaseURL, config.GinInternalToken)
+	webhookService := service.NewWebhookService(ginClient)
 	notificationService := service.NewNotificationService()
 	router := httptransport.NewRouter(webhookService, notificationService)
 

@@ -11,9 +11,9 @@ Service nay dung cho:
 Nhiem vu cua no la:
 
 - nhan request ngoai vao
-- validate chu ky / payload
+- webhook nap tien khong can xac thuc
 - doi payload sang event noi bo
-- day sang queue / outbox / service khac
+- day sang service noi bo (gin) de apply giao dich
 
 ## Cau truc
 
@@ -31,3 +31,9 @@ internal/transport/http
 - `POST /v1/webhooks/deposits/{provider}`
 - `POST /v1/notifications/email`
 - `POST /v1/notifications/push`
+
+## Env toi thieu
+
+- `HTTP_ADDR=:8082`
+- `GIN_INTERNAL_BASE_URL=http://localhost:8081`
+- `GIN_INTERNAL_TOKEN`

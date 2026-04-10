@@ -51,6 +51,7 @@ func New() (*App, error) {
 	hub := ws.NewHub()
 	publisher := outbox.NewNoopPublisher()
 	userRepository := repopg.NewUserRepository(db)
+	depositRepository := repopg.NewDepositRepository(db)
 	limiter := ratelimit.New(redisClient)
 	notifier := gate.NewNotifier(config.GateBaseURL)
 	authService := service.NewAuthService(userRepository, tokenSigner, limiter, notifier, service.AuthConfig{
@@ -73,7 +74,10 @@ func New() (*App, error) {
 	})
 	sessionService := service.NewGameSessionService(hub)
 	betService := service.NewBetService(publisher, sessionService)
-	router := httptransport.NewRouter(config, authService, sessionService, betService)
+	depositService := service.NewDepositService(depositRepository, redisClient, service.DepositConfig{
+		ReceivingAccountsRedisKey: config.PaymentReceivingAccountsRedisKey,
+	})
+	router := httptransport.NewRouter(config, authService, sessionService, betService, depositService, config.InternalToken)
 
 	server := &http.Server{
 		Addr:         config.HTTPAddr,

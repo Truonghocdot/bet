@@ -47,4 +47,13 @@ return [
         'redis_key' => env('VIETQR_BANKS_REDIS_KEY', 'shared:vietqr:banks'),
     ],
 
+    'payment_receiving_accounts' => [
+        'source_name' => env('PAYMENT_RECEIVING_ACCOUNTS_SOURCE_NAME', 'payment_receiving_accounts'),
+        'cache_store' => env('PAYMENT_RECEIVING_ACCOUNTS_CACHE_STORE', 'redis'),
+        'cache_key' => env('PAYMENT_RECEIVING_ACCOUNTS_CACHE_KEY', 'admin:payment:receiving-accounts:snapshot'),
+        'cache_ttl_seconds' => (int) env('PAYMENT_RECEIVING_ACCOUNTS_CACHE_TTL_SECONDS', 300),
+        'redis_connection' => env('PAYMENT_RECEIVING_ACCOUNTS_REDIS_CONNECTION', 'shared'),
+        'redis_key' => env('PAYMENT_RECEIVING_ACCOUNTS_REDIS_KEY', 'shared:payment:receiving-accounts:v1'),
+    ],
+
 ];

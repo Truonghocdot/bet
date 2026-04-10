@@ -6,6 +6,7 @@ use App\Enum\Transaction\TransactionStatus;
 use App\Enum\Transaction\TypeTransaction;
 use App\Enum\Wallet\UnitTransaction;
 use App\Models\User;
+use App\Models\Payment\PaymentReceivingAccount;
 use App\Models\Wallet\Wallet;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +19,7 @@ class Transaction extends Model
     protected $fillable = [
         'user_id',
         'wallet_id',
+        'client_ref',
         'unit',
         'type',
         'amount',
@@ -26,6 +28,8 @@ class Transaction extends Model
         'status',
         'provider',
         'provider_txn_id',
+        'receiving_account_id',
+        'meta',
         'reason_failed',
         'approved_by',
         'approved_at',
@@ -41,6 +45,7 @@ class Transaction extends Model
             'net_amount' => 'decimal:8',
             'status' => TransactionStatus::class,
             'approved_at' => 'datetime',
+            'meta' => 'array',
         ];
     }
 
@@ -52,6 +57,11 @@ class Transaction extends Model
     public function wallet(): BelongsTo
     {
         return $this->belongsTo(Wallet::class);
+    }
+
+    public function receivingAccount(): BelongsTo
+    {
+        return $this->belongsTo(PaymentReceivingAccount::class, 'receiving_account_id');
     }
 
     public function approvedBy(): BelongsTo

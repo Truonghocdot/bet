@@ -15,3 +15,7 @@ Schedule::command('rates:sync-usdt-vnd')
 Schedule::command('banks:sync-vietqr')
     ->dailyAt('03:15')
     ->withoutOverlapping();
+
+Schedule::command('payment:prime-receiving-accounts')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();

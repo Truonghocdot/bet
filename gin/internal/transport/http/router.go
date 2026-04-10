@@ -12,12 +12,15 @@ func NewRouter(
 	authService *service.AuthService,
 	sessionService *service.GameSessionService,
 	betService *service.BetService,
+	depositService *service.DepositService,
+	internalToken string,
 ) http.Handler {
 	mux := http.NewServeMux()
 
 	healthHandler := NewHealthHandler()
 	authHandler := NewAuthHandler(authService)
 	gameHandler := NewGameHandler(sessionService, betService)
+	depositHandler := NewDepositHandler(depositService, internalToken)
 	authn := authmiddleware.NewAuthentication(authService)
 
 	mux.HandleFunc("GET /healthz", healthHandler.ServeHTTP)
@@ -28,6 +31,8 @@ func NewRouter(
 	mux.HandleFunc("POST /v1/auth/reset-password", authHandler.ResetPassword)
 	mux.Handle("GET /v1/auth/me", authn.Require(http.HandlerFunc(authHandler.Me)))
 	mux.Handle("POST /v1/games/", authn.Require(http.HandlerFunc(gameHandler.ServeHTTP)))
+	mux.Handle("POST /v1/deposits/", authn.Require(http.HandlerFunc(depositHandler.ServeHTTP)))
+	mux.HandleFunc("POST /internal/v1/deposits/apply", depositHandler.Apply)
 
 	return mux
 }
