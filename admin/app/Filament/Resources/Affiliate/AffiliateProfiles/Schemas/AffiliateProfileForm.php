@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Affiliate\AffiliateProfiles\Schemas;
 
 use App\Enum\Affiliate\AffiliateProfileStatus;
 use App\Support\Filament\EnumPresenter;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
@@ -40,13 +39,6 @@ class AffiliateProfileForm
                             ->label('Trạng thái')
                             ->options(EnumPresenter::options(AffiliateProfileStatus::class))
                             ->required(),
-                        Select::make('approved_by')
-                            ->label('Duyệt boi')
-                            ->relationship('approvedBy', 'name')
-                            ->searchable()
-                            ->preload(),
-                        DateTimePicker::make('approved_at')
-                            ->label('Duyệt lúc'),
                     ])
                     ->columns(2),
             ]);

@@ -5,7 +5,6 @@ namespace App\Filament\Resources\Users\RelationManagers;
 use App\Enum\Affiliate\AffiliateProfileStatus;
 use App\Support\Filament\EnumPresenter;
 use Filament\Actions\CreateAction;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Select;
@@ -29,15 +28,8 @@ class AffiliateProfileRelationManager extends RelationManager
                         ->label('Trạng thái')
                         ->options(EnumPresenter::options(AffiliateProfileStatus::class))
                         ->required(),
-                    Select::make('approved_by')
-                        ->label('Duyệt bởi')
-                        ->relationship('approvedBy', 'name')
-                        ->searchable()
-                        ->preload(),
-                    DateTimePicker::make('approved_at')
-                        ->label('Duyệt lúc'),
                 ])
-                ->columns(2),
+                ->columns(1),
         ]);
     }
 

@@ -18,8 +18,6 @@ class AffiliateProfilesTable
                 TextColumn::make('user.name')->label('Người dùng')->searchable()->sortable(),
                 TextColumn::make('ref_code')->label('Mã giới thiệu')->searchable()->sortable(),
                 TextColumn::make('status')->label('Trạng thái')->badge()->formatStateUsing(fn ($state): string => EnumPresenter::label(AffiliateProfileStatus::class, $state))->color(fn ($state): string => EnumPresenter::color(AffiliateProfileStatus::class, $state)),
-                TextColumn::make('approvedBy.name')->label('Duyệt boi')->toggleable(),
-                TextColumn::make('approved_at')->label('Duyệt lúc')->dateTime()->toggleable(),
                 TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
             ])
             ->filters([

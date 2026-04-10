@@ -54,7 +54,7 @@ class VietQrBankService
 
             if ($codes !== []) {
                 VietQrBank::query()
-                    ->whereNotIn('code', $codes)
+                    ->whereNotIn('code', $codes)    
                     ->delete();
             }
         });

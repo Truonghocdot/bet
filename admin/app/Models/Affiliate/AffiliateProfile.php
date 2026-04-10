@@ -3,7 +3,6 @@
 namespace App\Models\Affiliate;
 
 use App\Enum\Affiliate\AffiliateProfileStatus;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -16,39 +15,28 @@ class AffiliateProfile extends Model
         'ref_code',
         'ref_link',
         'status',
-        'approved_by',
-        'approved_at',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => AffiliateProfileStatus::class,
-            'approved_at' => 'datetime',
         ];
     }
 
     protected static function booted(): void
     {
         static::creating(function (self $profile): void {
-            if (blank($profile->ref_code)) {
-                $profile->ref_code = static::generateUniqueRefCode();
-            }
+            $identity = static::generateReferralIdentity($profile->ref_code, $profile->ref_link);
 
-            if (blank($profile->ref_link)) {
-                $profile->ref_link = rtrim((string) config('app.url'), '/').'/register?ref='.$profile->ref_code;
-            }
+            $profile->ref_code = $identity['ref_code'];
+            $profile->ref_link = $identity['ref_link'];
         });
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function approvedBy(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'approved_by');
     }
 
     public function links(): HasMany
@@ -66,7 +54,20 @@ class AffiliateProfile extends Model
         return $this->hasMany(AffiliateRewardLog::class);
     }
 
-    private static function generateUniqueRefCode(): string
+    public static function generateReferralIdentity(?string $refCode = null, ?string $refLink = null): array
+    {
+        $resolvedCode = filled($refCode) ? trim((string) $refCode) : static::generateUniqueRefCode();
+        $resolvedLink = filled($refLink)
+            ? trim((string) $refLink)
+            : rtrim((string) config('app.url'), '/').'/register?ref='.$resolvedCode;
+
+        return [
+            'ref_code' => $resolvedCode,
+            'ref_link' => $resolvedLink,
+        ];
+    }
+
+    public static function generateUniqueRefCode(): string
     {
         for ($attempt = 0; $attempt < 20; $attempt++) {
             $code = 'REF'.Str::upper(Str::random(8));

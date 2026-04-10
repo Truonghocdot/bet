@@ -16,12 +16,12 @@ class UserProvisioningService
 {
     public function createFromErp(array $data, ?User $actor = null): User
     {
-        return DB::transaction(function () use ($data, $actor): User {
+        return DB::transaction(function () use ($data): User {
             $user = User::query()->create($this->userPayload($data));
 
             $this->applyBackfillFields($user, $data);
             $this->provisionWallets($user, $data);
-            $this->provisionAffiliateProfile($user, $data, $actor);
+            $this->provisionAffiliateProfile($user, $data);
             $this->provisionAccountWithdrawalInfo($user, $data);
 
             return $user->fresh([
@@ -97,7 +97,7 @@ class UserProvisioningService
         }
     }
 
-    private function provisionAffiliateProfile(User $user, array $data, ?User $actor): void
+    private function provisionAffiliateProfile(User $user, array $data): void
     {
         if (! $this->bool($data, 'provision_affiliate_profile', false)) {
             return;
@@ -108,12 +108,13 @@ class UserProvisioningService
         }
 
         $status = $this->affiliateStatus($data);
+        $identity = AffiliateProfile::generateReferralIdentity();
 
         AffiliateProfile::query()->create([
             'user_id' => $user->id,
+            'ref_code' => $identity['ref_code'],
+            'ref_link' => $identity['ref_link'],
             'status' => $status,
-            'approved_by' => $status === AffiliateProfileStatus::ACTIVE->value ? $actor?->id : null,
-            'approved_at' => $status === AffiliateProfileStatus::ACTIVE->value ? now() : null,
         ]);
     }
 
