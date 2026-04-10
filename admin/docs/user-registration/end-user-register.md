@@ -22,6 +22,23 @@ Khi đăng ký sẽ tiến hành insert user và insert các relation liên quan
 - `password`
 - `ref_code` hoặc `ref_link` nếu có affiliate
 
+## UX liên quan (màn Auth)
+
+Thiết kế UI auth (đăng nhập) có 2 tab:
+
+- đăng nhập bằng `Số điện thoại`
+- đăng nhập bằng `Email`
+
+Hệ quả nghiệp vụ:
+
+- `phone` là field optional, nhưng nếu user đã đăng ký bằng phone thì login có thể dùng phone.
+- nếu user chỉ đăng ký bằng email thì tab phone phải hiển thị lỗi phù hợp (không leak enumeration ở luồng quên mật khẩu).
+
+Ngoài ra UI có:
+
+- `Nhớ mật khẩu`: chỉ là behavior phía client (lưu token/credential theo policy), backend không cần field riêng.
+- `Quên mật khẩu?`: gọi luồng OTP reset password theo tài liệu auth-security.
+
 ## Validation
 
 - `name` bắt buộc, độ dài hợp lệ
@@ -44,6 +61,18 @@ Khi đăng ký sẽ tiến hành insert user và insert các relation liên quan
 - không set `approved_by`
 - không set `last_login_at`
 - không tạo được các record kỹ thuật như `ledger`, `transaction`, `withdrawal request`
+
+## Liên kết: Quên mật khẩu (OTP)
+
+UI có entry `Quên mật khẩu?`.
+
+Nghiệp vụ bắt buộc:
+
+- public response phải generic, không để lộ email/phone có tồn tại hay không.
+- OTP reset password chỉ lưu hash (không lưu OTP plaintext).
+- có rate-limit/cooldown để chống spam.
+
+Chi tiết xem: `admin/docs/auth-security/forgot-password-and-anti-spam.md`.
 
 ## Kết quả mong muốn
 

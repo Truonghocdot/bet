@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Win Go 30s - ff789</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#dde1ff",
+                        "on-primary-fixed": "#000000",
+                        "error-container": "#fb5151",
+                        "background": "#f7f5ff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#d5dbff",
+                        "on-error": "#ffefee",
+                        "tertiary-dim": "#5f4e00",
+                        "primary-dim": "#004ca4",
+                        "inverse-on-surface": "#929bc6",
+                        "primary-fixed-dim": "#5191ff",
+                        "tertiary-fixed": "#fdd404",
+                        "on-background": "#232c51",
+                        "on-surface": "#232c51",
+                        "on-secondary": "#eff2ff",
+                        "inverse-primary": "#4b8eff",
+                        "surface": "#f7f5ff",
+                        "on-secondary-container": "#254877",
+                        "primary": "#0058bb",
+                        "secondary-container": "#bad3ff",
+                        "inverse-surface": "#020a2f",
+                        "secondary-fixed-dim": "#a5c5fc",
+                        "error-dim": "#9f0519",
+                        "on-tertiary-container": "#594a00",
+                        "tertiary": "#6d5a00",
+                        "primary-fixed": "#6c9fff",
+                        "error": "#b31b25",
+                        "surface-container": "#e4e7ff",
+                        "secondary-fixed": "#bad3ff",
+                        "outline": "#6c759e",
+                        "on-primary-container": "#00214f",
+                        "surface-container-low": "#efefff",
+                        "on-secondary-fixed": "#0c3463",
+                        "tertiary-container": "#fdd404",
+                        "on-surface-variant": "#515981",
+                        "on-primary-fixed-variant": "#002a61",
+                        "on-primary": "#f0f2ff",
+                        "surface-tint": "#0058bb",
+                        "secondary-dim": "#2f5080",
+                        "surface-bright": "#f7f5ff",
+                        "on-error-container": "#570008",
+                        "primary-container": "#6c9fff",
+                        "surface-dim": "#cad2ff",
+                        "tertiary-fixed-dim": "#edc600",
+                        "outline-variant": "#a2abd7",
+                        "secondary": "#3b5c8d",
+                        "on-tertiary": "#fff2ce",
+                        "on-tertiary-fixed": "#433700",
+                        "on-secondary-fixed-variant": "#305181",
+                        "surface-container-highest": "#d5dbff",
+                        "on-tertiary-fixed-variant": "#645300"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #0058bb 0%, #004ca4 100%);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(24px);
+        }
+        ::-webkit-scrollbar { display: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface antialiased">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center px-4 h-16 w-full z-50 fixed top-0 bg-[#f7f5ff] dark:bg-[#1a1b1e]">
+<div class="flex items-center gap-3">
+<button class="active:scale-95 transition-transform duration-200 text-[#0058bb] dark:text-[#6c9fff]">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="text-lg font-bold text-[#232c51] dark:text-[#f7f5ff] font-['Plus_Jakarta_Sans'] tracking-tight">Win Go 30s</h1>
+</div>
+<button class="text-[#0058bb] dark:text-[#6c9fff] font-['Plus_Jakarta_Sans'] font-bold tracking-tight hover:opacity-80 transition-opacity">
+            Hỗ trợ
+        </button>
+</header>
+<main class="pt-16 pb-24 px-4 space-y-4">
+<!-- Balance & Actions -->
+<section class="bg-gradient-primary rounded-xl p-5 text-on-primary shadow-lg relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined text-6xl" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+</div>
+<div class="space-y-1">
+<p class="text-sm font-label opacity-80 uppercase tracking-widest">Số dư hiện tại</p>
+<div class="flex items-center gap-2">
+<h2 class="text-3xl font-headline font-extrabold">51,558,000đ</h2>
+<span class="material-symbols-outlined cursor-pointer">refresh</span>
+</div>
+</div>
+<div class="flex gap-3 mt-5">
+<button class="flex-1 bg-surface-container-lowest text-primary py-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm">
+<span class="material-symbols-outlined text-xl">add_circle</span>
+                    Nạp tiền
+                </button>
+<button class="flex-1 bg-primary-container/20 border border-primary-container/30 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-xl">account_balance</span>
+                    Rút tiền
+                </button>
+</div>
+</section>
+<!-- Announcements Marquee -->
+<div class="bg-surface-container-low rounded-full px-4 py-2 flex items-center gap-3 overflow-hidden">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">campaign</span>
+<div class="flex-1 overflow-hidden">
+<p class="text-xs font-medium whitespace-nowrap animate-pulse">Chúc mừng người chơi ***123 vừa thắng 2,500,000đ tại Win Go!</p>
+</div>
+</div>
+<!-- Game Selection Tabs -->
+<section class="grid grid-cols-4 gap-2">
+<button class="bg-primary text-white p-3 rounded-xl flex flex-col items-center gap-1 shadow-md">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">timer</span>
+<span class="text-[10px] font-bold uppercase">30 Giây</span>
+</button>
+<button class="bg-surface-container-lowest text-on-surface-variant p-3 rounded-xl flex flex-col items-center gap-1 hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">timer_10</span>
+<span class="text-[10px] font-bold uppercase">1 Phút</span>
+</button>
+<button class="bg-surface-container-lowest text-on-surface-variant p-3 rounded-xl flex flex-col items-center gap-1 hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">timer_3</span>
+<span class="text-[10px] font-bold uppercase">3 Phút</span>
+</button>
+<button class="bg-surface-container-lowest text-on-surface-variant p-3 rounded-xl flex flex-col items-center gap-1 hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">timer_5</span>
+<span class="text-[10px] font-bold uppercase">5 Phút</span>
+</button>
+</section>
+<!-- Countdown & Results Grid -->
+<section class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm space-y-2">
+<p class="text-xs text-on-surface-variant font-medium">Số kỳ: <span class="text-primary font-bold">20240520342</span></p>
+<div class="flex gap-2">
+<div class="bg-primary/10 text-primary w-10 h-12 flex items-center justify-center text-2xl font-headline font-bold rounded-lg border border-primary/20">0</div>
+<div class="bg-primary/10 text-primary w-10 h-12 flex items-center justify-center text-2xl font-headline font-bold rounded-lg border border-primary/20">0</div>
+<span class="flex items-center text-primary font-bold">:</span>
+<div class="bg-error/10 text-error w-10 h-12 flex items-center justify-center text-2xl font-headline font-bold rounded-lg border border-error/20">2</div>
+<div class="bg-error/10 text-error w-10 h-12 flex items-center justify-center text-2xl font-headline font-bold rounded-lg border border-error/20">8</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm">
+<p class="text-xs text-on-surface-variant font-medium mb-2">Kết quả gần đây</p>
+<div class="flex flex-wrap gap-2">
+<div class="w-6 h-6 rounded-full bg-error flex items-center justify-center text-[10px] text-white font-bold">3</div>
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-white font-bold">7</div>
+<div class="w-6 h-6 rounded-full bg-tertiary-dim flex items-center justify-center text-[10px] text-white font-bold">5</div>
+<div class="w-6 h-6 rounded-full bg-error flex items-center justify-center text-[10px] text-white font-bold">1</div>
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-white font-bold">8</div>
+</div>
+</div>
+</section>
+<!-- Betting Area -->
+<section class="bg-surface-container-lowest p-5 rounded-2xl shadow-sm space-y-6">
+<!-- Color Selection -->
+<div class="grid grid-cols-3 gap-3">
+<button class="bg-[#2ecc71] text-white py-3 rounded-xl font-bold active:scale-95 transition-all shadow-md shadow-green-200">Xanh</button>
+<button class="bg-[#9b59b6] text-white py-3 rounded-xl font-bold active:scale-95 transition-all shadow-md shadow-purple-200">Tím</button>
+<button class="bg-[#e74c3c] text-white py-3 rounded-xl font-bold active:scale-95 transition-all shadow-md shadow-red-200">Đỏ</button>
+</div>
+<!-- Number Grid -->
+<div class="grid grid-cols-5 gap-3">
+<button class="w-full aspect-square rounded-full border-2 border-purple-500 text-purple-600 font-bold text-xl hover:bg-purple-50 transition-colors">0</button>
+<button class="w-full aspect-square rounded-full border-2 border-green-500 text-green-600 font-bold text-xl hover:bg-green-50 transition-colors">1</button>
+<button class="w-full aspect-square rounded-full border-2 border-red-500 text-red-600 font-bold text-xl hover:bg-red-50 transition-colors">2</button>
+<button class="w-full aspect-square rounded-full border-2 border-green-500 text-green-600 font-bold text-xl hover:bg-green-50 transition-colors">3</button>
+<button class="w-full aspect-square rounded-full border-2 border-red-500 text-red-600 font-bold text-xl hover:bg-red-50 transition-colors">4</button>
+<button class="w-full aspect-square rounded-full border-2 border-purple-500 text-purple-600 font-bold text-xl hover:bg-purple-50 transition-colors">5</button>
+<button class="w-full aspect-square rounded-full border-2 border-red-500 text-red-600 font-bold text-xl hover:bg-red-50 transition-colors">6</button>
+<button class="w-full aspect-square rounded-full border-2 border-green-500 text-green-600 font-bold text-xl hover:bg-green-50 transition-colors">7</button>
+<button class="w-full aspect-square rounded-full border-2 border-red-500 text-red-600 font-bold text-xl hover:bg-red-50 transition-colors">8</button>
+<button class="w-full aspect-square rounded-full border-2 border-green-500 text-green-600 font-bold text-xl hover:bg-green-50 transition-colors">9</button>
+</div>
+<!-- Multipliers & Presets -->
+<div class="flex items-center justify-between gap-2">
+<button class="px-4 py-2 bg-surface-container rounded-lg text-xs font-bold active:bg-primary active:text-white transition-all">Ngẫu nhiên</button>
+<div class="flex gap-1">
+<button class="w-10 h-8 bg-surface-container-low rounded-lg text-xs font-bold hover:bg-primary-container">X1</button>
+<button class="w-10 h-8 bg-surface-container-low rounded-lg text-xs font-bold hover:bg-primary-container">X5</button>
+<button class="w-10 h-8 bg-primary text-white rounded-lg text-xs font-bold">X10</button>
+<button class="w-10 h-8 bg-surface-container-low rounded-lg text-xs font-bold hover:bg-primary-container">X20</button>
+<button class="w-10 h-8 bg-surface-container-low rounded-lg text-xs font-bold hover:bg-primary-container">X50</button>
+</div>
+</div>
+<!-- Size Options -->
+<div class="flex gap-4">
+<button class="flex-1 py-4 bg-tertiary-container text-on-tertiary-container font-headline font-extrabold text-lg rounded-xl active:scale-95 transition-all">LỚN</button>
+<button class="flex-1 py-4 bg-primary-container text-on-primary-container font-headline font-extrabold text-lg rounded-xl active:scale-95 transition-all">NHỎ</button>
+</div>
+</section>
+<!-- History Tabs -->
+<section class="bg-surface-container-lowest rounded-2xl shadow-sm overflow-hidden">
+<div class="flex border-b border-outline-variant/10">
+<button class="flex-1 py-4 text-sm font-bold text-primary border-b-2 border-primary">Lịch sử trò chơi</button>
+<button class="flex-1 py-4 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">Biểu đồ</button>
+<button class="flex-1 py-4 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">Lịch sử của tôi</button>
+</div>
+<!-- Data Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-low">
+<tr>
+<th class="p-4 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Kỳ xổ</th>
+<th class="p-4 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Số</th>
+<th class="p-4 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Lớn nhỏ</th>
+<th class="p-4 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Màu sắc</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr>
+<td class="p-4 text-xs font-medium">...341</td>
+<td class="p-4"><span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-error text-white font-bold text-[10px]">2</span></td>
+<td class="p-4 text-xs font-bold text-primary-container">Nhỏ</td>
+<td class="p-4"><div class="w-3 h-3 rounded-full bg-error"></div></td>
+</tr>
+<tr>
+<td class="p-4 text-xs font-medium">...340</td>
+<td class="p-4"><span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-primary text-white font-bold text-[10px]">7</span></td>
+<td class="p-4 text-xs font-bold text-tertiary">Lớn</td>
+<td class="p-4"><div class="w-3 h-3 rounded-full bg-primary"></div></td>
+</tr>
+<tr>
+<td class="p-4 text-xs font-medium">...339</td>
+<td class="p-4"><span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-purple-500 text-white font-bold text-[10px]">5</span></td>
+<td class="p-4 text-xs font-bold text-tertiary">Lớn</td>
+<td class="p-4"><div class="w-3 h-3 rounded-full bg-purple-500"></div></td>
+</tr>
+<tr>
+<td class="p-4 text-xs font-medium">...338</td>
+<td class="p-4"><span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-error text-white font-bold text-[10px]">4</span></td>
+<td class="p-4 text-xs font-bold text-primary-container">Nhỏ</td>
+<td class="p-4"><div class="w-3 h-3 rounded-full bg-error"></div></td>
+</tr>
+</tbody>
+</table>
+<div class="p-4 flex justify-center">
+<button class="text-primary text-xs font-bold flex items-center gap-1">
+                        Xem thêm <span class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center h-20 pb-safe bg-white/80 dark:bg-[#1a1b1e]/80 backdrop-blur-xl border-t border-[#232c51]/10 dark:border-white/10 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50 rounded-t-2xl">
+<div class="flex flex-col items-center justify-center text-[#0058bb] dark:text-[#6c9fff] font-bold active:scale-90 transition-all cubic-bezier(0.16,1,0.3,1)">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">sports_esports</span>
+<span class="font-['Inter'] text-[11px] font-medium uppercase tracking-wider">Game</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#232c51]/60 dark:text-[#f7f5ff]/60 hover:text-[#0058bb] dark:hover:text-[#6c9fff] active:scale-90 transition-all">
+<span class="material-symbols-outlined">trending_up</span>
+<span class="font-['Inter'] text-[11px] font-medium uppercase tracking-wider">Trend</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#232c51]/60 dark:text-[#f7f5ff]/60 hover:text-[#0058bb] dark:hover:text-[#6c9fff] active:scale-90 transition-all">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-['Inter'] text-[11px] font-medium uppercase tracking-wider">Record</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#232c51]/60 dark:text-[#f7f5ff]/60 hover:text-[#0058bb] dark:hover:text-[#6c9fff] active:scale-90 transition-all">
+<span class="material-symbols-outlined">person</span>
+<span class="font-['Inter'] text-[11px] font-medium uppercase tracking-wider">Mine</span>
+</div>
+</nav>
+</body></html>

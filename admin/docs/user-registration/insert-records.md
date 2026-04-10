@@ -11,6 +11,13 @@ Thứ tự insert khuyến nghị:
 3. `affiliate_profiles`
 4. `affiliate_referrals` nếu có referral code/link hợp lệ
 
+Ghi chú UX:
+
+- màn đăng nhập có tab `Số điện thoại` và `Email`, nên khi register:
+  - `email` bắt buộc
+  - `phone` có thể optional tuỳ policy, nhưng nếu nhập thì phải unique
+- `Nhớ mật khẩu` là client-side (không insert DB)
+
 ### 1.1 `users` - bắt buộc
 
 Insert bản ghi user gốc với các field tối thiểu:
@@ -80,6 +87,10 @@ Không tạo các record sau ở bước register:
 - `wallet_ledger_entries`
 - `account_withdrawal_infos`
 - `affiliate_reward_logs`
+
+Lưu ý:
+
+- Luồng `Quên mật khẩu (OTP)` sẽ insert vào bảng `auth_otp_requests` (không thuộc register).
 
 ## 2) ERP Create User
 

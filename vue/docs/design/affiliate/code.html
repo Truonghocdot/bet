@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>FF789 - Hỗ trợ Đại lý</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed-variant": "#002572",
+                    "outline": "#75777b",
+                    "on-surface": "#2c2f33",
+                    "on-error": "#ffefef",
+                    "on-tertiary-container": "#5b4b00",
+                    "primary-dim": "#0044c1",
+                    "inverse-surface": "#0c0e12",
+                    "tertiary-fixed-dim": "#efc900",
+                    "outline-variant": "#abadb2",
+                    "on-secondary-container": "#940005",
+                    "surface-container-high": "#e0e2e9",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-tint": "#004edb",
+                    "on-tertiary": "#fff2cd",
+                    "inverse-on-surface": "#9b9da1",
+                    "error-container": "#f74b6d",
+                    "tertiary-container": "#ffd709",
+                    "secondary": "#b71211",
+                    "surface-bright": "#f5f6fb",
+                    "surface-variant": "#dadde4",
+                    "on-secondary-fixed-variant": "#a60007",
+                    "tertiary": "#6c5a00",
+                    "secondary-container": "#ffc3bb",
+                    "on-secondary-fixed": "#700003",
+                    "surface-dim": "#d1d4dc",
+                    "surface": "#f5f6fb",
+                    "tertiary-dim": "#5e4e00",
+                    "error": "#b41340",
+                    "primary-fixed-dim": "#698dff",
+                    "surface-container": "#e6e8ee",
+                    "inverse-primary": "#648aff",
+                    "error-dim": "#a70138",
+                    "primary": "#004edb",
+                    "on-secondary": "#ffefed",
+                    "surface-container-low": "#eff1f6",
+                    "secondary-dim": "#a40007",
+                    "on-error-container": "#510017",
+                    "on-tertiary-fixed": "#453900",
+                    "on-surface-variant": "#595c60",
+                    "background": "#f5f6fb",
+                    "on-background": "#2c2f33",
+                    "on-tertiary-fixed-variant": "#665500",
+                    "primary-container": "#7e9cff",
+                    "primary-fixed": "#7e9cff",
+                    "on-primary-container": "#001d5d",
+                    "secondary-fixed-dim": "#ffb0a5",
+                    "surface-container-highest": "#dadde4",
+                    "on-primary-fixed": "#000000",
+                    "tertiary-fixed": "#ffd709",
+                    "secondary-fixed": "#ffc3bb",
+                    "on-primary": "#f1f2ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .kinetic-gradient {
+            background: linear-gradient(135deg, #004edb 0%, #7e9cff 100%);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface antialiased pb-24">
+<!-- Top Navigation Anchor -->
+<header class="fixed top-0 w-full z-50 bg-slate-50/80 backdrop-blur-xl shadow-[0px_12px_32px_rgba(0,78,219,0.08)] flex justify-between items-center px-4 h-16">
+<div class="flex items-center gap-3">
+<button class="material-symbols-outlined text-blue-700 active:scale-95 transition-transform">menu</button>
+<span class="text-xl font-black italic text-blue-700 tracking-tighter">FF789</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="font-plus-jakarta text-sm font-bold tracking-tight text-blue-700">Hỗ trợ Đại lý</span>
+<button class="material-symbols-outlined text-blue-700 active:scale-95 transition-transform">send</button>
+</div>
+</header>
+<main class="pt-20 px-4 space-y-6">
+<!-- Hero Stats Section (Kinetic Bento Grid) -->
+<section class="grid grid-cols-2 gap-3">
+<!-- Total Commission Card - Spans 2 columns -->
+<div class="col-span-2 kinetic-gradient p-6 rounded-xl shadow-lg relative overflow-hidden flex flex-col justify-between h-40">
+<div class="absolute -top-4 -right-4 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+<div class="z-10">
+<span class="text-on-primary/70 text-xs font-bold uppercase tracking-wider">Tổng hoa hồng (VNĐ)</span>
+<h2 class="text-white text-3xl font-black tracking-tighter mt-1">150.250.000</h2>
+</div>
+<div class="z-10 flex justify-between items-end">
+<div class="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+<span class="material-symbols-outlined text-white text-sm" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+<span class="text-white text-xs font-bold">+12.5% tháng này</span>
+</div>
+<button class="bg-tertiary-container text-on-tertiary-container px-4 py-2 rounded-xl text-xs font-black uppercase active:scale-95 transition-all shadow-md">Rút Tiền</button>
+</div>
+</div>
+<!-- Members Card -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-[0px_12px_32px_rgba(0,78,219,0.05)] flex flex-col justify-between border-b-4 border-primary">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">group</span>
+</div>
+<div class="mt-4">
+<span class="text-on-surface-variant text-[10px] font-bold uppercase">Thành viên mới</span>
+<p class="text-on-surface text-xl font-black">1,248</p>
+</div>
+</div>
+<!-- Deposits Card -->
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-[0px_12px_32px_rgba(0,78,219,0.05)] flex flex-col justify-between border-b-4 border-secondary">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-secondary bg-secondary/10 p-2 rounded-lg">payments</span>
+</div>
+<div class="mt-4">
+<span class="text-on-surface-variant text-[10px] font-bold uppercase">Nạp tiền hôm nay</span>
+<p class="text-on-surface text-xl font-black">45.000k</p>
+</div>
+</div>
+</section>
+<!-- Referral Link CTA -->
+<section class="bg-surface-container-low p-5 rounded-2xl relative overflow-hidden group">
+<div class="relative z-10 flex items-center justify-between">
+<div class="space-y-1">
+<h3 class="text-primary font-black text-lg">Mời bạn bè, Nhận 150k</h3>
+<p class="text-on-surface-variant text-xs font-medium">Chia sẻ mã QR để nhận thêm hoa hồng</p>
+</div>
+<button class="bg-primary text-on-primary p-3 rounded-full shadow-lg active:scale-90 transition-transform">
+<span class="material-symbols-outlined">share</span>
+</button>
+</div>
+<div class="mt-4 bg-surface-container-lowest flex items-center justify-between p-3 rounded-xl border border-primary/10">
+<span class="text-primary font-bold text-sm tracking-tight truncate mr-4">ff789.com/ref/agency_001</span>
+<button class="bg-primary-container/20 text-primary px-3 py-1 rounded-lg text-xs font-black uppercase">Sao chép</button>
+</div>
+<!-- Decorative bleed element -->
+<div class="absolute -bottom-2 -right-2 opacity-5">
+<span class="material-symbols-outlined text-9xl">link</span>
+</div>
+</section>
+<!-- Agency Management Menu (Detailed List) -->
+<section class="space-y-3">
+<h4 class="text-on-surface-variant text-xs font-black uppercase tracking-[0.2em] px-1">Quản lý hệ thống</h4>
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm">
+<!-- Item 1: Subordinate Data -->
+<div class="flex items-center p-4 hover:bg-surface-container-low transition-colors active:scale-[0.99]">
+<div class="bg-blue-50 p-2 rounded-xl mr-4">
+<span class="material-symbols-outlined text-blue-700" style="font-variation-settings: 'FILL' 1;">dataset</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-bold text-sm">Dữ liệu cấp dưới</p>
+<p class="text-on-surface-variant text-[10px]">Thống kê chi tiết thành viên hệ thống</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<!-- Tonal Separation (No Border Rule) -->
+<div class="h-[1px] bg-surface-container mx-4"></div>
+<!-- Item 2: Commission Details -->
+<div class="flex items-center p-4 hover:bg-surface-container-low transition-colors active:scale-[0.99]">
+<div class="bg-orange-50 p-2 rounded-xl mr-4">
+<span class="material-symbols-outlined text-orange-600" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-bold text-sm">Chi tiết hoa hồng</p>
+<p class="text-on-surface-variant text-[10px]">Lịch sử nhận và rút tiền hoa hồng</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<div class="h-[1px] bg-surface-container mx-4"></div>
+<!-- Item 3: Agent Rules -->
+<div class="flex items-center p-4 hover:bg-surface-container-low transition-colors active:scale-[0.99]">
+<div class="bg-purple-50 p-2 rounded-xl mr-4">
+<span class="material-symbols-outlined text-purple-600" style="font-variation-settings: 'FILL' 1;">gavel</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-bold text-sm">Quy tắc đại lý</p>
+<p class="text-on-surface-variant text-[10px]">Chính sách và điều khoản hợp tác</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<div class="h-[1px] bg-surface-container mx-4"></div>
+<!-- Item 4: Agent Support -->
+<div class="flex items-center p-4 hover:bg-surface-container-low transition-colors active:scale-[0.99]">
+<div class="bg-green-50 p-2 rounded-xl mr-4">
+<span class="material-symbols-outlined text-green-600" style="font-variation-settings: 'FILL' 1;">support_agent</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-bold text-sm">Hỗ trợ trực tuyến 24/7</p>
+<p class="text-on-surface-variant text-[10px]">Liên hệ chuyên viên đại lý</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+</div>
+</section>
+<!-- Promo Banner (Editorial Style) -->
+<section class="bg-secondary-container rounded-2xl p-4 flex items-center gap-4 relative overflow-hidden group">
+<div class="flex-1 z-10">
+<span class="bg-secondary text-on-secondary text-[10px] font-black px-2 py-0.5 rounded-full uppercase mb-2 inline-block">Khuyến mãi cực sốc</span>
+<h5 class="text-on-secondary-container font-black leading-tight">Thưởng doanh số <br/>lên tới 1.5 tỷ VNĐ</h5>
+</div>
+<div class="w-24 h-24 relative z-10 flex items-center justify-center">
+<div class="absolute inset-0 bg-white/20 rounded-full blur-xl group-hover:scale-125 transition-transform"></div>
+<span class="material-symbols-outlined text-5xl text-secondary" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-2 py-3 pb-safe bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-50 rounded-t-2xl shadow-[0px_-8px_24px_rgba(0,78,219,0.06)]">
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 active:scale-90 transition-all" href="#">
+<span class="material-symbols-outlined mb-0.5">home</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Trang chủ</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 active:scale-90 transition-all" href="#">
+<span class="material-symbols-outlined mb-0.5">analytics</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Hoạt động</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-blue-50 text-blue-700 rounded-xl px-3 py-1 active:scale-90 transition-all" href="#">
+<span class="material-symbols-outlined mb-0.5" style="font-variation-settings: 'FILL' 1;">campaign</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Tiếp thị</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 active:scale-90 transition-all" href="#">
+<span class="material-symbols-outlined mb-0.5">redeem</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Kiếm 150k</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1 active:scale-90 transition-all" href="#">
+<span class="material-symbols-outlined mb-0.5">person</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Tôi</span>
+</a>
+</nav>
+<!-- Floating Support FAB -->
+<button class="fixed bottom-24 right-6 bg-secondary text-on-secondary w-14 h-14 rounded-full shadow-[0px_12px_32px_rgba(183,18,17,0.3)] flex items-center justify-center z-40 active:scale-95 transition-transform">
+<span class="material-symbols-outlined">headset_mic</span>
+</button>
+</body></html>

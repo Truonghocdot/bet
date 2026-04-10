@@ -16,3 +16,7 @@ Tài liệu liên quan:
 - [End User Register](./end-user-register.md)
 - [ERP Create User](./erp-create-user.md)
 - [Bản ghi cần insert](./insert-records.md)
+
+Tài liệu liên quan khác:
+
+- Auth/anti-spam/forgot password (OTP): `admin/docs/auth-security/forgot-password-and-anti-spam.md`

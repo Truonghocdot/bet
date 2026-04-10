@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Đăng nhập - ff789</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-dim": "#d1d4dc",
+                        "surface-container-high": "#e0e2e9",
+                        "outline": "#75777b",
+                        "surface-container-low": "#eff1f6",
+                        "on-tertiary": "#fff2cd",
+                        "on-primary-container": "#001d5d",
+                        "on-secondary-fixed": "#700003",
+                        "primary": "#004edb",
+                        "error-container": "#f74b6d",
+                        "on-primary-fixed": "#000000",
+                        "secondary-fixed": "#ffc3bb",
+                        "inverse-on-surface": "#9b9da1",
+                        "on-tertiary-container": "#5b4b00",
+                        "primary-container": "#7e9cff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#e6e8ee",
+                        "tertiary-dim": "#5e4e00",
+                        "primary-fixed": "#7e9cff",
+                        "background": "#f5f6fb",
+                        "error-dim": "#a70138",
+                        "on-error-container": "#510017",
+                        "surface-container-highest": "#dadde4",
+                        "surface-bright": "#f5f6fb",
+                        "tertiary": "#6c5a00",
+                        "on-error": "#ffefef",
+                        "on-surface": "#2c2f33",
+                        "on-secondary": "#ffefed",
+                        "inverse-primary": "#648aff",
+                        "secondary-fixed-dim": "#ffb0a5",
+                        "tertiary-fixed-dim": "#efc900",
+                        "on-tertiary-fixed-variant": "#665500",
+                        "on-primary-fixed-variant": "#002572",
+                        "primary-dim": "#0044c1",
+                        "secondary": "#b71211",
+                        "error": "#b41340",
+                        "secondary-container": "#ffc3bb",
+                        "tertiary-fixed": "#ffd709",
+                        "primary-fixed-dim": "#698dff",
+                        "on-secondary-container": "#940005",
+                        "on-background": "#2c2f33",
+                        "surface": "#f5f6fb",
+                        "inverse-surface": "#0c0e12",
+                        "on-tertiary-fixed": "#453900",
+                        "outline-variant": "#abadb2",
+                        "surface-tint": "#004edb",
+                        "on-secondary-fixed-variant": "#a60007",
+                        "on-primary": "#f1f2ff",
+                        "secondary-dim": "#a40007",
+                        "tertiary-container": "#ffd709",
+                        "on-surface-variant": "#595c60",
+                        "surface-variant": "#dadde4"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .kinetic-gradient {
+            background: linear-gradient(135deg, #004edb 0%, #7e9cff 100%);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(24px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#f5f6fb] dark:bg-slate-900 flex items-center justify-between px-4 h-16 w-full">
+<button class="flex items-center text-slate-500 hover:opacity-80 transition-opacity active:scale-95 duration-200">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="font-['Plus_Jakarta_Sans'] font-bold tracking-tight text-[#004edb] dark:text-[#7e9cff] text-xl">Đăng nhập</h1>
+<button class="text-[#004edb] dark:text-[#7e9cff] font-['Plus_Jakarta_Sans'] font-bold tracking-tight hover:opacity-80 transition-opacity active:scale-95 duration-200">Hỗ trợ</button>
+</header>
+<main class="flex-grow pt-20 pb-24 px-6">
+<!-- Logo Branding Section -->
+<div class="flex flex-col items-center mb-10">
+<div class="relative mb-4">
+<div class="absolute -inset-1 bg-primary/20 blur-xl rounded-full"></div>
+<div class="relative h-20 w-20 bg-surface-container-lowest rounded-2xl shadow-xl flex items-center justify-center transform rotate-3">
+<span class="text-primary font-extrabold text-3xl italic tracking-tighter">ff789</span>
+</div>
+</div>
+<h2 class="text-2xl font-extrabold tracking-tight text-on-surface">Chào mừng trở lại</h2>
+<p class="text-on-surface-variant text-sm mt-1">Vui lòng đăng nhập để tiếp tục</p>
+</div>
+<!-- Login Tabs -->
+<div class="flex p-1 bg-surface-container rounded-xl mb-8">
+<button class="flex-1 py-3 text-sm font-bold rounded-lg bg-surface-container-lowest text-primary shadow-sm transition-all duration-200">
+                Số điện thoại
+            </button>
+<button class="flex-1 py-3 text-sm font-semibold text-on-surface-variant hover:text-on-surface transition-colors duration-200">
+                Đăng nhập email
+            </button>
+</div>
+<!-- Form Inputs -->
+<div class="space-y-4">
+<!-- Phone Input -->
+<div class="relative">
+<div class="flex items-center bg-surface-container-lowest rounded-xl p-1 shadow-sm border border-transparent focus-within:border-primary/20 transition-all">
+<div class="flex items-center px-4 py-3 border-r border-surface-container">
+<span class="text-sm font-bold text-on-surface">+84</span>
+<span class="material-symbols-outlined text-xs ml-1 text-on-surface-variant">keyboard_arrow_down</span>
+</div>
+<input class="w-full px-4 py-3 bg-transparent border-none focus:ring-0 text-sm font-medium placeholder:text-outline-variant" placeholder="Nhập số điện thoại" type="tel"/>
+</div>
+</div>
+<!-- Password Input -->
+<div class="relative">
+<div class="flex items-center bg-surface-container-lowest rounded-xl p-1 shadow-sm border border-transparent focus-within:border-primary/20 transition-all">
+<div class="p-3 text-primary">
+<span class="material-symbols-outlined">lock</span>
+</div>
+<input class="w-full px-2 py-3 bg-transparent border-none focus:ring-0 text-sm font-medium placeholder:text-outline-variant" placeholder="Mật khẩu" type="password"/>
+<button class="p-3 text-outline-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+</div>
+<!-- Remember & Forgot -->
+<div class="flex items-center justify-between px-1">
+<label class="flex items-center space-x-2 cursor-pointer group">
+<div class="relative flex items-center justify-center">
+<input class="peer h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary/20" type="checkbox"/>
+</div>
+<span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">Nhớ mật khẩu</span>
+</label>
+<a class="text-xs font-bold text-primary hover:opacity-80" href="#">Quên mật khẩu?</a>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="mt-10 space-y-4">
+<button class="kinetic-gradient w-full py-4 rounded-xl text-on-primary font-bold text-lg shadow-[0px_8px_20px_rgba(0,78,219,0.25)] active:scale-[0.98] transition-transform">
+                Đăng nhập
+            </button>
+<button class="w-full py-4 rounded-xl bg-surface-container-lowest text-on-surface font-bold text-base border border-surface-container-high shadow-sm active:scale-[0.98] transition-transform">
+                Đăng ký
+            </button>
+</div>
+<!-- Bottom Assistance -->
+<div class="mt-12 grid grid-cols-2 gap-4">
+<a class="flex flex-col items-center justify-center p-4 bg-surface-container-low rounded-2xl transition-all hover:bg-surface-container hover:shadow-md group" href="#">
+<div class="h-10 w-10 rounded-full bg-surface-container-lowest flex items-center justify-center mb-2 shadow-sm group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">support_agent</span>
+</div>
+<span class="text-xs font-bold text-on-surface">CSKH</span>
+</a>
+<a class="flex flex-col items-center justify-center p-4 bg-surface-container-low rounded-2xl transition-all hover:bg-surface-container hover:shadow-md group" href="#">
+<div class="h-10 w-10 rounded-full bg-surface-container-lowest flex items-center justify-center mb-2 shadow-sm group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">security</span>
+</div>
+<span class="text-xs font-bold text-on-surface">Bảo mật</span>
+</a>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0px_-12px_32px_rgba(0,78,219,0.08)] flex justify-around items-center h-20 px-2 pb-safe">
+<div class="flex flex-col items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="text-[10px] font-medium font-['Plus_Jakarta_Sans'] mt-1">Trang chủ</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="redeem">redeem</span>
+<span class="text-[10px] font-medium font-['Plus_Jakarta_Sans'] mt-1">Khuyến mãi</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="text-[10px] font-medium font-['Plus_Jakarta_Sans'] mt-1">Ví tiền</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-[#7e9cff]/20 text-[#004edb] rounded-full px-4 py-1 active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="text-[10px] font-medium font-['Plus_Jakarta_Sans'] mt-1">Cá nhân</span>
+</div>
+</nav>
+<!-- Background Decoration -->
+<div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+<div class="absolute -top-[10%] -right-[10%] w-[60%] h-[40%] bg-primary/5 rounded-full blur-[100px]"></div>
+<div class="absolute top-[40%] -left-[20%] w-[70%] h-[50%] bg-primary/10 rounded-full blur-[120px]"></div>
+</div>
+</body></html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed-variant": "#002572",
+                    "outline": "#75777b",
+                    "on-surface": "#2c2f33",
+                    "on-error": "#ffefef",
+                    "on-tertiary-container": "#5b4b00",
+                    "primary-dim": "#0044c1",
+                    "inverse-surface": "#0c0e12",
+                    "tertiary-fixed-dim": "#efc900",
+                    "outline-variant": "#abadb2",
+                    "on-secondary-container": "#940005",
+                    "surface-container-high": "#e0e2e9",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-tint": "#004edb",
+                    "on-tertiary": "#fff2cd",
+                    "inverse-on-surface": "#9b9da1",
+                    "error-container": "#f74b6d",
+                    "tertiary-container": "#ffd709",
+                    "secondary": "#b71211",
+                    "surface-bright": "#f5f6fb",
+                    "surface-variant": "#dadde4",
+                    "on-secondary-fixed-variant": "#a60007",
+                    "tertiary": "#6c5a00",
+                    "secondary-container": "#ffc3bb",
+                    "on-secondary-fixed": "#700003",
+                    "surface-dim": "#d1d4dc",
+                    "surface": "#f5f6fb",
+                    "tertiary-dim": "#5e4e00",
+                    "error": "#b41340",
+                    "primary-fixed-dim": "#698dff",
+                    "surface-container": "#e6e8ee",
+                    "inverse-primary": "#648aff",
+                    "error-dim": "#a70138",
+                    "primary": "#004edb",
+                    "on-secondary": "#ffefed",
+                    "surface-container-low": "#eff1f6",
+                    "secondary-dim": "#a40007",
+                    "on-error-container": "#510017",
+                    "on-tertiary-fixed": "#453900",
+                    "on-surface-variant": "#595c60",
+                    "background": "#f5f6fb",
+                    "on-background": "#2c2f33",
+                    "on-tertiary-fixed-variant": "#665500",
+                    "primary-container": "#7e9cff",
+                    "primary-fixed": "#7e9cff",
+                    "on-primary-container": "#001d5d",
+                    "secondary-fixed-dim": "#ffb0a5",
+                    "surface-container-highest": "#dadde4",
+                    "on-primary-fixed": "#000000",
+                    "tertiary-fixed": "#ffd709",
+                    "secondary-fixed": "#ffc3bb",
+                    "on-primary": "#f1f2ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass-nav {
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-[0px_12px_32px_rgba(0,78,219,0.08)] flex justify-between items-center px-4 h-16 w-full">
+<div class="flex items-center gap-3">
+<button class="hover:opacity-80 transition-opacity active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined text-blue-700 dark:text-blue-500">menu</span>
+</button>
+<span class="text-xl font-black italic text-blue-700 dark:text-blue-500 tracking-tighter">FF789</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="font-plus-jakarta text-sm font-bold tracking-tight text-blue-700 dark:text-blue-500">VNĐ 1,250,000</span>
+<button class="hover:opacity-80 transition-opacity active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined text-blue-700 dark:text-blue-500">send</span>
+</button>
+</div>
+</header>
+<main class="pt-20 px-4 space-y-6">
+<!-- Hero Promotion Banner -->
+<section class="relative w-full h-48 rounded-xl overflow-hidden shadow-xl bg-primary">
+<div class="absolute inset-0 bg-gradient-to-br from-primary to-primary-dim opacity-90"></div>
+<img class="absolute inset-0 w-full h-full object-cover mix-blend-overlay" data-alt="Abstract vibrant digital art with floating golden coins and glowing blue energy streaks in a luxury gaming atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUBpst54C_zsSyf5aXZAFXkvtyeVISbfLSzJLJ15C6A8M7KPw7JbKd18LCxTHpDUJrSo-XjRQ9aSZKTKTRIJHmmhVqEk0hXjfBlHVq23tydRJeXXexDg5D_w4ldDYVcWhGeU2DFcoY_xxUjBKa20HxHdLnesGMRNtW66zTxY81YBHdpYdx_XxxyxWFDZAe_2xirwNq_Aq4ck7DSsoQK1olbvdQLAveMUNNlHft0zG5kIn6aHSrXgfP6i3bGW60-RXk9EqkxHG_u7Gr"/>
+<div class="relative z-10 p-6 h-full flex flex-col justify-center">
+<span class="inline-block px-3 py-1 bg-tertiary-container text-on-tertiary-container rounded-full text-[10px] font-extrabold uppercase tracking-widest mb-2 w-fit">SIÊU KHUYẾN MÃI</span>
+<h1 class="text-2xl font-black text-white leading-tight tracking-tight">Thưởng Nạp Lần Đầu<br/><span class="text-tertiary-fixed">Đến 100% Giá Trị</span></h1>
+<p class="text-primary-fixed text-xs mt-2 font-medium">Tham gia ngay để nhận ưu đãi VIP dành riêng cho bạn</p>
+</div>
+<!-- Kinetic Overlap Decor -->
+<div class="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+</section>
+<!-- Category Bento Grid -->
+<section>
+<div class="grid grid-cols-5 gap-2">
+<div class="flex flex-col items-center gap-2">
+<div class="w-14 h-14 bg-surface-container-lowest rounded-xl shadow-sm flex items-center justify-center hover:scale-105 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">confirmation_number</span>
+</div>
+<span class="text-[11px] font-bold text-center">Xổ số</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-14 h-14 bg-surface-container-lowest rounded-xl shadow-sm flex items-center justify-center hover:scale-105 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">casino</span>
+</div>
+<span class="text-[11px] font-bold text-center">Casino</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-14 h-14 bg-surface-container-lowest rounded-xl shadow-sm flex items-center justify-center hover:scale-105 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">set_meal</span>
+</div>
+<span class="text-[11px] font-bold text-center">Bắn cá</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-14 h-14 bg-surface-container-lowest rounded-xl shadow-sm flex items-center justify-center hover:scale-105 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">sports_soccer</span>
+</div>
+<span class="text-[11px] font-bold text-center">Thể thao</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-14 h-14 bg-surface-container-lowest rounded-xl shadow-sm flex items-center justify-center hover:scale-105 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">playing_cards</span>
+</div>
+<span class="text-[11px] font-bold text-center">Game Bài</span>
+</div>
+</div>
+</section>
+<!-- Major Game Cards -->
+<section class="space-y-4">
+<div class="flex justify-between items-end px-1">
+<h2 class="text-lg font-extrabold tracking-tight">Trò chơi nổi bật</h2>
+<button class="text-primary text-xs font-bold flex items-center hover:underline">
+                    Xem tất cả <span class="material-symbols-outlined text-sm ml-0.5">chevron_right</span>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<!-- Win Go -->
+<div class="relative bg-surface-container-lowest p-4 rounded-xl shadow-sm border-b-4 border-primary overflow-hidden">
+<div class="relative z-10">
+<div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">rocket_launch</span>
+</div>
+<h3 class="text-sm font-extrabold">Win Go</h3>
+<p class="text-[10px] text-on-surface-variant leading-tight mt-1">Dự đoán màu sắc, nhận thưởng lớn mỗi phút</p>
+</div>
+<div class="absolute -right-2 -bottom-2 opacity-5">
+<span class="material-symbols-outlined text-6xl">rocket_launch</span>
+</div>
+</div>
+<!-- K3 -->
+<div class="relative bg-surface-container-lowest p-4 rounded-xl shadow-sm border-b-4 border-secondary overflow-hidden">
+<div class="relative z-10">
+<div class="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">casino</span>
+</div>
+<h3 class="text-sm font-extrabold">K3</h3>
+<p class="text-[10px] text-on-surface-variant leading-tight mt-1">Xúc xắc may mắn, tỉ lệ thắng cực cao</p>
+</div>
+<div class="absolute -right-2 -bottom-2 opacity-5">
+<span class="material-symbols-outlined text-6xl">casino</span>
+</div>
+</div>
+<!-- 5D -->
+<div class="relative bg-surface-container-lowest p-4 rounded-xl shadow-sm border-b-4 border-tertiary-fixed-dim overflow-hidden">
+<div class="relative z-10">
+<div class="w-10 h-10 rounded-lg bg-tertiary-container/30 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-tertiary" style="font-variation-settings: 'FILL' 1;">looks_5</span>
+</div>
+<h3 class="text-sm font-extrabold">5D Lotre</h3>
+<p class="text-[10px] text-on-surface-variant leading-tight mt-1">Chọn số trúng vàng, vinh quang gõ cửa</p>
+</div>
+<div class="absolute -right-2 -bottom-2 opacity-5">
+<span class="material-symbols-outlined text-6xl">looks_5</span>
+</div>
+</div>
+<!-- Trx Win -->
+<div class="relative bg-surface-container-lowest p-4 rounded-xl shadow-sm border-b-4 border-primary-container overflow-hidden">
+<div class="relative z-10">
+<div class="w-10 h-10 rounded-lg bg-primary-container/20 flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-primary-dim" style="font-variation-settings: 'FILL' 1;">currency_bitcoin</span>
+</div>
+<h3 class="text-sm font-extrabold">Trx Win</h3>
+<p class="text-[10px] text-on-surface-variant leading-tight mt-1">Khai thác tiền số, bùng nổ lợi nhuận</p>
+</div>
+<div class="absolute -right-2 -bottom-2 opacity-5">
+<span class="material-symbols-outlined text-6xl">currency_bitcoin</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Live Winning Feed -->
+<section class="bg-surface-container-low rounded-2xl p-5 space-y-4">
+<div class="flex items-center gap-2">
+<span class="flex h-2 w-2 rounded-full bg-secondary animate-pulse"></span>
+<h2 class="text-sm font-extrabold uppercase tracking-wider text-secondary">Thông tin trúng thưởng</h2>
+</div>
+<div class="space-y-3">
+<!-- User Win 1 -->
+<div class="flex items-center justify-between bg-surface-container-lowest p-3 rounded-xl shadow-[0px_2px_8px_rgba(0,0,0,0.02)]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border-2 border-primary-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Professional studio headshot of a smiling young man with clean lighting and neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAiF5oXAvcQhlChDYphv7VwXRu_jFcMZ16pmIOXv2YWF7xYf-eOiGEiqoilwNRwYZkK5V8V95JixuaEUTC1BA1hxEcc71dkgTMWgiG5M9w3o-28wSRQ1jufv7MtYzb6UJUDKzCOOJsp6dAFK5ekxLNWUTM3YazfVvaZEaHYH5GZR4IgUKw1mGkCTNtF6ZMWF1N2EuZkktzkD6bY4HpeHO_2FQoxoZEIzh86umGJ0F_Jl9CJUJp7wckexlVbegcDxjGHkxWUwgnU6JDg"/>
+</div>
+<div>
+<p class="text-xs font-bold">User***821</p>
+<p class="text-[10px] text-on-surface-variant">Vừa rút tiền thành công</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-secondary font-black text-sm">+25,000,000đ</p>
+<p class="text-[9px] bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full inline-block font-bold">Win Go 1m</p>
+</div>
+</div>
+<!-- User Win 2 -->
+<div class="flex items-center justify-between bg-surface-container-lowest p-3 rounded-xl shadow-[0px_2px_8px_rgba(0,0,0,0.02)]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border-2 border-primary-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Portrait of a young woman with a friendly expression in a brightly lit modern office setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6gd4hRXmatmRoSi5WxYf1XgCN-na_zhUJ4yDR5f49xrJli6dNK3LUGW_sWvARkVCfqEH9E4BZpw8U8zWEsG1x5c6EFCYXdspMwhLAErN1-ta6u4Ic21xz1lA6eYx9Gtfv3Kz3MM8Sz2ooGofgK9G3e2pa7DeOAbdqqtZIVOoWmRdhVR55ZB1goCOX9mZdxMEi_ArbfQ1MA3bw6BgEhG_-MnIYs2YIxINg2El6_jc39OSrlSjriJzdlbDts1jVOdrxEqQ1Z1MoLz17"/>
+</div>
+<div>
+<p class="text-xs font-bold">Linh***9x</p>
+<p class="text-[10px] text-on-surface-variant">K3 Sicbo Master</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-secondary font-black text-sm">+8,400,000đ</p>
+<p class="text-[9px] bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full inline-block font-bold">K3 Lotre</p>
+</div>
+</div>
+<!-- User Win 3 -->
+<div class="flex items-center justify-between bg-surface-container-lowest p-3 rounded-xl shadow-[0px_2px_8_rgba(0,0,0,0.02)]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border-2 border-primary-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close up of a young man wearing glasses with soft cinematic side lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8dJBZZmI6LCpwtkIAiqW5SlckUajpSgJcdN8g_9k0r0vTVPWNQBFlMrfl6xtZn-R_5N9vHXXQBW7xL5JX_YggGyUhBdYpgGIZ4NktxG2xrZjYL0XJFdG2siwNu4kLzDMAlYC_afkqT7vd57yIBghO7MMNMljiUKYNenkXYbOVZSdTXQZiLq3doU2E9QulUmkW_Wye2p32TN58RE8JUsZ2YxNPewE6BtFVjDD-LGaBvpZhUHW1Sf_8gY6ssGXGgmgdYUKg1MdtZlO_"/>
+</div>
+<div>
+<p class="text-xs font-bold">Tuan***_pro</p>
+<p class="text-[10px] text-on-surface-variant">Jackpot Thể Thao</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-secondary font-black text-sm">+102,000,000đ</p>
+<p class="text-[9px] bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full inline-block font-bold">SABA Sport</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-2 py-3 pb-safe bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-t-2xl shadow-[0px_-8px_24px_rgba(0,78,219,0.06)] z-50">
+<!-- Trang chủ: Active -->
+<a class="flex flex-col items-center justify-center bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl px-3 py-1 active:scale-90 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Trang chủ</span>
+</a>
+<!-- Hoạt động -->
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:scale-90 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Hoạt động</span>
+</a>
+<!-- Tiếp thị -->
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:scale-90 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined">campaign</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Tiếp thị</span>
+</a>
+<!-- Kiếm 150k -->
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:scale-90 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined">redeem</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Kiếm 150k</span>
+</a>
+<!-- Tôi -->
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1 hover:text-blue-600 dark:hover:text-blue-300 active:scale-90 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-plus-jakarta text-[10px] font-bold">Tôi</span>
+</a>
+</nav>
+<!-- Floating Action Button: Quick Deposit -->
+<button class="fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-br from-primary to-primary-container text-white rounded-full shadow-2xl flex items-center justify-center z-40 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">add_card</span>
+</button>
+</body></html>
