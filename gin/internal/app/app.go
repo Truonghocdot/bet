@@ -101,7 +101,7 @@ func (a *App) Run() error {
 	serverErr := make(chan error, 1)
 
 	go func() {
-		log.Printf("[%s] dang lang nghe tai %s", a.config.ServiceName, a.config.HTTPAddr)
+		log.Printf("[%s] đang lắng nghe tại %s", a.config.ServiceName, a.config.HTTPAddr)
 		serverErr <- a.server.ListenAndServe()
 	}()
 

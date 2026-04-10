@@ -7,7 +7,7 @@ const route = useRoute()
 const navItems = [
   { label: 'Trang chủ', icon: 'home', to: '/home' },
   { label: 'Hoạt động', icon: 'campaign', to: '/promotion' },
-  { label: 'Kiếm 150k', icon: 'redeem', to: '/home' },
+  { label: 'Nạp tiền', icon: 'redeem', to: '/deposit' },
   { label: 'Phòng chơi', icon: 'analytics', to: '/play/wingo' },
   { label: 'Tôi', icon: 'person', to: '/account' },
 ]
@@ -46,9 +46,9 @@ const isActive = (path: string) => {
 
         <div class="flex items-center gap-2">
           <span class="hidden text-sm font-bold text-primary md:inline">{{ currentTitle }}</span>
-          <button class="icon-btn icon-btn--soft" aria-label="Gửi">
-            <span class="material-symbols-outlined">send</span>
-          </button>
+          <RouterLink class="icon-btn icon-btn--soft" aria-label="Thông báo" to="/notifications">
+            <span class="material-symbols-outlined">notifications</span>
+          </RouterLink>
         </div>
       </div>
     </header>
@@ -72,8 +72,8 @@ const isActive = (path: string) => {
       </RouterLink>
     </nav>
 
-    <button class="floating-action" aria-label="Nạp nhanh">
+    <RouterLink class="floating-action" aria-label="Nạp nhanh" to="/deposit">
       <span class="material-symbols-outlined">add_card</span>
-    </button>
+    </RouterLink>
   </div>
 </template>

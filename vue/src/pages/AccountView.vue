@@ -1,32 +1,53 @@
 <script setup lang="ts">
-import { accountNotifications } from '../data/mock'
+import { computed } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+
+import { notificationItems } from '@/data/site'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const auth = useAuthStore()
+
+const profile = computed(() => auth.user)
+const affiliate = computed(() => auth.affiliateProfile)
+const unreadNotifications = computed(() => notificationItems.filter((item) => item.unread).length)
+
+function logout() {
+  auth.logout()
+  void router.replace('/auth')
+}
 </script>
 
 <template>
   <div class="space-y-3.5 md:space-y-5">
     <section class="grid grid-cols-[auto_1fr_auto] items-center gap-3.5 rounded-[22px] bg-white p-[18px] shadow-[0_12px_32px_rgba(0,78,219,0.04)] md:p-5">
       <div class="grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-primary to-primary-container font-extrabold text-white">
-        MQ
+        {{ profile?.name?.slice(0, 2).toUpperCase() || 'FF' }}
       </div>
       <div>
-        <h2 class="m-0 text-[1.18rem] font-extrabold">Minh Quân</h2>
-        <p class="m-0 mt-1 text-[0.8rem] text-on-surface-variant">ID: 889922 • Thành viên Bạc</p>
+        <h2 class="m-0 text-[1.18rem] font-extrabold">{{ profile?.name || 'Đang đồng bộ' }}</h2>
+        <p class="m-0 mt-1 text-[0.8rem] text-on-surface-variant">
+          ID: {{ profile?.id ?? '---' }} • {{ profile?.email || profile?.phone || 'Chưa có dữ liệu' }}
+        </p>
       </div>
       <div class="rounded-[14px] bg-gradient-to-br from-[#6c5a00] to-[#fdd404] px-2.5 py-2 text-[0.72rem] font-black text-[#453700]">
-        VIP LV.4
+        {{ affiliate ? `REF ${affiliate.ref_code}` : 'VIP' }}
       </div>
     </section>
 
     <section class="grid gap-2 md:grid-cols-[1.25fr_0.75fr]">
       <article class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(0,78,219,0.05)] md:min-h-[132px] md:p-5">
         <span class="block text-[0.72rem] font-extrabold uppercase text-on-surface-variant">Ví Của Tôi</span>
-        <strong class="mt-8 block text-[1.35rem] font-black text-primary">12.500.000đ</strong>
+        <strong class="mt-8 block text-[1.35rem] font-black text-primary">Đang đồng bộ</strong>
+        <p class="mt-2 text-[0.76rem] text-on-surface-variant">
+          Số dư sẽ được đồng bộ từ API ví khi backend sẵn sàng.
+        </p>
       </article>
 
       <div class="grid gap-2.5">
-        <button class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-extrabold text-white transition-transform active:scale-95">
+        <RouterLink to="/deposit" class="grid min-h-14 place-items-center rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-extrabold text-white transition-transform active:scale-95">
           Nạp tiền
-        </button>
+        </RouterLink>
         <button class="min-h-14 rounded-[18px] bg-white font-extrabold text-on-surface shadow-[0_8px_20px_rgba(0,78,219,0.05)] transition-transform active:scale-95">
           Rút tiền
         </button>
@@ -34,15 +55,15 @@ import { accountNotifications } from '../data/mock'
     </section>
 
     <section class="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.05)]">
-      <button class="grid w-full grid-cols-[auto_1fr_auto_auto] items-center gap-3.5 border-b border-slate-200/60 px-4 py-3.5 text-left">
+      <RouterLink to="/notifications" class="grid w-full grid-cols-[auto_1fr_auto_auto] items-center gap-3.5 border-b border-slate-200/60 px-4 py-3.5 text-left">
         <div class="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
           <span class="material-symbols-outlined">notifications</span>
         </div>
-        <span class="font-extrabold">{{ accountNotifications.title }}</span>
+        <span class="font-extrabold">Thông báo</span>
         <span class="grid h-6 min-w-6 place-items-center rounded-full bg-[#b71211] px-1 text-[0.7rem] font-extrabold text-white">
-          {{ accountNotifications.unreadCount }}
+          {{ unreadNotifications }}
         </span>
-      </button>
+      </RouterLink>
 
       <button class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3.5 border-b border-slate-200/60 px-4 py-3.5 text-left">
         <div class="grid h-10 w-10 place-items-center rounded-full bg-[#fdd404]/20 text-[#6c5a00]">
@@ -85,9 +106,9 @@ import { accountNotifications } from '../data/mock'
       </button>
     </section>
 
-    <button class="min-h-14 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#b71211] transition-transform active:scale-95">
-      Đăng xuất tài khoản
-    </button>
+      <button class="min-h-14 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#b71211] transition-transform active:scale-95" @click="logout">
+        Đăng xuất tài khoản
+      </button>
 
     <p class="mt-3 text-center text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[#abadb2]">
       Phiên bản 2.4.0 • FF789 Gaming Ecosystem
