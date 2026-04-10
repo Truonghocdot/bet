@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Wallet\WalletLedgerEntries\Tables;
 
 use App\Enum\Wallet\LedgerDirection;
 use App\Support\Filament\EnumPresenter;
-use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -52,8 +51,6 @@ class WalletLedgerEntriesTable
                     ->dateTime()
                     ->sortable(),
             ])
-            ->recordActions([
-                EditAction::make(),
-            ]);
+            ;
     }
 }

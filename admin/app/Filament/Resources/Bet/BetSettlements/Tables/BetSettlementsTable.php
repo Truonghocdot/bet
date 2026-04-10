@@ -5,7 +5,6 @@ namespace App\Filament\Resources\Bet\BetSettlements\Tables;
 use App\Enum\Bet\BetStatus;
 use App\Enum\Bet\SettlementType;
 use App\Support\Filament\EnumPresenter;
-use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -26,8 +25,6 @@ class BetSettlementsTable
                 TextColumn::make('settledBy.name')->label('Chốt bởi')->searchable()->toggleable(),
                 TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
             ])
-            ->recordActions([
-                EditAction::make(),
-            ]);
+            ;
     }
 }

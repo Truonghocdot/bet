@@ -7,7 +7,6 @@ use App\Enum\Bet\BetTicketType;
 use App\Enum\Bet\GameType;
 use App\Enum\Wallet\UnitTransaction;
 use App\Support\Filament\EnumPresenter;
-use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -31,8 +30,6 @@ class BetTicketsTable
                 TextColumn::make('settled_at')->label('Chốt lúc')->dateTime()->toggleable(),
                 TextColumn::make('created_at')->label('Đặt lúc')->dateTime()->sortable(),
             ])
-            ->recordActions([
-                EditAction::make(),
-            ]);
+            ;
     }
 }

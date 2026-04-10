@@ -5,9 +5,6 @@ namespace App\Filament\Resources\Affiliate\AffiliateRewardLogs\Tables;
 use App\Enum\Affiliate\AffiliateRewardStatus;
 use App\Enum\Wallet\UnitTransaction;
 use App\Support\Filament\EnumPresenter;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -32,14 +29,6 @@ class AffiliateRewardLogsTable
                 SelectFilter::make('status')
                     ->label('Trạng thái')
                     ->options(EnumPresenter::options(AffiliateRewardStatus::class)),
-            ])
-            ->recordActions([
-                EditAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
             ]);
     }
 }

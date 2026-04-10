@@ -20,6 +20,14 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class TransactionResource extends BaseResource
 {
     protected static ?string $model = Transaction::class;
+    protected static bool $canCreateRecords = false;
+    protected static bool $canUpdateRecords = false;
+    protected static bool $canDeleteRecords = false;
+    protected static bool $canDeleteAnyRecords = false;
+    protected static bool $canForceDeleteRecords = false;
+    protected static bool $canForceDeleteAnyRecords = false;
+    protected static bool $canRestoreRecords = false;
+    protected static bool $canRestoreAnyRecords = false;
     protected static UnitEnum|string|null $navigationGroup = 'Tài chính';
     protected static ?string $navigationLabel = 'Giao dịch';
     public static function shouldRegisterNavigation(): bool

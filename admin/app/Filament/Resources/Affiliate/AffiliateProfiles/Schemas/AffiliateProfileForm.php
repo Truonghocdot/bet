@@ -26,11 +26,15 @@ class AffiliateProfileForm
                             ->required(),
                         TextInput::make('ref_code')
                             ->label('Mã giới thiệu')
-                            ->required()
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->helperText('Mã giới thiệu được hệ thống tự sinh và không nhập tay.')
                             ->maxLength(50),
                         TextInput::make('ref_link')
                             ->label('Link giới thiệu')
-                            ->required()
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->helperText('Link giới thiệu được tạo tự động từ mã giới thiệu.')
                             ->maxLength(255),
                         Select::make('status')
                             ->label('Trạng thái')

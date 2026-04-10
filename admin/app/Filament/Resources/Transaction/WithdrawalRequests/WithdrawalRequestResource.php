@@ -20,6 +20,13 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class WithdrawalRequestResource extends BaseResource
 {
     protected static ?string $model = WithdrawalRequest::class;
+    protected static bool $canCreateRecords = false;
+    protected static bool $canDeleteRecords = false;
+    protected static bool $canDeleteAnyRecords = false;
+    protected static bool $canForceDeleteRecords = false;
+    protected static bool $canForceDeleteAnyRecords = false;
+    protected static bool $canRestoreRecords = false;
+    protected static bool $canRestoreAnyRecords = false;
     protected static UnitEnum|string|null $navigationGroup = 'Tài chính';
     protected static ?string $navigationLabel = 'Yêu cầu rút';
     public static function shouldRegisterNavigation(): bool
@@ -34,11 +41,6 @@ class WithdrawalRequestResource extends BaseResource
     protected static function abilityPrefix(): string
     {
         return 'finance.withdrawal-requests';
-    }
-
-    public static function canCreate(): bool
-    {
-        return false;
     }
 
     public static function form(Schema $schema): Schema

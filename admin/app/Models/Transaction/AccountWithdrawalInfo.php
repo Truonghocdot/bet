@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+// Thông tin tài khoản rút tiền của người dùng, có thể có nhiều tài khoản rút tiền khác nhau
 class AccountWithdrawalInfo extends Model
 {
     use SoftDeletes;

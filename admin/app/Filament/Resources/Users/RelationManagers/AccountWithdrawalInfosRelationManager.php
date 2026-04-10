@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Users\RelationManagers;
 
 use App\Enum\Wallet\UnitTransaction;
-use App\Filament\Resources\Transaction\AccountWithdrawalInfos\AccountWithdrawalInfoResource;
 use App\Support\Filament\EnumPresenter;
 use Filament\Forms\Components\Hidden;
 use Filament\Schemas\Components\Section;
@@ -17,7 +16,6 @@ use Filament\Tables\Table;
 class AccountWithdrawalInfosRelationManager extends RelationManager
 {
     protected static string $relationship = 'accountWithdrawalInfos';
-    protected static ?string $relatedResource = AccountWithdrawalInfoResource::class;
     protected static ?string $title = 'Tài khoản rút';
 
     public function form(Schema $schema): Schema

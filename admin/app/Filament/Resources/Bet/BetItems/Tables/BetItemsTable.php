@@ -5,7 +5,6 @@ namespace App\Filament\Resources\Bet\BetItems\Tables;
 use App\Enum\Bet\BetItemResult;
 use App\Enum\Bet\BetOptionType;
 use App\Support\Filament\EnumPresenter;
-use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -28,8 +27,6 @@ class BetItemsTable
                 TextColumn::make('settled_at')->label('Chốt lúc')->dateTime()->toggleable(),
                 TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
             ])
-            ->recordActions([
-                EditAction::make(),
-            ]);
+            ;
     }
 }

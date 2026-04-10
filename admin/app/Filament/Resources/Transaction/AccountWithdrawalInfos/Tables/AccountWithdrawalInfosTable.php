@@ -4,11 +4,6 @@ namespace App\Filament\Resources\Transaction\AccountWithdrawalInfos\Tables;
 
 use App\Enum\Wallet\UnitTransaction;
 use App\Support\Filament\EnumPresenter;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\ForceDeleteBulkAction;
-use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Filters\TrashedFilter;
@@ -35,16 +30,6 @@ class AccountWithdrawalInfosTable
             ])
             ->filters([
                 TrashedFilter::make(),
-            ])
-            ->recordActions([
-                EditAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
-                ]),
             ]);
     }
 }

@@ -18,6 +18,14 @@ use Filament\Tables\Table;
 class BetSettlementResource extends BaseResource
 {
     protected static ?string $model = BetSettlement::class;
+    protected static bool $canCreateRecords = false;
+    protected static bool $canUpdateRecords = false;
+    protected static bool $canDeleteRecords = false;
+    protected static bool $canDeleteAnyRecords = false;
+    protected static bool $canForceDeleteRecords = false;
+    protected static bool $canForceDeleteAnyRecords = false;
+    protected static bool $canRestoreRecords = false;
+    protected static bool $canRestoreAnyRecords = false;
     protected static UnitEnum|string|null $navigationGroup = 'Cược';
     protected static ?string $navigationLabel = 'Chốt cược';
 
