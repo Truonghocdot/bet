@@ -2,26 +2,52 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	"gin/internal/domain/game"
-	"gin/internal/support/clock"
+	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
+	"gin/internal/support/clock"
 	"gin/internal/support/message"
+
+	goredis "github.com/redis/go-redis/v9"
 )
 
 type PlayRoomService struct {
 	gameRepository   *repopg.GameRepository
 	walletRepository *repopg.WalletRepository
+	walletService    *WalletService
+	redis            *goredis.Client
+	broker           *realtime.Broker
+	roomStateTTL     time.Duration
 }
 
-func NewPlayRoomService(gameRepository *repopg.GameRepository, walletRepository *repopg.WalletRepository) *PlayRoomService {
+type cachedRoomState struct {
+	Version     int64                  `json:"version"`
+	GeneratedAt time.Time              `json:"generated_at"`
+	Source      string                 `json:"source"`
+	Payload     game.RoomStateResponse `json:"payload"`
+}
+
+func NewPlayRoomService(
+	gameRepository *repopg.GameRepository,
+	walletRepository *repopg.WalletRepository,
+	walletService *WalletService,
+	redis *goredis.Client,
+	broker *realtime.Broker,
+) *PlayRoomService {
 	return &PlayRoomService{
 		gameRepository:   gameRepository,
 		walletRepository: walletRepository,
+		walletService:    walletService,
+		redis:            redis,
+		broker:           broker,
+		roomStateTTL:     2 * time.Hour,
 	}
 }
 
@@ -54,81 +80,33 @@ func (s *PlayRoomService) GetRoomState(ctx context.Context, roomCode string) (ga
 		return game.RoomStateResponse{}, fmt.Errorf(message.GameRoomCodeRequired)
 	}
 
-	room, err := s.gameRepository.FindRoomByCode(ctx, roomCode)
+	if cached, hit := s.readRoomStateCache(ctx, roomCode); hit {
+		cached.ServerTime = clock.Now()
+		log.Printf("[realtime][room.cache.hit] room_code=%s", roomCode)
+		return cached, nil
+	}
+
+	log.Printf("[realtime][room.cache.miss] room_code=%s", roomCode)
+	response, err := s.RefreshRoomState(ctx, roomCode, "cache_rebuild")
+	if err != nil {
+		return game.RoomStateResponse{}, err
+	}
+	response.ServerTime = clock.Now()
+	return response, nil
+}
+
+func (s *PlayRoomService) RefreshRoomState(ctx context.Context, roomCode string, source string) (game.RoomStateResponse, error) {
+	response, err := s.buildRoomState(ctx, roomCode)
 	if err != nil {
 		return game.RoomStateResponse{}, err
 	}
 
-	if _, err := s.gameRepository.EnsureRoomPeriods(ctx, room, clock.Now()); err != nil {
-		return game.RoomStateResponse{}, err
+	s.writeRoomStateCache(ctx, roomCode, response, source)
+	if err := s.broker.Publish(ctx, realtime.PlayRoomTopic(roomCode), "room.state", response); err != nil {
+		log.Printf("[realtime][room.publish.error] room_code=%s source=%s err=%v", roomCode, source, err)
 	}
 
-	nowVN := clock.Now()
-	if openedCount, err := s.gameRepository.MoveScheduledToOpen(ctx, nowVN); err != nil {
-		log.Printf("[play][state.period.transition.error] room_code=%s stage=scheduled_to_open err=%v", roomCode, err)
-	} else if openedCount > 0 {
-		log.Printf("[play][state.period.transition.done] room_code=%s from=SCHEDULED to=OPEN count=%d", roomCode, openedCount)
-	}
-	if lockedCount, err := s.gameRepository.MoveOpenToLocked(ctx, nowVN); err != nil {
-		log.Printf("[play][state.period.transition.error] room_code=%s stage=open_to_locked err=%v", roomCode, err)
-	} else if lockedCount > 0 {
-		log.Printf("[play][state.period.transition.done] room_code=%s from=OPEN to=LOCKED count=%d", roomCode, lockedCount)
-	}
-
-	period, err := s.gameRepository.GetCurrentPeriodByRoom(ctx, roomCode)
-	if err != nil {
-		log.Printf("[play][state.period.miss] room_code=%s err=%v action=retry_bootstrap", roomCode, err)
-		if _, retryErr := s.gameRepository.EnsureRoomPeriods(ctx, room, clock.Now()); retryErr != nil {
-			log.Printf("[play][state.period.bootstrap.error] room_code=%s err=%v", roomCode, retryErr)
-			return game.RoomStateResponse{}, retryErr
-		}
-		period, err = s.gameRepository.GetCurrentPeriodByRoom(ctx, roomCode)
-		if err != nil {
-			log.Printf("[play][state.period.miss] room_code=%s err=%v action=fail", roomCode, err)
-			return game.RoomStateResponse{}, err
-		}
-	}
-
-	results, err := s.gameRepository.ListRoomRecentRounds(ctx, roomCode, 20)
-	if err != nil {
-		return game.RoomStateResponse{}, err
-	}
-
-	recentResults := make([]game.HistoryListItem, 0, len(results))
-	for _, row := range results {
-		recentResults = append(recentResults, game.HistoryListItem{
-			PeriodNo:  row.PeriodNo,
-			Result:    row.Result,
-			BigSmall:  row.BigSmall,
-			Color:     row.Color,
-			DrawAt:    row.DrawAt,
-			Status:    row.Status,
-			CreatedAt: row.CreatedAt,
-			UpdatedAt: row.UpdatedAt,
-		})
-	}
-
-	return game.RoomStateResponse{
-		Message:    message.RoomStateSuccess,
-		ServerTime: clock.Now(),
-		Room: game.RoomItem{
-			Code:             room.Code,
-			GameType:         toGameTypeSlug(room.GameType),
-			DurationSeconds:  room.DurationSeconds,
-			BetCutoffSeconds: room.BetCutoffSeconds,
-			Status:           toRoomStatusLabel(room.Status),
-			SortOrder:        room.SortOrder,
-		},
-		CurrentPeriod: game.RoomPeriod{
-			ID:        period.ID,
-			PeriodNo:  period.PeriodNo,
-			Status:    toPeriodStatusLabel(period.Status),
-			OpenAt:    period.OpenAt,
-			BetLockAt: period.BetLockAt,
-			DrawAt:    period.DrawAt,
-		},
-		RecentResults: recentResults,
-	}, nil
+	return response, nil
 }
 
 func (s *PlayRoomService) ListRoomHistory(ctx context.Context, roomCode string, page, pageSize int) (game.HistoryListResponse, error) {
@@ -225,24 +203,8 @@ func (s *PlayRoomService) PlaceRoomBet(
 		return game.RoomBetResponse{}, fmt.Errorf(message.BetItemsRequired)
 	}
 
-	room, err := s.gameRepository.FindRoomByCode(ctx, roomCode)
-	if err != nil {
+	if _, err := s.gameRepository.FindRoomByCode(ctx, roomCode); err != nil {
 		return game.RoomBetResponse{}, err
-	}
-	if _, err := s.gameRepository.EnsureRoomPeriods(ctx, room, clock.Now()); err != nil {
-		return game.RoomBetResponse{}, err
-	}
-
-	nowVN := clock.Now()
-	if openedCount, err := s.gameRepository.MoveScheduledToOpen(ctx, nowVN); err != nil {
-		log.Printf("[play][bet.period.transition.error] room_code=%s stage=scheduled_to_open err=%v", roomCode, err)
-	} else if openedCount > 0 {
-		log.Printf("[play][bet.period.transition.done] room_code=%s from=SCHEDULED to=OPEN count=%d", roomCode, openedCount)
-	}
-	if lockedCount, err := s.gameRepository.MoveOpenToLocked(ctx, nowVN); err != nil {
-		log.Printf("[play][bet.period.transition.error] room_code=%s stage=open_to_locked err=%v", roomCode, err)
-	} else if lockedCount > 0 {
-		log.Printf("[play][bet.period.transition.done] room_code=%s from=OPEN to=LOCKED count=%d", roomCode, lockedCount)
 	}
 
 	periodID, err := repopg.ParsePeriodID(req.PeriodID)
@@ -269,7 +231,7 @@ func (s *PlayRoomService) PlaceRoomBet(
 		return game.RoomBetResponse{}, fmt.Errorf(message.InsufficientBalanceBet)
 	}
 
-	if _, err := s.gameRepository.CreateBetTicket(ctx, repopg.CreateBetTicketParams{
+	ticket, err := s.gameRepository.CreateBetTicket(ctx, repopg.CreateBetTicketParams{
 		UserID:       userID,
 		RoomCode:     roomCode,
 		PeriodID:     periodID,
@@ -279,8 +241,15 @@ func (s *PlayRoomService) PlaceRoomBet(
 		Items:        toBetTicketItems(req.Items),
 		PlacedIP:     placedIP,
 		PlacedDevice: placedDevice,
-	}); err != nil {
+	})
+	if err != nil {
 		return game.RoomBetResponse{}, err
+	}
+
+	if s.walletService != nil {
+		if err := s.walletService.PublishSummary(ctx, ticket.UserID); err != nil {
+			log.Printf("[realtime][wallet.publish.error] user_id=%d source=place_room_bet err=%v", ticket.UserID, err)
+		}
 	}
 
 	return game.RoomBetResponse{
@@ -335,6 +304,107 @@ func toPeriodStatusLabel(status int) string {
 	}
 }
 
+func (s *PlayRoomService) buildRoomState(ctx context.Context, roomCode string) (game.RoomStateResponse, error) {
+	room, err := s.gameRepository.FindRoomByCode(ctx, roomCode)
+	if err != nil {
+		return game.RoomStateResponse{}, err
+	}
+
+	period, err := s.gameRepository.GetCurrentPeriodByRoom(ctx, roomCode)
+	if err != nil {
+		log.Printf("[realtime][room.cache.rebuild.error] room_code=%s stage=current_period err=%v", roomCode, err)
+		return game.RoomStateResponse{}, err
+	}
+
+	results, err := s.gameRepository.ListRoomRecentRounds(ctx, roomCode, 20)
+	if err != nil {
+		return game.RoomStateResponse{}, err
+	}
+
+	recentResults := make([]game.HistoryListItem, 0, len(results))
+	for _, row := range results {
+		recentResults = append(recentResults, game.HistoryListItem{
+			PeriodNo:  row.PeriodNo,
+			Result:    row.Result,
+			BigSmall:  row.BigSmall,
+			Color:     row.Color,
+			DrawAt:    row.DrawAt,
+			Status:    row.Status,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+		})
+	}
+
+	return game.RoomStateResponse{
+		Message:    message.RoomStateSuccess,
+		ServerTime: clock.Now(),
+		Room: game.RoomItem{
+			Code:             room.Code,
+			GameType:         toGameTypeSlug(room.GameType),
+			DurationSeconds:  room.DurationSeconds,
+			BetCutoffSeconds: room.BetCutoffSeconds,
+			Status:           toRoomStatusLabel(room.Status),
+			SortOrder:        room.SortOrder,
+		},
+		CurrentPeriod: game.RoomPeriod{
+			ID:        period.ID,
+			PeriodNo:  period.PeriodNo,
+			Status:    toPeriodStatusLabel(period.Status),
+			OpenAt:    period.OpenAt,
+			BetLockAt: period.BetLockAt,
+			DrawAt:    period.DrawAt,
+		},
+		RecentResults: recentResults,
+	}, nil
+}
+
+func (s *PlayRoomService) roomStateCacheKey(roomCode string) string {
+	return fmt.Sprintf("cache:play:room_state:%s", strings.TrimSpace(roomCode))
+}
+
+func (s *PlayRoomService) readRoomStateCache(ctx context.Context, roomCode string) (game.RoomStateResponse, bool) {
+	if s.redis == nil || strings.TrimSpace(roomCode) == "" {
+		return game.RoomStateResponse{}, false
+	}
+
+	raw, err := s.redis.Get(ctx, s.roomStateCacheKey(roomCode)).Bytes()
+	if err != nil || len(raw) == 0 {
+		return game.RoomStateResponse{}, false
+	}
+
+	var cached cachedRoomState
+	if err := json.Unmarshal(raw, &cached); err != nil {
+		return game.RoomStateResponse{}, false
+	}
+	if cached.Payload.Room.Code == "" || cached.Payload.CurrentPeriod.ID == 0 {
+		return game.RoomStateResponse{}, false
+	}
+
+	return cached.Payload, true
+}
+
+func (s *PlayRoomService) writeRoomStateCache(ctx context.Context, roomCode string, response game.RoomStateResponse, source string) {
+	if s.redis == nil || strings.TrimSpace(roomCode) == "" {
+		return
+	}
+
+	payload, err := json.Marshal(cachedRoomState{
+		Version:     time.Now().UnixNano(),
+		GeneratedAt: clock.Now(),
+		Source:      source,
+		Payload:     response,
+	})
+	if err != nil {
+		log.Printf("[realtime][room.cache.write.error] room_code=%s stage=marshal err=%v", roomCode, err)
+		return
+	}
+
+	if err := s.redis.Set(ctx, s.roomStateCacheKey(roomCode), payload, s.roomStateTTL).Err(); err != nil {
+		log.Printf("[realtime][room.cache.write.error] room_code=%s stage=set err=%v", roomCode, err)
+		return
+	}
+	log.Printf("[realtime][room.cache.write.done] room_code=%s source=%s", roomCode, source)
+}
 
 func ParseUserID(raw string) (int64, error) {
 	parsed, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)

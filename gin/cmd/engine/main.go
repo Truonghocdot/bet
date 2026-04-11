@@ -10,6 +10,7 @@ import (
 	"gin/internal/app"
 	platformpg "gin/internal/platform/postgres"
 	platformredis "gin/internal/platform/redis"
+	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
 )
@@ -21,6 +22,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Khởi tạo engine thất bại (db): %v", err)
 	}
+	platformpg.ConfigurePool(db, platformpg.PoolConfig{
+		MaxOpenConns:    config.DBMaxOpenConns,
+		MaxIdleConns:    config.DBMaxIdleConns,
+		ConnMaxLifetime: config.DBConnMaxLifetime,
+		ConnMaxIdleTime: config.DBConnMaxIdleTime,
+	})
+	log.Printf("[db.pool] max_open=%d max_idle=%d conn_max_lifetime=%s conn_max_idle_time=%s", config.DBMaxOpenConns, config.DBMaxIdleConns, config.DBConnMaxLifetime, config.DBConnMaxIdleTime)
 	defer db.Close()
 
 	redisClient, err := platformredis.Open(context.Background(), config.RedisAddr, config.RedisPassword, config.RedisDB)
@@ -30,7 +38,11 @@ func main() {
 	defer redisClient.Close()
 
 	gameRepository := repopg.NewGameRepository(db)
-	engineService := service.NewRoomEngineService(gameRepository, redisClient, time.Second)
+	walletRepository := repopg.NewWalletRepository(db)
+	broker := realtime.NewBroker(redisClient)
+	walletService := service.NewWalletService(walletRepository, broker)
+	playRoomService := service.NewPlayRoomService(gameRepository, walletRepository, walletService, redisClient, broker)
+	engineService := service.NewRoomEngineService(gameRepository, redisClient, playRoomService, walletService, time.Second)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

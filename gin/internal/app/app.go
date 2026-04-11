@@ -13,6 +13,7 @@ import (
 	"gin/internal/integration/gate"
 	platformpg "gin/internal/platform/postgres"
 	platformredis "gin/internal/platform/redis"
+	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/security/ratelimit"
 	"gin/internal/service"
@@ -35,6 +36,13 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	platformpg.ConfigurePool(db, platformpg.PoolConfig{
+		MaxOpenConns:    config.DBMaxOpenConns,
+		MaxIdleConns:    config.DBMaxIdleConns,
+		ConnMaxLifetime: config.DBConnMaxLifetime,
+		ConnMaxIdleTime: config.DBConnMaxIdleTime,
+	})
+	log.Printf("[db.pool] max_open=%d max_idle=%d conn_max_lifetime=%s conn_max_idle_time=%s", config.DBMaxOpenConns, config.DBMaxIdleConns, config.DBConnMaxLifetime, config.DBConnMaxIdleTime)
 
 	tokenSigner, err := token.NewSigner(config.AuthSecret, config.AuthTTL)
 	if err != nil {
@@ -47,6 +55,7 @@ func New() (*App, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	broker := realtime.NewBroker(redisClient)
 
 	hub := ws.NewHub()
 	publisher := outbox.NewNoopPublisher()
@@ -75,20 +84,20 @@ func New() (*App, error) {
 		RegisterLimitEmail:    config.RegisterLimitEmail,
 		RegisterLimitPhone:    config.RegisterLimitPhone,
 	})
-	walletService := service.NewWalletService(walletRepository)
+	walletService := service.NewWalletService(walletRepository, broker)
 	notificationService := service.NewNotificationService(notificationRepository)
 	sessionService := service.NewGameSessionService(hub, walletRepository)
 	betService := service.NewBetService(publisher, sessionService, gameRepository, walletRepository)
-	playRoomService := service.NewPlayRoomService(gameRepository, walletRepository)
-	depositService := service.NewDepositService(depositRepository, redisClient, service.DepositConfig{
+	playRoomService := service.NewPlayRoomService(gameRepository, walletRepository, walletService, redisClient, broker)
+	depositService := service.NewDepositService(depositRepository, redisClient, walletService, service.DepositConfig{
 		ReceivingAccountsRedisKey: config.PaymentReceivingAccountsRedisKey,
 	})
-	router := httptransport.NewRouter(config, authService, walletService, notificationService, sessionService, betService, playRoomService, depositService, config.InternalToken)
+	router := httptransport.NewRouter(config, authService, walletService, notificationService, sessionService, betService, playRoomService, depositService, broker, config.InternalToken)
 
 	server := &http.Server{
-		Addr:         config.HTTPAddr,
-		Handler:      router,
-		ReadTimeout:  config.ReadTimeout,
+		Addr:        config.HTTPAddr,
+		Handler:     router,
+		ReadTimeout: config.ReadTimeout,
 		// SSE streams need a long-lived write window.
 		WriteTimeout: 0,
 	}

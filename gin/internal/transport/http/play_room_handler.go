@@ -8,6 +8,7 @@ import (
 
 	authmiddleware "gin/internal/auth/middleware"
 	"gin/internal/domain/game"
+	"gin/internal/realtime"
 	"gin/internal/service"
 	"gin/internal/support/clock"
 	"gin/internal/support/message"
@@ -15,10 +16,11 @@ import (
 
 type PlayRoomHandler struct {
 	playRoomService *service.PlayRoomService
+	broker          *realtime.Broker
 }
 
-func NewPlayRoomHandler(playRoomService *service.PlayRoomService) *PlayRoomHandler {
-	return &PlayRoomHandler{playRoomService: playRoomService}
+func NewPlayRoomHandler(playRoomService *service.PlayRoomService, broker *realtime.Broker) *PlayRoomHandler {
+	return &PlayRoomHandler{playRoomService: playRoomService, broker: broker}
 }
 
 func (h *PlayRoomHandler) ListRooms(w http.ResponseWriter, r *http.Request) {
@@ -61,42 +63,34 @@ func (h *PlayRoomHandler) RoomStateStream(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	stateTicker := time.NewTicker(2 * time.Second)
-	clockTicker := time.NewTicker(time.Second)
-	heartbeatTicker := time.NewTicker(20 * time.Second)
-	defer stateTicker.Stop()
-	defer clockTicker.Stop()
-	defer heartbeatTicker.Stop()
-
-	lastPayload := ""
-	emitState := func(response any) error {
-		payload, err := json.Marshal(response)
-		if err != nil {
-			return err
-		}
-		payloadKey := string(payload)
-		if payloadKey == lastPayload {
-			return nil
-		}
-
-		lastPayload = payloadKey
-		return stream.Event("room.state", response)
-	}
-
-	if err := emitState(initialResponse); err != nil {
+	if err := stream.Event("room.state", initialResponse); err != nil {
 		return
 	}
+
+	updates, unsubscribe, err := h.broker.Subscribe(r.Context(), realtime.PlayRoomTopic(roomCode))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+	defer unsubscribe()
+
+	clockTicker := time.NewTicker(time.Second)
+	heartbeatTicker := time.NewTicker(20 * time.Second)
+	defer clockTicker.Stop()
+	defer heartbeatTicker.Stop()
 
 	for {
 		select {
 		case <-r.Context().Done():
 			return
-		case <-stateTicker.C:
-			response, err := h.playRoomService.GetRoomState(r.Context(), roomCode)
-			if err != nil {
+		case update, ok := <-updates:
+			if !ok {
 				return
 			}
-			if err := emitState(response); err != nil {
+			if update.Event != "room.state" {
+				continue
+			}
+			if err := stream.EventRaw(update.Event, update.Data); err != nil {
 				return
 			}
 		case <-clockTicker.C:

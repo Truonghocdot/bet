@@ -15,6 +15,9 @@ import { getPlayRoom, type PlayBetGroup, type PlayRoom, type PlayVariant } from 
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
+import { useLoading } from '@/shared/lib/loading'
+
+const { setLoading } = useLoading()
 
 const route = useRoute()
 const router = useRouter()
@@ -64,6 +67,21 @@ const baseChipAmount = 1000
 const modalBetAmount = ref(baseChipAmount * 10)
 const betPresets = [1000, 5000, 10000, 50000, 100000]
 
+// Sound effects (using a reliable public asset)
+const tickSoundUrl = 'https://raw.githubusercontent.com/rafaelrinaldi/tic-tac-toe/master/assets/audio/click.mp3'
+let tickAudio: HTMLAudioElement | null = null
+
+function playTickSound() {
+  if (!tickAudio) {
+    tickAudio = new Audio(tickSoundUrl)
+    tickAudio.volume = 0.5
+  }
+  tickAudio.currentTime = 0
+  void tickAudio.play().catch(() => {
+    // ignore autoplay block errors
+  })
+}
+
 // Result modal state
 const showResultModal = ref(false)
 const resultModalPeriodNo = ref('')
@@ -76,8 +94,77 @@ const resultModalStake = ref('')
 const resultModalPayout = ref('')
 const showTicketDetailModal = ref(false)
 const selectedTicketDetail = ref<PlayRoomBetHistoryResponse['items'][number] | null>(null)
+const showHelpModal = ref(false)
 
-const stakeOptions = [1, 5, 10, 20, 50] as const
+const gameHowToPlay = {
+  wingo: {
+    title: 'Hướng dẫn chơi Win Go',
+    content: `
+      ● Win Go là trò chơi dự đoán kết quả dựa trên các con số từ 0-9 và màu sắc tương ứng.
+      ● Các loại cược chính:
+        1. Cược Màu:
+           - Xanh: Các số 1, 3, 7, 9. Nếu ra 5 là thắng nửa tiền. Tỷ lệ 1:2.
+           - Đỏ: Các số 2, 4, 6, 8. Nếu ra 0 là thắng nửa tiền. Tỷ lệ 1:2.
+           - Tím: Các số 0 và 5. Tỷ lệ 1:4.5.
+        2. Cược Số: Dự đoán chính xác 1 số từ 0-9. Tỷ lệ 1:9.
+        3. Cược Lớn/Nhỏ:
+           - Lớn: 5, 6, 7, 8, 9.
+           - Nhỏ: 0, 1, 2, 3, 4.
+           Tỷ lệ 1:2.
+      ● Thời gian mỗi kỳ: 30 Giây, 1 Phút, 3 Phút, 5 Phút. Đóng lệnh trước khi kết thúc 5 giây.
+    `,
+  },
+  k3: {
+    title: 'Hướng dẫn chơi K3 Lotre',
+    content: `
+      ● K3 Lotre dựa trên kết quả của 3 quân xúc xắc (xí ngầu) được đổ ngẫu nhiên.
+      ● Các loại cược phổ biến:
+        1. Cược Tổng: Dự đoán tổng điểm của 3 quân xí ngầu (từ 3 đến 18). Mỗi con số có tỷ lệ thưởng khác nhau, lên đến 1:207.
+        2. Cược 2 số trùng: Dự đoán có ít nhất 2 xí ngầu ra cùng một mặt.
+        3. Cược 3 số trùng: Dự đoán cả 3 xí ngầu ra cùng một mặt (ví dụ: 1-1-1). Tỷ lệ thưởng cực lớn.
+        4. Cược Lớn/Nhỏ/Chẵn/Lẻ: Dựa trên Tổng số điểm.
+           - Lớn (11-18), Nhỏ (3-10).
+           - Chẵn (Tổng là số chẵn), Lẻ (Tổng là số lẻ).
+      ● Cách tính kết quả: Tổng điểm = Xí ngầu 1 + Xí ngầu 2 + Xí ngầu 3.
+    `,
+  },
+  lottery: {
+    title: 'Hướng dẫn chơi 5D Lô tô',
+    content: `
+      ● 5D Lô tô dựa trên chuỗi 5 con số được quay ngẫu nhiên cho các vị trí A, B, C, D, E.
+      ● Các hình thức đặt cược:
+        1. Cược Vị trí: Dự đoán số cụ thể tại 1 trong 5 vị trí (A, B, C, D hoặc E).
+        2. Cược Tổng hợp: Dự đoán Tổng của cả 5 con số là Lớn/Nhỏ hoặc Chẵn/Lẻ.
+        3. Cược Số đuôi: Dự đoán số cuối cùng (vị trí E) hoặc các tổ hợp số đặc biệt.
+      ● Vị trí tương ứng:
+        - A: Số thứ nhất (hàng vạn)
+        - B: Số thứ hai (hàng nghìn)
+        - C: Số thứ ba (hàng trăm)
+        - D: Số thứ tư (hàng chục)
+        - E: Số thứ năm (hàng đơn vị)
+      ● Tỷ lệ thưởng: Tùy thuộc vào độ khó của cửa đặt, cược vị trí chính xác có tỷ lệ cao nhất.
+    `,
+  },
+} as const
+
+// Dice animation state for K3
+const isDiceRolling = ref(false)
+const rollingDice = ref([1, 2, 3])
+let rollTimer: number | undefined
+
+const stakeOptions = [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000] as const
+
+function formatMultiplierLabel(m: number) {
+  if (m >= 1000) {
+    const millions = m / 1000
+    return `${millions}M`
+  }
+  if (m >= 50) {
+    // 50 * 1000 = 50,000 -> 50K
+    return `${m}K`
+  }
+  return `X${m}`
+}
 const tablePageSize = 4
 let timer: number | undefined
 let roomStreamConnection: StreamConnection | null = null
@@ -143,6 +230,10 @@ function resetTransientRoomUiState() {
   joinError.value = ''
   betMessage.value = ''
   betMessageRoomCode.value = ''
+  roomState.value = null
+  countdownTargetMs.value = 0
+  countdownTargetPeriodNo.value = ''
+  seenSettlementPeriods.clear()
 }
 
 function countdownCacheKey(roomCode: string) {
@@ -215,11 +306,15 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
 
   if (Number.isFinite(rawDrawAtMs) && rawDrawAtMs > 0 && rawDrawAtMs <= maxReasonableMs) {
     countdownTargetMs.value = rawDrawAtMs
+  } else if (cached?.periodNo === periodNo && cached.targetMs > nowMs) {
+    countdownTargetMs.value = cached.targetMs
   } else {
     countdownTargetMs.value = fallbackTargetMs
   }
   countdownTargetPeriodNo.value = periodNo
-  writeCountdownCache(selectedRoomCode.value, periodNo, countdownTargetMs.value)
+  if (Number.isFinite(countdownTargetMs.value)) {
+    writeCountdownCache(selectedRoomCode.value, periodNo, countdownTargetMs.value)
+  }
 }
 const isBetLocked = computed(() => {
   if (!currentPeriod.value) return true
@@ -671,52 +766,79 @@ async function loadMineHistory(page = minePage.value) {
 async function maybeShowSettlementModal(
   previousPeriod: PlayRoomStateResponse['current_period'] | null,
   nextPeriod: PlayRoomStateResponse['current_period'] | null,
+  retryCount = 0,
 ) {
   if (!nextPeriod || !auth.accessToken) return
 
   const nextPeriodNo = nextPeriod.period_no
-  const targetPeriodNo =
-    nextPeriodNo && previousPeriod && previousPeriod.period_no !== nextPeriodNo
-      ? previousPeriod.period_no
-      : String(nextPeriod.status ?? '').toUpperCase() === 'SETTLED'
-        ? nextPeriodNo
-        : ''
+  // Check if period just transitioned OR if the current period is newly marked as SETTLED
+  const isTransition = nextPeriodNo && previousPeriod && previousPeriod.period_no !== nextPeriodNo
+  const isManualSettled = String(nextPeriod.status ?? '').toUpperCase() === 'SETTLED'
+
+  const targetPeriodNo = isTransition
+    ? previousPeriod.period_no
+    : isManualSettled
+      ? nextPeriodNo
+      : ''
 
   if (!targetPeriodNo || seenSettlementPeriods.has(targetPeriodNo)) {
     return
   }
 
+  // Load latest personal history to check for results
   await loadMineHistory(1)
-  const settledRow = mineRows.value.find((row) => row.period_no === targetPeriodNo)
-  if (!settledRow) return
-  if (!['WON', 'LOST', 'VOID', 'HALF_WON', 'HALF_LOST', 'CANCELED', 'CASHED_OUT'].includes(String(settledRow.status ?? '').toUpperCase())) {
+
+  // Find the bet for this period.
+  // If multiple bets exist, we just take the first one to determine WON/LOST for the period summary.
+  const settledRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
+
+  if (!settledRow) {
+    // If no bet found, we just mark it as seen so we don't keep checking history for nothing
+    seenSettlementPeriods.add(targetPeriodNo)
     return
   }
 
+  const status = String(settledRow.status ?? '').toUpperCase()
+  const isFinalStatus = ['WON', 'LOST', 'VOID', 'HALF_WON', 'HALF_LOST', 'CANCELED', 'CASHED_OUT'].includes(status)
+
+  if (!isFinalStatus) {
+    // If status is still PENDING/OPEN, retry after 2 seconds (up to 3 times)
+    if (retryCount < 3) {
+      setTimeout(() => {
+        void maybeShowSettlementModal(previousPeriod, nextPeriod, retryCount + 1)
+      }, 2500)
+    }
+    return
+  }
+
+  // Final settlement logic
   try {
     await wallet.fetchSummary()
   } catch {
-    // ignore wallet refresh error for modal flow
+    // ignore wallet refresh error
   }
 
   seenSettlementPeriods.add(targetPeriodNo)
   resultModalPeriodNo.value = settledRow.period_no
-  resultModalTitle.value = settledRow.status === 'WON' ? 'Kỳ này bạn đã thắng' : 'Kỳ này đã kết quả'
-  resultModalDescription.value = settledRow.status === 'WON'
-    ? 'Tiền thắng đã cộng về số dư ví.'
-    : settledRow.status === 'LOST'
-      ? 'Lệnh của bạn chưa trúng kỳ này.'
-      : 'Kết quả đã được cập nhật.'
-  resultModalTone.value = settledRow.status === 'WON' ? 'win' : settledRow.status === 'LOST' ? 'lose' : 'draw'
+  resultModalTitle.value = status === 'WON' ? 'Chúc mừng! Bạn đã thắng' : 'Kết quả kỳ xổ'
+  resultModalDescription.value = status === 'WON'
+    ? 'Tiền thắng đã được cộng vào số dư ví của bạn.'
+    : status === 'LOST'
+      ? 'Rất tiếc, lệnh cược của bạn chưa may mắn kỳ này.'
+      : 'Trạng thái lệnh cược đã được cập nhật.'
+
+  resultModalTone.value = status === 'WON' ? 'win' : status === 'LOST' ? 'lose' : 'draw'
   resultModalStake.value = formatMoney(rowOriginalAmountValue(settledRow))
   resultModalPayout.value = formatMoney(rowWinCreditValue(settledRow))
-  if (rowStatusValue(settledRow) === 'WON') {
+
+  if (status === 'WON') {
     resultModalAmount.value = `+${formatMoney(rowWinCreditValue(settledRow))}đ`
-  } else if (rowStatusValue(settledRow) === 'LOST') {
+  } else if (status === 'LOST') {
     resultModalAmount.value = `-${formatMoney(rowOriginalAmountValue(settledRow))}đ`
   } else {
     resultModalAmount.value = formatSignedMoney(rowProfitLossValue(settledRow))
   }
+
   resultModalSettledAt.value = settledRow.settled_at ?? settledRow.created_at
   showResultModal.value = true
 }
@@ -988,9 +1110,15 @@ watch(
     resetTransientRoomUiState()
     historyPage.value = 1
     minePage.value = 1
-    await loadRoomState(roomCode)
-    connectRoomStateStream(roomCode)
-    await loadActiveHistory(1)
+    setLoading(true)
+    try {
+      await loadRoomState(roomCode)
+      connectRoomStateStream(roomCode)
+      await loadActiveHistory(1)
+    } finally {
+      // Small delay to ensure smooth transition
+      setTimeout(() => setLoading(false), 300)
+    }
   },
   { immediate: true },
 )
@@ -1012,20 +1140,41 @@ watch(
   { immediate: true },
 )
 
-watch(
-  () => expectedPeriodSeconds.value,
-  () => {
-    syncCountdownTarget(currentPeriod.value, clockTick.value, true)
-  },
-)
+// consolidated timer sync into period_no watcher and state application
 
 watch(
   () => activeHistoryTab.value,
   async () => { await loadActiveHistory(currentPage()) },
 )
 
+watch(remainingSeconds, (newVal, oldVal) => {
+  if (newVal !== oldVal && newVal > 0 && newVal <= 5) {
+    playTickSound()
+  }
+})
+
+// Watch for dice result changes to trigger animation
+watch(currentDice, (newDice) => {
+  if (!isK3.value) return
+  isDiceRolling.value = true
+  if (rollTimer) window.clearInterval(rollTimer)
+  
+  let count = 0
+  const maxTicks = 15
+  rollTimer = window.setInterval(() => {
+    rollingDice.value = rollingDice.value.map(() => Math.floor(Math.random() * 6) + 1)
+    count++
+    if (count >= maxTicks) {
+      if (rollTimer) window.clearInterval(rollTimer)
+      isDiceRolling.value = false
+      rollingDice.value = [...newDice]
+    }
+  }, 100)
+}, { deep: true })
+
 onMounted(() => {
   void loadWallet()
+  rollingDice.value = [...currentDice.value]
   timer = window.setInterval(() => { clockTick.value = Date.now() }, 1000)
 })
 
@@ -1125,7 +1274,11 @@ onBeforeUnmount(() => {
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <span class="text-[0.72rem] text-slate-500">Kỳ xổ</span>
-          <button class="flex items-center gap-1 rounded-full border border-[#f0c0c0] bg-[#fff5f5] px-2.5 py-1 text-[0.65rem] font-semibold text-primary">
+          <button
+            type="button"
+            class="flex items-center gap-1 rounded-full border border-[#f0c0c0] bg-[#fff5f5] px-2.5 py-1 text-[0.65rem] font-semibold text-primary active:scale-95 transition-all"
+            @click="showHelpModal = true"
+          >
             <span class="material-symbols-outlined text-[0.8rem]">menu_book</span>
             Cách chơi
           </button>
@@ -1139,11 +1292,11 @@ onBeforeUnmount(() => {
         </div>
         <!-- Digit-box countdown (matching source design) -->
         <div class="flex items-center gap-1">
-          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ countdownParts.m0 }}</div>
-          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ countdownParts.m1 }}</div>
+          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ isNaN(Number(countdownParts.m0)) ? 0 : countdownParts.m0 }}</div>
+          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ isNaN(Number(countdownParts.m1)) ? 0 : countdownParts.m1 }}</div>
           <span class="text-[1.1rem] font-black text-[#1a1a1a] px-0.5">:</span>
-          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ countdownParts.s0 }}</div>
-          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ countdownParts.s1 }}</div>
+          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ isNaN(Number(countdownParts.s0)) ? 0 : countdownParts.s0 }}</div>
+          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ isNaN(Number(countdownParts.s1)) ? 0 : countdownParts.s1 }}</div>
         </div>
       </div>
     </div>
@@ -1153,9 +1306,10 @@ onBeforeUnmount(() => {
       <div class="mx-3 mt-2 rounded-[16px] overflow-hidden">
         <div class="flex justify-center gap-4 bg-[#1a5c34] border-[3px] border-[#2d8c4e] rounded-[16px] py-5 px-4">
           <div
-            v-for="(d, i) in currentDice"
+            v-for="(d, i) in (isDiceRolling ? rollingDice : currentDice)"
             :key="i"
-            class="relative h-[62px] w-[62px] rounded-[14px]"
+            class="relative h-[62px] w-[62px] rounded-[14px] transition-all duration-75"
+            :class="{ 'animate-bounce': isDiceRolling }"
             :style="{ background: diceColor(d), boxShadow: '0 4px 12px rgba(0,0,0,0.35), inset 0 2px 4px rgba(255,255,255,0.2)' }"
           >
             <span
@@ -1171,7 +1325,7 @@ onBeforeUnmount(() => {
       <!-- K3 Recent Results -->
       <div class="mx-3 mt-2 flex items-center gap-2 rounded-[14px] bg-white px-3 py-2.5 shadow-sm border border-slate-100">
         <span class="text-[0.7rem] text-slate-400">Gần đây:</span>
-        <div v-for="result in recentResults" :key="result.period_no" class="flex gap-1">
+        <div v-for="(result, idx) in recentResults" :key="'k3-recent-' + (result.period_no || idx)" class="flex gap-1">
           <div
             v-for="(d, di) in result.result.split('-').map(Number)"
             :key="di"
@@ -1188,8 +1342,8 @@ onBeforeUnmount(() => {
         <!-- Recent result balls row -->
         <div class="flex items-center gap-2 mb-3">
           <div
-            v-for="result in recentResults"
-            :key="result.period_no"
+            v-for="(result, idx) in recentResults"
+            :key="'wingo-ball-' + (result.period_no || idx)"
             class="flex h-7 w-7 items-center justify-center rounded-full text-[0.75rem] font-black text-white flex-shrink-0"
             :style="{ background: wingoBallBackground(Number(result.result)) }"
           >{{ result.result }}</div>
@@ -1214,7 +1368,34 @@ onBeforeUnmount(() => {
     </template>
 
     <!-- ===== BET AREA ===== -->
-    <div class="mx-3 mt-2 rounded-[16px] bg-white px-3 py-3 shadow-sm border border-slate-100">
+    <div class="mx-3 mt-2 rounded-[16px] bg-white px-3 py-3 shadow-sm border border-slate-100 relative overflow-hidden">
+      <!-- 5s Locked Countdown Overlay -->
+      <Transition name="fade">
+        <div v-if="isBetLocked && remainingSeconds <= 5" class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[2px]">
+          <div class="relative">
+            <svg class="h-28 w-28 -rotate-90">
+              <circle
+                cx="56" cy="56" r="50"
+                stroke="currentColor" stroke-width="8"
+                fill="transparent"
+                class="text-slate-100"
+              />
+              <circle
+                cx="56" cy="56" r="50"
+                stroke="currentColor" stroke-width="8"
+                fill="transparent"
+                stroke-dasharray="314.159"
+                :stroke-dashoffset="314.159 * (1 - remainingSeconds / 5)"
+                class="text-primary transition-all duration-1000 linear"
+              />
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span class="text-[3.5rem] font-black italic text-primary drop-shadow-md">{{ remainingSeconds }}</span>
+            </div>
+          </div>
+          <p class="mt-2 text-[0.85rem] font-black uppercase tracking-widest text-[#e8404a] drop-shadow-sm">Đang khóa lệnh</p>
+        </div>
+      </Transition>
 
       <!-- K3: Sub-tabs for bet types -->
       <template v-if="isK3">
@@ -1230,12 +1411,12 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- K3: Options grid for active sub-tab -->
-        <div v-for="group in activeK3Groups" :key="group.title">
+        <div v-for="(group, gIdx) in activeK3Groups" :key="'k3-g-' + (group.title || gIdx)">
           <!-- Grid mode: circles with odds (Tổng số, 2 số trùng, 3 số trùng) -->
           <div v-if="group.mode === 'grid'" class="grid grid-cols-4 gap-2 mb-3">
               <button
-                v-for="option in group.options"
-                :key="option.key"
+                v-for="(option, oIdx) in group.options"
+                :key="'k3-opt-' + (option.key || oIdx)"
                 type="button"
                 class="flex flex-col items-center justify-center aspect-square rounded-full text-white transition-transform active:scale-95 hover:opacity-90 gap-0.5 p-1 disabled:cursor-not-allowed disabled:opacity-50"
                 :style="{ background: option.accent }"
@@ -1265,8 +1446,8 @@ onBeforeUnmount(() => {
             </div>
             <div v-else class="flex flex-wrap gap-2 mb-3">
               <button
-                v-for="option in group.options"
-                :key="option.key"
+                v-for="(option, oIdx) in group.options"
+                :key="'k3-chip-' + (option.key || oIdx)"
                 type="button"
                 class="rounded-[10px] px-4 py-2.5 text-white text-[0.82rem] font-bold transition-all active:scale-95 flex-1 disabled:cursor-not-allowed disabled:opacity-50"
                 :style="{ background: option.accent }"
@@ -1286,8 +1467,8 @@ onBeforeUnmount(() => {
         <!-- Color buttons -->
         <div v-if="colorGroup" class="grid grid-cols-3 gap-2 mb-3">
           <button
-            v-for="option in colorGroup.options"
-            :key="option.key"
+            v-for="(option, oIdx) in colorGroup.options"
+            :key="'color-' + (option.key || oIdx)"
             type="button"
             class="min-h-[48px] rounded-[10px] text-[0.9rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             :style="{ background: option.accent }"
@@ -1315,10 +1496,10 @@ onBeforeUnmount(() => {
             v-for="multiplier in stakeOptions"
             :key="multiplier"
             type="button"
-            class="flex-shrink-0 rounded-[8px] border-[1.5px] px-3 py-1.5 text-[0.78rem] font-black transition-all"
+            class="flex-shrink-0 rounded-[8px] border-[1.5px] px-3.5 py-1.5 text-[0.78rem] font-black transition-all"
             :class="multiplier === selectedMultiplier ? 'border-primary bg-[#fff5f5] text-primary' : 'border-slate-200 bg-slate-50 text-slate-500'"
             @click="applyChipMultiplier(multiplier)"
-          >X{{ multiplier }}</button>
+          >{{ formatMultiplierLabel(multiplier) }}</button>
         </div>
 
         <!-- Big / Small buttons -->
@@ -1413,8 +1594,8 @@ onBeforeUnmount(() => {
         <div v-else class="rounded-[18px] bg-[#fff9f9] p-3">
           <div class="flex items-end gap-2 overflow-x-auto pb-2 no-scrollbar">
             <div
-              v-for="item in chartSeries"
-              :key="item.periodNo"
+              v-for="(item, idx) in chartSeries"
+              :key="'chart-item-' + (item.periodNo || idx)"
               class="flex min-w-[52px] flex-col items-center gap-2"
             >
               <div class="flex h-28 w-full items-end">
@@ -1576,18 +1757,44 @@ onBeforeUnmount(() => {
           <span class="text-[0.9rem] font-black text-[#e8404a]">{{ modalBetLabel }}</span>
         </div>
 
-        <div class="mb-3 flex items-center justify-between rounded-[14px] bg-slate-50 px-4 py-3">
+        <div class="mb-5 flex items-center justify-between rounded-[14px] bg-slate-50 px-4 py-4">
           <span class="text-[0.82rem] text-slate-500">Tổng tiền cược</span>
           <div class="flex items-center gap-3">
             <button
-              class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-[1.1rem] font-bold text-slate-500 transition-all hover:border-primary hover:text-primary"
-              @click="modalBetAmount = Math.max(10000, modalBetAmount - 10000)"
+              type="button"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-[1.2rem] font-bold text-slate-500 transition-all active:scale-90"
+              @click="modalBetAmount = Math.max(1000, modalBetAmount - 1000)"
             >−</button>
-            <span class="min-w-[90px] text-center text-[0.95rem] font-black text-on-surface">{{ formatMoney(modalBetAmount) }}đ</span>
+            <div class="flex flex-col items-center">
+              <input
+                type="number"
+                v-model.number="modalBetAmount"
+                class="w-[120px] text-center text-[1.1rem] font-black text-on-surface bg-transparent border-none focus:ring-0"
+              />
+              <span class="text-[0.6rem] text-slate-400">VNĐ</span>
+            </div>
             <button
-              class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-[1.1rem] font-bold text-slate-500 transition-all hover:border-primary hover:text-primary"
-              @click="modalBetAmount += 10000"
+              type="button"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-[1.2rem] font-bold text-slate-500 transition-all active:scale-90"
+              @click="modalBetAmount += 1000"
             >+</button>
+          </div>
+        </div>
+
+        <div class="mb-5">
+          <div class="flex items-center justify-between mb-2 px-1">
+            <span class="text-[0.72rem] font-bold text-slate-400 uppercase tracking-widest">Chọn nhanh mức tiền</span>
+            <span class="text-[0.75rem] font-black text-primary">{{ formatMoney(modalBetAmount) }}đ</span>
+          </div>
+          <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            <button
+              v-for="(multiplier, idx) in stakeOptions"
+              :key="'stake-' + idx"
+              type="button"
+              class="flex-shrink-0 min-w-[52px] rounded-[10px] border-[1.5px] px-3 py-2 text-[0.8rem] font-black transition-all"
+              :class="modalBetAmount === (baseChipAmount * multiplier) ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-500'"
+              @click="modalBetAmount = baseChipAmount * multiplier"
+            >{{ formatMultiplierLabel(multiplier) }}</button>
           </div>
         </div>
 
@@ -1754,9 +1961,6 @@ onBeforeUnmount(() => {
     </div>
     <div class="max-w-sm space-y-2">
       <h2 class="text-[1.25rem] font-black text-on-surface">{{ room.title }} đang sắp mở</h2>
-      <p class="text-[0.9rem] leading-6 text-slate-500">
-        Màn chơi này đã có trong danh sách nhưng chưa có room/time khả dụng để vào ngay. Hãy quay lại phòng chơi hoặc chọn game đang mở.
-      </p>
     </div>
     <div class="flex w-full max-w-sm gap-3">
       <button
@@ -1801,5 +2005,32 @@ onBeforeUnmount(() => {
       </RouterLink>
     </div>
     </div>
+    <Teleport to="body">
+      <div v-if="showHelpModal" class="fixed inset-0 z-[100] flex items-center justify-center p-5">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showHelpModal = false" />
+        <div class="relative w-full max-w-sm rounded-[24px] bg-white p-6 shadow-2xl">
+          <div class="mb-4 flex items-center justify-between">
+            <h3 class="text-[1.1rem] font-black text-on-surface">
+              {{ isK3 ? gameHowToPlay.k3.title : (room?.code === 'lottery' ? gameHowToPlay.lottery.title : gameHowToPlay.wingo.title) }}
+            </h3>
+            <button class="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500" @click="showHelpModal = false">
+              <span class="material-symbols-outlined text-[0.9rem]">close</span>
+            </button>
+          </div>
+          <div class="max-h-[60dvh] overflow-y-auto pr-2 text-[0.85rem] leading-relaxed text-slate-600">
+            <div class="whitespace-pre-line">
+              {{ isK3 ? gameHowToPlay.k3.content : (room?.code === 'lottery' ? gameHowToPlay.lottery.content : gameHowToPlay.wingo.content) }}
+            </div>
+          </div>
+          <button
+            type="button"
+            class="mt-6 h-12 w-full rounded-[16px] bg-primary font-bold text-white shadow-lg shadow-primary/20"
+            @click="showHelpModal = false"
+          >
+            Đã hiểu
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

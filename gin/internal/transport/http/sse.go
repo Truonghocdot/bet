@@ -38,6 +38,14 @@ func (s *sseStream) Event(name string, payload any) error {
 		return err
 	}
 
+	return s.EventRaw(name, data)
+}
+
+func (s *sseStream) EventRaw(name string, data []byte) error {
+	if len(data) == 0 {
+		data = []byte("null")
+	}
+
 	if _, err := fmt.Fprintf(s.w, "event: %s\n", name); err != nil {
 		return err
 	}

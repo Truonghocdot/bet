@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	authmiddleware "gin/internal/auth/middleware"
+	"gin/internal/realtime"
 	"gin/internal/service"
 )
 
@@ -16,16 +17,17 @@ func NewRouter(
 	betService *service.BetService,
 	playRoomService *service.PlayRoomService,
 	depositService *service.DepositService,
+	broker *realtime.Broker,
 	internalToken string,
 ) http.Handler {
 	mux := http.NewServeMux()
 
 	healthHandler := NewHealthHandler()
 	authHandler := NewAuthHandler(authService)
-	walletHandler := NewWalletHandler(walletService)
+	walletHandler := NewWalletHandler(walletService, broker)
 	notificationHandler := NewNotificationHandler(notificationService)
 	gameHandler := NewGameHandler(sessionService, betService)
-	playRoomHandler := NewPlayRoomHandler(playRoomService)
+	playRoomHandler := NewPlayRoomHandler(playRoomService, broker)
 	depositHandler := NewDepositHandler(depositService, internalToken)
 	authn := authmiddleware.NewAuthentication(authService)
 

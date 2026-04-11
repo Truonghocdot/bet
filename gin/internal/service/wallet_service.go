@@ -6,16 +6,18 @@ import (
 
 	"gin/internal/domain/user"
 	"gin/internal/domain/wallet"
+	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/support/message"
 )
 
 type WalletService struct {
 	repository *repopg.WalletRepository
+	broker     *realtime.Broker
 }
 
-func NewWalletService(repository *repopg.WalletRepository) *WalletService {
-	return &WalletService{repository: repository}
+func NewWalletService(repository *repopg.WalletRepository, broker *realtime.Broker) *WalletService {
+	return &WalletService{repository: repository, broker: broker}
 }
 
 func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.WalletSummaryResponse, error) {
@@ -48,6 +50,19 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 		Message: message.WalletSummarySuccess,
 		Wallets: items,
 	}, nil
+}
+
+func (s *WalletService) PublishSummary(ctx context.Context, userID int64) error {
+	if userID == 0 {
+		return nil
+	}
+
+	response, err := s.Summary(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	return s.broker.Publish(ctx, realtime.WalletUserTopic(userID), "wallet.summary", response)
 }
 
 func walletUnitLabel(unit int) (string, string) {

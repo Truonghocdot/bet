@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"math/rand"
 	"strings"
@@ -26,13 +27,15 @@ type DepositService struct {
 	repository *repopg.DepositRepository
 	redis      *goredis.Client
 	config     DepositConfig
+	wallets    *WalletService
 }
 
-func NewDepositService(repository *repopg.DepositRepository, redis *goredis.Client, config DepositConfig) *DepositService {
+func NewDepositService(repository *repopg.DepositRepository, redis *goredis.Client, wallets *WalletService, config DepositConfig) *DepositService {
 	return &DepositService{
 		repository: repository,
 		redis:      redis,
 		config:     config,
+		wallets:    wallets,
 	}
 }
 
@@ -101,6 +104,12 @@ func (s *DepositService) ApplyDeposit(ctx context.Context, request deposit.Apply
 		messageText = "Giao dịch nạp đã được xử lý trước đó"
 	} else if result.Transaction.Status == 4 {
 		messageText = "Giao dịch nạp không thành công"
+	}
+
+	if result.Applied && s.wallets != nil {
+		if err := s.wallets.PublishSummary(ctx, result.Transaction.UserID); err != nil {
+			log.Printf("[realtime][wallet.publish.error] user_id=%d source=deposit.apply err=%v", result.Transaction.UserID, err)
+		}
 	}
 
 	return deposit.ApplyDepositResponse{

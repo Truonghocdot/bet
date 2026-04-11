@@ -4,11 +4,13 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
 import { formatViMoney } from '@/shared/lib/money'
+import { useLoading } from '@/shared/lib/loading'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const wallet = useWalletStore()
+const { isLoading } = useLoading()
 
 const isDrawerOpen = ref(false)
 
@@ -56,7 +58,10 @@ function closeDrawer() { isDrawerOpen.value = false }
 
 function navigateDrawer(path: string) {
   closeDrawer()
-  void router.push(path)
+  setLoading(true)
+  void router.push(path).finally(() => {
+    setTimeout(() => setLoading(false), 300)
+  })
 }
 
 async function handleLogout() {
@@ -100,6 +105,23 @@ onBeforeUnmount(() => {
       <div class="app-shell__blur app-shell__blur--one" />
       <div class="app-shell__blur app-shell__blur--two" />
     </div>
+
+    <!-- ===== GLOBAL LOADING OVERLAY ===== -->
+    <Transition name="fade">
+      <div v-if="isLoading" class="fixed inset-0 z-[100] grid place-items-center bg-white/80 backdrop-blur-md">
+        <div class="flex flex-col items-center gap-4">
+          <div class="relative">
+            <div class="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+            <img src="/logo.png" alt="Loading..." class="relative h-20 w-20 rounded-2xl shadow-xl animate-pulse" />
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary" />
+            <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:0.2s]" />
+            <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:0.4s]" />
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- ===== DESKTOP SIDEBAR (md+) ===== -->
     <aside class="sidebar hidden md:flex">

@@ -3,8 +3,8 @@ package app
 import (
 	"bufio"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -14,6 +14,10 @@ type Config struct {
 	ReadTimeout                      time.Duration
 	WriteTimeout                     time.Duration
 	ShutdownTimout                   time.Duration
+	DBMaxOpenConns                   int
+	DBMaxIdleConns                   int
+	DBConnMaxLifetime                time.Duration
+	DBConnMaxIdleTime                time.Duration
 	DatabaseURL                      string
 	AuthSecret                       string
 	AuthTTL                          time.Duration
@@ -49,6 +53,10 @@ func LoadConfig() Config {
 		ReadTimeout:                      getEnvDuration("HTTP_READ_TIMEOUT", 10*time.Second),
 		WriteTimeout:                     getEnvDuration("HTTP_WRITE_TIMEOUT", 10*time.Second),
 		ShutdownTimout:                   getEnvDuration("HTTP_SHUTDOWN_TIMEOUT", 10*time.Second),
+		DBMaxOpenConns:                   getEnvInt("DB_MAX_OPEN_CONNS", 40),
+		DBMaxIdleConns:                   getEnvInt("DB_MAX_IDLE_CONNS", 20),
+		DBConnMaxLifetime:                getEnvDuration("DB_CONN_MAX_LIFETIME", 30*time.Minute),
+		DBConnMaxIdleTime:                getEnvDuration("DB_CONN_MAX_IDLE_TIME", 5*time.Minute),
 		DatabaseURL:                      getEnv("DATABASE_URL", ""),
 		AuthSecret:                       getEnv("AUTH_TOKEN_SECRET", ""),
 		AuthTTL:                          getEnvDuration("AUTH_TOKEN_TTL", 24*time.Hour),

@@ -1,12 +1,12 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
 
 	authmiddleware "gin/internal/auth/middleware"
+	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
 	"gin/internal/support/message"
@@ -14,10 +14,11 @@ import (
 
 type WalletHandler struct {
 	walletService *service.WalletService
+	broker        *realtime.Broker
 }
 
-func NewWalletHandler(walletService *service.WalletService) *WalletHandler {
-	return &WalletHandler{walletService: walletService}
+func NewWalletHandler(walletService *service.WalletService, broker *realtime.Broker) *WalletHandler {
+	return &WalletHandler{walletService: walletService, broker: broker}
 }
 
 func (h *WalletHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -60,40 +61,32 @@ func (h *WalletHandler) Stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pollTicker := time.NewTicker(5 * time.Second)
-	heartbeatTicker := time.NewTicker(20 * time.Second)
-	defer pollTicker.Stop()
-	defer heartbeatTicker.Stop()
-
-	lastPayload := ""
-	emitSummary := func(response any) error {
-		payload, err := json.Marshal(response)
-		if err != nil {
-			return err
-		}
-		payloadKey := string(payload)
-		if payloadKey == lastPayload {
-			return nil
-		}
-
-		lastPayload = payloadKey
-		return stream.Event("wallet.summary", response)
-	}
-
-	if err := emitSummary(initialResponse); err != nil {
+	if err := stream.Event("wallet.summary", initialResponse); err != nil {
 		return
 	}
+
+	updates, unsubscribe, err := h.broker.Subscribe(r.Context(), realtime.WalletUserTopic(claims.UserID))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+	defer unsubscribe()
+
+	heartbeatTicker := time.NewTicker(20 * time.Second)
+	defer heartbeatTicker.Stop()
 
 	for {
 		select {
 		case <-r.Context().Done():
 			return
-		case <-pollTicker.C:
-			response, err := h.walletService.Summary(r.Context(), claims.UserID)
-			if err != nil {
+		case update, ok := <-updates:
+			if !ok {
 				return
 			}
-			if err := emitSummary(response); err != nil {
+			if update.Event != "wallet.summary" {
+				continue
+			}
+			if err := stream.EventRaw(update.Event, update.Data); err != nil {
 				return
 			}
 		case <-heartbeatTicker.C:

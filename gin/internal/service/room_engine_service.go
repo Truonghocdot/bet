@@ -18,22 +18,30 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-const roomPeriodEventsChannel = "game:room:period-events:v1"
-
 type RoomEngineService struct {
-	gameRepository *repopg.GameRepository
-	redis          *goredis.Client
-	tickInterval   time.Duration
+	gameRepository  *repopg.GameRepository
+	redis           *goredis.Client
+	tickInterval    time.Duration
+	playRoomService *PlayRoomService
+	walletService   *WalletService
 }
 
-func NewRoomEngineService(gameRepository *repopg.GameRepository, redisClient *goredis.Client, tickInterval time.Duration) *RoomEngineService {
+func NewRoomEngineService(
+	gameRepository *repopg.GameRepository,
+	redisClient *goredis.Client,
+	playRoomService *PlayRoomService,
+	walletService *WalletService,
+	tickInterval time.Duration,
+) *RoomEngineService {
 	if tickInterval <= 0 {
 		tickInterval = time.Second
 	}
 	return &RoomEngineService{
-		gameRepository: gameRepository,
-		redis:          redisClient,
-		tickInterval:   tickInterval,
+		gameRepository:  gameRepository,
+		redis:           redisClient,
+		tickInterval:    tickInterval,
+		playRoomService: playRoomService,
+		walletService:   walletService,
 	}
 }
 
@@ -109,12 +117,9 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 			log.Printf("[engine] ensure period lỗi room=%s err=%v", room.Code, err)
 		} else if len(createdPeriods) > 0 {
 			log.Printf("[engine] room=%s đã sinh %d kỳ mới", room.Code, len(createdPeriods))
-			for _, period := range createdPeriods {
-				if err := s.publishPeriodCreated(ctx, period); err != nil {
-					if errors.Is(err, context.Canceled) {
-						return err
-					}
-					log.Printf("[engine] publish period lỗi room=%s period=%s err=%v", period.RoomCode, period.PeriodNo, err)
+			if err := s.refreshRoomState(ctx, room.Code, "period.created"); err != nil {
+				if errors.Is(err, context.Canceled) {
+					return err
 				}
 			}
 		} else {
@@ -124,23 +129,33 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 		log.Printf("[engine][room.lock.released] room_code=%s key=%s", room.Code, lockKey)
 	}
 
-	openedCount, err := s.gameRepository.MoveScheduledToOpen(ctx, now)
+	openedRooms, err := s.gameRepository.MoveScheduledToOpen(ctx, now)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return err
 		}
 		log.Printf("[engine] chuyển SCHEDULED->OPEN lỗi: %v", err)
 	} else {
-		log.Printf("[engine][period.transition] from=SCHEDULED to=OPEN count=%d", openedCount)
+		log.Printf("[engine][period.transition] from=SCHEDULED to=OPEN count=%d", len(openedRooms))
+		for _, roomCode := range openedRooms {
+			if err := s.refreshRoomState(ctx, roomCode, "period.opened"); err != nil && !errors.Is(err, context.Canceled) {
+				log.Printf("[engine][room.refresh.error] room_code=%s source=period.opened err=%v", roomCode, err)
+			}
+		}
 	}
-	lockedCount, err := s.gameRepository.MoveOpenToLocked(ctx, now)
+	lockedRooms, err := s.gameRepository.MoveOpenToLocked(ctx, now)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return err
 		}
 		log.Printf("[engine] chuyển OPEN->LOCKED lỗi: %v", err)
 	} else {
-		log.Printf("[engine][period.transition] from=OPEN to=LOCKED count=%d", lockedCount)
+		log.Printf("[engine][period.transition] from=OPEN to=LOCKED count=%d", len(lockedRooms))
+		for _, roomCode := range lockedRooms {
+			if err := s.refreshRoomState(ctx, roomCode, "period.locked"); err != nil && !errors.Is(err, context.Canceled) {
+				log.Printf("[engine][room.refresh.error] room_code=%s source=period.locked err=%v", roomCode, err)
+			}
+		}
 	}
 
 	lockedPeriods, err := s.gameRepository.ListLockedPeriodsForDraw(ctx, now, 200)
@@ -177,6 +192,8 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 				return err
 			}
 			log.Printf("[engine] đánh dấu DRAWN lỗi period=%d err=%v", period.ID, err)
+		} else if err := s.refreshRoomState(ctx, period.RoomCode, "period.drawn"); err != nil && !errors.Is(err, context.Canceled) {
+			log.Printf("[engine][room.refresh.error] room_code=%s source=period.drawn err=%v", period.RoomCode, err)
 		}
 		s.releaseLock(ctx, lockKey)
 	}
@@ -198,11 +215,21 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 			}
 			continue
 		}
-		if err := s.gameRepository.SettlePeriod(ctx, period); err != nil {
+		userIDs, err := s.gameRepository.SettlePeriod(ctx, period)
+		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
 			log.Printf("[engine] settlement lỗi period=%d err=%v", period.ID, err)
+		} else {
+			if err := s.refreshRoomState(ctx, period.RoomCode, "period.settled"); err != nil && !errors.Is(err, context.Canceled) {
+				log.Printf("[engine][room.refresh.error] room_code=%s source=period.settled err=%v", period.RoomCode, err)
+			}
+			for _, userID := range userIDs {
+				if err := s.publishWalletSummary(ctx, userID, "period.settled"); err != nil && !errors.Is(err, context.Canceled) {
+					log.Printf("[engine][wallet.refresh.error] user_id=%d source=period.settled err=%v", userID, err)
+				}
+			}
 		}
 		s.releaseLock(ctx, lockKey)
 		log.Printf("[engine][period.settle.lock.released] period_id=%d room_code=%s", period.ID, period.RoomCode)
@@ -228,44 +255,31 @@ func defaultEngineRooms() []repopg.GameRoomRecord {
 	}
 }
 
+func (s *RoomEngineService) refreshRoomState(ctx context.Context, roomCode string, source string) error {
+	if s.playRoomService == nil || strings.TrimSpace(roomCode) == "" {
+		return nil
+	}
+	_, err := s.playRoomService.RefreshRoomState(ctx, roomCode, source)
+	return err
+}
+
+func (s *RoomEngineService) publishWalletSummary(ctx context.Context, userID int64, source string) error {
+	if s.walletService == nil || userID == 0 {
+		return nil
+	}
+	if err := s.walletService.PublishSummary(ctx, userID); err != nil {
+		log.Printf("[realtime][wallet.publish.error] user_id=%d source=%s err=%v", userID, source, err)
+		return err
+	}
+	return nil
+}
+
 func (s *RoomEngineService) acquireLock(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	return s.redis.SetNX(ctx, key, "1", ttl).Result()
 }
 
 func (s *RoomEngineService) releaseLock(ctx context.Context, key string) {
 	_, _ = s.redis.Del(ctx, key).Result()
-}
-
-func (s *RoomEngineService) publishPeriodCreated(ctx context.Context, period repopg.GamePeriodRecord) error {
-	if s.redis == nil {
-		log.Printf("[engine][period.publish.skip] period_id=%d room_code=%s reason=redis_nil", period.ID, period.RoomCode)
-		return nil
-	}
-
-	payload, err := json.Marshal(map[string]any{
-		"event":        "period.created",
-		"room_code":    period.RoomCode,
-		"period_id":    period.ID,
-		"period_no":    period.PeriodNo,
-		"game_type":    period.GameType,
-		"status":       period.Status,
-		"open_at":      period.OpenAt,
-		"bet_lock_at":  period.BetLockAt,
-		"draw_at":      period.DrawAt,
-		"published_at": clock.Now(),
-	})
-	if err != nil {
-		log.Printf("[engine][period.publish.error] period_id=%d room_code=%s stage=marshal err=%v", period.ID, period.RoomCode, err)
-		return err
-	}
-
-	if err := s.redis.Publish(ctx, roomPeriodEventsChannel, payload).Err(); err != nil {
-		log.Printf("[engine][period.publish.error] period_id=%d room_code=%s stage=redis_publish err=%v", period.ID, period.RoomCode, err)
-		return err
-	}
-
-	log.Printf("[engine][period.publish.done] period_id=%d room_code=%s channel=%s", period.ID, period.RoomCode, roomPeriodEventsChannel)
-	return nil
 }
 
 func (s *RoomEngineService) generateDraw(gameType int) (repopg.DrawResult, error) {
