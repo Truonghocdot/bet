@@ -1,21 +1,70 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { formatViDateTime } from '@/shared/lib/date'
-import { notificationItems, getUnreadCount } from '@/data/site'
+import { useNotificationsStore } from '@/stores/notifications'
 
-const tabs = ['Tất cả', 'Chưa đọc', 'Đã đọc']
-const activeTab = ref(tabs[0])
+const tabs = ['Tất cả', 'Chưa đọc', 'Đã đọc'] as const
+const activeTab = ref<(typeof tabs)[number]>('Tất cả')
+const store = useNotificationsStore()
 
-const unreadCount = computed(() => getUnreadCount())
-const totalCount = computed(() => notificationItems.length)
-const unreadItems = computed(() => notificationItems.filter((item) => item.unread).slice(0, 2))
+const unreadCount = computed(() => store.unreadCount)
+const totalCount = computed(() => store.pagination.total)
+const isLoading = computed(() => store.loading)
+const isMarkingRead = computed(() => store.markingReadId)
+const page = computed(() => store.pagination.page)
+const totalPages = computed(() => store.pagination.totalPages)
 
 const filteredNotifications = computed(() => {
-  if (activeTab.value === 'Chưa đọc') return notificationItems.filter((item) => item.unread)
-  if (activeTab.value === 'Đã đọc') return notificationItems.filter((item) => !item.unread)
-  return notificationItems
+  if (activeTab.value === 'Chưa đọc') return store.items.filter((item) => !item.is_read)
+  if (activeTab.value === 'Đã đọc') return store.items.filter((item) => item.is_read)
+  return store.items
+})
+
+const unreadItems = computed(() => store.items.filter((item) => !item.is_read).slice(0, 2))
+
+function audienceLabel(audience: number) {
+  return audience === 1 ? 'Toàn bộ người dùng' : 'Nhắm theo tài khoản'
+}
+
+function toneByReadState(isRead: boolean) {
+  return isRead ? 'info' : 'warning'
+}
+
+async function load(pageNumber = 1) {
+  try {
+    await store.fetchList(pageNumber, store.pagination.pageSize)
+  } catch {
+    // message already populated in store.error
+  }
+}
+
+async function markRead(id: number) {
+  if (!id) return
+  try {
+    await store.markRead(id)
+  } catch {
+    // message already populated in store.error
+  }
+}
+
+function prevPage() {
+  if (page.value <= 1 || isLoading.value) return
+  void load(page.value - 1)
+}
+
+function nextPage() {
+  if (page.value >= totalPages.value || isLoading.value) return
+  void load(page.value + 1)
+}
+
+watch(activeTab, () => {
+  // keep UX consistent: switching tabs keeps current API page,
+  // filtering is client-side on current page data.
+})
+
+onMounted(() => {
+  void load(1)
 })
 </script>
 
@@ -29,7 +78,7 @@ const filteredNotifications = computed(() => {
           </span>
           <h2 class="mt-4 text-[1.55rem] font-black md:text-[1.8rem]">Danh sách thông báo của bạn</h2>
           <p class="mt-2 max-w-[36rem] text-sm leading-6 text-on-surface-variant">
-            Alert hệ thống, tin tức và nhắc nhở vận hành được gom thành một khối để xem nhanh và thao tác ngay.
+            Dữ liệu đang được lấy trực tiếp từ API. Bạn có thể đánh dấu đã đọc để đồng bộ trạng thái theo tài khoản.
           </p>
           <div class="mt-4 flex flex-wrap gap-2">
             <span class="rounded-full bg-primary/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-primary">
@@ -69,7 +118,19 @@ const filteredNotifications = computed(() => {
       </div>
     </section>
 
-    <section class="grid gap-3 md:grid-cols-2">
+    <section v-if="store.error" class="rounded-[20px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-sm font-semibold text-[#b71211]">
+      {{ store.error }}
+    </section>
+
+    <section v-if="isLoading" class="rounded-[24px] bg-white p-5 text-sm font-semibold text-on-surface-variant shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+      Đang tải thông báo...
+    </section>
+
+    <section v-else-if="filteredNotifications.length === 0" class="rounded-[24px] bg-white p-5 text-sm font-semibold text-on-surface-variant shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+      Không có thông báo ở bộ lọc hiện tại.
+    </section>
+
+    <section v-else class="grid gap-3 md:grid-cols-2">
       <article
         v-for="item in filteredNotifications"
         :key="item.id"
@@ -79,13 +140,12 @@ const filteredNotifications = computed(() => {
           <div
             class="grid h-11 w-11 place-items-center rounded-[16px] text-white"
             :class="{
-              'bg-emerald-500': item.tone === 'success',
-              'bg-primary': item.tone === 'info',
-              'bg-amber-500': item.tone === 'warning',
+              'bg-primary': toneByReadState(item.is_read) === 'info',
+              'bg-amber-500': toneByReadState(item.is_read) === 'warning',
             }"
           >
             <span class="material-symbols-outlined text-[1.05rem]">
-              {{ item.tone === 'success' ? 'task_alt' : item.tone === 'warning' ? 'notifications_active' : 'info' }}
+              {{ item.is_read ? 'info' : 'notifications_active' }}
             </span>
           </div>
 
@@ -94,26 +154,57 @@ const filteredNotifications = computed(() => {
               <strong class="text-[0.9rem] font-black">{{ item.title }}</strong>
               <span
                 class="rounded-full px-2 py-1 text-[0.62rem] font-black uppercase tracking-[0.08em]"
-                :class="item.unread ? 'bg-primary/10 text-primary' : 'bg-surface-container-low text-on-surface-variant'"
+                :class="!item.is_read ? 'bg-primary/10 text-primary' : 'bg-surface-container-low text-on-surface-variant'"
               >
-                {{ item.unread ? 'Mới' : 'Đã xem' }}
+                {{ !item.is_read ? 'Mới' : 'Đã xem' }}
               </span>
             </div>
             <p class="mt-1.5 text-[0.76rem] leading-6 text-on-surface-variant">{{ item.body }}</p>
             <div class="mt-3 flex flex-wrap items-center gap-2 text-[0.68rem] text-on-surface-variant">
-              <span class="rounded-full bg-surface-container-low px-3 py-1 font-bold">{{ item.category }}</span>
-              <span>{{ formatViDateTime(item.createdAt) }}</span>
+              <span class="rounded-full bg-surface-container-low px-3 py-1 font-bold">{{ audienceLabel(item.audience) }}</span>
+              <span>{{ formatViDateTime(item.publish_at || item.created_at) }}</span>
             </div>
-            <RouterLink
-              v-if="item.relatedSlug"
-              :to="`/news/${item.relatedSlug}`"
-              class="mt-3 inline-flex text-[0.74rem] font-extrabold text-primary"
+            <button
+              v-if="!item.is_read"
+              type="button"
+              class="mt-3 inline-flex rounded-full bg-primary/10 px-3 py-1 text-[0.72rem] font-extrabold text-primary disabled:opacity-60"
+              :disabled="isMarkingRead === item.id"
+              @click="markRead(item.id)"
             >
-              Xem tin liên quan
-            </RouterLink>
+              {{ isMarkingRead === item.id ? 'Đang cập nhật...' : 'Đánh dấu đã đọc' }}
+            </button>
           </div>
         </div>
       </article>
+    </section>
+
+    <section class="rounded-[20px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="text-[0.78rem] font-semibold text-on-surface-variant">
+          Trang {{ page }} / {{ totalPages }}
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 px-3 py-1.5 text-[0.74rem] font-extrabold text-on-surface disabled:opacity-50"
+            :disabled="page <= 1 || isLoading"
+            @click="prevPage"
+          >
+            Trang trước
+          </button>
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 px-3 py-1.5 text-[0.74rem] font-extrabold text-on-surface disabled:opacity-50"
+            :disabled="page >= totalPages || isLoading"
+            @click="nextPage"
+          >
+            Trang sau
+          </button>
+        </div>
+      </div>
+      <p v-if="unreadItems.length > 0" class="mt-3 text-[0.72rem] text-on-surface-variant">
+        Ưu tiên xử lý: {{ unreadItems.map((item) => item.title).join(' • ') }}
+      </p>
     </section>
   </div>
 </template>

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -84,38 +83,4 @@ func (s *GameSessionService) ValidateConnection(connectionID, userID string, gam
 	}
 
 	return nil
-}
-
-func subtractDecimal(left, right string) (string, error) {
-	lv, err := parseDecimal(left)
-	if err != nil {
-		return "", err
-	}
-	rv, err := parseDecimal(right)
-	if err != nil {
-		return "", err
-	}
-
-	return new(big.Rat).Sub(lv, rv).FloatString(8), nil
-}
-
-func compareDecimal(left, right string) int {
-	lv, err := parseDecimal(left)
-	if err != nil {
-		return -1
-	}
-	rv, err := parseDecimal(right)
-	if err != nil {
-		return -1
-	}
-
-	return lv.Cmp(rv)
-}
-
-func parseDecimal(value string) (*big.Rat, error) {
-	rat := new(big.Rat)
-	if _, ok := rat.SetString(strings.TrimSpace(value)); !ok {
-		return nil, fmt.Errorf("invalid decimal value: %s", value)
-	}
-	return rat, nil
 }

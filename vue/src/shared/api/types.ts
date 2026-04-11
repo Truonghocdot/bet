@@ -191,3 +191,31 @@ export type WalletSummaryResponse = {
   message: string
   wallets: WalletSummaryItem[]
 }
+
+export type NotificationListItem = {
+  id: number
+  title: string
+  body: string
+  status: number
+  audience: number
+  publish_at?: string | null
+  expires_at?: string | null
+  created_at: string
+  is_read: boolean
+  read_at?: string | null
+}
+
+export type NotificationListResponse = {
+  message: string
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  items: NotificationListItem[]
+}
+
+export type NotificationReadResponse = {
+  message: string
+  id: number
+  read_at: string
+}

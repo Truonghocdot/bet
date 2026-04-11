@@ -36,6 +36,8 @@ Tài liệu này mô tả schema DB cho:
 
 ### Bet
 
+- `game_rooms.game_type` -> `App\Enum\Bet\GameType`
+- `game_rooms.status` -> `App\Enum\Bet\RoomStatus`
 - `game_periods.game_type` -> `App\Enum\Bet\GameType`
 - `game_periods.status` -> `App\Enum\Bet\PeriodStatus`
 - `game_periods.draw_source` -> `App\Enum\Bet\DrawSource`
@@ -517,7 +519,33 @@ Note xử lý:
 - `MANUAL`: bắt buộc có `note` và `settled_by`.
 - `ROLLBACK`: tạo bút toán đảo ví/ledger, không sửa lịch sử cũ.
 
-### 6.2 `game_periods`
+### 6.2 `game_rooms`
+
+Catalog room cố định theo từng game và từng tab thời gian.
+
+- `id`: bigint unsigned
+- `code`: varchar(40) unique
+- `game_type`: tinyint
+- `duration_seconds`: int unsigned
+- `bet_cutoff_seconds`: smallint unsigned default `5`
+- `status`: tinyint (`ACTIVE` / `INACTIVE`)
+- `sort_order`: int unsigned
+- `created_at`: timestamp
+- `updated_at`: timestamp
+
+Constraint/index:
+
+- unique(`code`)
+- index(`game_type`, `status`, `sort_order`)
+- index(`status`, `sort_order`)
+
+Nghiệp vụ:
+
+- `code` là mã room hard-code, không đổi theo kỳ.
+- Mỗi room có timeline kỳ độc lập.
+- Room `INACTIVE` không tạo kỳ mới.
+
+### 6.3 `game_periods`
 
 Mỗi record là một kỳ quay của một game.
 
@@ -527,6 +555,7 @@ Mỗi record là một kỳ quay của một game.
 - `room_code`: varchar(30) nullable
 - `open_at`: timestamp
 - `close_at`: timestamp
+- `bet_lock_at`: timestamp
 - `draw_at`: timestamp
 - `settled_at`: timestamp nullable
 - `status`: tinyint
@@ -538,22 +567,27 @@ Mỗi record là một kỳ quay của một game.
 
 Constraint/index:
 
-- unique(`game_type`, `period_no`)
+- unique(`room_code`, `period_no`)
 - index(`status`, `draw_at`)
 - index(`game_type`, `close_at`)
+- index(`room_code`, `status`, `draw_at`)
+- index(`room_code`, `bet_lock_at`)
 
 Nghiệp vụ:
 
-- Scheduler tạo kỳ kế tiếp khi kỳ hiện tại sắp hết hạn.
-- Hết thời gian cược: `OPEN -> LOCKED`.
+- Engine 24/7 tạo kỳ kế tiếp theo room dù không có user online.
+- `bet_lock_at = draw_at - 5 giây`.
+- Hết thời gian cược: `OPEN -> LOCKED` tại mốc `bet_lock_at`.
 - Chỉ cho phép settle khi `status = DRAWN`.
+- Từ `bet_lock_at` trở đi: user không đặt cược được và admin không được sửa kỳ/vé/item.
 
-### 6.2.1 `game_round_histories`
+### 6.3.1 `game_round_histories`
 
 Lưu lịch sử kết quả vòng quay để màn chơi hiển thị list gần nhất và biểu đồ.
 
 - `id`: bigint unsigned
 - `game_type`: varchar(32)
+- `room_code`: varchar(40)
 - `period_no`: varchar(64)
 - `result`: varchar(64)
 - `big_small`: varchar(32)
@@ -566,14 +600,15 @@ Lưu lịch sử kết quả vòng quay để màn chơi hiển thị list gần
 Index:
 
 - index(`game_type`, `draw_at`, `id`)
+- index(`room_code`, `draw_at`, `id`)
 
 Nghiệp vụ:
 
 - Đây là nguồn dữ liệu cho phần lịch sử gần nhất trên màn play.
-- Mỗi kỳ quay chỉ có 1 record kết quả.
+- Mỗi kỳ quay/room có 1 record kết quả.
 - `status` dùng text để hiển thị vận hành, không thay thế `game_periods.status`.
 
-### 6.3 `bet_tickets`
+### 6.4 `bet_tickets`
 
 Đại diện đơn cược cấp order.
 
@@ -616,9 +651,9 @@ Nghiệp vụ:
 - `connection_id` gom lệnh theo 1 session join room.
 - `total_stake` và `items` phục vụ luồng play runtime.
 - Khi đặt cược: trừ `balance`, cộng `locked_balance`, ghi ledger `bet_stake`.
-- Không cho sửa ticket sau khi `status != PENDING`.
+- Không cho sửa ticket khi period đã vào `LOCKED` hoặc `now >= bet_lock_at`.
 
-### 6.4 `bet_items`
+### 6.5 `bet_items`
 
 Chi tiết từng dòng cược trong ticket.
 
@@ -641,8 +676,9 @@ Nghiệp vụ:
 
 - `odds_at_placement` là snapshot cố định, không đổi theo odds runtime.
 - `result_payload` lưu dữ liệu chấm chi tiết để debug tranh chấp.
+- Không cho sửa item khi period đã vào `LOCKED` hoặc `now >= bet_lock_at`.
 
-### 6.5 `bet_settlements`
+### 6.6 `bet_settlements`
 
 Audit bất biến cho mỗi lần settle hoặc rollback.
 

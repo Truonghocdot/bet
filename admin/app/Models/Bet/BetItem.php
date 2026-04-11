@@ -6,6 +6,7 @@ use App\Enum\Bet\BetItemResult;
 use App\Enum\Bet\BetOptionType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Validation\ValidationException;
 
 class BetItem extends Model
 {
@@ -44,5 +45,34 @@ class BetItem extends Model
     public function period(): BelongsTo
     {
         return $this->belongsTo(GamePeriod::class, 'period_id');
+    }
+
+    public function isAdminMutationLocked(): bool
+    {
+        $period = $this->relationLoaded('period') ? $this->period : $this->period()->first();
+        if (! $period) {
+            return false;
+        }
+
+        return $period->isAdminMutationLocked();
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (BetItem $item): void {
+            if ($item->isAdminMutationLocked()) {
+                throw ValidationException::withMessages([
+                    'item' => ['Vé cược thuộc kỳ đã khóa, thao tác bị từ chối.'],
+                ]);
+            }
+        });
+
+        static::deleting(function (BetItem $item): void {
+            if ($item->isAdminMutationLocked()) {
+                throw ValidationException::withMessages([
+                    'item' => ['Vé cược thuộc kỳ đã khóa, thao tác bị từ chối.'],
+                ]);
+            }
+        });
     }
 }

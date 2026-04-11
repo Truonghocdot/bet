@@ -8,6 +8,7 @@ class GameRoundHistory extends Model
 {
     protected $fillable = [
         'game_type',
+        'room_code',
         'period_no',
         'result',
         'big_small',

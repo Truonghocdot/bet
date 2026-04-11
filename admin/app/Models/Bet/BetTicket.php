@@ -11,6 +11,7 @@ use App\Models\Wallet\Wallet;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Validation\ValidationException;
 
 class BetTicket extends Model
 {
@@ -76,5 +77,34 @@ class BetTicket extends Model
     public function settlements(): HasMany
     {
         return $this->hasMany(BetSettlement::class, 'ticket_id');
+    }
+
+    public function isAdminMutationLocked(): bool
+    {
+        $period = $this->relationLoaded('period') ? $this->period : $this->period()->first();
+        if (! $period) {
+            return false;
+        }
+
+        return $period->isAdminMutationLocked();
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (BetTicket $ticket): void {
+            if ($ticket->isAdminMutationLocked()) {
+                throw ValidationException::withMessages([
+                    'ticket' => ['Vé cược thuộc kỳ đã khóa, thao tác bị từ chối.'],
+                ]);
+            }
+        });
+
+        static::deleting(function (BetTicket $ticket): void {
+            if ($ticket->isAdminMutationLocked()) {
+                throw ValidationException::withMessages([
+                    'ticket' => ['Vé cược thuộc kỳ đã khóa, thao tác bị từ chối.'],
+                ]);
+            }
+        });
     }
 }

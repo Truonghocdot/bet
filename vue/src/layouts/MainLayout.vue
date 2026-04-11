@@ -60,7 +60,7 @@ const isActive = (path: string) => {
       </div>
     </main>
 
-    <nav v-if="!isPlayRoute" class="bottom-nav">
+    <nav class="bottom-nav">
       <RouterLink
         v-for="item in navItems"
         :key="item.label"

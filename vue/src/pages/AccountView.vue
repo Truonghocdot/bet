@@ -2,18 +2,19 @@
 import { computed, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
-import { notificationItems } from '@/data/site'
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useWalletStore } from '@/stores/wallet'
 
 const router = useRouter()
 const auth = useAuthStore()
 const wallet = useWalletStore()
+const notifications = useNotificationsStore()
 
 const profile = computed(() => auth.user)
 const affiliate = computed(() => auth.affiliateProfile)
-const unreadNotifications = computed(() => notificationItems.filter((item) => item.unread).length)
+const unreadNotifications = computed(() => notifications.unreadCount)
 
 const vndWallet = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
 const usdtWallet = computed(() => wallet.wallets.find((item) => item.unit === 2) ?? null)
@@ -58,14 +59,25 @@ async function loadWalletSummary() {
   }
 }
 
+async function loadNotificationSummary() {
+  if (!auth.isAuthenticated) return
+  try {
+    await notifications.fetchList(1, 20)
+  } catch {
+    // Notifications store already keeps error state.
+  }
+}
+
 function logout() {
   auth.logout()
   wallet.reset()
+  notifications.reset()
   void router.replace('/auth')
 }
 
 onMounted(() => {
   void loadWalletSummary()
+  void loadNotificationSummary()
 })
 </script>
 

@@ -17,9 +17,9 @@ import (
 )
 
 type BetService struct {
-	publisher       outbox.Publisher
-	sessionService  *GameSessionService
-	gameRepository  *repopg.GameRepository
+	publisher        outbox.Publisher
+	sessionService   *GameSessionService
+	gameRepository   *repopg.GameRepository
 	walletRepository *repopg.WalletRepository
 }
 
@@ -30,9 +30,9 @@ func NewBetService(
 	walletRepository *repopg.WalletRepository,
 ) *BetService {
 	return &BetService{
-		publisher:       publisher,
-		sessionService:  sessionService,
-		gameRepository:  gameRepository,
+		publisher:        publisher,
+		sessionService:   sessionService,
+		gameRepository:   gameRepository,
 		walletRepository: walletRepository,
 	}
 }
@@ -62,9 +62,19 @@ func (s *BetService) PlaceBet(ctx context.Context, connectionID string, request 
 		return game.PlaceBetResponse{}, err
 	}
 
+	roomCode, ok := game.DefaultRoomCode(request.GameType)
+	if !ok {
+		return game.PlaceBetResponse{}, fmt.Errorf(message.GameRoomNotFound)
+	}
+
 	userID, err := strconv.ParseInt(strings.TrimSpace(request.UserID), 10, 64)
 	if err != nil {
 		return game.PlaceBetResponse{}, fmt.Errorf(message.Unauthorized)
+	}
+
+	periodID, err := repopg.ParsePeriodID(request.PeriodID)
+	if err != nil {
+		return game.PlaceBetResponse{}, err
 	}
 
 	totalStake, err := sumBetItems(request.Items)
@@ -90,8 +100,8 @@ func (s *BetService) PlaceBet(ctx context.Context, connectionID string, request 
 
 	ticket, err := s.gameRepository.CreateBetTicket(ctx, repopg.CreateBetTicketParams{
 		UserID:       userID,
-		GameType:     string(request.GameType),
-		PeriodID:     request.PeriodID,
+		RoomCode:     roomCode,
+		PeriodID:     periodID,
 		RequestID:    request.RequestID,
 		ConnectionID: connectionID,
 		TotalStake:   totalStake,
@@ -109,7 +119,8 @@ func (s *BetService) PlaceBet(ctx context.Context, connectionID string, request 
 			"connection_id": connectionID,
 			"user_id":       request.UserID,
 			"game_type":     request.GameType,
-			"period_id":     request.PeriodID,
+			"period_id":     periodID,
+			"room_code":     roomCode,
 			"request_id":    request.RequestID,
 			"items_count":   len(request.Items),
 			"ticket_id":     ticket.ID,
@@ -171,12 +182,12 @@ func (s *BetService) ListMyBets(ctx context.Context, userID int64, gameType game
 		summary := summarizeBetTicket(record.ItemsJSON)
 		items = append(items, game.BetTicketHistoryItem{
 			ID:         record.ID,
-			PeriodNo:   record.PeriodID,
+			PeriodNo:   record.PeriodNo,
 			Result:     summary.Result,
 			BigSmall:   summary.BigSmall,
 			Color:      summary.Color,
 			Stake:      record.TotalStake,
-			Status:     record.Status,
+			Status:     toBetStatusLabel(record.Status),
 			ItemsCount: summary.ItemsCount,
 			CreatedAt:  record.CreatedAt,
 		})
@@ -306,6 +317,29 @@ func calcTotalPages(total, pageSize int) int {
 		pages = 1
 	}
 	return pages
+}
+
+func toBetStatusLabel(status int) string {
+	switch status {
+	case 1:
+		return "PENDING"
+	case 2:
+		return "WON"
+	case 3:
+		return "LOST"
+	case 4:
+		return "VOID"
+	case 5:
+		return "HALF_WON"
+	case 6:
+		return "HALF_LOST"
+	case 7:
+		return "CANCELED"
+	case 8:
+		return "CASHED_OUT"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 func subtractDecimal(left, right string) (string, error) {

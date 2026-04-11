@@ -1,218 +1,77 @@
-# Game Lottery (Wingo/K3/Lottery) - Business Spec
+# Game Lottery - Room Engine 24/7 Spec
 
-Tài liệu này mô tả nghiệp vụ cho nhóm game **lottery/round-based** trong hệ thống:
+Tài liệu trung tâm cho nghiệp vụ lottery/round-based:
 
 - `WINGO`
 - `K3`
-- `LOTTERY` (bao gồm 5D/3D tuỳ thiết kế)
+- `LOTTERY` (`5D` trong phase hiện tại)
 
-Mục tiêu: chuẩn hóa cửa cược (`option_type`, `option_key`), chuẩn hóa kết quả (`result_payload`), và mô tả pipeline đặt cược -> khóa -> draw -> settlement -> payout.
+Mục tiêu phase này:
+
+- mọi tab time trên màn play là một `room_code` cố định
+- engine chạy 24/7, không phụ thuộc việc có người chơi
+- khóa lệnh ở 5 giây cuối kỳ: user không đặt cược được, admin cũng không được sửa
 
 DB reference:
 
-- `game_periods`, `bet_tickets`, `bet_items`, `bet_settlements` trong `admin/database/database.md`.
-- Enums trong `admin/app/Enum/Bet/*`.
+- `game_rooms`, `game_periods`, `bet_tickets`, `bet_items`, `bet_settlements`, `game_round_histories`
+- source schema: `admin/database/database.md`
 
-## 1) Khái niệm chung
+## 1) Quy tắc cứng
 
-### 1.1 Variant/Room
+- `room_code` là mã cứng, không tạo động.
+- mỗi room có chuỗi kỳ quay riêng, độc lập room khác.
+- lifecycle chuẩn: `SCHEDULED -> OPEN -> LOCKED -> DRAWN -> SETTLED`.
+- `bet_lock_at = draw_at - 5s`.
+- từ `bet_lock_at`:
+  - user: reject đặt cược mới.
+  - admin ERP: không được update kỳ, vé và chi tiết vé.
 
-Một game có thể có nhiều **variant** theo thời lượng kỳ:
+## 2) Tài liệu con bắt buộc đọc cùng
 
-- Wingo: `30s`, `1m`, `3m`, `5m`
+- [Room Catalog](./room-catalog.md)
+- [Period Timeline](./period-timeline.md)
+- [Engine Workflow](./engine-workflow.md)
+- [API Room Contract](./api-room-contract.md)
+- [Admin Guard Rules](./admin-guard-rules.md)
 
-Implementation:
+## 3) Chuẩn option/result theo game
 
-- vẫn giữ `game_type = WINGO`
-- phân biệt variant bằng `room_code` (khuyến nghị) hoặc encode trong `period_no`
+Enums sử dụng:
 
-Rule:
+- `BetOptionType`
+- `BetItemResult`
+- `BetStatus`
+- `PeriodStatus`
+- `DrawSource`
 
-- mỗi variant có **1 room duy nhất** (theo yêu cầu hiện tại).
+Wingo:
 
-### 1.2 Vòng đời Period
+- `COLOR`: `green|red|violet`
+- `NUMBER`: `number_0..number_9`
+- `BIG_SMALL`: `big|small`
 
-Theo `PeriodStatus`:
+K3:
 
-- `SCHEDULED -> OPEN -> LOCKED -> DRAWN -> SETTLED`
-- có thể `CANCELED`
+- `SUM`: `sum_3..sum_18`
+- `ODD_EVEN`: `odd|even`
+- `BIG_SMALL`: `big|small`
+- `COMBINATION`: `triple_any` hoặc cụ thể theo quy tắc sản phẩm
 
-Điểm chặn:
+Lottery (5D):
 
-- chỉ nhận bet khi `OPEN`
-- khi `LOCKED` thì reject đặt cược
-- settlement chỉ chạy khi `DRAWN`
+- `NUMBER`: `pick5_xxxxx`
+- `SUM`: `sum_n`
+- `ODD_EVEN/BIG_SMALL`: theo rule variant
 
-### 1.3 Ticket vs Items
+## 4) Rule validation cược (áp dụng cho API cũ và mới)
 
-- `bet_tickets`: order cấp user (1 ticket có thể single hoặc multi)
-- `bet_items`: các dòng cược (color/number/big_small/odd_even/...)
+- user/wallet phải `ACTIVE`.
+- period phải thuộc đúng room và `status = OPEN`.
+- từ `now >= bet_lock_at` thì reject.
+- request phải idempotent bằng `request_id`.
 
-Khuyến nghị cho UI kiểu play-view:
+## 5) Compat policy
 
-- mỗi lần user chọn 1 cửa và stake -> tạo `SINGLE ticket` 1 item
-- nếu UI cho đặt nhiều cửa một lần -> `MULTI ticket` nhiều item
-
-## 2) Chuẩn hóa cửa cược (option_type/option_key)
-
-Enum mapping:
-
-- `BetOptionType::NUMBER`
-- `BetOptionType::BIG_SMALL`
-- `BetOptionType::ODD_EVEN`
-- `BetOptionType::COLOR`
-- `BetOptionType::SUM`
-- `BetOptionType::COMBINATION`
-
-### 2.1 WINGO
-
-UI play-view thể hiện:
-
-- `COLOR`: `green`, `red`, `violet`
-- `NUMBER`: `0..9`
-- `BIG_SMALL`: `big`, `small`
-
-`option_key` chuẩn:
-
-- NUMBER: `number_0` .. `number_9`
-- COLOR: `green`, `red`, `violet`
-- BIG_SMALL: `big`, `small`
-- ODD_EVEN (nếu mở): `odd`, `even`
-
-### 2.2 K3
-
-K3 là xúc xắc (3 dice) thường có:
-
-- SUM: cược tổng 3..18
-- ODD_EVEN: chẵn/lẻ (tổng)
-- BIG_SMALL: lớn/nhỏ (tổng >= 11 là lớn, <= 10 là nhỏ) (rule phải chốt)
-- COMBINATION: bộ 3 số (triples), đôi, hoặc “any triple”
-
-`option_key` gợi ý:
-
-- SUM: `sum_3` .. `sum_18`
-- ODD_EVEN: `odd`, `even`
-- BIG_SMALL: `big`, `small`
-- COMBINATION:
-  - `triple_any`
-  - `triple_1_1_1` .. `triple_6_6_6`
-  - `pair_1_1`, ...
-
-### 2.3 LOTTERY (5D/3D)
-
-Lottery kiểu 5D thường:
-
-- NUMBER: chọn dãy số (ví dụ 5 chữ số)
-- SUM: tổng chữ số
-- ODD_EVEN/BIG_SMALL theo tổng hoặc theo chữ số cuối
-- COMBINATION theo rule
-
-Vì rule rất đa dạng, khuyến nghị:
-
-- bắt buộc có `lottery_variant` (3D/4D/5D) trong `room_code`
-- `option_key` encode rõ:
-  - `pick5_01234`
-  - `last_digit_7`
-  - `sum_23`
-
-## 3) Kết quả (result_payload) chuẩn hóa
-
-`game_periods.result_payload` nên có shape chuẩn theo game_type, để settlement worker không phải đoán.
-
-### 3.1 WINGO result_payload
-
-Ví dụ:
-
-- `number`: 0..9
-- `color`: `green|red|violet`
-- `big_small`: `big|small`
-- `odd_even`: `odd|even`
-
-### 3.2 K3 result_payload
-
-- `dice`: `[d1, d2, d3]` (1..6)
-- `sum`: 3..18
-- `big_small`: `big|small`
-- `odd_even`: `odd|even`
-- `is_triple`: bool
-
-### 3.3 LOTTERY result_payload
-
-- `digits`: string (ví dụ `"01234"`)
-- `sum`: int
-- `last_digit`: int
-- thêm field theo variant nếu cần
-
-## 4) Đặt cược (place bet) - rule bắt buộc
-
-### 4.1 Validation
-
-- user `ACTIVE`, wallet `ACTIVE`
-- period tồn tại, đúng `game_type` + `room_code` variant
-- period `status = OPEN`
-- amount > 0, không vượt max/min (config)
-- item `option_type/option_key` hợp lệ với game_type
-
-### 4.2 Idempotency
-
-Mỗi request đặt cược phải có `request_id` (UUID hoặc string unique) để chống double-click:
-
-- nếu nhận lại `request_id` đã xử lý -> trả response cũ
-
-### 4.3 Wallet locking
-
-Trong 1 DB transaction:
-
-- lock wallet row (`FOR UPDATE`)
-- trừ `wallet.balance`
-- cộng `wallet.locked_balance`
-- insert `bet_tickets` + `bet_items`
-- ghi `wallet_ledger_entries` với `reference_type = bet_stake`
-
-## 5) Settlement/Payout
-
-### 5.1 Settlement trigger
-
-- auto worker chạy khi period `DRAWN`
-- admin manual override dùng `SettlementType::MANUAL`
-- rollback dùng `SettlementType::ROLLBACK`
-
-### 5.2 Payout logic (khung)
-
-Settlement phải:
-
-- chấm từng `bet_item`:
-  - map `option_type/option_key` vs `result_payload`
-  - set `result` (`WON/LOST/VOID/...`)
-  - tính `payout_amount`
-- tổng hợp về ticket:
-  - set `bet_tickets.status`, `actual_payout`, `settled_at`
-- wallet:
-  - giảm `locked_balance` theo stake
-  - cộng `balance` theo payout
-- ledger:
-  - ghi `bet_settlement`
-- audit:
-  - insert `bet_settlements` (immutable)
-
-## 6) Mapping nhanh sang UI play-view (Wingo)
-
-UI actions:
-
-- chọn tab time (30s/1m/3m/5m) -> chọn `room_code`
-- hiển thị `period_no`, countdown, recent results
-- đặt cược:
-  - `COLOR`: green/red/violet
-  - `NUMBER`: number_0..number_9
-  - `BIG_SMALL`: big/small
-- multipliers X1..X50:
-  - chỉ là UI helper để tính stake
-  - backend chỉ nhận stake cuối
-
-## 7) TODO cần chốt trước khi code game đầy đủ
-
-- odds table cho từng game/option_key (cấu hình DB hay hardcode?)
-- rule Wingo màu cho từng số (mapping number->color)
-- rule `big_small`, `odd_even` cho Wingo/K3/Lottery
-- LOTTERY variant cụ thể (3D/4D/5D) và format `digits`
-
+- thêm API room mới cho play-view.
+- giữ `v1/games/*` trong giai đoạn chuyển tiếp, map nội bộ sang room mặc định của game.
