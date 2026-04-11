@@ -72,7 +72,7 @@ async function resetPassword() {
       <RouterLink class="justify-self-end text-right text-sm font-extrabold text-primary" to="/auth">Đăng nhập</RouterLink>
     </header>
 
-    <section class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+    <section class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
       <p class="m-0 text-sm text-on-surface-variant">Chúng ta sẽ gửi OTP qua email hoặc số điện thoại, sau đó đặt lại mật khẩu mới.</p>
     </section>
 
@@ -88,7 +88,7 @@ async function resetPassword() {
       <section class="grid grid-cols-2 gap-2 rounded-[18px] bg-surface-container p-1.5">
         <button
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
-          :class="channel === 'phone' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(0,78,219,0.1)]' : 'text-on-surface-variant'"
+          :class="channel === 'phone' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
           type="button"
           @click="channel = 'phone'"
         >
@@ -96,7 +96,7 @@ async function resetPassword() {
         </button>
         <button
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
-          :class="channel === 'email' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(0,78,219,0.1)]' : 'text-on-surface-variant'"
+          :class="channel === 'email' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
           type="button"
           @click="channel = 'email'"
         >
@@ -104,12 +104,12 @@ async function resetPassword() {
         </button>
       </section>
 
-      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <input v-model="account" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" :type="channel === 'email' ? 'email' : 'tel'" :placeholder="channel === 'email' ? 'Nhập email' : 'Nhập số điện thoại'" />
       </label>
 
       <button
-        class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white shadow-[0_8px_20px_rgba(0,78,219,0.18)] transition-transform active:scale-95 disabled:opacity-60"
+        class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white shadow-[0_8px_20px_rgba(255,109,102,0.18)] transition-transform active:scale-95 disabled:opacity-60"
         type="submit"
         :disabled="auth.loading || !account.trim()"
       >
@@ -118,7 +118,7 @@ async function resetPassword() {
     </form>
 
     <form v-else-if="step === 2" class="space-y-3" @submit.prevent="verifyOtp">
-      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <input v-model="otp" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none tracking-[0.4em]" inputmode="numeric" maxlength="6" placeholder="Nhập OTP" />
       </label>
 
@@ -128,7 +128,7 @@ async function resetPassword() {
     </form>
 
     <form v-else class="space-y-3" @submit.prevent="resetPassword">
-      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <input v-model="newPassword" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="password" autocomplete="new-password" placeholder="Mật khẩu mới" />
       </label>
 

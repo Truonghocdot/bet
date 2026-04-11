@@ -15,13 +15,13 @@ const relatedArticles = computed(() => (article.value ? getRelatedNews(article.v
 <template>
   <div v-if="article" class="space-y-5 md:space-y-6">
     <header class="flex items-center justify-between gap-3">
-      <button class="grid h-10 w-10 place-items-center rounded-full bg-white text-primary shadow-[0_6px_18px_rgba(0,78,219,0.06)]" type="button" @click="router.back()">
+      <button class="grid h-10 w-10 place-items-center rounded-full bg-white text-primary shadow-[0_6px_18px_rgba(255,109,102,0.06)]" type="button" @click="router.back()">
         <span class="material-symbols-outlined">arrow_back</span>
       </button>
       <RouterLink to="/promotion" class="text-sm font-extrabold text-primary">Quay về Hoạt động</RouterLink>
     </header>
 
-    <section class="overflow-hidden rounded-[28px] bg-white shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+    <section class="overflow-hidden rounded-[28px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
       <div class="h-52 bg-gradient-to-br md:h-60" :class="article.cover"></div>
       <div class="p-5 md:p-6">
         <div class="flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.08em] text-on-surface-variant">
@@ -63,7 +63,7 @@ const relatedArticles = computed(() => (article.value ? getRelatedNews(article.v
           v-for="related in relatedArticles"
           :key="related.slug"
           :to="`/news/${related.slug}`"
-          class="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_18px_rgba(0,78,219,0.05)]"
+          class="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.05)]"
         >
           <div class="h-28 bg-gradient-to-br" :class="related.cover"></div>
           <div class="p-4">
@@ -76,7 +76,7 @@ const relatedArticles = computed(() => (article.value ? getRelatedNews(article.v
     </section>
   </div>
 
-  <div v-else class="grid min-h-[40vh] place-items-center rounded-[28px] bg-white p-8 text-center shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+  <div v-else class="grid min-h-[40vh] place-items-center rounded-[28px] bg-white p-8 text-center shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
     <div>
       <h1 class="text-[1.3rem] font-black">Không tìm thấy bài viết</h1>
       <p class="mt-2 text-sm text-on-surface-variant">Bài viết có thể đã bị ẩn hoặc chưa tồn tại.</p>

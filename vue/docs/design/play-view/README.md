@@ -5,7 +5,7 @@ Nguồn:
 - `view-play.png`
 - `code.html`
 
-Màn hình mô tả: **Win Go 30s** (game round-based). Đây là màn chơi chính: xem số dư, kỳ hiện tại, đếm ngược, kết quả gần đây, đặt cược theo cửa (màu/số/lớn nhỏ), và xem lịch sử.
+Màn hình mô tả: **Win Go 30s** (room-based, round-based). Đây là màn chơi chính: xem số dư, room hiện tại, kỳ hiện tại, đếm ngược, kết quả gần đây, đặt cược theo cửa (màu/số/lớn nhỏ), và xem lịch sử.
 
 ## 1) Blocks và hành vi UI
 
@@ -43,13 +43,13 @@ Tabs:
 
 Nghiệp vụ:
 
-- mỗi tab là **một biến thể period duration** của cùng `GameType = WINGO`.
-- user switch tab thì chuyển sang room/period stream tương ứng, cập nhật `period_no` + countdown + recent results.
+- mỗi tab là **một room cố định** của cùng `GameType = WINGO`.
+- user switch tab thì chuyển sang room stream tương ứng, cập nhật `current_period` + countdown + recent results.
 
 Mapping đề xuất:
 
 - `wingo_30s`, `wingo_1m`, `wingo_3m`, `wingo_5m`
-- vẫn giữ `game_type = WINGO` trong DB, nhưng `room_code` hoặc `period_no` phải thể hiện variant.
+- `room_code` là khóa phòng, `period_no` là mã hiển thị của từng kỳ.
 
 ### 1.5 Countdown & results
 
@@ -60,10 +60,12 @@ Mapping đề xuất:
 Backend cần:
 
 - `current_period`:
+  - `id`
   - `period_no`
-  - `open_at`, `close_at`, `draw_at`, `status`
+  - `open_at`, `bet_lock_at`, `draw_at`, `status`
   - server time (để client render countdown ổn định)
 - `recent_results`: list kết quả gần nhất (tối thiểu 5)
+- `GET /v1/play/rooms/{room_code}/state` và `history` là public; chỉ `bets` của user và đặt lệnh mới cần Bearer token.
 
 Rule UI:
 
@@ -108,22 +110,21 @@ Trong mockup tab 1 có bảng:
 
 Backend cần:
 
-- `GET game history`: list period results theo variant
+- `GET game history`: list period results theo room
 - `GET my bet history`: list ticket của user theo period/game
 
 ## 2) API tối thiểu (đề xuất cho Gin)
 
-- `GET /v1/games/wingo/variants` -> list variants + active variant
-- `GET /v1/games/wingo/period/current?variant=30s`
-- `GET /v1/games/wingo/results/recent?variant=30s&limit=20`
-- `POST /v1/games/wingo/bets` (auth + connection flow nếu dùng WS/connection_id)
+- `GET /v1/play/rooms`
+- `GET /v1/play/rooms/{room_code}/state`
+- `GET /v1/play/rooms/{room_code}/history`
+- `GET /v1/play/rooms/{room_code}/bets`
+- `POST /v1/play/rooms/{room_code}/bets`
   - body: `request_id`, `period_id`, `items[] { option_type, option_key, stake }`
-- `GET /v1/games/wingo/history?variant=30s`
-- `GET /v1/games/wingo/my-history?variant=30s` (auth)
 
 ## 3) Notes triển khai
 
 - Play-view không cần realtime bắt buộc, nhưng countdown nên dựa trên `server_time` để không bị lệch.
 - `recent_results` và `game history` nên cache ngắn.
-- Khi traffic tăng, bet placement nên đi qua websocket/session để giảm độ trễ và tránh spam.
-
+- Bet placement phải idempotent theo `request_id`.
+- `X-Connection-ID` nên được giữ xuyên suốt nếu hệ thống join/bet đang dùng phiên kết nối.

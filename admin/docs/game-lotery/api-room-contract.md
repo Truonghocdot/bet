@@ -4,6 +4,8 @@
 
 Trả danh sách room hiện có để dựng tab và lobby.
 
+Public, không cần Bearer token.
+
 Response chính:
 
 - `code`
@@ -16,6 +18,8 @@ Response chính:
 ## 2) GET `/v1/play/rooms/{room_code}/state`
 
 Trả trạng thái room theo thời điểm hiện tại.
+
+Public, không cần Bearer token.
 
 Response chính:
 
@@ -30,9 +34,17 @@ Response chính:
   - `draw_at`
 - `recent_results` (list ngắn)
 
+Quy ước dùng ở FE:
+
+- `current_period.id` là id thật của kỳ.
+- `current_period.period_no` chỉ dùng để hiển thị.
+- countdown phải bám theo `server_time` của response.
+
 ## 3) GET `/v1/play/rooms/{room_code}/history`
 
 Trả lịch sử phân trang theo room.
+
+Public, không cần Bearer token.
 
 Query:
 
@@ -47,11 +59,16 @@ Payload:
 - `period_id`
 - `items[]`
 
+Header khuyến nghị:
+
+- `X-Connection-ID`
+
 Behavior:
 
 - reject nếu `now >= bet_lock_at`
 - reject nếu period không ở `OPEN`
 - reject nếu room/period không khớp
+- reject nếu `period_id` không trỏ tới `current_period.id`
 
 ## 5) Compat API cũ
 

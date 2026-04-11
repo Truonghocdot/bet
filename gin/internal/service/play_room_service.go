@@ -3,11 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
-	"time"
 
 	"gin/internal/domain/game"
+	"gin/internal/support/clock"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/support/message"
 )
@@ -58,9 +59,34 @@ func (s *PlayRoomService) GetRoomState(ctx context.Context, roomCode string) (ga
 		return game.RoomStateResponse{}, err
 	}
 
+	if _, err := s.gameRepository.EnsureRoomPeriods(ctx, room, clock.Now()); err != nil {
+		return game.RoomStateResponse{}, err
+	}
+
+	nowVN := clock.Now()
+	if openedCount, err := s.gameRepository.MoveScheduledToOpen(ctx, nowVN); err != nil {
+		log.Printf("[play][state.period.transition.error] room_code=%s stage=scheduled_to_open err=%v", roomCode, err)
+	} else if openedCount > 0 {
+		log.Printf("[play][state.period.transition.done] room_code=%s from=SCHEDULED to=OPEN count=%d", roomCode, openedCount)
+	}
+	if lockedCount, err := s.gameRepository.MoveOpenToLocked(ctx, nowVN); err != nil {
+		log.Printf("[play][state.period.transition.error] room_code=%s stage=open_to_locked err=%v", roomCode, err)
+	} else if lockedCount > 0 {
+		log.Printf("[play][state.period.transition.done] room_code=%s from=OPEN to=LOCKED count=%d", roomCode, lockedCount)
+	}
+
 	period, err := s.gameRepository.GetCurrentPeriodByRoom(ctx, roomCode)
 	if err != nil {
-		return game.RoomStateResponse{}, err
+		log.Printf("[play][state.period.miss] room_code=%s err=%v action=retry_bootstrap", roomCode, err)
+		if _, retryErr := s.gameRepository.EnsureRoomPeriods(ctx, room, clock.Now()); retryErr != nil {
+			log.Printf("[play][state.period.bootstrap.error] room_code=%s err=%v", roomCode, retryErr)
+			return game.RoomStateResponse{}, retryErr
+		}
+		period, err = s.gameRepository.GetCurrentPeriodByRoom(ctx, roomCode)
+		if err != nil {
+			log.Printf("[play][state.period.miss] room_code=%s err=%v action=fail", roomCode, err)
+			return game.RoomStateResponse{}, err
+		}
 	}
 
 	results, err := s.gameRepository.ListRoomRecentRounds(ctx, roomCode, 20)
@@ -84,7 +110,7 @@ func (s *PlayRoomService) GetRoomState(ctx context.Context, roomCode string) (ga
 
 	return game.RoomStateResponse{
 		Message:    message.RoomStateSuccess,
-		ServerTime: time.Now(),
+		ServerTime: clock.Now(),
 		Room: game.RoomItem{
 			Code:             room.Code,
 			GameType:         toGameTypeSlug(room.GameType),
@@ -174,6 +200,7 @@ func (s *PlayRoomService) PlaceRoomBet(
 	req game.RoomBetRequest,
 	placedIP string,
 	placedDevice string,
+	connectionID string,
 ) (game.RoomBetResponse, error) {
 	if strings.TrimSpace(roomCode) == "" {
 		return game.RoomBetResponse{}, fmt.Errorf(message.GameRoomCodeRequired)
@@ -186,6 +213,26 @@ func (s *PlayRoomService) PlaceRoomBet(
 	}
 	if len(req.Items) == 0 {
 		return game.RoomBetResponse{}, fmt.Errorf(message.BetItemsRequired)
+	}
+
+	room, err := s.gameRepository.FindRoomByCode(ctx, roomCode)
+	if err != nil {
+		return game.RoomBetResponse{}, err
+	}
+	if _, err := s.gameRepository.EnsureRoomPeriods(ctx, room, clock.Now()); err != nil {
+		return game.RoomBetResponse{}, err
+	}
+
+	nowVN := clock.Now()
+	if openedCount, err := s.gameRepository.MoveScheduledToOpen(ctx, nowVN); err != nil {
+		log.Printf("[play][bet.period.transition.error] room_code=%s stage=scheduled_to_open err=%v", roomCode, err)
+	} else if openedCount > 0 {
+		log.Printf("[play][bet.period.transition.done] room_code=%s from=SCHEDULED to=OPEN count=%d", roomCode, openedCount)
+	}
+	if lockedCount, err := s.gameRepository.MoveOpenToLocked(ctx, nowVN); err != nil {
+		log.Printf("[play][bet.period.transition.error] room_code=%s stage=open_to_locked err=%v", roomCode, err)
+	} else if lockedCount > 0 {
+		log.Printf("[play][bet.period.transition.done] room_code=%s from=OPEN to=LOCKED count=%d", roomCode, lockedCount)
 	}
 
 	periodID, err := repopg.ParsePeriodID(req.PeriodID)
@@ -217,7 +264,7 @@ func (s *PlayRoomService) PlaceRoomBet(
 		RoomCode:     roomCode,
 		PeriodID:     periodID,
 		RequestID:    req.RequestID,
-		ConnectionID: "",
+		ConnectionID: strings.TrimSpace(connectionID),
 		TotalStake:   totalStake,
 		Items:        toBetTicketItems(req.Items),
 		PlacedIP:     placedIP,
@@ -230,7 +277,7 @@ func (s *PlayRoomService) PlaceRoomBet(
 		RequestID:  req.RequestID,
 		RoomCode:   roomCode,
 		Status:     "accepted",
-		AcceptedAt: time.Now(),
+		AcceptedAt: clock.Now(),
 		Message:    message.BetAccepted,
 	}, nil
 }

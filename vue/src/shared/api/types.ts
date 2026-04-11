@@ -118,6 +118,91 @@ export type DepositStatusResponse = {
   receiving_account?: ReceivingAccount | null
 }
 
+export type PlayRoomItem = {
+  code: string
+  game_type: string
+  duration_seconds: number
+  bet_cutoff_seconds: number
+  status: string
+  sort_order: number
+}
+
+export type PlayRoomPeriod = {
+  id: number
+  period_no: string
+  status: string
+  open_at: string
+  bet_lock_at: string
+  draw_at: string
+}
+
+export type PlayHistoryItem = {
+  period_no: string
+  result: string
+  big_small: string
+  color: string
+  draw_at: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export type PlayRoomStateResponse = {
+  message: string
+  server_time: string
+  room: PlayRoomItem
+  current_period: PlayRoomPeriod
+  recent_results: PlayHistoryItem[]
+}
+
+export type PlayRoomHistoryResponse = {
+  message: string
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  items: PlayHistoryItem[]
+}
+
+export type PlayRoomBetHistoryItem = {
+  id: number
+  period_no: string
+  result: string
+  big_small: string
+  color: string
+  stake: string
+  status: string
+  items_count: number
+  created_at: string
+}
+
+export type PlayRoomBetHistoryResponse = {
+  message: string
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  items: PlayRoomBetHistoryItem[]
+}
+
+export type PlayRoomBetRequest = {
+  request_id: string
+  period_id: string
+  items: Array<{
+    option_type: string
+    option_key: string
+    stake: string
+  }>
+}
+
+export type PlayRoomBetResponse = {
+  request_id: string
+  room_code: string
+  status: string
+  accepted_at: string
+  message: string
+}
+
 export type GameJoinResponse = {
   connection_id: string
   game_type: string

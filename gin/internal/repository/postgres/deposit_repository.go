@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"gin/internal/support/clock"
 	"gin/internal/support/message"
 )
 
@@ -243,7 +244,7 @@ func (r *DepositRepository) ApplyDeposit(ctx context.Context, params ApplyDeposi
 	success, failed := classifyProviderStatus(params.ProviderStatus)
 	now := params.PaidAt
 	if now.IsZero() {
-		now = time.Now()
+		now = clock.Now()
 	}
 
 	metaJSON, err := marshalJSON(params.Raw)

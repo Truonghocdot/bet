@@ -48,7 +48,7 @@ async function handleRegister() {
     </header>
 
     <section class="text-center">
-      <div class="mx-auto mb-4 grid h-[72px] w-[72px] place-items-center rounded-[20px] bg-white shadow-[0_10px_24px_rgba(0,78,219,0.12)]">
+      <div class="mx-auto mb-4 grid h-[72px] w-[72px] place-items-center rounded-[20px] bg-white shadow-[0_10px_24px_rgba(255,109,102,0.12)]">
         <span class="text-[1.1rem] font-black italic tracking-[-0.06em] text-primary">ff789</span>
       </div>
       <h2 class="m-0 text-[1.55rem] font-black">Tạo tài khoản mới</h2>
@@ -60,20 +60,20 @@ async function handleRegister() {
     </section>
 
     <form class="space-y-3" @submit.prevent="handleRegister">
-      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <input v-model="name" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="text" autocomplete="name" placeholder="Họ và tên" />
       </label>
 
-      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <input v-model="email" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="email" autocomplete="email" placeholder="Email" />
       </label>
 
-      <label class="grid min-h-[58px] grid-cols-[auto_1fr] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] grid-cols-[auto_1fr] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <span class="border-r border-slate-200/90 px-4 font-extrabold">+84</span>
         <input v-model="phone" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="tel" inputmode="tel" autocomplete="tel" placeholder="Số điện thoại" />
       </label>
 
-      <label class="grid min-h-[58px] grid-cols-[1fr_auto] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] grid-cols-[1fr_auto] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <input
           v-model="password"
           class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none"
@@ -86,12 +86,12 @@ async function handleRegister() {
         </button>
       </label>
 
-      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <input v-model="refCode" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="text" placeholder="Mã giới thiệu (không bắt buộc)" />
       </label>
 
       <button
-        class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white shadow-[0_8px_20px_rgba(0,78,219,0.18)] transition-transform active:scale-95 disabled:opacity-60"
+        class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white shadow-[0_8px_20px_rgba(255,109,102,0.18)] transition-transform active:scale-95 disabled:opacity-60"
         type="submit"
         :disabled="auth.loading || !canSubmit"
       >

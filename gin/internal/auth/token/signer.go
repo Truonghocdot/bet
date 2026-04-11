@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gin/internal/domain/auth"
+	"gin/internal/support/clock"
 	"gin/internal/support/message"
 )
 
@@ -89,7 +90,7 @@ func (s *Signer) Verify(token string) (auth.TokenClaims, error) {
 		return auth.TokenClaims{}, fmt.Errorf(message.TokenSubjectInvalid)
 	}
 
-	if time.Now().After(claims.ExpAt) {
+	if clock.Now().After(claims.ExpAt) {
 		return auth.TokenClaims{}, fmt.Errorf(message.TokenExpired)
 	}
 

@@ -1,24 +1,24 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #f5f6fb;
+  --color-background: #fff6f4;
   --color-surface: #ffffff;
-  --color-surface-soft: #eff1f6;
-  --color-surface-container: #e6e8ee;
-  --color-surface-container-low: #eff1f6;
-  --color-surface-container-high: #dadde4;
+  --color-surface-soft: #fff0ee;
+  --color-surface-container: #ffe0dc;
+  --color-surface-container-low: #fff6f4;
+  --color-surface-container-high: #ffd1cc;
   --color-surface-container-lowest: #ffffff;
-  --color-primary: #004edb;
-  --color-primary-dim: #0044c1;
-  --color-primary-container: #7e9cff;
-  --color-secondary: #b71211;
-  --color-tertiary: #6c5a00;
+  --color-primary: #ff6d66;
+  --color-primary-dim: #f44f49;
+  --color-primary-container: #ffd4d0;
+  --color-secondary: #24b561;
+  --color-tertiary: #f6c32d;
   --color-on-surface: #2c2f33;
   --color-on-surface-variant: #595c60;
-  --color-outline-variant: #abadb2;
-  --color-on-tertiary-container: #5b4b00;
-  --color-on-secondary-container: #940005;
-  --color-on-tertiary-fixed-variant: #665500;
+  --color-outline-variant: #f0c3bd;
+  --color-on-tertiary-container: #7b5a00;
+  --color-on-secondary-container: #0e6d39;
+  --color-on-tertiary-fixed-variant: #7b5a00;
   --font-sans: "Plus Jakarta Sans", sans-serif;
 }
 
@@ -33,9 +33,9 @@
     min-width: 320px;
     @apply bg-background text-on-surface antialiased;
     background:
-      radial-gradient(circle at top right, rgba(126, 156, 255, 0.16), transparent 28%),
-      radial-gradient(circle at left center, rgba(0, 78, 219, 0.08), transparent 24%),
-      #f5f6fb;
+      radial-gradient(circle at top right, rgba(255, 145, 134, 0.22), transparent 28%),
+      radial-gradient(circle at left center, rgba(255, 109, 102, 0.1), transparent 24%),
+      #fff6f4;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
   }
@@ -85,7 +85,7 @@
     right: -10%;
     width: 38%;
     height: 22%;
-    background: rgba(126, 156, 255, 0.28);
+    background: rgba(255, 145, 134, 0.3);
   }
 
   .app-shell__blur--two {
@@ -93,7 +93,7 @@
     left: -16%;
     width: 52%;
     height: 34%;
-    background: rgba(0, 78, 219, 0.14);
+    background: rgba(255, 109, 102, 0.14);
   }
 
   .app-main {
@@ -105,11 +105,13 @@
   }
 
   .app-card {
-    @apply rounded-2xl bg-white/95 shadow-[0_8px_20px_rgba(0,78,219,0.06)];
+    @apply rounded-2xl bg-white/95 shadow-[0_8px_20px_rgba(255,109,102,0.07)];
   }
 
   .glass-bar {
-    @apply border-b border-slate-200/70 bg-slate-50/80 backdrop-blur-xl;
+    @apply border-b border-white/20 bg-white/20 backdrop-blur-xl;
+    background: linear-gradient(180deg, rgba(255, 126, 117, 0.98), rgba(255, 110, 103, 0.95));
+    box-shadow: 0 8px 24px rgba(255, 109, 102, 0.18);
   }
 
   .topbar-inner {
@@ -117,19 +119,20 @@
   }
 
   .icon-btn {
-    @apply grid h-9 w-9 place-items-center rounded-full text-primary transition-transform active:scale-95;
+    @apply grid h-9 w-9 place-items-center rounded-full transition-transform active:scale-95;
   }
 
   .icon-btn--ghost {
-    @apply bg-transparent;
+    @apply bg-white/16 text-white;
   }
 
   .icon-btn--soft {
-    @apply bg-primary/10;
+    @apply bg-white/16 text-white;
   }
 
   .bottom-nav {
-    @apply fixed bottom-0 left-1/2 z-30 grid w-[min(calc(100%-12px),1120px)] -translate-x-1/2 grid-cols-5 gap-1 rounded-t-3xl border-t border-slate-200/70 bg-white/88 p-1.5 backdrop-blur-xl md:w-[min(calc(100%-32px),1120px)] md:px-2.5 md:py-2.5;
+    @apply fixed bottom-0 left-1/2 z-30 grid w-[min(calc(100%-12px),1120px)] -translate-x-1/2 grid-cols-5 gap-1 rounded-t-3xl border-t border-[#ffd0cb] bg-white/94 p-1.5 backdrop-blur-xl md:w-[min(calc(100%-32px),1120px)] md:px-2.5 md:py-2.5;
+    box-shadow: 0 -10px 24px rgba(255, 109, 102, 0.09);
   }
 
   .bottom-nav__item {
@@ -137,11 +140,11 @@
   }
 
   .bottom-nav__item.is-active {
-    @apply bg-primary/15 text-primary;
+    @apply bg-primary/14 text-primary;
   }
 
   .floating-action {
-    @apply fixed z-[25] grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-primary to-primary-container text-white shadow-[0_8px_20px_rgba(0,78,219,0.18)] transition-transform active:scale-95;
+    @apply fixed z-[25] grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-primary to-[#ff9c95] text-white shadow-[0_8px_20px_rgba(255,109,102,0.22)] transition-transform active:scale-95;
     right: 12px;
     bottom: calc(env(safe-area-inset-bottom) + 84px);
   }

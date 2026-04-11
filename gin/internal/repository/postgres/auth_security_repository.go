@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gin/internal/domain/auth"
+	"gin/internal/support/clock"
 	"gin/internal/support/message"
 )
 
@@ -214,7 +215,7 @@ func (r *UserRepository) ResetPasswordWithVerifiedOTP(ctx context.Context, reque
 		return err
 	}
 
-	if time.Now().After(record.ExpiresAt) {
+	if clock.Now().After(record.ExpiresAt) {
 		return ErrOTPExpired
 	}
 
@@ -222,7 +223,7 @@ func (r *UserRepository) ResetPasswordWithVerifiedOTP(ctx context.Context, reque
 		return ErrResetTokenInvalid
 	}
 
-	now := time.Now()
+	now := clock.Now()
 	if _, err := tx.ExecContext(ctx, `
 		update users set password = $1, updated_at = $2 where id = $3
 	`, passwordHash, now, *record.UserID); err != nil {

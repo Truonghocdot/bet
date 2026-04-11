@@ -10,6 +10,7 @@ import (
 
 	"gin/internal/domain/auth"
 	"gin/internal/domain/user"
+	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
 )
@@ -90,7 +91,7 @@ func (r *UserRepository) CreateRegisteredUser(ctx context.Context, params Regist
 		}
 	}
 
-	now := time.Now()
+	now := clock.Now()
 	if err := r.updateLastLoginAt(ctx, tx, createdUser.ID, now); err != nil {
 		return auth.UserProfile{}, err
 	}

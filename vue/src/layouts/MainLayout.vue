@@ -41,12 +41,12 @@ const isActive = (path: string) => {
           <span class="material-symbols-outlined">menu</span>
         </button>
 
-        <div class="text-[1.2rem] font-extrabold italic tracking-[-0.06em] text-primary md:text-[1.35rem]">
-          ff789
+        <div class="text-[1.25rem] font-black italic tracking-[-0.06em] text-white md:text-[1.4rem]">
+          FF789
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="hidden text-sm font-bold text-primary md:inline">{{ currentTitle }}</span>
+          <span class="hidden text-sm font-bold text-white/92 md:inline">{{ currentTitle }}</span>
           <RouterLink class="icon-btn icon-btn--soft" aria-label="Thông báo" to="/notifications">
             <span class="material-symbols-outlined">notifications</span>
           </RouterLink>

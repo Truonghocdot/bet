@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"gin/internal/domain/game"
 	repopg "gin/internal/repository/postgres"
+	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
 	"gin/internal/ws"
@@ -50,7 +50,7 @@ func (s *GameSessionService) JoinGame(ctx context.Context, gameType game.GameTyp
 	}
 
 	connectionID := id.New()
-	now := time.Now()
+	now := clock.Now()
 
 	s.hub.Upsert(ws.Session{
 		ConnectionID: connectionID,

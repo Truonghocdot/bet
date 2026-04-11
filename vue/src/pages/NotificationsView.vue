@@ -70,10 +70,10 @@ onMounted(() => {
 
 <template>
   <div class="space-y-5 md:space-y-6">
-    <section class="rounded-[28px] bg-white p-5 shadow-[0_8px_18px_rgba(0,78,219,0.05)] md:p-6">
+    <section class="rounded-[28px] bg-white p-5 shadow-[0_8px_18px_rgba(255,109,102,0.05)] md:p-6">
       <div class="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
         <div>
-          <span class="inline-flex rounded-full bg-[#b71211]/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#b71211]">
+          <span class="inline-flex rounded-full bg-[#e64545]/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#e64545]">
             Thông báo
           </span>
           <h2 class="mt-4 text-[1.55rem] font-black md:text-[1.8rem]">Danh sách thông báo của bạn</h2>
@@ -84,7 +84,7 @@ onMounted(() => {
             <span class="rounded-full bg-primary/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-primary">
               Tổng {{ totalCount }}
             </span>
-            <span class="rounded-full bg-[#b71211]/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-[#b71211]">
+            <span class="rounded-full bg-[#e64545]/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-[#e64545]">
               Chưa đọc {{ unreadCount }}
             </span>
           </div>
@@ -109,7 +109,7 @@ onMounted(() => {
           v-for="tab in tabs"
           :key="tab"
           class="rounded-full px-5 py-2.5 text-[0.78rem] font-bold whitespace-nowrap transition-colors"
-          :class="tab === activeTab ? 'bg-primary text-white shadow-[0_12px_32px_rgba(0,78,219,0.1)]' : 'bg-surface-container-low text-on-surface-variant'"
+          :class="tab === activeTab ? 'bg-primary text-white shadow-[0_12px_32px_rgba(255,109,102,0.1)]' : 'bg-surface-container-low text-on-surface-variant'"
           type="button"
           @click="activeTab = tab"
         >
@@ -118,15 +118,15 @@ onMounted(() => {
       </div>
     </section>
 
-    <section v-if="store.error" class="rounded-[20px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-sm font-semibold text-[#b71211]">
+    <section v-if="store.error" class="rounded-[20px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-sm font-semibold text-[#e64545]">
       {{ store.error }}
     </section>
 
-    <section v-if="isLoading" class="rounded-[24px] bg-white p-5 text-sm font-semibold text-on-surface-variant shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+    <section v-if="isLoading" class="rounded-[24px] bg-white p-5 text-sm font-semibold text-on-surface-variant shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
       Đang tải thông báo...
     </section>
 
-    <section v-else-if="filteredNotifications.length === 0" class="rounded-[24px] bg-white p-5 text-sm font-semibold text-on-surface-variant shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+    <section v-else-if="filteredNotifications.length === 0" class="rounded-[24px] bg-white p-5 text-sm font-semibold text-on-surface-variant shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
       Không có thông báo ở bộ lọc hiện tại.
     </section>
 
@@ -134,7 +134,7 @@ onMounted(() => {
       <article
         v-for="item in filteredNotifications"
         :key="item.id"
-        class="rounded-[24px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)]"
+        class="rounded-[24px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)]"
       >
         <div class="flex items-start gap-3">
           <div
@@ -178,7 +178,7 @@ onMounted(() => {
       </article>
     </section>
 
-    <section class="rounded-[20px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+    <section class="rounded-[20px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="text-[0.78rem] font-semibold text-on-surface-variant">
           Trang {{ page }} / {{ totalPages }}

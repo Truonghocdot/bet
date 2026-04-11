@@ -8,9 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
+
+	"gin/internal/support/clock"
 )
+
+const periodGenerationBufferCount = 3
 
 type DrawResult struct {
 	Result      string
@@ -35,14 +40,48 @@ type ticketSettleItemOutcome struct {
 	Payout     string
 }
 
-func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRecord, now time.Time) error {
+func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRecord, now time.Time) ([]GamePeriodRecord, error) {
+	nowVN := now.In(clock.Location())
+	log.Printf("[engine][period.ensure.start] room_code=%s game_type=%d duration_seconds=%d now_vn=%s", room.Code, room.GameType, room.DurationSeconds, nowVN.Format(time.RFC3339Nano))
+
+	duration := time.Duration(room.DurationSeconds) * time.Second
+	if duration <= 0 {
+		err := fmt.Errorf("room duration không hợp lệ: room_code=%s duration_seconds=%d", room.Code, room.DurationSeconds)
+		log.Printf("[engine][period.ensure.error] room_code=%s stage=invalid_duration err=%v", room.Code, err)
+		return nil, err
+	}
+
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
-		return err
+		log.Printf("[engine][period.ensure.error] room_code=%s stage=begin_tx err=%v", room.Code, err)
+		return nil, err
 	}
 	defer func() {
 		_ = tx.Rollback()
 	}()
+
+	created := make([]GamePeriodRecord, 0, 1)
+
+	var upcomingCount int
+	err = tx.QueryRowContext(ctx, `
+		select count(*)
+		from game_periods
+		where room_code = $1
+		  and draw_at > $2
+	`, room.Code, nowVN).Scan(&upcomingCount)
+	if err != nil {
+		log.Printf("[engine][period.ensure.error] room_code=%s stage=count_upcoming err=%v", room.Code, err)
+		return nil, err
+	}
+	log.Printf("[engine][period.ensure.state] room_code=%s upcoming_count=%d now_vn=%s", room.Code, upcomingCount, nowVN.Format(time.RFC3339Nano))
+	if upcomingCount > 0 {
+		if err := tx.Commit(); err != nil {
+			log.Printf("[engine][period.ensure.error] room_code=%s stage=commit_skip err=%v", room.Code, err)
+			return nil, err
+		}
+		log.Printf("[engine][period.ensure.skip] room_code=%s reason=upcoming_period_exists", room.Code)
+		return nil, nil
+	}
 
 	var latestDrawAt sql.NullTime
 	err = tx.QueryRowContext(ctx, `
@@ -54,37 +93,71 @@ func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRec
 		for update
 	`, room.Code).Scan(&latestDrawAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
+		log.Printf("[engine][period.ensure.error] room_code=%s stage=latest_draw_at err=%v", room.Code, err)
+		return nil, err
 	}
 
-	duration := time.Duration(room.DurationSeconds) * time.Second
-	if !latestDrawAt.Valid {
-		openAt := now
-		drawAt := openAt.Add(duration)
-		if err := r.insertPeriodTx(ctx, tx, room, openAt, drawAt, periodStatusOpen); err != nil {
-			return err
+	nextOpenAt := nowVN
+	if latestDrawAt.Valid {
+		latestVN := latestDrawAt.Time.In(clock.Location())
+		log.Printf("[engine][period.ensure.state] room_code=%s latest_draw_at_vn=%s action=create_next_from_now", room.Code, latestVN.Format(time.RFC3339Nano))
+		if latestVN.After(nowVN) {
+			nextOpenAt = latestVN
 		}
-		nextOpenAt := drawAt
-		nextDrawAt := nextOpenAt.Add(duration)
-		if err := r.insertPeriodTx(ctx, tx, room, nextOpenAt, nextDrawAt, periodStatusScheduled); err != nil {
-			return err
-		}
-
-		return tx.Commit()
+	} else {
+		log.Printf("[engine][period.ensure.state] room_code=%s latest_draw_at=nil action=bootstrap_initial_period", room.Code)
 	}
 
-	threshold := now.Add(duration)
-	last := latestDrawAt.Time
-	for !last.After(threshold) {
-		nextOpenAt := last
-		nextDrawAt := nextOpenAt.Add(duration)
-		if err := r.insertPeriodTx(ctx, tx, room, nextOpenAt, nextDrawAt, periodStatusScheduled); err != nil {
-			return err
+	nextDrawAt := nextOpenAt.Add(duration)
+	candidateNo := buildPeriodNo(room.Code, nextDrawAt)
+	log.Printf(
+		"[engine][period.ensure.compare] room_code=%s next_open_at=%s next_draw_at=%s period_no=%s",
+		room.Code,
+		nextOpenAt.Format(time.RFC3339Nano),
+		nextDrawAt.Format(time.RFC3339Nano),
+		candidateNo,
+	)
+
+	var existingID int64
+	err = tx.QueryRowContext(ctx, `
+		select id
+		from game_periods
+		where room_code = $1 and period_no = $2
+		limit 1
+	`, room.Code, candidateNo).Scan(&existingID)
+	if err == nil {
+		if err := tx.Commit(); err != nil {
+			log.Printf("[engine][period.ensure.error] room_code=%s stage=commit_duplicate_skip err=%v", room.Code, err)
+			return nil, err
 		}
-		last = nextDrawAt
+		log.Printf("[engine][period.ensure.skip] room_code=%s period_no=%s reason=duplicate_exists existing_id=%d", room.Code, candidateNo, existingID)
+		return nil, nil
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("[engine][period.ensure.error] room_code=%s stage=check_duplicate period_no=%s err=%v", room.Code, candidateNo, err)
+		return nil, err
 	}
 
-	return tx.Commit()
+	status := periodStatusScheduled
+	if nextOpenAt.Equal(nowVN) || nextOpenAt.Before(nowVN) {
+		status = periodStatusOpen
+	}
+	record, inserted, err := r.insertPeriodTx(ctx, tx, room, nextOpenAt, nextDrawAt, status)
+	if err != nil {
+		log.Printf("[engine][period.ensure.error] room_code=%s stage=insert_single open_at=%s draw_at=%s err=%v", room.Code, nextOpenAt.Format(time.RFC3339Nano), nextDrawAt.Format(time.RFC3339Nano), err)
+		return nil, err
+	}
+	if inserted {
+		created = append(created, record)
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Printf("[engine][period.ensure.error] room_code=%s stage=commit err=%v", room.Code, err)
+		return nil, err
+	}
+
+	log.Printf("[engine][period.ensure.done] room_code=%s created_count=%d", room.Code, len(created))
+	return created, nil
 }
 
 func (r *GameRepository) MoveScheduledToOpen(ctx context.Context, now time.Time) (int64, error) {
@@ -154,12 +227,15 @@ func (r *GameRepository) ListLockedPeriodsForDraw(ctx context.Context, now time.
 }
 
 func (r *GameRepository) MarkPeriodDrawn(ctx context.Context, period GamePeriodRecord, draw DrawResult) error {
+	log.Printf("[engine][period.draw.start] period_id=%d room_code=%s period_no=%s draw_at=%s result=%s big_small=%s color=%s", period.ID, period.RoomCode, period.PeriodNo, period.DrawAt.Format(time.RFC3339Nano), draw.Result, draw.BigSmall, draw.Color)
+
 	hashBytes := sha256.Sum256(draw.PayloadJSON)
 	hashValue := hex.EncodeToString(hashBytes[:])
-	now := time.Now()
+	now := clock.Now()
 
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
+		log.Printf("[engine][period.draw.error] period_id=%d stage=begin_tx err=%v", period.ID, err)
 		return err
 	}
 	defer func() {
@@ -176,14 +252,17 @@ func (r *GameRepository) MarkPeriodDrawn(ctx context.Context, period GamePeriodR
 		where id = $5 and status = $6
 	`, periodStatusDrawn, draw.PayloadJSON, hashValue, now, period.ID, periodStatusLocked)
 	if err != nil {
+		log.Printf("[engine][period.draw.error] period_id=%d stage=update err=%v", period.ID, err)
 		return err
 	}
 
 	affected, err := result.RowsAffected()
 	if err != nil {
+		log.Printf("[engine][period.draw.error] period_id=%d stage=rows_affected err=%v", period.ID, err)
 		return err
 	}
 	if affected == 0 {
+		log.Printf("[engine][period.draw.skip] period_id=%d reason=not_locked_or_already_drawn", period.ID)
 		return nil
 	}
 
@@ -193,10 +272,17 @@ func (r *GameRepository) MarkPeriodDrawn(ctx context.Context, period GamePeriodR
 		)
 		values ($1, $2, $3, $4, $5, $6, $7, 'DRAWN', $8, $8)
 	`, toGameTypeSlug(period.GameType), period.RoomCode, period.PeriodNo, draw.Result, draw.BigSmall, draw.Color, period.DrawAt, now); err != nil {
+		log.Printf("[engine][period.draw.error] period_id=%d stage=insert_round_history err=%v", period.ID, err)
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		log.Printf("[engine][period.draw.error] period_id=%d stage=commit err=%v", period.ID, err)
+		return err
+	}
+
+	log.Printf("[engine][period.draw.done] period_id=%d room_code=%s period_no=%s", period.ID, period.RoomCode, period.PeriodNo)
+	return nil
 }
 
 func (r *GameRepository) ListDrawnPeriodsForSettlement(ctx context.Context, limit int) ([]GamePeriodSettlementRecord, error) {
@@ -229,8 +315,11 @@ func (r *GameRepository) ListDrawnPeriodsForSettlement(ctx context.Context, limi
 }
 
 func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSettlementRecord) error {
+	log.Printf("[engine][period.settle.start] period_id=%d room_code=%s period_no=%s", period.ID, period.RoomCode, period.PeriodNo)
+
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
+		log.Printf("[engine][period.settle.error] period_id=%d stage=begin_tx err=%v", period.ID, err)
 		return err
 	}
 	defer func() {
@@ -244,14 +333,17 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		where id = $1
 		for update
 	`, period.ID).Scan(&currentStatus); err != nil {
+		log.Printf("[engine][period.settle.error] period_id=%d stage=lock_status err=%v", period.ID, err)
 		return err
 	}
 	if currentStatus != periodStatusDrawn {
+		log.Printf("[engine][period.settle.skip] period_id=%d current_status=%d", period.ID, currentStatus)
 		return nil
 	}
 
 	tags, err := decodeResultTags(period.ResultPayload)
 	if err != nil {
+		log.Printf("[engine][period.settle.error] period_id=%d stage=decode_tags err=%v", period.ID, err)
 		return err
 	}
 
@@ -263,6 +355,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		for update
 	`, period.ID, betStatusPending)
 	if err != nil {
+		log.Printf("[engine][period.settle.error] period_id=%d stage=load_tickets err=%v", period.ID, err)
 		return err
 	}
 	defer rows.Close()
@@ -271,18 +364,22 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 	for rows.Next() {
 		var ticket SettleBetTicketRecord
 		if err := rows.Scan(&ticket.ID, &ticket.UserID, &ticket.WalletID, &ticket.TotalStake, &ticket.ItemsJSON); err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d stage=scan_ticket err=%v", period.ID, err)
 			return err
 		}
 		tickets = append(tickets, ticket)
 	}
 	if err := rows.Err(); err != nil {
+		log.Printf("[engine][period.settle.error] period_id=%d stage=rows_err err=%v", period.ID, err)
 		return err
 	}
+	log.Printf("[engine][period.settle.info] period_id=%d tickets=%d", period.ID, len(tickets))
 
-	now := time.Now()
+	now := clock.Now()
 	for _, ticket := range tickets {
 		outcomes, payoutTotal, err := settleTicketItems(ticket.ItemsJSON, tags)
 		if err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=settle_ticket_items err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 
@@ -298,11 +395,13 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			where id = $1
 			for update
 		`, ticket.WalletID).Scan(&balanceBefore, &lockedBefore); err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=load_wallet err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 
 		lockedAfter, err := subtractNumeric(lockedBefore, ticket.TotalStake)
 		if err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=subtract_locked err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 		if compareNumeric(lockedAfter, "0") < 0 {
@@ -311,10 +410,12 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 
 		balanceAfter, err := addNumeric(balanceBefore, payoutTotal)
 		if err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=add_balance err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 		balanceAfter, err = subtractNumeric(balanceAfter, ticket.TotalStake)
 		if err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=subtract_stake err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 
@@ -325,6 +426,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			    updated_at = $3
 			where id = $4
 		`, balanceAfter, lockedAfter, now, ticket.WalletID); err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=update_wallet err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 
@@ -344,6 +446,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 				  and option_key = $6
 				  and result = 1
 			`, resultStatus, outcome.Payout, now, ticket.ID, mapOptionType(outcome.OptionType), strings.TrimSpace(outcome.OptionKey)); err != nil {
+				log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=update_bet_item err=%v", period.ID, ticket.ID, err)
 				return err
 			}
 		}
@@ -356,11 +459,13 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			    updated_at = $3
 			where id = $4
 		`, statusAfter, payoutTotal, now, ticket.ID); err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=update_ticket err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 
 		profitLoss, err := subtractNumeric(ticket.TotalStake, payoutTotal)
 		if err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=profit_loss err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `
@@ -370,11 +475,13 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			)
 			values ($1, $2, 1, $3, $4, $5::numeric(20,8), $6::numeric(20,8), $7, $8)
 		`, ticket.ID, period.ID, betStatusPending, statusAfter, payoutTotal, profitLoss, "Engine settlement tự động", now); err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=insert_settlement err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 
 		netDelta, err := subtractNumeric(payoutTotal, ticket.TotalStake)
 		if err != nil {
+			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=net_delta err=%v", period.ID, ticket.ID, err)
 			return err
 		}
 		if compareNumeric(netDelta, "0") != 0 {
@@ -385,6 +492,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 				direction = 2
 				ledgerAmount, err = subtractNumeric("0", netDelta)
 				if err != nil {
+					log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=ledger_amount err=%v", period.ID, ticket.ID, err)
 					return err
 				}
 				note = "Trừ tiền thua cược"
@@ -397,6 +505,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 				values ($1, $2, $3, $4::numeric(20,8), $5::numeric(20,8), $6::numeric(20,8),
 				        $7, $8, $9, $10)
 			`, ticket.WalletID, ticket.UserID, direction, ledgerAmount, balanceBefore, balanceAfter, "App\\Models\\Bet\\BetTicket", ticket.ID, note, now); err != nil {
+				log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=insert_ledger err=%v", period.ID, ticket.ID, err)
 				return err
 			}
 		}
@@ -409,6 +518,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		    updated_at = $2
 		where id = $3 and status = $4
 	`, periodStatusSettled, now, period.ID, periodStatusDrawn); err != nil {
+		log.Printf("[engine][period.settle.error] period_id=%d stage=update_period err=%v", period.ID, err)
 		return err
 	}
 
@@ -419,16 +529,24 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		where room_code = $2
 		  and period_no = $3
 	`, now, period.RoomCode, period.PeriodNo); err != nil {
+		log.Printf("[engine][period.settle.error] period_id=%d stage=update_round_history err=%v", period.ID, err)
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		log.Printf("[engine][period.settle.error] period_id=%d stage=commit err=%v", period.ID, err)
+		return err
+	}
+
+	log.Printf("[engine][period.settle.done] period_id=%d room_code=%s period_no=%s tickets=%d", period.ID, period.RoomCode, period.PeriodNo, len(tickets))
+	return nil
 }
 
-func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room GameRoomRecord, openAt, drawAt time.Time, status int) error {
+func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room GameRoomRecord, openAt, drawAt time.Time, status int) (GamePeriodRecord, bool, error) {
 	lockAt := drawAt.Add(-time.Duration(room.BetCutoffSeconds) * time.Second)
 	periodNo := buildPeriodNo(room.Code, drawAt)
-	_, err := tx.ExecContext(ctx, `
+	var record GamePeriodRecord
+	err := tx.QueryRowContext(ctx, `
 		insert into game_periods (
 			game_type, period_no, room_code, open_at, close_at, bet_lock_at, draw_at, status, created_at, updated_at
 		)
@@ -436,8 +554,28 @@ func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room Ga
 			$1, $2, $3, $4, $5, $5, $6, $7, now(), now()
 		)
 		on conflict (room_code, period_no) do nothing
-	`, room.GameType, periodNo, room.Code, openAt, lockAt, drawAt, status)
-	return err
+		returning id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
+	`, room.GameType, periodNo, room.Code, openAt, lockAt, drawAt, status).Scan(
+		&record.ID,
+		&record.RoomCode,
+		&record.GameType,
+		&record.PeriodNo,
+		&record.OpenAt,
+		&record.BetLockAt,
+		&record.DrawAt,
+		&record.Status,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			log.Printf("[engine][period.insert.skip] room_code=%s period_no=%s reason=conflict_or_no_rows", room.Code, periodNo)
+			return GamePeriodRecord{}, false, nil
+		}
+		log.Printf("[engine][period.insert.error] room_code=%s period_no=%s err=%v", room.Code, periodNo, err)
+		return GamePeriodRecord{}, false, err
+	}
+
+	log.Printf("[engine][period.insert.done] room_code=%s period_id=%d period_no=%s open_at=%s draw_at=%s status=%d", record.RoomCode, record.ID, record.PeriodNo, record.OpenAt.Format(time.RFC3339Nano), record.DrawAt.Format(time.RFC3339Nano), record.Status)
+	return record, true, nil
 }
 
 func settleTicketItems(rawItems []byte, tags map[string]struct{}) ([]ticketSettleItemOutcome, string, error) {

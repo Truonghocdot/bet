@@ -31,6 +31,7 @@ DB reference:
 
 - [Room Catalog](./room-catalog.md)
 - [Period Timeline](./period-timeline.md)
+- [Play Room Business](./play-room-business.md)
 - [Engine Workflow](./engine-workflow.md)
 - [API Room Contract](./api-room-contract.md)
 - [Admin Guard Rules](./admin-guard-rules.md)

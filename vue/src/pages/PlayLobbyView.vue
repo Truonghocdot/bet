@@ -32,7 +32,7 @@ function formatRoomVariants(roomCode: string) {
 
 <template>
   <div class="space-y-4 pb-6 md:space-y-6">
-    <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#004edb] via-[#0058bb] to-[#7e9cff] p-5 text-white shadow-[0_12px_30px_rgba(0,78,219,0.2)] md:p-6">
+    <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-5 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)] md:p-6">
       <div class="grid gap-4 md:grid-cols-[1.35fr_0.95fr] md:items-end">
         <div class="space-y-4">
           <div class="flex flex-wrap items-center gap-2">
@@ -85,7 +85,7 @@ function formatRoomVariants(roomCode: string) {
           :key="item.category"
           type="button"
           class="flex items-center gap-2 rounded-full px-4 py-2.5 text-[0.78rem] font-bold transition-all"
-          :class="item.category === activeCategory ? 'bg-primary text-white shadow-[0_12px_32px_rgba(0,78,219,0.12)]' : 'bg-surface-container-low text-on-surface-variant'"
+          :class="item.category === activeCategory ? 'bg-primary text-white shadow-[0_12px_32px_rgba(255,109,102,0.12)]' : 'bg-surface-container-low text-on-surface-variant'"
           @click="activeCategory = item.category"
         >
           <span>{{ item.category }}</span>
@@ -103,7 +103,7 @@ function formatRoomVariants(roomCode: string) {
       <article
         v-for="room in filteredRooms"
         :key="room.code"
-        class="group relative overflow-hidden rounded-[26px] bg-white p-4 shadow-[0_10px_24px_rgba(0,78,219,0.07)] transition-transform duration-200 hover:-translate-y-0.5"
+        class="group relative overflow-hidden rounded-[26px] bg-white p-4 shadow-[0_10px_24px_rgba(255,109,102,0.07)] transition-transform duration-200 hover:-translate-y-0.5"
       >
         <div class="absolute inset-x-0 top-0 h-1.5" :style="{ background: `linear-gradient(90deg, ${room.accent}, ${room.accent}55)` }"></div>
         <div class="flex items-start justify-between gap-3">

@@ -15,6 +15,7 @@ import (
 	"gin/internal/integration/gate"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/security/ratelimit"
+	"gin/internal/support/clock"
 	"gin/internal/support/message"
 )
 
@@ -149,7 +150,7 @@ func (s *AuthService) Login(ctx context.Context, request auth.LoginRequest, meta
 		return auth.AuthResponse{}, ErrInvalidCredentials
 	}
 
-	now := time.Now()
+	now := clock.Now()
 	if err := s.repository.MarkLoggedIn(ctx, profile.User.ID, now); err != nil {
 		return auth.AuthResponse{}, err
 	}
@@ -197,7 +198,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, request auth.ForgotPas
 		return auth.MessageResponse{}, err
 	}
 
-	expiresAt := time.Now().Add(s.config.ForgotOTPTTL)
+	expiresAt := clock.Now().Add(s.config.ForgotOTPTTL)
 	record, err := s.repository.CreateForgotPasswordOTP(
 		ctx,
 		profile.User.ID,
@@ -218,7 +219,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, request auth.ForgotPas
 		return auth.MessageResponse{Message: message.ForgotPasswordAccepted}, nil
 	}
 
-	_ = s.repository.MarkOTPSent(ctx, record.ID, time.Now())
+	_ = s.repository.MarkOTPSent(ctx, record.ID, clock.Now())
 
 	return auth.MessageResponse{Message: message.ForgotPasswordAccepted}, nil
 }
@@ -246,7 +247,7 @@ func (s *AuthService) VerifyForgotPasswordOTP(ctx context.Context, request auth.
 		return auth.VerifyForgotPasswordOTPResponse{}, err
 	}
 
-	if time.Now().After(record.ExpiresAt) {
+	if clock.Now().After(record.ExpiresAt) {
 		return auth.VerifyForgotPasswordOTPResponse{}, ErrOTPExpired
 	}
 
@@ -259,7 +260,7 @@ func (s *AuthService) VerifyForgotPasswordOTP(ctx context.Context, request auth.
 		locked := record.AttemptCount >= record.MaxAttempts
 		var lockedAt *time.Time
 		if locked {
-			now := time.Now()
+			now := clock.Now()
 			lockedAt = &now
 		}
 		if err := s.repository.MarkOTPAttempt(ctx, record, locked, lockedAt); err != nil {
@@ -271,7 +272,7 @@ func (s *AuthService) VerifyForgotPasswordOTP(ctx context.Context, request auth.
 		return auth.VerifyForgotPasswordOTPResponse{}, ErrOTPInvalid
 	}
 
-	if err := s.repository.MarkOTPVerified(ctx, record.ID, time.Now()); err != nil {
+	if err := s.repository.MarkOTPVerified(ctx, record.ID, clock.Now()); err != nil {
 		return auth.VerifyForgotPasswordOTPResponse{}, err
 	}
 
@@ -469,7 +470,7 @@ func normalizeAccount(channel auth.OTPChannel, account string) string {
 }
 
 func (s *AuthService) newAuthResponse(profile auth.UserProfile) (auth.AuthResponse, error) {
-	issuedAt := time.Now()
+	issuedAt := clock.Now()
 	expiresAt := issuedAt.Add(s.tokenSigner.TTL())
 
 	accessToken, err := s.tokenSigner.Sign(auth.TokenClaims{

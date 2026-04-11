@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"log"
 	"strconv"
 	"strings"
 	"time"
 
 	"gin/internal/domain/game"
+	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
 
@@ -167,31 +169,82 @@ func (r *GameRepository) FindRoomByCode(ctx context.Context, roomCode string) (G
 }
 
 func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode string) (GamePeriodRecord, error) {
-	var period GamePeriodRecord
-	err := r.db.QueryRowContext(ctx, `
+	now := clock.Now()
+	log.Printf("[engine][period.current.lookup.start] room_code=%s now_vn=%s", roomCode, now.Format(time.RFC3339Nano))
+
+	scanPeriod := func(query string, args ...any) (GamePeriodRecord, error) {
+		var period GamePeriodRecord
+		err := r.db.QueryRowContext(ctx, query, args...).Scan(
+			&period.ID,
+			&period.RoomCode,
+			&period.GameType,
+			&period.PeriodNo,
+			&period.OpenAt,
+			&period.BetLockAt,
+			&period.DrawAt,
+			&period.Status,
+		)
+		if err != nil {
+			return GamePeriodRecord{}, err
+		}
+		return period, nil
+	}
+
+	current, err := scanPeriod(`
 		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
 		from game_periods
-		where room_code = $1 and status in (1, 2, 3, 4)
-		order by draw_at asc
+		where room_code = $1
+		  and status in ($2, $3, $4)
+		  and open_at <= $5
+		  and draw_at > $5
+		order by open_at desc, draw_at desc, id desc
 		limit 1
-	`, roomCode).Scan(
-		&period.ID,
-		&period.RoomCode,
-		&period.GameType,
-		&period.PeriodNo,
-		&period.OpenAt,
-		&period.BetLockAt,
-		&period.DrawAt,
-		&period.Status,
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return GamePeriodRecord{}, ErrPeriodNotFound
-		}
+	`, roomCode, periodStatusOpen, periodStatusLocked, periodStatusScheduled, now)
+	if err == nil {
+		log.Printf("[engine][period.current.lookup.done] room_code=%s period_id=%d period_no=%s status=%d source=current", roomCode, current.ID, current.PeriodNo, current.Status)
+		return current, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("[engine][period.current.lookup.error] room_code=%s stage=current err=%v", roomCode, err)
 		return GamePeriodRecord{}, err
 	}
 
-	return period, nil
+	scheduled, err := scanPeriod(`
+		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
+		from game_periods
+		where room_code = $1
+		  and status = $2
+		  and open_at > $3
+		order by open_at asc, draw_at asc, id asc
+		limit 1
+	`, roomCode, periodStatusScheduled, now)
+	if err == nil {
+		log.Printf("[engine][period.current.lookup.done] room_code=%s period_id=%d period_no=%s status=%d source=scheduled", roomCode, scheduled.ID, scheduled.PeriodNo, scheduled.Status)
+		return scheduled, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("[engine][period.current.lookup.error] room_code=%s stage=scheduled err=%v", roomCode, err)
+		return GamePeriodRecord{}, err
+	}
+
+	drawn, err := scanPeriod(`
+		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
+		from game_periods
+		where room_code = $1
+		  and status = $2
+		order by draw_at desc, id desc
+		limit 1
+	`, roomCode, periodStatusDrawn)
+	if err == nil {
+		log.Printf("[engine][period.current.lookup.done] room_code=%s period_id=%d period_no=%s status=%d source=drawn", roomCode, drawn.ID, drawn.PeriodNo, drawn.Status)
+		return drawn, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		log.Printf("[engine][period.current.lookup.miss] room_code=%s reason=no_period_found", roomCode)
+		return GamePeriodRecord{}, ErrPeriodNotFound
+	}
+	log.Printf("[engine][period.current.lookup.error] room_code=%s stage=drawn err=%v", roomCode, err)
+	return GamePeriodRecord{}, err
 }
 
 func (r *GameRepository) ListRoomRounds(ctx context.Context, roomCode string, page, pageSize int) ([]GameRoundRecord, int, error) {
@@ -305,6 +358,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 	if err != nil {
 		return BetTicketRecord{}, err
 	}
+	stakeAmountDB := stakeAmount.FloatString(8)
 
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -333,7 +387,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		return BetTicketRecord{}, ErrPeriodNotOpen
 	}
 
-	now := time.Now()
+	now := clock.Now()
 	if !now.Before(period.BetLockAt) {
 		return BetTicketRecord{}, ErrPeriodBetLocked
 	}
@@ -393,7 +447,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		)
 		returning id, user_id, wallet_id, game_type, period_id, request_id, connection_id,
 		          total_stake::text, status, items, created_at, updated_at
-	`, ticketNo, params.UserID, walletID, nullIfEmpty(params.RequestID), nullIfEmpty(params.ConnectionID), period.GameType, period.ID, betType, stakeAmount.String(), betStatusPending, placedIP, placedDevice, itemsJSON, now)
+	`, ticketNo, params.UserID, walletID, nullIfEmpty(params.RequestID), nullIfEmpty(params.ConnectionID), period.GameType, period.ID, betType, stakeAmountDB, betStatusPending, placedIP, placedDevice, itemsJSON, now)
 
 	var record BetTicketRecord
 	if err := row.Scan(
@@ -429,6 +483,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		if err != nil {
 			return BetTicketRecord{}, err
 		}
+		stakeValueDB := stakeValue.FloatString(8)
 		if _, err := tx.ExecContext(ctx, `
 			insert into bet_items (
 				ticket_id, period_id, option_type, option_key, option_label,
@@ -438,7 +493,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 				$1, $2, $3, $4, $5,
 				1::numeric(12,4), $6::numeric(20,8), 1, $7, $7
 			)
-		`, record.ID, period.ID, optionTypeValue, strings.TrimSpace(item.OptionKey), strings.TrimSpace(item.OptionKey), stakeValue.String(), now); err != nil {
+		`, record.ID, period.ID, optionTypeValue, strings.TrimSpace(item.OptionKey), strings.TrimSpace(item.OptionKey), stakeValueDB, now); err != nil {
 			return BetTicketRecord{}, err
 		}
 	}
@@ -450,7 +505,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		)
 		values ($1, $2, $3, $4::numeric(20,8), $5::numeric(20,8), $6::numeric(20,8),
 		        $7, $8, $9, now())
-	`, walletID, params.UserID, 2, stakeAmount.String(), availableBefore, availableAfter, "App\\Models\\Bet\\BetTicket", record.ID, "Khóa tiền khi đặt cược"); err != nil {
+	`, walletID, params.UserID, 2, stakeAmountDB, availableBefore, availableAfter, "App\\Models\\Bet\\BetTicket", record.ID, "Khóa tiền khi đặt cược"); err != nil {
 		return BetTicketRecord{}, err
 	}
 
@@ -627,7 +682,7 @@ func mapOptionType(optionType string) int {
 }
 
 func buildTicketNo() string {
-	now := time.Now().Format("20060102150405")
+	now := clock.Now().Format("20060102150405")
 	suffix := strings.ToUpper(id.New())
 	if len(suffix) > 20 {
 		suffix = suffix[:20]

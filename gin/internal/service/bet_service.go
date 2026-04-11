@@ -7,11 +7,11 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
-	"time"
 
 	"gin/internal/domain/game"
 	"gin/internal/event/outbox"
 	repopg "gin/internal/repository/postgres"
+	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
 )
@@ -114,7 +114,7 @@ func (s *BetService) PlaceBet(ctx context.Context, connectionID string, request 
 	event := outbox.Event{
 		ID:         id.New(),
 		Name:       "bet.placed",
-		OccurredAt: time.Now(),
+		OccurredAt: clock.Now(),
 		Payload: map[string]any{
 			"connection_id": connectionID,
 			"user_id":       request.UserID,
@@ -136,7 +136,7 @@ func (s *BetService) PlaceBet(ctx context.Context, connectionID string, request 
 		ConnectionID: connectionID,
 		GameType:     request.GameType,
 		Status:       "accepted",
-		AcceptedAt:   time.Now(),
+		AcceptedAt:   clock.Now(),
 		Message:      message.BetAccepted,
 	}, nil
 }

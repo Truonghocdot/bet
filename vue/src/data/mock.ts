@@ -21,10 +21,10 @@ export type NotificationPreview = {
 }
 
 export const featuredGames: GameCard[] = [
-  { code: 'wingo', title: 'Win Go', subtitle: 'Dự đoán màu sắc, nhận thưởng lớn mỗi phút', accent: '#004edb', symbol: 'rocket_launch' },
-  { code: 'k3', title: 'K3', subtitle: 'Xúc xắc may mắn, tỉ lệ thắng cực cao', accent: '#b71211', symbol: 'casino' },
-  { code: 'lottery', title: '5D Lotre', subtitle: 'Chọn số trúng vàng, vinh quang gõ cửa', accent: '#6c5a00', symbol: 'looks_5' },
-  { code: 'trx_win', title: 'Trx Win', subtitle: 'Khai thác tiền số, bùng nổ lợi nhuận', accent: '#7e9cff', symbol: 'currency_bitcoin', enabled: false },
+  { code: 'wingo', title: 'Win Go', subtitle: 'Dự đoán màu sắc, nhận thưởng lớn mỗi phút', accent: '#ff6d66', symbol: 'rocket_launch' },
+  { code: 'k3', title: 'K3', subtitle: 'Xúc xắc may mắn, tỉ lệ thắng cực cao', accent: '#e64545', symbol: 'casino' },
+  { code: 'lottery', title: '5D Lotre', subtitle: 'Chọn số trúng vàng, vinh quang gõ cửa', accent: '#f6c32d', symbol: 'looks_5' },
+  { code: 'trx_win', title: 'Trx Win', subtitle: 'Khai thác tiền số, bùng nổ lợi nhuận', accent: '#24b561', symbol: 'currency_bitcoin', enabled: false },
 ]
 
 export const quickCategories = [

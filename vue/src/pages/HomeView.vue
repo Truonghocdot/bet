@@ -16,34 +16,36 @@ const featuredRooms = computed(() => gameRooms.filter((game) => game.featured))
 const featuredNews = computed(() => newsArticles.filter((article) => article.featured).slice(0, 3))
 const vndWallet = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
 const usdtWallet = computed(() => wallet.wallets.find((item) => item.unit === 2) ?? null)
-const displayMetrics = computed(() => [
+const categoryTiles = computed(() => [
   {
-    title: 'Ví VND',
-    value: wallet.loading && !vndWallet.value ? 'Đang đồng bộ...' : (vndWallet.value ? displayBalance(vndWallet.value.balance) : '—'),
-    description: 'Số dư nội địa thật từ bảng wallets.',
-    icon: 'account_balance_wallet',
-    accent: '#004edb',
+    title: 'Xổ số',
+    subtitle: 'Win Go / 5D',
+    icon: 'confirmation_number',
+    accent: '#ff6d66',
   },
   {
-    title: 'Ví USDT',
-    value: wallet.loading && !usdtWallet.value ? 'Đang đồng bộ...' : (usdtWallet.value ? displayBalance(usdtWallet.value.balance, 2) : '—'),
-    description: 'Số dư crypto phục vụ nạp USDT.',
-    icon: 'currency_bitcoin',
-    accent: '#6c5a00',
-  },
-  {
-    title: 'Thông báo mới',
-    value: String(getUnreadCount()).padStart(2, '0'),
-    description: 'Thông báo hệ thống chưa đọc.',
-    icon: 'notifications',
-    accent: '#b71211',
-  },
-  {
-    title: 'Phòng đang mở',
-    value: `${gameRooms.filter((game) => game.status === 'OPEN').length} trò`,
-    description: 'Win Go, K3 và Lô tô đang sẵn sàng.',
+    title: 'Casino',
+    subtitle: 'K3 / Xúc xắc',
     icon: 'casino',
-    accent: '#7e9cff',
+    accent: '#f6c32d',
+  },
+  {
+    title: 'Bắn cá',
+    subtitle: 'Sắp mở',
+    icon: 'skull',
+    accent: '#e64545',
+  },
+  {
+    title: 'Thể thao',
+    subtitle: 'Hot game',
+    icon: 'sports_soccer',
+    accent: '#24b561',
+  },
+  {
+    title: 'Game bài',
+    subtitle: 'Nhiều lựa chọn',
+    icon: 'playing_cards',
+    accent: '#ff9c95',
   },
 ])
 
@@ -59,19 +61,22 @@ onMounted(() => {
 <template>
   <div class="space-y-4 md:space-y-6">
     <section
-      class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#004edb] via-[#0058bb] to-[#7e9cff] p-5 text-white shadow-[0_12px_30px_rgba(0,78,219,0.2)] md:p-7"
+      class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-5 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)] md:p-7"
     >
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_28%)]"></div>
       <div class="relative z-10 grid gap-4 md:grid-cols-[1.2fr_0.8fr] md:items-end">
         <div>
           <span class="inline-flex rounded-full bg-[#fdd404] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#594a00]">
-            Tổng quan hệ thống
+            Siêu khuyến mãi
           </span>
           <h2 class="mt-4 max-w-[18rem] text-[1.7rem] font-black leading-[1.08] md:max-w-[28rem] md:text-[2.2rem]">
-            Xin chào, {{ greetingName }}
+            Thưởng nạp lần đầu đến 100% giá trị
           </h2>
+          <p class="mt-2 text-[0.82rem] font-bold uppercase tracking-[0.08em] text-white/82">
+            Chào mừng quay lại, {{ greetingName }}
+          </p>
           <p class="mt-3 max-w-[24rem] text-sm leading-6 text-white/88 md:max-w-[30rem] md:text-[0.98rem]">
-            Theo dõi phòng chơi, tin tức hệ thống và thông báo ngay trên trang chủ.
+            Tham gia ngay để nhận ưu đãi VIP dành riêng cho bạn.
           </p>
         </div>
 
@@ -109,6 +114,15 @@ onMounted(() => {
                 </span>
               </div>
             </div>
+
+            <div class="mt-4 grid grid-cols-2 gap-2">
+              <RouterLink to="/account" class="grid min-h-11 place-items-center rounded-[16px] bg-white text-[0.82rem] font-black text-[#e64545]">
+                Rút tiền
+              </RouterLink>
+              <RouterLink to="/deposit" class="grid min-h-11 place-items-center rounded-[16px] bg-[#24b561] text-[0.82rem] font-black text-white">
+                Nạp tiền
+              </RouterLink>
+            </div>
           </article>
 
           <RouterLink to="/notifications" class="rounded-[22px] bg-white/14 px-4 py-3 backdrop-blur-md">
@@ -123,28 +137,17 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="grid grid-cols-2 gap-3 md:grid-cols-4">
+    <section class="grid grid-cols-5 gap-2.5 md:gap-3">
       <article
-        v-for="metric in displayMetrics"
+        v-for="metric in categoryTiles"
         :key="metric.title"
-        class="rounded-[22px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.06)]"
+        class="rounded-[20px] bg-white px-2.5 py-3 text-center shadow-[0_8px_18px_rgba(255,109,102,0.06)]"
       >
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="m-0 text-[0.72rem] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
-              {{ metric.title }}
-            </p>
-            <strong class="mt-2 block text-[1rem] font-black text-on-surface md:text-[1.08rem]">
-              {{ metric.value }}
-            </strong>
-          </div>
-          <span class="grid h-11 w-11 place-items-center rounded-[16px]" :style="{ backgroundColor: `${metric.accent}15`, color: metric.accent }">
-            <span class="material-symbols-outlined">{{ metric.icon }}</span>
-          </span>
-        </div>
-        <p class="mt-3 text-[0.72rem] leading-5 text-on-surface-variant">
-          {{ metric.description }}
-        </p>
+        <span class="mx-auto grid h-10 w-10 place-items-center rounded-full" :style="{ backgroundColor: `${metric.accent}18`, color: metric.accent }">
+          <span class="material-symbols-outlined">{{ metric.icon }}</span>
+        </span>
+        <strong class="mt-2 block text-[0.7rem] font-black leading-4 text-on-surface">{{ metric.title }}</strong>
+        <p class="mt-1 text-[0.62rem] leading-4 text-on-surface-variant">{{ metric.subtitle }}</p>
       </article>
     </section>
 
@@ -153,7 +156,7 @@ onMounted(() => {
         v-for="item in quickActions"
         :key="item.title"
         :to="item.to"
-        class="grid min-h-[88px] place-items-center gap-2 rounded-[20px] bg-white px-2 py-3 text-on-surface shadow-[0_6px_18px_rgba(0,78,219,0.06)] transition-transform active:scale-95"
+        class="grid min-h-[88px] place-items-center gap-2 rounded-[20px] bg-white px-2 py-3 text-on-surface shadow-[0_6px_18px_rgba(255,109,102,0.06)] transition-transform active:scale-95"
       >
         <span class="grid h-10 w-10 place-items-center rounded-full" :style="{ backgroundColor: `${item.accent}15`, color: item.accent }">
           <span class="material-symbols-outlined">{{ item.symbol }}</span>
@@ -176,7 +179,7 @@ onMounted(() => {
       <article
         v-for="game in featuredRooms"
         :key="game.code"
-        class="overflow-hidden rounded-[24px] border-b-4 bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)]"
+        class="overflow-hidden rounded-[24px] border-b-4 bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)]"
         :style="{ borderBottomColor: game.accent }"
       >
         <div class="flex items-start justify-between gap-3">
@@ -220,7 +223,7 @@ onMounted(() => {
     </section>
 
     <section class="grid gap-3 md:grid-cols-[1.1fr_0.9fr]">
-      <article class="rounded-[24px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)] md:p-5">
+      <article class="rounded-[24px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)] md:p-5">
         <div class="flex items-center justify-between gap-2">
           <div>
             <h3 class="m-0 text-[1rem] font-black md:text-[1.08rem]">Hoạt động gần đây</h3>
@@ -261,7 +264,7 @@ onMounted(() => {
         </div>
       </article>
 
-      <article class="rounded-[24px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)] md:p-5">
+      <article class="rounded-[24px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)] md:p-5">
         <div class="flex items-center justify-between gap-2">
           <div>
             <h3 class="m-0 text-[1rem] font-black md:text-[1.08rem]">Tin mới</h3>

@@ -93,6 +93,7 @@ func (h *PlayRoomHandler) PlaceRoomBet(w http.ResponseWriter, r *http.Request) {
 		req,
 		strings.TrimSpace(r.Header.Get("X-Forwarded-For")),
 		strings.TrimSpace(r.UserAgent()),
+		strings.TrimSpace(r.Header.Get("X-Connection-ID")),
 	)
 	if err != nil {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})

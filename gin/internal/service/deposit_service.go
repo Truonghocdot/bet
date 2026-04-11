@@ -12,6 +12,7 @@ import (
 	"gin/internal/domain/deposit"
 	"gin/internal/domain/user"
 	repopg "gin/internal/repository/postgres"
+	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
 	goredis "github.com/redis/go-redis/v9"
@@ -164,7 +165,7 @@ func (s *DepositService) initDeposit(
 		return deposit.DepositInitResponse{}, err
 	}
 
-	expiresAt := time.Now().Add(15 * time.Minute)
+	expiresAt := clock.Now().Add(15 * time.Minute)
 	transaction := s.toDomainTransaction(record)
 	transaction.ReceivingAccount = s.toDomainReceivingAccount(&selected)
 
@@ -323,7 +324,7 @@ func randomIndex(length int) (int, error) {
 		return 0, fmt.Errorf(message.DepositReceivingAccountMissing)
 	}
 
-	seed := time.Now().UnixNano()
+	seed := clock.Now().UnixNano()
 	randSrc := rand.New(rand.NewSource(seed))
 	return randSrc.Intn(length), nil
 }

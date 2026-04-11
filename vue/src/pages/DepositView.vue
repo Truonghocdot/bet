@@ -88,11 +88,11 @@ async function logout() {
       <button class="justify-self-end text-right text-sm font-extrabold text-primary" type="button" @click="logout">Thoát</button>
     </header>
 
-    <section class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+    <section class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
       <div class="grid grid-cols-2 gap-2 rounded-[18px] bg-surface-container p-1.5">
         <button
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
-          :class="method === 'vietqr' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(0,78,219,0.1)]' : 'text-on-surface-variant'"
+          :class="method === 'vietqr' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
           type="button"
           @click="method = 'vietqr'"
         >
@@ -100,7 +100,7 @@ async function logout() {
         </button>
         <button
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
-          :class="method === 'usdt' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(0,78,219,0.1)]' : 'text-on-surface-variant'"
+          :class="method === 'usdt' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
           type="button"
           @click="method = 'usdt'"
         >
@@ -109,11 +109,11 @@ async function logout() {
       </div>
 
       <form class="mt-4 space-y-3" @submit.prevent="submitDeposit">
-        <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+        <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
           <input v-model="amount" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" inputmode="decimal" placeholder="Số tiền nạp" />
         </label>
 
-        <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+        <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
           <input v-model="note" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" placeholder="Ghi chú (không bắt buộc)" />
         </label>
 
@@ -123,7 +123,7 @@ async function logout() {
       </form>
     </section>
 
-    <section v-if="intent" class="space-y-3 rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+    <section v-if="intent" class="space-y-3 rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
       <div class="flex items-center justify-between gap-3">
         <h2 class="m-0 text-base font-black text-on-surface">Thông tin nạp</h2>
         <button class="text-sm font-extrabold text-primary" type="button" @click="refreshStatus">Cập nhật trạng thái</button>
@@ -146,7 +146,7 @@ async function logout() {
       </div>
     </section>
 
-    <section class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+    <section class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
       <p class="m-0 text-sm text-on-surface-variant">
         Tài khoản nhận tiền được hệ thống chọn ngẫu nhiên từ danh sách quản trị viên đã cấu hình trước đó.
       </p>

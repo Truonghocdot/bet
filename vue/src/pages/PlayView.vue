@@ -4,10 +4,11 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { request, type ApiError } from '@/shared/api/http'
 import type {
-  GameBetHistoryResponse,
-  GameHistoryResponse,
+  PlayRoomBetHistoryResponse,
+  PlayRoomBetResponse,
+  PlayRoomHistoryResponse,
+  PlayRoomStateResponse,
   GameJoinResponse,
-  GamePlaceBetResponse,
 } from '@/shared/api/types'
 import { getPlayRoom, type PlayBetGroup, type PlayRoom, type PlayVariant } from '@/data/play'
 import { formatViMoney } from '@/shared/lib/money'
@@ -19,7 +20,6 @@ const router = useRouter()
 const auth = useAuthStore()
 const wallet = useWalletStore()
 
-const now = ref(Date.now())
 const activeVariantCode = ref('')
 const activeHistoryTab = ref<'history' | 'chart' | 'mine'>('history')
 const connectionId = ref('')
@@ -29,8 +29,9 @@ const betMessage = ref('')
 const betLoading = ref(false)
 const selectedMultiplier = ref(10)
 const selectedOptions = reactive<Record<string, string>>({})
-const historyRows = ref<GameHistoryResponse['items']>([])
-const mineRows = ref<GameBetHistoryResponse['items']>([])
+const roomState = ref<PlayRoomStateResponse | null>(null)
+const historyRows = ref<PlayRoomHistoryResponse['items']>([])
+const mineRows = ref<PlayRoomBetHistoryResponse['items']>([])
 const historyPage = ref(1)
 const historyTotalPages = ref(1)
 const minePage = ref(1)
@@ -39,6 +40,10 @@ const historyLoading = ref(false)
 const mineLoading = ref(false)
 const historyError = ref('')
 const mineError = ref('')
+const roomStateLoading = ref(false)
+const roomStateError = ref('')
+const serverTimeOffsetMs = ref(0)
+const clockTick = ref(Date.now())
 
 const stakeOptions = [1, 5, 10, 20, 50] as const
 const tablePageSize = 4
@@ -49,6 +54,10 @@ const selectedVariant = computed<PlayVariant | null>(() => {
   if (!room.value || room.value.variants.length === 0) return null
   return room.value.variants.find((variant) => variant.code === activeVariantCode.value) ?? room.value.variants[0] ?? null
 })
+const selectedRoomCode = computed(() => {
+  if (!room.value || !selectedVariant.value) return ''
+  return `${room.value.code}_${selectedVariant.value.code}`
+})
 
 const walletVnd = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
 const walletUsdt = computed(() => wallet.wallets.find((item) => item.unit === 2) ?? null)
@@ -58,10 +67,20 @@ const availableVndBalance = computed(() => {
   return Math.max(0, balance - locked)
 })
 const canPlay = computed(() => availableVndBalance.value > 0)
+const currentPeriod = computed(() => roomState.value?.current_period ?? null)
+const syncedNow = computed(() => clockTick.value + serverTimeOffsetMs.value)
+const currentPeriodDrawAtMs = computed(() => currentPeriod.value ? new Date(currentPeriod.value.draw_at).getTime() : 0)
+const currentPeriodBetLockAtMs = computed(() => currentPeriod.value ? new Date(currentPeriod.value.bet_lock_at).getTime() : 0)
+const isBetLocked = computed(() => {
+  if (!currentPeriod.value) return true
+  if ((currentPeriod.value.status || '').toUpperCase() !== 'OPEN') return true
+  return syncedNow.value >= currentPeriodBetLockAtMs.value
+})
+const canBet = computed(() => canPlay.value && !isBetLocked.value)
 
 const remainingSeconds = computed(() => {
-  if (!selectedVariant.value) return 0
-  return Math.max(0, Math.ceil((new Date(selectedVariant.value.drawAt).getTime() - now.value) / 1000))
+  if (!currentPeriod.value) return 0
+  return Math.max(0, Math.ceil((currentPeriodDrawAtMs.value - syncedNow.value) / 1000))
 })
 
 const countdownParts = computed(() => {
@@ -75,11 +94,17 @@ const countdownParts = computed(() => {
 })
 
 const roomStatusLabel = computed(() => {
-  if (!selectedVariant.value) return 'Chưa mở'
-  if (remainingSeconds.value === 0) return 'Đã đóng'
-  if (now.value >= new Date(selectedVariant.value.closeAt).getTime()) return 'Đang khóa'
-  if (now.value >= new Date(selectedVariant.value.openAt).getTime()) return 'Đang mở'
-  return 'Chưa mở'
+  const status = (currentPeriod.value?.status || '').toUpperCase()
+  if (!currentPeriod.value) return room.value?.status === 'COMING_SOON' ? 'Sắp mở' : 'Chưa cập nhật'
+  if (status === 'OPEN') {
+    return isBetLocked.value ? 'Đang khóa' : 'Đang mở'
+  }
+  if (status === 'LOCKED') return 'Đang khóa'
+  if (status === 'DRAWN') return 'Đã ra kết quả'
+  if (status === 'SETTLED') return 'Đã chốt'
+  if (status === 'SCHEDULED') return 'Chưa mở'
+  if (status === 'CANCELED') return 'Đã hủy'
+  return 'Chưa cập nhật'
 })
 
 const stakeAmount = computed(() => String(1000 * selectedMultiplier.value))
@@ -87,7 +112,7 @@ const stakeLabel = computed(() => formatMoney(Number(stakeAmount.value)))
 const currentBalanceLabel = computed(() => formatMoney(walletVnd.value?.balance ?? 0))
 const lockedBalanceLabel = computed(() => formatMoney(walletVnd.value?.locked_balance ?? 0))
 
-const recentResults = computed(() => selectedVariant.value?.recentResults.slice(0, 5) ?? [])
+const recentResults = computed(() => roomState.value?.recent_results.slice(0, 5) ?? [])
 const periodHistory = computed(() => {
   if (activeHistoryTab.value === 'mine') return mineRows.value
   return historyRows.value
@@ -136,17 +161,35 @@ async function loadWallet() {
   }
 }
 
-async function loadGameHistory(page = historyPage.value) {
-  if (!room.value || !auth.accessToken) return
+async function loadRoomState(roomCode = selectedRoomCode.value) {
+  if (!roomCode) return
+
+  roomStateLoading.value = true
+  roomStateError.value = ''
+  try {
+    const response = await request<PlayRoomStateResponse>('GET', `/v1/play/rooms/${roomCode}/state`)
+    roomState.value = response
+    serverTimeOffsetMs.value = new Date(response.server_time).getTime() - Date.now()
+    clockTick.value = Date.now()
+  } catch (error: unknown) {
+    const err = error as ApiError
+    roomStateError.value = err?.message ?? 'Không thể tải trạng thái phòng chơi'
+    roomState.value = null
+  } finally {
+    roomStateLoading.value = false
+  }
+}
+
+async function loadRoomHistory(page = historyPage.value) {
+  if (!selectedRoomCode.value) return
 
   historyLoading.value = true
   historyError.value = ''
   try {
-    const response = await request<GameHistoryResponse>(
+    const response = await request<PlayRoomHistoryResponse>(
       'GET',
-      `/v1/games/${room.value.code}/history?page=${page}&page_size=${tablePageSize}`,
+      `/v1/play/rooms/${selectedRoomCode.value}/history?page=${page}&page_size=${tablePageSize}`,
       {
-        token: auth.accessToken,
       },
     )
     historyRows.value = response.items
@@ -162,14 +205,14 @@ async function loadGameHistory(page = historyPage.value) {
 }
 
 async function loadMineHistory(page = minePage.value) {
-  if (!room.value || !auth.accessToken) return
+  if (!selectedRoomCode.value || !auth.accessToken) return
 
   mineLoading.value = true
   mineError.value = ''
   try {
-    const response = await request<GameBetHistoryResponse>(
+    const response = await request<PlayRoomBetHistoryResponse>(
       'GET',
-      `/v1/games/${room.value.code}/bets?page=${page}&page_size=${tablePageSize}`,
+      `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${page}&page_size=${tablePageSize}`,
       {
         token: auth.accessToken,
       },
@@ -191,7 +234,7 @@ async function loadActiveHistory(page = currentPage()) {
     await loadMineHistory(page)
     return
   }
-  await loadGameHistory(page)
+  await loadRoomHistory(page)
 }
 
 async function joinRoom() {
@@ -246,10 +289,10 @@ function groupButtonClass(group: PlayBetGroup, optionKey: string) {
   const title = group.title.toLowerCase()
 
   if (title.includes('màu')) {
-    return selected ? 'ring-2 ring-offset-2 ring-primary shadow-[0_12px_24px_rgba(0,78,219,0.12)]' : 'shadow-[0_10px_18px_rgba(17,24,39,0.08)]'
+    return selected ? 'ring-2 ring-offset-2 ring-primary shadow-[0_12px_24px_rgba(255,109,102,0.12)]' : 'shadow-[0_10px_18px_rgba(17,24,39,0.08)]'
   }
   if (title.includes('lớn') || title.includes('nhỏ')) {
-    return selected ? 'ring-2 ring-offset-2 ring-primary shadow-[0_12px_24px_rgba(0,78,219,0.12)]' : 'shadow-[0_10px_18px_rgba(17,24,39,0.08)]'
+    return selected ? 'ring-2 ring-offset-2 ring-primary shadow-[0_12px_24px_rgba(255,109,102,0.12)]' : 'shadow-[0_10px_18px_rgba(17,24,39,0.08)]'
   }
   return selected ? 'border-primary bg-primary/10 text-primary' : 'border-slate-200 bg-white text-on-surface'
 }
@@ -286,20 +329,28 @@ async function submitBet() {
     betMessage.value = 'Số dư không đủ để đặt lệnh.'
     return
   }
+  if (!currentPeriod.value) {
+    betMessage.value = 'Chưa có kỳ hiện tại để đặt lệnh.'
+    return
+  }
+  if (isBetLocked.value) {
+    betMessage.value = 'Kỳ hiện tại đã khóa, không thể đặt lệnh.'
+    return
+  }
 
   betLoading.value = true
   betMessage.value = ''
 
   try {
     const requestId = globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}`
-    const res = await request<GamePlaceBetResponse>('POST', `/v1/games/${room.value.code}/bets`, {
+    const res = await request<PlayRoomBetResponse>('POST', `/v1/play/rooms/${selectedRoomCode.value}/bets`, {
       token: auth.accessToken,
       headers: {
         'X-Connection-ID': connectionId.value,
       },
       body: {
         request_id: requestId,
-        period_id: selectedVariant.value.periodNo,
+        period_id: String(currentPeriod.value.id),
         items,
       },
     })
@@ -315,15 +366,15 @@ async function submitBet() {
 }
 
 function resultDotClass(label: string) {
-  if (label.toLowerCase().includes('xanh')) return 'bg-[#004edb]'
-  if (label.toLowerCase().includes('đỏ')) return 'bg-[#b71211]'
+  if (label.toLowerCase().includes('xanh')) return 'bg-[#24b561]'
+  if (label.toLowerCase().includes('đỏ')) return 'bg-[#e64545]'
   if (label.toLowerCase().includes('tím')) return 'bg-[#8b5cf6]'
   return 'bg-primary'
 }
 
 function resultBadgeClass(label: string) {
-  if (label.toLowerCase().includes('xanh')) return 'border-[#004edb] bg-[#004edb] text-white'
-  if (label.toLowerCase().includes('đỏ')) return 'border-[#b71211] bg-[#b71211] text-white'
+  if (label.toLowerCase().includes('xanh')) return 'border-[#24b561] bg-[#24b561] text-white'
+  if (label.toLowerCase().includes('đỏ')) return 'border-[#e64545] bg-[#e64545] text-white'
   if (label.toLowerCase().includes('tím')) return 'border-[#8b5cf6] bg-[#8b5cf6] text-white'
   return 'border-primary bg-primary text-white'
 }
@@ -340,6 +391,17 @@ watch(
     await nextTick()
     ensureDefaultSelections(room.value.variants[0] ?? null)
     await joinRoom()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => selectedRoomCode.value,
+  async (roomCode) => {
+    if (!roomCode) return
+    historyPage.value = 1
+    minePage.value = 1
+    await loadRoomState(roomCode)
     await loadActiveHistory(1)
   },
   { immediate: true },
@@ -362,9 +424,8 @@ watch(
 
 onMounted(() => {
   void loadWallet()
-  void loadActiveHistory(1)
   timer = window.setInterval(() => {
-    now.value = Date.now()
+    clockTick.value = Date.now()
   }, 1000)
 })
 
@@ -375,51 +436,51 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-if="room && selectedVariant" class="space-y-3 pb-24 pt-1 md:space-y-4 md:pb-28">
-    <header class="flex items-center justify-between gap-3 pt-1">
-      <button class="grid h-10 w-10 place-items-center rounded-full text-primary transition-transform active:scale-95" type="button" @click="router.push('/play')">
+    <header class="flex items-center justify-between gap-3 bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] -mx-3 -mt-3 p-4 pb-8 md:-mx-4 md:-mt-4 text-white rounded-b-[30px] shadow-[0_8px_20px_rgba(229,46,46,0.15)]">
+      <button class="grid h-10 w-10 place-items-center rounded-full text-white transition-transform active:scale-95" type="button" @click="router.push('/play')">
         <span class="material-symbols-outlined text-[1.9rem]">arrow_back</span>
       </button>
 
       <div class="min-w-0 flex-1 text-center">
-        <h1 class="truncate text-[1.35rem] font-black tracking-[-0.04em] text-primary md:text-[1.5rem]">
+        <h1 class="truncate text-[1.35rem] font-black tracking-[-0.04em] text-white md:text-[1.5rem]">
           {{ room.title }} {{ selectedVariant.durationLabel }}
         </h1>
       </div>
 
-      <button class="text-[1rem] font-bold text-primary transition-opacity active:opacity-80" type="button">
+      <button class="text-[1rem] font-bold text-white transition-opacity active:opacity-80" type="button">
         Hỗ trợ
       </button>
     </header>
 
-    <section class="relative overflow-hidden rounded-[24px] bg-[#004db1] p-4 text-white shadow-[0_14px_28px_rgba(0,78,219,0.18)] md:p-5">
-      <div class="absolute right-5 top-5 grid h-14 w-14 place-items-center rounded-[18px] bg-white/10 text-white/28">
+    <section class="relative overflow-hidden rounded-[24px] bg-white p-4 text-on-surface shadow-[0_14px_28px_rgba(229,46,46,0.08)] md:p-5 mx-2 -mt-6 z-10">
+      <div class="absolute right-5 top-5 grid h-14 w-14 place-items-center rounded-[18px] bg-primary/10 text-primary">
         <span class="material-symbols-outlined text-[2rem]">account_balance_wallet</span>
       </div>
       <div class="relative z-10 max-w-[78%]">
-        <p class="text-[0.74rem] font-bold uppercase tracking-[0.2em] text-white/78">
+        <p class="text-[0.74rem] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
           Số dư hiện tại
         </p>
         <div class="mt-1 flex items-baseline gap-2">
-          <strong class="text-[2.35rem] font-black leading-none tracking-[-0.05em] md:text-[2.7rem]">
+          <strong class="text-[2.35rem] font-black leading-none tracking-[-0.05em] md:text-[2.7rem] text-primary">
             {{ currentBalanceLabel }}đ
           </strong>
-          <span class="material-symbols-outlined text-[1.2rem] text-white/92">refresh</span>
+          <span class="material-symbols-outlined text-[1.2rem] text-primary/80">refresh</span>
         </div>
       </div>
 
       <div class="mt-5 grid grid-cols-2 gap-3">
-        <RouterLink to="/deposit" class="flex min-h-14 items-center justify-center gap-2 rounded-[16px] bg-white px-4 font-black text-primary transition-transform active:scale-95">
+        <RouterLink to="/deposit" class="flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#24b561] to-[#2fcc71] shadow-[0_8px_16px_rgba(36,181,97,0.25)] px-4 font-black text-white transition-transform active:scale-95">
           <span class="material-symbols-outlined text-[1.2rem]">add_circle</span>
           Nạp tiền
         </RouterLink>
-        <RouterLink to="/account" class="flex min-h-14 items-center justify-center gap-2 rounded-[16px] border border-white/10 bg-[rgba(255,255,255,0.08)] px-4 font-black text-white transition-transform active:scale-95">
+        <RouterLink to="/account" class="flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff8a00] to-[#f6c32d] shadow-[0_8px_16px_rgba(255,138,0,0.25)] px-4 font-black text-white transition-transform active:scale-95">
           <span class="material-symbols-outlined text-[1.2rem]">account_balance</span>
           Rút tiền
         </RouterLink>
       </div>
     </section>
 
-    <div class="rounded-full bg-white px-4 py-3 text-[0.8rem] font-semibold text-on-surface shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+    <div class="rounded-full bg-white px-4 py-3 text-[0.8rem] font-semibold text-on-surface shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
       <div class="flex items-center gap-2 overflow-hidden">
         <span class="material-symbols-outlined text-primary">campaign</span>
         <span class="whitespace-nowrap text-on-surface-variant">
@@ -428,16 +489,20 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <p v-if="roomStateError" class="rounded-[14px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
+      {{ roomStateError }}
+    </p>
+
     <section class="grid grid-cols-4 gap-2 md:gap-3">
       <button
         v-for="variant in room.variants"
         :key="variant.code"
         type="button"
-        class="grid min-h-[94px] place-items-center rounded-[18px] border border-transparent bg-white px-2 py-3 text-center shadow-[0_8px_18px_rgba(0,78,219,0.05)] transition-transform active:scale-[0.98]"
-        :class="variant.code === selectedVariant.code ? 'bg-primary text-white shadow-[0_12px_24px_rgba(0,78,219,0.16)]' : 'text-slate-500'"
+        class="grid min-h-[94px] place-items-center rounded-[20px] transition-all active:scale-[0.98] px-2 py-3 text-center"
+        :class="variant.code === selectedVariant.code ? 'bg-gradient-to-tr from-[#ff8a00] to-[#e52e2e] text-white shadow-[0_12px_24px_rgba(229,46,46,0.3)]' : 'bg-white border border-slate-100 text-slate-500 shadow-sm'"
         @click="activeVariantCode = variant.code"
       >
-        <span class="material-symbols-outlined text-[1.9rem]" :class="variant.code === selectedVariant.code ? 'text-white' : 'text-slate-500'">
+        <span class="material-symbols-outlined text-[1.9rem]" :class="variant.code === selectedVariant.code ? 'text-white/90' : 'text-slate-400'">
           schedule
         </span>
         <span class="mt-1 text-[0.76rem] font-black uppercase tracking-[0.04em]">
@@ -447,32 +512,30 @@ onBeforeUnmount(() => {
     </section>
 
     <section class="grid gap-3 md:grid-cols-2">
-      <article class="rounded-[20px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+      <article class="rounded-[20px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
         <p class="text-[0.92rem] font-medium text-on-surface-variant">
-          Số kỳ: <strong class="text-primary">{{ selectedVariant.periodNo }}</strong>
+          Số kỳ: <strong class="text-primary">{{ currentPeriod?.period_no ?? '—' }}</strong>
         </p>
-        <div class="mt-3 flex items-center gap-2">
-          <div class="grid h-14 min-w-14 place-items-center rounded-[14px] border border-[#c8dbff] bg-[#eff5ff] text-[1.8rem] font-black text-primary">
-            {{ countdownParts.minutes[0] }}{{ countdownParts.minutes[1] }}
-          </div>
-          <span class="text-[1.8rem] font-black text-primary">:</span>
-          <div class="grid h-14 min-w-14 place-items-center rounded-[14px] border border-[#f2c9c9] bg-[#fff1f1] text-[1.8rem] font-black text-[#b71211]">
-            {{ countdownParts.seconds[0] }}{{ countdownParts.seconds[1] }}
-          </div>
+        <div class="mt-3 flex items-center gap-1.5 justify-center h-14 bg-transparent text-[2.2rem] font-black text-primary">
+          <span>{{ countdownParts.minutes[0] }}</span>
+          <span>{{ countdownParts.minutes[1] }}</span>
+          <span class="mx-1 pb-1 text-[#e64545]">:</span>
+          <span class="text-[#e64545]">{{ countdownParts.seconds[0] }}</span>
+          <span class="text-[#e64545]">{{ countdownParts.seconds[1] }}</span>
         </div>
         <p class="mt-3 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
           {{ roomStatusLabel }}
         </p>
       </article>
 
-      <article class="rounded-[20px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+      <article class="rounded-[20px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
         <p class="text-[0.92rem] font-medium text-on-surface-variant">
           Kết quả gần đây
         </p>
         <div class="mt-3 flex flex-wrap gap-2.5">
           <span
             v-for="result in recentResults"
-            :key="result.periodNo"
+            :key="result.period_no"
             class="grid h-9 w-9 place-items-center rounded-full border text-[0.82rem] font-black text-white"
             :class="resultDotClass(result.color)"
           >
@@ -482,7 +545,7 @@ onBeforeUnmount(() => {
       </article>
     </section>
 
-    <section class="rounded-[22px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)] md:p-5">
+    <section class="rounded-[22px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)] md:p-5">
       <div class="grid gap-3">
         <div v-if="colorGroup" class="grid grid-cols-3 gap-3">
           <button
@@ -514,7 +577,7 @@ onBeforeUnmount(() => {
         <div class="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            class="rounded-[14px] bg-[#e1e6ff] px-4 py-3 text-[0.88rem] font-black text-[#24345b] transition-transform active:scale-[0.98]"
+            class="rounded-[14px] bg-[#fff0ee] px-4 py-3 text-[0.88rem] font-black text-[#7a433e] transition-transform active:scale-[0.98]"
             @click="selectRandomStake"
           >
             Ngẫu nhiên
@@ -524,7 +587,7 @@ onBeforeUnmount(() => {
             :key="multiplier"
             type="button"
             class="rounded-[12px] px-3 py-2 text-[0.86rem] font-black transition-transform active:scale-[0.98]"
-            :class="multiplier === selectedMultiplier ? 'bg-primary text-white shadow-[0_10px_18px_rgba(0,78,219,0.18)]' : 'bg-[#eef2ff] text-[#2c2f33]'"
+            :class="multiplier === selectedMultiplier ? 'bg-primary text-white shadow-[0_10px_18px_rgba(255,109,102,0.18)]' : 'bg-[#fff4f2] text-[#2c2f33]'"
             @click="selectedMultiplier = multiplier"
           >
             x{{ multiplier }}
@@ -553,59 +616,63 @@ onBeforeUnmount(() => {
           USDT: <span class="text-on-surface">{{ formatMoney(walletUsdt?.balance ?? 0, 2) }}</span>
         </div>
 
-        <div v-if="!canPlay" class="rounded-[14px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#b71211]">
+        <div v-if="!canPlay" class="rounded-[14px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
           Số dư hiện tại bằng 0. Vui lòng nạp tiền trước khi vào phòng chơi.
+        </div>
+
+        <div v-else-if="isBetLocked" class="rounded-[14px] bg-[rgba(255,170,0,0.12)] px-4 py-3 text-[0.78rem] font-semibold text-amber-700">
+          Kỳ hiện tại đã bước vào 5 giây cuối hoặc đã khóa lệnh. Vui lòng chờ kỳ tiếp theo.
         </div>
 
         <button
           type="button"
           class="min-h-14 rounded-[18px] bg-[linear-gradient(90deg,#fdd404_0%,#ffd400_100%)] text-[1.2rem] font-black text-[#5a4600] shadow-[0_12px_24px_rgba(253,212,4,0.16)] transition-transform active:scale-[0.98]"
-          :disabled="betLoading || !canPlay"
+          :disabled="betLoading || !canBet"
           @click="submitBet"
         >
           {{ betLoading ? 'Đang gửi...' : 'ĐẶT LỆNH' }}
         </button>
 
-        <p v-if="joinError" class="rounded-[14px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#b71211]">
+        <p v-if="joinError" class="rounded-[14px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
           {{ joinError }}
         </p>
-        <p v-if="betMessage" class="rounded-[14px] bg-[rgba(0,78,219,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-primary">
+        <p v-if="betMessage" class="rounded-[14px] bg-[rgba(255,109,102,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-primary">
           {{ betMessage }}
         </p>
       </div>
     </section>
 
-    <section class="rounded-[22px] bg-white shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
-      <div class="flex items-center gap-6 border-b border-slate-200/70 px-4 pt-4 text-[0.8rem] font-black text-on-surface-variant">
+    <section class="rounded-[22px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.05)] border border-slate-100/50 mt-4 overflow-hidden">
+      <div class="flex items-center gap-2 p-3 pb-2 text-[0.76rem] font-black w-full overflow-x-auto no-scrollbar">
         <button
           type="button"
-          class="pb-3 transition-colors"
-          :class="activeHistoryTab === 'history' ? 'border-b-2 border-primary text-primary' : ''"
+          class="px-4 py-2.5 transition-all rounded-full whitespace-nowrap"
+          :class="activeHistoryTab === 'history' ? 'bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] text-white shadow-[0_6px_14px_rgba(229,46,46,0.25)]' : 'bg-slate-100 text-slate-500'"
           @click="activeHistoryTab = 'history'"
         >
           Lịch sử trò chơi
         </button>
         <button
           type="button"
-          class="pb-3 transition-colors"
-          :class="activeHistoryTab === 'chart' ? 'border-b-2 border-primary text-primary' : ''"
+          class="px-4 py-2.5 transition-all rounded-full whitespace-nowrap"
+          :class="activeHistoryTab === 'chart' ? 'bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] text-white shadow-[0_6px_14px_rgba(229,46,46,0.25)]' : 'bg-slate-100 text-slate-500'"
           @click="activeHistoryTab = 'chart'"
         >
           Biểu đồ
         </button>
         <button
           type="button"
-          class="pb-3 transition-colors"
-          :class="activeHistoryTab === 'mine' ? 'border-b-2 border-primary text-primary' : ''"
+          class="px-4 py-2.5 transition-all rounded-full whitespace-nowrap"
+          :class="activeHistoryTab === 'mine' ? 'bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] text-white shadow-[0_6px_14px_rgba(229,46,46,0.25)]' : 'bg-slate-100 text-slate-500'"
           @click="activeHistoryTab = 'mine'"
         >
           Lịch sử của tôi
         </button>
       </div>
 
-      <div class="p-4">
+      <div class="p-3">
         <template v-if="activeHistoryTab === 'chart'">
-          <div class="grid min-h-52 place-items-center rounded-[18px] bg-background text-center text-[0.82rem] text-on-surface-variant">
+          <div class="grid min-h-52 place-items-center rounded-[18px] bg-slate-50 text-center text-[0.82rem] text-slate-400">
             Biểu đồ kết quả sẽ hiển thị tại đây.
           </div>
         </template>
@@ -615,16 +682,16 @@ onBeforeUnmount(() => {
             Đang tải dữ liệu...
           </div>
 
-          <div v-else-if="activeHistoryTab === 'history' && historyError" class="rounded-[18px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#b71211]">
+          <div v-else-if="activeHistoryTab === 'history' && historyError" class="rounded-[18px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
             {{ historyError }}
           </div>
 
-          <div v-else-if="activeHistoryTab === 'mine' && mineError" class="rounded-[18px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#b71211]">
+          <div v-else-if="activeHistoryTab === 'mine' && mineError" class="rounded-[18px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
             {{ mineError }}
           </div>
 
-          <div v-else class="overflow-hidden rounded-[18px] border border-slate-200/70">
-            <div class="grid grid-cols-[1fr_auto_1fr_auto] gap-2 bg-[#f0f1fa] px-4 py-3 text-[0.7rem] font-black uppercase tracking-[0.06em] text-on-surface-variant">
+          <div class="overflow-hidden rounded-[18px] border border-slate-200/70 mt-1 shadow-sm">
+          <div class="grid grid-cols-[1fr_auto_1fr_auto] gap-2 bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] px-4 py-3.5 text-[0.7rem] font-black uppercase tracking-[0.06em] text-white">
               <span>Kỳ xổ</span>
               <span>Số</span>
               <span>Lớn nhỏ</span>

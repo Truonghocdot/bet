@@ -33,7 +33,7 @@ const walletCards = computed(() => [
     unit: 2,
     label: 'Ví USDT',
     symbol: 'currency_bitcoin',
-    accent: 'from-[#0056e1] to-[#7e9cff]',
+    accent: 'from-[#ff6d66] to-[#ffd4d0]',
     wallet: usdtWallet.value,
     fractionDigits: 2,
     helper: 'Dùng cho nạp USDT và các giao dịch crypto.',
@@ -83,17 +83,17 @@ onMounted(() => {
 
 <template>
   <div class="space-y-3.5 md:space-y-5">
-    <section class="grid grid-cols-[auto_1fr_auto] items-center gap-3.5 rounded-[22px] bg-white p-[18px] shadow-[0_12px_32px_rgba(0,78,219,0.04)] md:p-5">
-      <div class="grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-primary to-primary-container font-extrabold text-white">
+    <section class="grid grid-cols-[auto_1fr_auto] items-center gap-3.5 rounded-[26px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-[18px] text-white shadow-[0_12px_32px_rgba(255,109,102,0.16)] md:p-5">
+      <div class="grid h-16 w-16 place-items-center rounded-full bg-white/18 font-extrabold text-white">
         {{ profile?.name?.slice(0, 2).toUpperCase() || 'FF' }}
       </div>
       <div>
         <h2 class="m-0 text-[1.18rem] font-extrabold">{{ profile?.name || 'Đang đồng bộ' }}</h2>
-        <p class="m-0 mt-1 text-[0.8rem] text-on-surface-variant">
+        <p class="m-0 mt-1 text-[0.8rem] text-white/86">
           ID: {{ profile?.id ?? '---' }} • {{ profile?.email || profile?.phone || 'Chưa có dữ liệu' }}
         </p>
       </div>
-      <div class="rounded-[14px] bg-gradient-to-br from-[#6c5a00] to-[#fdd404] px-2.5 py-2 text-[0.72rem] font-black text-[#453700]">
+      <div class="rounded-[14px] bg-white/18 px-2.5 py-2 text-[0.72rem] font-black text-white">
         {{ affiliate ? `REF ${affiliate.ref_code}` : 'VIP' }}
       </div>
     </section>
@@ -102,7 +102,7 @@ onMounted(() => {
       <article
         v-for="item in walletCards"
         :key="item.unit"
-        class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(0,78,219,0.05)] md:min-h-[172px] md:p-5"
+        class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(255,109,102,0.05)] md:min-h-[172px] md:p-5"
       >
         <div class="flex items-start justify-between gap-3">
           <div>
@@ -138,7 +138,7 @@ onMounted(() => {
       </article>
     </section>
 
-    <p v-if="wallet.error" class="rounded-[16px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-sm font-semibold text-[#b71211]">
+    <p v-if="wallet.error" class="rounded-[16px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-sm font-semibold text-[#e64545]">
       {{ wallet.error }}
     </p>
 
@@ -147,12 +147,12 @@ onMounted(() => {
         <RouterLink to="/deposit" class="grid min-h-14 place-items-center rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-extrabold text-white transition-transform active:scale-95">
           Nạp tiền
         </RouterLink>
-        <button class="min-h-14 rounded-[18px] bg-white font-extrabold text-on-surface shadow-[0_8px_20px_rgba(0,78,219,0.05)] transition-transform active:scale-95">
+        <button class="min-h-14 rounded-[18px] bg-white font-extrabold text-on-surface shadow-[0_8px_20px_rgba(255,109,102,0.05)] transition-transform active:scale-95">
           Rút tiền
         </button>
       </div>
 
-      <article class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(0,78,219,0.05)] md:p-5">
+      <article class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(255,109,102,0.05)] md:p-5">
         <span class="block text-[0.72rem] font-extrabold uppercase text-on-surface-variant">Thông tin ví</span>
         <p class="mt-3 text-[0.82rem] leading-6 text-on-surface-variant">
           Hệ thống đang lấy dữ liệu từ bảng <strong>wallets</strong>. Khi backend trả về số dư thật, màn này sẽ luôn đồng bộ theo token đăng nhập hiện tại.
@@ -170,19 +170,19 @@ onMounted(() => {
       </article>
     </section>
 
-    <section class="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.05)]">
+    <section class="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
       <RouterLink to="/notifications" class="grid w-full grid-cols-[auto_1fr_auto_auto] items-center gap-3.5 border-b border-slate-200/60 px-4 py-3.5 text-left">
         <div class="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
           <span class="material-symbols-outlined">notifications</span>
         </div>
         <span class="font-extrabold">Thông báo</span>
-        <span class="grid h-6 min-w-6 place-items-center rounded-full bg-[#b71211] px-1 text-[0.7rem] font-extrabold text-white">
+        <span class="grid h-6 min-w-6 place-items-center rounded-full bg-[#e64545] px-1 text-[0.7rem] font-extrabold text-white">
           {{ unreadNotifications }}
         </span>
       </RouterLink>
 
       <button class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3.5 border-b border-slate-200/60 px-4 py-3.5 text-left">
-        <div class="grid h-10 w-10 place-items-center rounded-full bg-[#fdd404]/20 text-[#6c5a00]">
+        <div class="grid h-10 w-10 place-items-center rounded-full bg-[#fdd404]/20 text-[#f6c32d]">
           <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">redeem</span>
         </div>
         <span class="font-extrabold">Quy đổi quà</span>
@@ -208,21 +208,21 @@ onMounted(() => {
     </section>
 
     <section class="grid grid-cols-3 gap-2.5">
-      <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(0,78,219,0.05)]">
+      <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
         <span class="material-symbols-outlined text-primary">settings</span>
         <span>Cài đặt</span>
       </button>
-      <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(0,78,219,0.05)]">
+      <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
         <span class="material-symbols-outlined text-primary">chat_bubble</span>
         <span>Góp ý</span>
       </button>
-      <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-[rgba(126,156,255,0.16)] font-extrabold shadow-[0_8px_20px_rgba(0,78,219,0.05)]">
+      <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-[rgba(126,156,255,0.16)] font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
         <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">support_agent</span>
         <span>Hỗ trợ 24/7</span>
       </button>
     </section>
 
-    <button class="min-h-14 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#b71211] transition-transform active:scale-95" @click="logout">
+    <button class="min-h-14 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#e64545] transition-transform active:scale-95" @click="logout">
       Đăng xuất tài khoản
     </button>
 

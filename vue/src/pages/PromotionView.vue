@@ -19,7 +19,7 @@ const compactArticles = computed(() => filteredArticles.value.slice(1, 4))
 
 <template>
   <div class="space-y-5 md:space-y-6">
-    <section class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#004edb] via-[#0058bb] to-[#7e9cff] p-5 text-white shadow-[0_12px_30px_rgba(0,78,219,0.2)] md:p-6">
+    <section class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-5 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)] md:p-6">
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.24),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_28%)]"></div>
       <div class="relative z-10 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
         <div>
@@ -47,7 +47,7 @@ const compactArticles = computed(() => filteredArticles.value.slice(1, 4))
           v-for="tab in tabs"
           :key="tab"
           class="rounded-full px-5 py-2.5 text-[0.78rem] font-bold whitespace-nowrap transition-colors"
-          :class="tab === activeTab ? 'bg-primary text-white shadow-[0_12px_32px_rgba(0,78,219,0.1)]' : 'bg-surface-container-low text-on-surface-variant'"
+          :class="tab === activeTab ? 'bg-primary text-white shadow-[0_12px_32px_rgba(255,109,102,0.1)]' : 'bg-surface-container-low text-on-surface-variant'"
           type="button"
           @click="activeTab = tab"
         >
@@ -57,7 +57,7 @@ const compactArticles = computed(() => filteredArticles.value.slice(1, 4))
     </section>
 
     <section class="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]">
-      <article class="overflow-hidden rounded-[26px] bg-white shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
+      <article class="overflow-hidden rounded-[26px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
         <div class="h-36 bg-gradient-to-br md:h-40" :class="leadArticle.cover"></div>
         <div class="p-4 md:p-5">
           <div class="flex items-center justify-between gap-2 text-[0.68rem] uppercase tracking-[0.08em] text-on-surface-variant">
@@ -89,7 +89,7 @@ const compactArticles = computed(() => filteredArticles.value.slice(1, 4))
         </div>
       </article>
 
-      <article class="rounded-[26px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)] md:p-5">
+      <article class="rounded-[26px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)] md:p-5">
         <div class="flex items-start justify-between gap-3">
           <div>
             <h3 class="m-0 text-[1rem] font-black">Feed cập nhật</h3>

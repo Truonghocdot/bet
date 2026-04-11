@@ -55,7 +55,7 @@ async function handleLogin() {
     </header>
 
     <section class="text-center">
-      <div class="mx-auto mb-4 grid h-[72px] w-[72px] place-items-center rounded-[20px] bg-white shadow-[0_10px_24px_rgba(0,78,219,0.12)]">
+      <div class="mx-auto mb-4 grid h-[72px] w-[72px] place-items-center rounded-[20px] bg-white shadow-[0_10px_24px_rgba(255,109,102,0.12)]">
         <span class="text-[1.1rem] font-black italic tracking-[-0.06em] text-primary">ff789</span>
       </div>
       <h2 class="m-0 text-[1.55rem] font-black">Chào mừng trở lại</h2>
@@ -69,7 +69,7 @@ async function handleLogin() {
     <section class="grid grid-cols-2 gap-2 rounded-[18px] bg-surface-container p-1.5">
       <button
         class="min-h-11 rounded-[14px] font-extrabold transition-all"
-        :class="mode === 'phone' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(0,78,219,0.1)]' : 'text-on-surface-variant'"
+        :class="mode === 'phone' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
         type="button"
         @click="mode = 'phone'"
       >
@@ -77,7 +77,7 @@ async function handleLogin() {
       </button>
       <button
         class="min-h-11 rounded-[14px] font-extrabold transition-all"
-        :class="mode === 'email' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(0,78,219,0.1)]' : 'text-on-surface-variant'"
+        :class="mode === 'email' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
         type="button"
         @click="mode = 'email'"
       >
@@ -86,7 +86,7 @@ async function handleLogin() {
     </section>
 
     <form class="space-y-3" @submit.prevent="handleLogin">
-      <label class="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <template v-if="mode === 'phone'">
           <span class="border-r border-slate-200/90 px-4 font-extrabold">+84</span>
           <input v-model="phoneInput" class="min-w-0 border-0 bg-transparent px-4 outline-none" type="tel" inputmode="tel" autocomplete="tel" placeholder="Nhập số điện thoại" />
@@ -97,7 +97,7 @@ async function handleLogin() {
         </template>
       </label>
 
-      <label class="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(0,78,219,0.06)]">
+      <label class="grid min-h-[58px] grid-cols-[auto_1fr_auto] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <span class="grid h-full w-[52px] place-items-center text-primary">
           <span class="material-symbols-outlined">lock</span>
         </span>
@@ -123,14 +123,14 @@ async function handleLogin() {
 
       <section class="mt-2 grid gap-3">
         <button
-          class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white shadow-[0_8px_20px_rgba(0,78,219,0.18)] transition-transform active:scale-95 disabled:opacity-60"
+          class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white shadow-[0_8px_20px_rgba(255,109,102,0.18)] transition-transform active:scale-95 disabled:opacity-60"
           type="submit"
           :disabled="auth.loading"
         >
           {{ auth.loading ? 'Đang đăng nhập...' : 'Đăng nhập' }}
         </button>
         <RouterLink
-          class="grid min-h-14 place-items-center rounded-[18px] bg-white font-black text-on-surface shadow-[0_8px_20px_rgba(0,78,219,0.06)] transition-transform active:scale-95"
+          class="grid min-h-14 place-items-center rounded-[18px] bg-white font-black text-on-surface shadow-[0_8px_20px_rgba(255,109,102,0.06)] transition-transform active:scale-95"
           :to="{ path: '/register', query: route.query }"
         >
           Đăng ký
@@ -139,11 +139,11 @@ async function handleLogin() {
     </form>
 
     <section class="mt-2 grid grid-cols-2 gap-3">
-      <a href="#" class="grid min-h-[84px] place-items-center gap-1 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(0,78,219,0.05)]">
+      <a href="#" class="grid min-h-[84px] place-items-center gap-1 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
         <span class="material-symbols-outlined text-primary">support_agent</span>
         <span>CSKH</span>
       </a>
-      <a href="#" class="grid min-h-[84px] place-items-center gap-1 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(0,78,219,0.05)]">
+      <a href="#" class="grid min-h-[84px] place-items-center gap-1 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
         <span class="material-symbols-outlined text-primary">security</span>
         <span>Bảo mật</span>
       </a>
