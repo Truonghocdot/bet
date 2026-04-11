@@ -67,6 +67,11 @@ export type PlayRoom = {
 
 export const playCategories = ['Tất cả', 'Win Go', 'K3', 'Lô tô', 'Sắp mở']
 
+const redBallAccent = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #ff8a92 0%, #e64545 48%, #c92b38 100%)'
+const greenBallAccent = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #73e7a0 0%, #24b561 48%, #149454 100%)'
+const zeroBallAccent = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #e64545 0%, #ef6b73 38%, #8b5cf6 62%, #6f3de8 100%)'
+const fiveBallAccent = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #24b561 0%, #59d88a 38%, #8b5cf6 62%, #6f3de8 100%)'
+
 function nowIso(): string {
   return new Date().toISOString()
 }
@@ -148,7 +153,7 @@ function buildWingoVariant(code: string, label: string, durationLabel: string, c
         options: [
           { key: 'green', label: 'Xanh', accent: '#24b561' },
           { key: 'red', label: 'Đỏ', accent: '#e64545' },
-          { key: 'violet', label: 'Tím', accent: '#8b5cf6' },
+          { key: 'violet', label: 'Tím', accent: 'linear-gradient(135deg, #8b5cf6, #e8404a)' },
         ],
       },
       {
@@ -159,11 +164,13 @@ function buildWingoVariant(code: string, label: string, durationLabel: string, c
           key: `number_${number}`,
           label: String(number),
           accent:
-            number === 0 || number === 5
-              ? '#8b5cf6'
-              : number >= 1 && number <= 4
-                ? '#e64545'
-                : '#24b561',
+            number === 0
+              ? zeroBallAccent
+              : number === 5
+                ? fiveBallAccent
+                : number % 2 === 0
+                  ? redBallAccent
+                  : greenBallAccent,
         })),
       },
       {

@@ -4,10 +4,12 @@ import { useRouter } from 'vue-router'
 
 import { useDepositStore } from '@/stores/deposit'
 import { useAuthStore } from '@/stores/auth'
+import { useWalletStore } from '@/stores/wallet'
 
 const router = useRouter()
 const auth = useAuthStore()
 const deposit = useDepositStore()
+const wallet = useWalletStore()
 
 const method = ref<'vietqr' | 'usdt'>('vietqr')
 const amount = ref('')
@@ -24,38 +26,36 @@ const statusLabel = computed(() => {
   return `Mã trạng thái: ${value}`
 })
 
-let pollTimer: number | undefined
-
-function stopPolling() {
-  if (pollTimer) {
-    window.clearInterval(pollTimer)
-    pollTimer = undefined
-  }
-}
-
-function startPolling(clientRef: string) {
-  stopPolling()
-  void deposit.getStatus(clientRef)
-  pollTimer = window.setInterval(() => {
-    void deposit.getStatus(clientRef)
-  }, 6000)
-}
-
 watch(
   () => intent.value?.client_ref,
   (clientRef) => {
     if (!clientRef) {
-      stopPolling()
+      deposit.disconnectStatusStream()
       return
     }
 
-    startPolling(clientRef)
+    void deposit.getStatus(clientRef)
+    deposit.connectStatusStream(clientRef)
   },
   { immediate: true },
 )
 
+watch(
+  () => status.value?.transaction?.status,
+  async (nextStatus, previousStatus) => {
+    if (nextStatus === previousStatus) return
+    if (nextStatus === 2) {
+      try {
+        await wallet.fetchSummary()
+      } catch {
+        // wallet store keeps its own error state
+      }
+    }
+  },
+)
+
 onBeforeUnmount(() => {
-  stopPolling()
+  deposit.disconnectStatusStream()
 })
 
 async function submitDeposit() {

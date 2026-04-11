@@ -1,10 +1,12 @@
 package http
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	authmiddleware "gin/internal/auth/middleware"
 	repopg "gin/internal/repository/postgres"
@@ -58,6 +60,70 @@ func (h *NotificationHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *NotificationHandler) Stream(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	page, pageSize := readNotificationPagination(r)
+	initialResponse, err := h.notificationService.List(r.Context(), claims.UserID, page, pageSize)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	stream, err := newSSEStream(w)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+
+	pollTicker := time.NewTicker(10 * time.Second)
+	heartbeatTicker := time.NewTicker(20 * time.Second)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+
+	lastPayload := ""
+	emitList := func(response any) error {
+		payload, err := json.Marshal(response)
+		if err != nil {
+			return err
+		}
+		payloadKey := string(payload)
+		if payloadKey == lastPayload {
+			return nil
+		}
+
+		lastPayload = payloadKey
+		return stream.Event("notifications.list", response)
+	}
+
+	if err := emitList(initialResponse); err != nil {
+		return
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-pollTicker.C:
+			response, err := h.notificationService.List(r.Context(), claims.UserID, page, pageSize)
+			if err != nil {
+				return
+			}
+			if err := emitList(response); err != nil {
+				return
+			}
+		case <-heartbeatTicker.C:
+			if err := stream.KeepAlive(); err != nil {
+				return
+			}
+		}
+	}
 }
 
 func (h *NotificationHandler) writeError(w http.ResponseWriter, err error) {

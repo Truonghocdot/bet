@@ -79,6 +79,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../pages/CSKHView.vue'),
     meta: { layout: 'main', title: 'Hỗ Trợ' },
   },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: () => import('../pages/NotFoundView.vue'),
+    meta: { layout: 'main', title: '404' },
+  },
 ]
 
 const router = createRouter({

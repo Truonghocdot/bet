@@ -1,8 +1,10 @@
 package http
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	authmiddleware "gin/internal/auth/middleware"
 	repopg "gin/internal/repository/postgres"
@@ -37,6 +39,69 @@ func (h *WalletHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *WalletHandler) Stream(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	initialResponse, err := h.walletService.Summary(r.Context(), claims.UserID)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	stream, err := newSSEStream(w)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+
+	pollTicker := time.NewTicker(5 * time.Second)
+	heartbeatTicker := time.NewTicker(20 * time.Second)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+
+	lastPayload := ""
+	emitSummary := func(response any) error {
+		payload, err := json.Marshal(response)
+		if err != nil {
+			return err
+		}
+		payloadKey := string(payload)
+		if payloadKey == lastPayload {
+			return nil
+		}
+
+		lastPayload = payloadKey
+		return stream.Event("wallet.summary", response)
+	}
+
+	if err := emitSummary(initialResponse); err != nil {
+		return
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-pollTicker.C:
+			response, err := h.walletService.Summary(r.Context(), claims.UserID)
+			if err != nil {
+				return
+			}
+			if err := emitSummary(response); err != nil {
+				return
+			}
+		case <-heartbeatTicker.C:
+			if err := stream.KeepAlive(); err != nil {
+				return
+			}
+		}
+	}
 }
 
 func (h *WalletHandler) writeError(w http.ResponseWriter, err error) {

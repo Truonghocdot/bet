@@ -23,15 +23,21 @@ type HistoryListResponse struct {
 }
 
 type BetTicketHistoryItem struct {
-	ID         int64     `json:"id"`
-	PeriodNo   string    `json:"period_no"`
-	Result     string    `json:"result"`
-	BigSmall   string    `json:"big_small"`
-	Color      string    `json:"color"`
-	Stake      string    `json:"stake"`
-	Status     string    `json:"status"`
-	ItemsCount int       `json:"items_count"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID             int64      `json:"id"`
+	PeriodNo       string     `json:"period_no"`
+	Result         string     `json:"result"`
+	BigSmall       string     `json:"big_small"`
+	Color          string     `json:"color"`
+	Stake          string     `json:"stake"`
+	OriginalAmount string     `json:"original_amount,omitempty"`
+	TaxAmount      string     `json:"tax_amount,omitempty"`
+	NetAmount      string     `json:"net_amount,omitempty"`
+	ActualPayout   string     `json:"actual_payout"`
+	ProfitLoss     string     `json:"profit_loss"`
+	SettledAt      *time.Time `json:"settled_at,omitempty"`
+	Status         string     `json:"status"`
+	ItemsCount     int        `json:"items_count"`
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 type BetTicketHistoryResponse struct {

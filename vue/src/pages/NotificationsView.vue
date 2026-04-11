@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { formatViDateTime } from '@/shared/lib/date'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -34,6 +34,7 @@ function toneByReadState(isRead: boolean) {
 async function load(pageNumber = 1) {
   try {
     await store.fetchList(pageNumber, store.pagination.pageSize)
+    store.connectStream(pageNumber, store.pagination.pageSize)
   } catch {
     // message already populated in store.error
   }
@@ -65,6 +66,10 @@ watch(activeTab, () => {
 
 onMounted(() => {
   void load(1)
+})
+
+onBeforeUnmount(() => {
+  store.disconnectStream()
 })
 </script>
 

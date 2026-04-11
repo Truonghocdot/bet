@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"database/sql"
 	"math/big"
 	"strconv"
 	"strings"
+	"time"
 
 	"gin/internal/domain/game"
 	"gin/internal/event/outbox"
@@ -180,16 +182,26 @@ func (s *BetService) ListMyBets(ctx context.Context, userID int64, gameType game
 	items := make([]game.BetTicketHistoryItem, 0, len(records))
 	for _, record := range records {
 		summary := summarizeBetTicket(record.ItemsJSON)
+		profitLoss := record.ProfitLoss
+		if strings.TrimSpace(profitLoss) == "" {
+			profitLoss = "0"
+		}
 		items = append(items, game.BetTicketHistoryItem{
-			ID:         record.ID,
-			PeriodNo:   record.PeriodNo,
-			Result:     summary.Result,
-			BigSmall:   summary.BigSmall,
-			Color:      summary.Color,
-			Stake:      record.TotalStake,
-			Status:     toBetStatusLabel(record.Status),
-			ItemsCount: summary.ItemsCount,
-			CreatedAt:  record.CreatedAt,
+			ID:             record.ID,
+			PeriodNo:       record.PeriodNo,
+			Result:         summary.Result,
+			BigSmall:       summary.BigSmall,
+			Color:          summary.Color,
+			Stake:          record.TotalStake,
+			OriginalAmount: record.OriginalAmount,
+			TaxAmount:      record.TaxAmount,
+			NetAmount:      record.NetAmount,
+			ActualPayout:   record.ActualPayout,
+			ProfitLoss:     profitLoss,
+			SettledAt:      nullTimePtr(record.SettledAt),
+			Status:         toBetStatusLabel(record.Status),
+			ItemsCount:     summary.ItemsCount,
+			CreatedAt:      record.CreatedAt,
 		})
 	}
 
@@ -364,6 +376,14 @@ func compareDecimal(left, right string) int {
 		return -1
 	}
 	return lv.Cmp(rv)
+}
+
+func nullTimePtr(value sql.NullTime) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	t := value.Time
+	return &t
 }
 
 func parseDecimal(value string) (*big.Rat, error) {

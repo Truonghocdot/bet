@@ -170,16 +170,26 @@ func (s *PlayRoomService) ListMyRoomBets(ctx context.Context, userID int64, room
 	items := make([]game.BetTicketHistoryItem, 0, len(records))
 	for _, record := range records {
 		summary := summarizeBetTicket(record.ItemsJSON)
+		profitLoss := record.ProfitLoss
+		if strings.TrimSpace(profitLoss) == "" {
+			profitLoss = "0"
+		}
 		items = append(items, game.BetTicketHistoryItem{
-			ID:         record.ID,
-			PeriodNo:   record.PeriodNo,
-			Result:     summary.Result,
-			BigSmall:   summary.BigSmall,
-			Color:      summary.Color,
-			Stake:      record.TotalStake,
-			Status:     toBetStatusLabel(record.Status),
-			ItemsCount: summary.ItemsCount,
-			CreatedAt:  record.CreatedAt,
+			ID:             record.ID,
+			PeriodNo:       record.PeriodNo,
+			Result:         summary.Result,
+			BigSmall:       summary.BigSmall,
+			Color:          summary.Color,
+			Stake:          record.TotalStake,
+			OriginalAmount: record.OriginalAmount,
+			TaxAmount:      record.TaxAmount,
+			NetAmount:      record.NetAmount,
+			ActualPayout:   record.ActualPayout,
+			ProfitLoss:     profitLoss,
+			SettledAt:      nullTimePtr(record.SettledAt),
+			Status:         toBetStatusLabel(record.Status),
+			ItemsCount:     summary.ItemsCount,
+			CreatedAt:      record.CreatedAt,
 		})
 	}
 
@@ -324,6 +334,7 @@ func toPeriodStatusLabel(status int) string {
 		return "UNKNOWN"
 	}
 }
+
 
 func ParseUserID(raw string) (int64, error) {
 	parsed, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)

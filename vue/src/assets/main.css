@@ -71,8 +71,7 @@
   /* ===== APP SHELL ===== */
   .app-shell {
     @apply relative min-h-dvh overflow-x-hidden;
-    /* Desktop: flex row with sidebar */
-    @apply md:flex;
+    @apply md:h-dvh md:overflow-hidden;
   }
 
   .app-shell__decor {
@@ -101,11 +100,12 @@
 
   .app-main-col {
     @apply flex flex-1 flex-col min-w-0;
+    @apply md:ml-[240px] md:h-dvh md:overflow-hidden;
   }
 
   /* ===== SIDEBAR (desktop) ===== */
   .sidebar {
-    @apply flex-col w-[240px] min-h-dvh flex-shrink-0 bg-gradient-to-b from-[#ff6d66] to-[#e52e2e] sticky top-0 z-30 px-3 py-4 shadow-[4px_0_24px_rgba(255,109,102,0.15)];
+    @apply fixed inset-y-0 left-0 z-30 hidden w-[240px] flex-col overflow-y-auto bg-gradient-to-b from-[#ff6d66] to-[#e52e2e] px-3 py-4 shadow-[4px_0_24px_rgba(255,109,102,0.15)];
   }
 
   .sidebar__logo {
@@ -143,6 +143,7 @@
   /* ===== MAIN ===== */
   .app-main {
     @apply relative z-[1] flex-1;
+    @apply md:h-full md:overflow-y-auto;
   }
 
   .app-container {

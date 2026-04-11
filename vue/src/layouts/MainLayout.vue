@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
@@ -64,6 +64,33 @@ async function handleLogout() {
   await auth.logout()
   void router.push('/auth')
 }
+
+async function syncRealtimeState() {
+  if (!auth.isAuthenticated) {
+    wallet.disconnectStream()
+    wallet.reset()
+    return
+  }
+
+  try {
+    await wallet.fetchSummary()
+  } catch {
+    // wallet store keeps the current error
+  }
+  wallet.connectStream()
+}
+
+watch(
+  () => auth.isAuthenticated,
+  () => {
+    void syncRealtimeState()
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  wallet.disconnectStream()
+})
 </script>
 
 <template>

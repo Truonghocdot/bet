@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"log"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -87,19 +87,25 @@ type BetTicketItemRecord struct {
 }
 
 type BetTicketRecord struct {
-	ID           int64
-	UserID       int64
-	WalletID     int64
-	GameType     int
-	PeriodID     int64
-	PeriodNo     string
-	RequestID    string
-	ConnectionID string
-	TotalStake   string
-	Status       int
-	ItemsJSON    []byte
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID             int64
+	UserID         int64
+	WalletID       int64
+	GameType       int
+	PeriodID       int64
+	PeriodNo       string
+	RequestID      string
+	ConnectionID   string
+	TotalStake     string
+	OriginalAmount string
+	TaxAmount      string
+	NetAmount      string
+	ActualPayout   string
+	ProfitLoss     string
+	Status         int
+	ItemsJSON      []byte
+	CreatedAt      time.Time
+	SettledAt      sql.NullTime
+	UpdatedAt      time.Time
 }
 
 type CreateBetTicketParams struct {
@@ -115,11 +121,14 @@ type CreateBetTicketParams struct {
 }
 
 type SettleBetTicketRecord struct {
-	ID         int64
-	UserID     int64
-	WalletID   int64
-	TotalStake string
-	ItemsJSON  []byte
+	ID             int64
+	UserID         int64
+	WalletID       int64
+	OriginalAmount string
+	TaxAmount      string
+	NetAmount      string
+	TotalStake     string
+	ItemsJSON      []byte
 }
 
 func NewGameRepository(db *sql.DB) *GameRepository {
@@ -172,6 +181,22 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 	now := clock.Now()
 	log.Printf("[engine][period.current.lookup.start] room_code=%s now_vn=%s", roomCode, now.Format(time.RFC3339Nano))
 
+	roomDurationSeconds := 60
+	if err := r.db.QueryRowContext(ctx, `
+		select duration_seconds
+		from game_rooms
+		where code = $1
+		limit 1
+	`, roomCode).Scan(&roomDurationSeconds); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("[engine][period.current.lookup.error] room_code=%s stage=load_room_duration err=%v", roomCode, err)
+		return GamePeriodRecord{}, err
+	}
+	if roomDurationSeconds <= 0 {
+		roomDurationSeconds = 60
+	}
+	maxFuture := now.Add(time.Duration(roomDurationSeconds*3) * time.Second)
+	log.Printf("[engine][period.current.lookup.window] room_code=%s duration_seconds=%d max_future_vn=%s", roomCode, roomDurationSeconds, maxFuture.Format(time.RFC3339Nano))
+
 	scanPeriod := func(query string, args ...any) (GamePeriodRecord, error) {
 		var period GamePeriodRecord
 		err := r.db.QueryRowContext(ctx, query, args...).Scan(
@@ -197,9 +222,10 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 		  and status in ($2, $3, $4)
 		  and open_at <= $5
 		  and draw_at > $5
-		order by open_at desc, draw_at desc, id desc
+		  and draw_at <= $6
+		order by draw_at asc, open_at desc, id asc
 		limit 1
-	`, roomCode, periodStatusOpen, periodStatusLocked, periodStatusScheduled, now)
+	`, roomCode, periodStatusOpen, periodStatusLocked, periodStatusScheduled, now, maxFuture)
 	if err == nil {
 		log.Printf("[engine][period.current.lookup.done] room_code=%s period_id=%d period_no=%s status=%d source=current", roomCode, current.ID, current.PeriodNo, current.Status)
 		return current, nil
@@ -209,42 +235,8 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 		return GamePeriodRecord{}, err
 	}
 
-	scheduled, err := scanPeriod(`
-		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
-		from game_periods
-		where room_code = $1
-		  and status = $2
-		  and open_at > $3
-		order by open_at asc, draw_at asc, id asc
-		limit 1
-	`, roomCode, periodStatusScheduled, now)
-	if err == nil {
-		log.Printf("[engine][period.current.lookup.done] room_code=%s period_id=%d period_no=%s status=%d source=scheduled", roomCode, scheduled.ID, scheduled.PeriodNo, scheduled.Status)
-		return scheduled, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		log.Printf("[engine][period.current.lookup.error] room_code=%s stage=scheduled err=%v", roomCode, err)
-		return GamePeriodRecord{}, err
-	}
-
-	drawn, err := scanPeriod(`
-		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
-		from game_periods
-		where room_code = $1
-		  and status = $2
-		order by draw_at desc, id desc
-		limit 1
-	`, roomCode, periodStatusDrawn)
-	if err == nil {
-		log.Printf("[engine][period.current.lookup.done] room_code=%s period_id=%d period_no=%s status=%d source=drawn", roomCode, drawn.ID, drawn.PeriodNo, drawn.Status)
-		return drawn, nil
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		log.Printf("[engine][period.current.lookup.miss] room_code=%s reason=no_period_found", roomCode)
-		return GamePeriodRecord{}, ErrPeriodNotFound
-	}
-	log.Printf("[engine][period.current.lookup.error] room_code=%s stage=drawn err=%v", roomCode, err)
-	return GamePeriodRecord{}, err
+	log.Printf("[engine][period.current.lookup.miss] room_code=%s reason=no_open_period_in_window_future_periods_ignored", roomCode)
+	return GamePeriodRecord{}, ErrPeriodNotFound
 }
 
 func (r *GameRepository) ListRoomRounds(ctx context.Context, roomCode string, page, pageSize int) ([]GameRoundRecord, int, error) {
@@ -358,7 +350,19 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 	if err != nil {
 		return BetTicketRecord{}, err
 	}
-	stakeAmountDB := stakeAmount.FloatString(8)
+	originalAmountDB := stakeAmount.FloatString(8)
+	taxAmountDB, netAmountDB, err := calculateBetTaxAndNet(originalAmountDB)
+	if err != nil {
+		return BetTicketRecord{}, err
+	}
+	if compareNumeric(netAmountDB, "0") <= 0 {
+		return BetTicketRecord{}, fmt.Errorf("số tiền cược sau thuế không hợp lệ")
+	}
+	potentialPayoutDB, err := multiplyNumeric(netAmountDB, "2")
+	if err != nil {
+		return BetTicketRecord{}, err
+	}
+	log.Printf("[engine][bet.tax] room_code=%s original_amount=%s tax_amount=%s net_amount=%s potential_payout=%s", params.RoomCode, originalAmountDB, taxAmountDB, netAmountDB, potentialPayoutDB)
 
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -402,11 +406,11 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		return BetTicketRecord{}, err
 	}
 
-	if compareNumeric(availableBefore, params.TotalStake) < 0 {
+	if compareNumeric(availableBefore, originalAmountDB) < 0 {
 		return BetTicketRecord{}, ErrInsufficientBetBalance
 	}
 
-	lockedAfter, err := addNumeric(lockedBefore, params.TotalStake)
+	lockedAfter, err := addNumeric(lockedBefore, originalAmountDB)
 	if err != nil {
 		return BetTicketRecord{}, err
 	}
@@ -416,38 +420,30 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		return BetTicketRecord{}, err
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-		update wallets
-		set locked_balance = $1::numeric(20,8),
-		    updated_at = now()
-		where id = $2
-	`, lockedAfter, walletID); err != nil {
-		return BetTicketRecord{}, err
-	}
-
 	ticketNo := buildTicketNo()
 	betType := 1
 	if len(params.Items) > 1 {
 		betType = 2
 	}
 
-	placedIP := strings.TrimSpace(params.PlacedIP)
-	placedDevice := strings.TrimSpace(params.PlacedDevice)
+	placedIP := trimToVarchar(strings.TrimSpace(params.PlacedIP), 45)
+	placedDevice := trimToVarchar(strings.TrimSpace(params.PlacedDevice), 100)
 
 	row := tx.QueryRowContext(ctx, `
 		insert into bet_tickets (
 			ticket_no, user_id, wallet_id, request_id, connection_id, unit, game_type,
-			period_id, bet_type, stake, total_stake, total_odds, potential_payout,
+			period_id, bet_type, stake, total_stake, original_amount, tax_amount, net_amount, total_odds, potential_payout,
 			status, placed_ip, placed_device, items, created_at, updated_at
 		)
 		values (
 			$1, $2, $3, $4, $5, 1, $6,
-			$7, $8, $9::numeric(20,8), $9::numeric(20,8), 1::numeric(14,6), $9::numeric(20,8),
-			$10, nullif($11, ''), nullif($12, ''), $13::jsonb, $14, $14
+			$7, $8, $9::numeric(20,8), $9::numeric(20,8), $9::numeric(20,8), $10::numeric(20,8), $11::numeric(20,8), 1::numeric(14,6), $12::numeric(20,8),
+			$13, nullif($14, ''), nullif($15, ''), $16::jsonb, $17, $17
 		)
 		returning id, user_id, wallet_id, game_type, period_id, request_id, connection_id,
-		          total_stake::text, status, items, created_at, updated_at
-	`, ticketNo, params.UserID, walletID, nullIfEmpty(params.RequestID), nullIfEmpty(params.ConnectionID), period.GameType, period.ID, betType, stakeAmountDB, betStatusPending, placedIP, placedDevice, itemsJSON, now)
+		          total_stake::text, original_amount::text, tax_amount::text, net_amount::text,
+		          coalesce(actual_payout, 0)::text, status, items, created_at, updated_at
+	`, ticketNo, params.UserID, walletID, nullIfEmpty(params.RequestID), nullIfEmpty(params.ConnectionID), period.GameType, period.ID, betType, originalAmountDB, taxAmountDB, netAmountDB, potentialPayoutDB, betStatusPending, placedIP, placedDevice, itemsJSON, now)
 
 	var record BetTicketRecord
 	if err := row.Scan(
@@ -459,6 +455,10 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		&record.RequestID,
 		&record.ConnectionID,
 		&record.TotalStake,
+		&record.OriginalAmount,
+		&record.TaxAmount,
+		&record.NetAmount,
+		&record.ActualPayout,
 		&record.Status,
 		&record.ItemsJSON,
 		&record.CreatedAt,
@@ -476,6 +476,27 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		return BetTicketRecord{}, err
 	}
 	record.PeriodNo = period.PeriodNo
+	if record.OriginalAmount == "" {
+		record.OriginalAmount = originalAmountDB
+	}
+	if record.TaxAmount == "" {
+		record.TaxAmount = taxAmountDB
+	}
+	if record.NetAmount == "" {
+		record.NetAmount = netAmountDB
+	}
+	if record.TotalStake == "" {
+		record.TotalStake = originalAmountDB
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		update wallets
+		set locked_balance = $1::numeric(20,8),
+		    updated_at = now()
+		where id = $2
+	`, lockedAfter, walletID); err != nil {
+		return BetTicketRecord{}, err
+	}
 
 	for _, item := range params.Items {
 		optionTypeValue := mapOptionType(item.OptionType)
@@ -484,6 +505,8 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 			return BetTicketRecord{}, err
 		}
 		stakeValueDB := stakeValue.FloatString(8)
+		optionKey := trimToVarchar(strings.TrimSpace(item.OptionKey), 100)
+		optionLabel := trimToVarchar(strings.TrimSpace(item.OptionKey), 150)
 		if _, err := tx.ExecContext(ctx, `
 			insert into bet_items (
 				ticket_id, period_id, option_type, option_key, option_label,
@@ -493,7 +516,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 				$1, $2, $3, $4, $5,
 				1::numeric(12,4), $6::numeric(20,8), 1, $7, $7
 			)
-		`, record.ID, period.ID, optionTypeValue, strings.TrimSpace(item.OptionKey), strings.TrimSpace(item.OptionKey), stakeValueDB, now); err != nil {
+		`, record.ID, period.ID, optionTypeValue, optionKey, optionLabel, stakeValueDB, now); err != nil {
 			return BetTicketRecord{}, err
 		}
 	}
@@ -505,7 +528,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		)
 		values ($1, $2, $3, $4::numeric(20,8), $5::numeric(20,8), $6::numeric(20,8),
 		        $7, $8, $9, now())
-	`, walletID, params.UserID, 2, stakeAmountDB, availableBefore, availableAfter, "App\\Models\\Bet\\BetTicket", record.ID, "Khóa tiền khi đặt cược"); err != nil {
+	`, walletID, params.UserID, 2, originalAmountDB, availableBefore, availableAfter, "App\\Models\\Bet\\BetTicket", record.ID, "Khóa tiền khi đặt cược (thuế 2% upfront)"); err != nil {
 		return BetTicketRecord{}, err
 	}
 
@@ -531,8 +554,25 @@ func (r *GameRepository) ListRoomBetTickets(ctx context.Context, userID int64, r
 
 	rows, err := r.db.QueryContext(ctx, `
 		select t.id, t.user_id, t.wallet_id, t.game_type, t.period_id, p.period_no,
-		       t.request_id, t.connection_id, coalesce(t.total_stake, t.stake)::text, t.status,
-		       t.items, t.created_at, t.updated_at
+		       t.request_id, t.connection_id, coalesce(t.total_stake, t.stake)::text,
+		       coalesce(t.original_amount, t.total_stake, t.stake)::text,
+		       coalesce(t.tax_amount, 0)::text,
+		       coalesce(t.net_amount, t.total_stake, t.stake)::text,
+		       (
+		           case
+		               when t.status = 2 then ((coalesce(t.original_amount, t.total_stake, t.stake) * 2) - coalesce(t.tax_amount, 0))
+		               else coalesce(t.actual_payout, 0)
+		           end
+		       )::text,
+		       (
+		           (
+		               case
+		                   when t.status = 2 then ((coalesce(t.original_amount, t.total_stake, t.stake) * 2) - coalesce(t.tax_amount, 0))
+		                   else coalesce(t.actual_payout, 0)
+		               end
+		           ) - coalesce(t.original_amount, t.total_stake, t.stake)
+		       )::text,
+		       t.status, t.items, t.created_at, t.settled_at, t.updated_at
 		from bet_tickets t
 		inner join game_periods p on p.id = t.period_id
 		where t.user_id = $1 and p.room_code = $2
@@ -557,9 +597,15 @@ func (r *GameRepository) ListRoomBetTickets(ctx context.Context, userID int64, r
 			&record.RequestID,
 			&record.ConnectionID,
 			&record.TotalStake,
+			&record.OriginalAmount,
+			&record.TaxAmount,
+			&record.NetAmount,
+			&record.ActualPayout,
+			&record.ProfitLoss,
 			&record.Status,
 			&record.ItemsJSON,
 			&record.CreatedAt,
+			&record.SettledAt,
 			&record.UpdatedAt,
 		); err != nil {
 			return nil, 0, err
@@ -629,8 +675,25 @@ func (r *GameRepository) lockWalletForBet(ctx context.Context, tx *sql.Tx, userI
 func (r *GameRepository) findTicketByRequestIDTx(ctx context.Context, tx *sql.Tx, requestID string) (BetTicketRecord, bool, error) {
 	row := tx.QueryRowContext(ctx, `
 		select t.id, t.user_id, t.wallet_id, t.game_type, t.period_id, p.period_no,
-		       t.request_id, t.connection_id, coalesce(t.total_stake, t.stake)::text, t.status,
-		       t.items, t.created_at, t.updated_at
+		       t.request_id, t.connection_id, coalesce(t.total_stake, t.stake)::text,
+		       coalesce(t.original_amount, t.total_stake, t.stake)::text,
+		       coalesce(t.tax_amount, 0)::text,
+		       coalesce(t.net_amount, t.total_stake, t.stake)::text,
+		       (
+		           case
+		               when t.status = 2 then ((coalesce(t.original_amount, t.total_stake, t.stake) * 2) - coalesce(t.tax_amount, 0))
+		               else coalesce(t.actual_payout, 0)
+		           end
+		       )::text,
+		       (
+		           (
+		               case
+		                   when t.status = 2 then ((coalesce(t.original_amount, t.total_stake, t.stake) * 2) - coalesce(t.tax_amount, 0))
+		                   else coalesce(t.actual_payout, 0)
+		               end
+		           ) - coalesce(t.original_amount, t.total_stake, t.stake)
+		       )::text,
+		       t.status, t.items, t.created_at, t.settled_at, t.updated_at
 		from bet_tickets t
 		left join game_periods p on p.id = t.period_id
 		where t.request_id = $1
@@ -648,9 +711,15 @@ func (r *GameRepository) findTicketByRequestIDTx(ctx context.Context, tx *sql.Tx
 		&record.RequestID,
 		&record.ConnectionID,
 		&record.TotalStake,
+		&record.OriginalAmount,
+		&record.TaxAmount,
+		&record.NetAmount,
+		&record.ActualPayout,
+		&record.ProfitLoss,
 		&record.Status,
 		&record.ItemsJSON,
 		&record.CreatedAt,
+		&record.SettledAt,
 		&record.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -696,6 +765,18 @@ func nullIfEmpty(value string) any {
 		return nil
 	}
 	return trimmed
+}
+
+func trimToVarchar(value string, maxChars int) string {
+	trimmed := strings.TrimSpace(value)
+	if maxChars <= 0 || trimmed == "" {
+		return ""
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= maxChars {
+		return trimmed
+	}
+	return string(runes[:maxChars])
 }
 
 func isUniqueViolation(err error) bool {
@@ -761,6 +842,37 @@ func compareNumeric(left, right string) int {
 		return -1
 	}
 	return lv.Cmp(rv)
+}
+
+func multiplyNumeric(left, right string) (string, error) {
+	lv, err := parseNumeric(left)
+	if err != nil {
+		return "", err
+	}
+	rv, err := parseNumeric(right)
+	if err != nil {
+		return "", err
+	}
+	return new(big.Rat).Mul(lv, rv).FloatString(8), nil
+}
+
+func calculateBetTaxAndNet(amount string) (string, string, error) {
+	original, err := parseNumeric(amount)
+	if err != nil {
+		return "", "", err
+	}
+	if original.Sign() <= 0 {
+		return "", "", fmt.Errorf("invalid bet amount: %s", amount)
+	}
+
+	taxRate := big.NewRat(2, 100)
+	tax := new(big.Rat).Mul(original, taxRate)
+	net := new(big.Rat).Sub(original, tax)
+	if net.Sign() <= 0 {
+		return "", "", fmt.Errorf("net bet amount must be positive")
+	}
+
+	return tax.FloatString(8), net.FloatString(8), nil
 }
 
 func ParsePeriodID(value string) (int64, error) {

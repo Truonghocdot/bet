@@ -171,6 +171,12 @@ export type PlayRoomBetHistoryItem = {
   big_small: string
   color: string
   stake: string
+  original_amount?: string
+  tax_amount?: string
+  net_amount?: string
+  actual_payout: string
+  profit_loss: string
+  settled_at?: string | null
   status: string
   items_count: number
   created_at: string
@@ -246,6 +252,9 @@ export type GameBetHistoryItem = {
   big_small: string
   color: string
   stake: string
+  actual_payout: string
+  profit_loss: string
+  settled_at?: string | null
   status: string
   items_count: number
   created_at: string

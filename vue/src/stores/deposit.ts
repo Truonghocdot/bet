@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { request, type ApiError } from '@/shared/api/http'
+import { connectEventStream, type StreamConnection } from '@/shared/api/stream'
 import type { DepositInitResponse, DepositStatusResponse } from '@/shared/api/types'
 import { useAuthStore } from '@/stores/auth'
 
@@ -10,6 +11,7 @@ export const useDepositStore = defineStore('deposit', () => {
   const currentStatus = ref<DepositStatusResponse | null>(null)
   const loading = ref(false)
   const error = ref<string>('')
+  let streamConnection: StreamConnection | null = null
 
   async function initVietQR(payload: { amount: string; note?: string }) {
     const auth = useAuthStore()
@@ -72,7 +74,41 @@ export const useDepositStore = defineStore('deposit', () => {
     }
   }
 
+  function connectStatusStream(clientRef: string) {
+    const auth = useAuthStore()
+    if (!auth.accessToken || !clientRef) return
+
+    disconnectStatusStream()
+    streamConnection = connectEventStream(`/v1/deposits/${encodeURIComponent(clientRef)}/stream`, {
+      token: auth.accessToken,
+      reconnectMs: 3000,
+      onEvent(payload) {
+        if (payload.event !== 'deposit.status') return
+        currentStatus.value = payload.data as DepositStatusResponse
+        const status = currentStatus.value?.transaction?.status
+        if (status === 2 || status === 3 || status === 4) {
+          disconnectStatusStream()
+        }
+      },
+      onError(errorValue) {
+        const err = errorValue as ApiError
+        if (err?.status === 401) {
+          auth.logout()
+          reset()
+          return
+        }
+        error.value = err?.message ?? 'Kết nối trạng thái nạp tiền bị gián đoạn'
+      },
+    })
+  }
+
+  function disconnectStatusStream() {
+    streamConnection?.close()
+    streamConnection = null
+  }
+
   function reset() {
+    disconnectStatusStream()
     currentIntent.value = null
     currentStatus.value = null
     loading.value = false
@@ -87,6 +123,8 @@ export const useDepositStore = defineStore('deposit', () => {
     initVietQR,
     initUSDT,
     getStatus,
+    connectStatusStream,
+    disconnectStatusStream,
     reset,
   }
 })

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 
 import BannerCarousel from '@/components/BannerCarousel.vue'
 import MarqueeBar from '@/components/MarqueeBar.vue'
@@ -12,6 +12,7 @@ import { gameRooms } from '@/data/site'
 
 const auth = useAuthStore()
 const wallet = useWalletStore()
+const route = useRoute()
 
 const greetingName = computed(() => auth.user?.name || 'Bạn')
 const featuredRooms = computed(() => gameRooms.filter((g) => g.featured))
@@ -145,7 +146,7 @@ onMounted(() => {
       <RouterLink
         v-for="game in gameCards"
         :key="game.name"
-        :to="game.route"
+        :to="{ path: game.route, query: { from: route.fullPath } }"
         class="flex-shrink-0 w-[160px] overflow-hidden rounded-[20px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.08)] border border-slate-100 transition-transform active:scale-[0.97]"
       >
         <!-- Color banner top -->
@@ -177,7 +178,7 @@ onMounted(() => {
         <RouterLink
           v-for="game in featuredRooms"
           :key="game.code"
-          :to="`/play/${game.code}`"
+          :to="{ path: `/play/${game.code}`, query: { from: route.fullPath } }"
           class="flex items-center gap-3 rounded-[18px] bg-white p-3.5 shadow-sm border border-slate-100 active:scale-[0.99] transition-transform"
         >
           <div

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
 	"strings"
 	"time"
 
@@ -372,7 +373,12 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 	}
 
 	rows, err := tx.QueryContext(ctx, `
-		select id, user_id, wallet_id, coalesce(total_stake, stake)::text, items
+		select id, user_id, wallet_id,
+		       coalesce(original_amount, total_stake, stake)::text,
+		       coalesce(tax_amount, 0)::text,
+		       coalesce(net_amount, total_stake, stake)::text,
+		       coalesce(total_stake, stake)::text,
+		       items
 		from bet_tickets
 		where period_id = $1 and status = $2
 		order by id asc
@@ -387,7 +393,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 	tickets := make([]SettleBetTicketRecord, 0)
 	for rows.Next() {
 		var ticket SettleBetTicketRecord
-		if err := rows.Scan(&ticket.ID, &ticket.UserID, &ticket.WalletID, &ticket.TotalStake, &ticket.ItemsJSON); err != nil {
+		if err := rows.Scan(&ticket.ID, &ticket.UserID, &ticket.WalletID, &ticket.OriginalAmount, &ticket.TaxAmount, &ticket.NetAmount, &ticket.TotalStake, &ticket.ItemsJSON); err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d stage=scan_ticket err=%v", period.ID, err)
 			return err
 		}
@@ -401,11 +407,41 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 
 	now := clock.Now()
 	for _, ticket := range tickets {
-		outcomes, payoutTotal, err := settleTicketItems(ticket.ItemsJSON, tags)
+		originalAmount := ticket.OriginalAmount
+		if strings.TrimSpace(originalAmount) == "" {
+			originalAmount = ticket.TotalStake
+		}
+		taxAmount := strings.TrimSpace(ticket.TaxAmount)
+		if taxAmount == "" {
+			computedTax, computedNet, calcErr := calculateBetTaxAndNet(originalAmount)
+			if calcErr == nil {
+				taxAmount = computedTax
+				if strings.TrimSpace(ticket.NetAmount) == "" {
+					ticket.NetAmount = computedNet
+				}
+			} else {
+				taxAmount = "0"
+			}
+		}
+		netAmount := ticket.NetAmount
+		if strings.TrimSpace(netAmount) == "" {
+			if strings.TrimSpace(taxAmount) != "" && compareNumeric(taxAmount, "0") > 0 {
+				afterTax, subErr := subtractNumeric(originalAmount, taxAmount)
+				if subErr == nil && compareNumeric(afterTax, "0") > 0 {
+					netAmount = afterTax
+				}
+			}
+		}
+		if strings.TrimSpace(netAmount) == "" {
+			netAmount = originalAmount
+		}
+		log.Printf("[engine][period.settle.ticket.values] period_id=%d ticket_id=%d original_amount=%s tax_amount=%s net_amount=%s", period.ID, ticket.ID, originalAmount, taxAmount, netAmount)
+		outcomes, payoutTotal, err := settleTicketItems(ticket.ItemsJSON, tags, originalAmount, taxAmount)
 		if err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=settle_ticket_items err=%v", period.ID, ticket.ID, err)
 			return err
 		}
+		log.Printf("[engine][period.settle.payout] period_id=%d ticket_id=%d original_amount=%s tax_amount=%s net_amount=%s payout_total=%s", period.ID, ticket.ID, originalAmount, taxAmount, netAmount, payoutTotal)
 
 		statusAfter := betStatusLost
 		if compareNumeric(payoutTotal, "0") > 0 {
@@ -423,7 +459,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			return err
 		}
 
-		lockedAfter, err := subtractNumeric(lockedBefore, ticket.TotalStake)
+		lockedAfter, err := subtractNumeric(lockedBefore, originalAmount)
 		if err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=subtract_locked err=%v", period.ID, ticket.ID, err)
 			return err
@@ -437,7 +473,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=add_balance err=%v", period.ID, ticket.ID, err)
 			return err
 		}
-		balanceAfter, err = subtractNumeric(balanceAfter, ticket.TotalStake)
+		balanceAfter, err = subtractNumeric(balanceAfter, originalAmount)
 		if err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=subtract_stake err=%v", period.ID, ticket.ID, err)
 			return err
@@ -487,7 +523,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			return err
 		}
 
-		profitLoss, err := subtractNumeric(ticket.TotalStake, payoutTotal)
+		profitLoss, err := subtractNumeric(payoutTotal, originalAmount)
 		if err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=profit_loss err=%v", period.ID, ticket.ID, err)
 			return err
@@ -503,7 +539,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			return err
 		}
 
-		netDelta, err := subtractNumeric(payoutTotal, ticket.TotalStake)
+		netDelta, err := subtractNumeric(payoutTotal, originalAmount)
 		if err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=net_delta err=%v", period.ID, ticket.ID, err)
 			return err
@@ -602,7 +638,7 @@ func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room Ga
 	return record, true, nil
 }
 
-func settleTicketItems(rawItems []byte, tags map[string]struct{}) ([]ticketSettleItemOutcome, string, error) {
+func settleTicketItems(rawItems []byte, tags map[string]struct{}, originalAmount string, taxAmount string) ([]ticketSettleItemOutcome, string, error) {
 	var items []BetTicketItemRecord
 	if len(rawItems) > 0 {
 		if err := json.Unmarshal(rawItems, &items); err != nil {
@@ -612,18 +648,42 @@ func settleTicketItems(rawItems []byte, tags map[string]struct{}) ([]ticketSettl
 
 	outcomes := make([]ticketSettleItemOutcome, 0, len(items))
 	payoutTotal := "0"
+	originalRat, err := parseNumeric(originalAmount)
+	if err != nil {
+		return nil, "", err
+	}
+	if originalRat.Sign() <= 0 {
+		return nil, "", fmt.Errorf("invalid bet amount for settlement")
+	}
+
+	// Business rule: tax is deducted upfront, winning payout is original stake * (2 - tax_rate).
+	// With 2% tax this becomes 1.98x of original stake.
+	taxRate := big.NewRat(2, 100)
+	if strings.TrimSpace(taxAmount) != "" {
+		taxRat, taxErr := parseNumeric(taxAmount)
+		if taxErr == nil && taxRat.Sign() >= 0 {
+			computedRate := new(big.Rat).Quo(taxRat, originalRat)
+			if computedRate.Sign() >= 0 && computedRate.Cmp(big.NewRat(1, 1)) < 0 {
+				taxRate = computedRate
+			}
+		}
+	}
+	payoutFactor := new(big.Rat).Sub(big.NewRat(2, 1), taxRate)
+	if payoutFactor.Sign() <= 0 {
+		return nil, "", fmt.Errorf("invalid payout factor")
+	}
+
 	for _, item := range items {
 		normalized := strings.ToLower(strings.TrimSpace(item.OptionKey))
 		_, isWin := tags[normalized]
 
 		payout := "0"
 		if isWin {
-			// Phase 1 payout rule: cửa thắng trả x2 stake.
-			twoTimes, err := addNumeric(item.Stake, item.Stake)
+			itemStake, err := parseNumeric(item.Stake)
 			if err != nil {
 				return nil, "", err
 			}
-			payout = twoTimes
+			payout = new(big.Rat).Mul(itemStake, payoutFactor).FloatString(8)
 		}
 
 		newTotal, err := addNumeric(payoutTotal, payout)

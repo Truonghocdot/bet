@@ -36,7 +36,7 @@ async function handleLogin() {
       localStorage.removeItem('ff789:auth:v1')
     }
 
-    const next = typeof route.query.next === 'string' ? route.query.next : '/home'
+    const next = typeof route.query.next === 'string' ? route.query.next : '/'
     await router.replace(next)
   } catch (e: any) {
     submitError.value = auth.error || 'Đăng nhập thất bại'

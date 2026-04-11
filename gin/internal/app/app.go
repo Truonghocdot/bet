@@ -89,7 +89,8 @@ func New() (*App, error) {
 		Addr:         config.HTTPAddr,
 		Handler:      router,
 		ReadTimeout:  config.ReadTimeout,
-		WriteTimeout: config.WriteTimeout,
+		// SSE streams need a long-lived write window.
+		WriteTimeout: 0,
 	}
 
 	return &App{

@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { request, type ApiError } from '@/shared/api/http'
+import { connectEventStream, type StreamConnection } from '@/shared/api/stream'
 import type { WalletSummaryResponse } from '@/shared/api/types'
 import { useAuthStore } from '@/stores/auth'
 
@@ -9,6 +10,7 @@ export const useWalletStore = defineStore('wallet', () => {
   const summary = ref<WalletSummaryResponse | null>(null)
   const loading = ref(false)
   const error = ref('')
+  let streamConnection: StreamConnection | null = null
 
   const wallets = computed(() => summary.value?.wallets ?? [])
 
@@ -43,9 +45,38 @@ export const useWalletStore = defineStore('wallet', () => {
   }
 
   function reset() {
+    disconnectStream()
     summary.value = null
     loading.value = false
     error.value = ''
+  }
+
+  function connectStream() {
+    const auth = useAuthStore()
+    if (!auth.accessToken || streamConnection) return
+
+    streamConnection = connectEventStream('/v1/wallets/stream', {
+      token: auth.accessToken,
+      reconnectMs: 3000,
+      onEvent(payload) {
+        if (payload.event !== 'wallet.summary') return
+        summary.value = payload.data as WalletSummaryResponse
+      },
+      onError(errorValue) {
+        const err = errorValue as ApiError
+        if (err?.status === 401) {
+          auth.logout()
+          reset()
+          return
+        }
+        error.value = err?.message ?? 'Kết nối ví realtime bị gián đoạn'
+      },
+    })
+  }
+
+  function disconnectStream() {
+    streamConnection?.close()
+    streamConnection = null
   }
 
   return {
@@ -54,6 +85,8 @@ export const useWalletStore = defineStore('wallet', () => {
     loading,
     error,
     fetchSummary,
+    connectStream,
+    disconnectStream,
     reset,
   }
 })

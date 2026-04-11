@@ -25,11 +25,17 @@ router.beforeEach(async (to) => {
   }
 
   if (isAuthPage && authStore.isAuthenticated) {
-    const next = typeof to.query.next === 'string' ? to.query.next : '/home'
+    const next = typeof to.query.next === 'string' ? to.query.next : '/'
     return next
   }
 
   return true
+})
+
+router.afterEach((to, from) => {
+  if (typeof window === 'undefined') return
+  if (!from.fullPath || from.fullPath === to.fullPath) return
+  window.sessionStorage.setItem('ff789:last-route', from.fullPath === '/' ? '/' : from.fullPath)
 })
 
 app.use(pinia)

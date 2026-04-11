@@ -624,6 +624,9 @@ Nghiệp vụ:
 - `bet_type`: tinyint
 - `stake`: decimal(20,8)
 - `total_stake`: decimal(20,8) nullable
+- `original_amount`: decimal(20,8) nullable
+- `tax_amount`: decimal(20,8) nullable
+- `net_amount`: decimal(20,8) nullable
 - `total_odds`: decimal(14,6)
 - `potential_payout`: decimal(20,8)
 - `actual_payout`: decimal(20,8) nullable
@@ -651,6 +654,10 @@ Nghiệp vụ:
 - `connection_id` gom lệnh theo 1 session join room.
 - `total_stake` và `items` phục vụ luồng play runtime.
 - Khi đặt cược: trừ `balance`, cộng `locked_balance`, ghi ledger `bet_stake`.
+- `original_amount` là số tiền người chơi đặt ban đầu.
+- `tax_amount` là 2% phí khấu trừ upfront.
+- `net_amount` là số tiền thực dùng để tính thưởng.
+- Payout thắng dùng công thức: `net_amount * 2`.
 - Không cho sửa ticket khi period đã vào `LOCKED` hoặc `now >= bet_lock_at`.
 
 ### 6.5 `bet_items`
@@ -703,7 +710,7 @@ Nghiệp vụ theo `settlement_type`:
 
 - `AUTO`:
   - Input: `period_id`, `result_payload` đã finalized.
-  - Process: chấm từng `bet_items` -> tổng `actual_payout` -> update `bet_tickets`.
+  - Process: chấm từng `bet_items` -> tổng `actual_payout` theo `net_amount * 2` -> update `bet_tickets`.
   - Wallet: giảm `locked_balance`, cộng `balance` theo payout.
   - Ledger: tạo record `bet_settlement`.
 - `MANUAL`:
@@ -715,6 +722,10 @@ Nghiệp vụ theo `settlement_type`:
   - Tạo settlement record mới với type `ROLLBACK`.
   - Tạo bút toán đảo (`reverse`) trong ledger, không update cứng ledger cũ.
   - Đưa ticket về trạng thái `PENDING` hoặc trạng thái trước settle theo thiết kế.
+
+- Quy ước `profit_loss`:
+  - `profit_loss = payout_amount - original_amount`
+  - thắng thì số dương, thua thì số âm
 
 ## 7) Affiliate Referral
 

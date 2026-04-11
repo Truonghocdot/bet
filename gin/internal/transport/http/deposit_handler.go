@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	authmiddleware "gin/internal/auth/middleware"
 	"gin/internal/domain/deposit"
@@ -31,6 +32,11 @@ func (h *DepositHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if len(parts) == 1 && r.Method == http.MethodGet {
 		h.handleStatus(w, r, parts[0])
+		return
+	}
+
+	if len(parts) == 2 && parts[1] == "stream" && r.Method == http.MethodGet {
+		h.handleStatusStream(w, r, parts[0])
 		return
 	}
 
@@ -128,6 +134,80 @@ func (h *DepositHandler) handleStatus(w http.ResponseWriter, r *http.Request, cl
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *DepositHandler) handleStatusStream(w http.ResponseWriter, r *http.Request, clientRef string) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	initialResponse, err := h.depositService.GetDepositStatus(r.Context(), claims.UserID, clientRef)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	stream, err := newSSEStream(w)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+
+	pollTicker := time.NewTicker(3 * time.Second)
+	heartbeatTicker := time.NewTicker(20 * time.Second)
+	defer pollTicker.Stop()
+	defer heartbeatTicker.Stop()
+
+	lastPayload := ""
+	emitStatus := func(response deposit.DepositStatusResponse) (bool, error) {
+		payload, err := json.Marshal(response)
+		if err != nil {
+			return false, err
+		}
+		payloadKey := string(payload)
+		if payloadKey != lastPayload {
+			lastPayload = payloadKey
+			if err := stream.Event("deposit.status", response); err != nil {
+				return false, err
+			}
+		}
+
+		terminal := response.Transaction.Status == 2 || response.Transaction.Status == 3 || response.Transaction.Status == 4
+		return terminal, nil
+	}
+
+	terminal, err := emitStatus(initialResponse)
+	if err != nil {
+		return
+	}
+	if terminal {
+		return
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-pollTicker.C:
+			response, err := h.depositService.GetDepositStatus(r.Context(), claims.UserID, clientRef)
+			if err != nil {
+				return
+			}
+			terminal, err := emitStatus(response)
+			if err != nil {
+				return
+			}
+			if terminal {
+				return
+			}
+		case <-heartbeatTicker.C:
+			if err := stream.KeepAlive(); err != nil {
+				return
+			}
+		}
+	}
 }
 
 func (h *DepositHandler) writeError(w http.ResponseWriter, err error) {

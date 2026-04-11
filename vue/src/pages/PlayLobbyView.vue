@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 
 import { playCategories, playRooms } from '@/data/play'
 
 const activeCategory = ref<string>('Tất cả')
+const route = useRoute()
 
 const filteredRooms = computed(() => {
   if (activeCategory.value === 'Tất cả') return playRooms
@@ -37,19 +38,19 @@ function formatRoomVariants(roomCode: string) {
         <div class="space-y-4">
           <div class="flex flex-wrap items-center gap-2">
             <span class="inline-flex rounded-full bg-[#fdd404] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#594a00]">
-              Phòng chơi
+              Phòng chơi trực tiếp
             </span>
             <span class="rounded-full bg-white/14 px-3 py-1 text-[0.68rem] font-bold text-white/86 backdrop-blur">
-              Room cố định, tab time riêng
+              Chọn phòng, vào chơi nhanh
             </span>
           </div>
 
           <div class="space-y-2">
             <h2 class="max-w-[20rem] text-[1.72rem] font-black leading-[1.08] md:max-w-[28rem] md:text-[2.25rem]">
-              Chọn room game và vào phòng ngay
+              Chọn phòng bạn muốn và vào chơi ngay
             </h2>
             <p class="max-w-[33rem] text-sm leading-6 text-white/88 md:text-[0.96rem]">
-              Mỗi room là một nhịp thời gian riêng. Card bên dưới cho biết trạng thái, mức cược tối thiểu và các biến thể đang mở.
+              Mỗi phòng có nhịp chơi riêng. Bạn chỉ cần chọn đúng phòng đang mở, xem nhanh thời gian và vào chơi ngay.
             </p>
           </div>
         </div>
@@ -58,20 +59,20 @@ function formatRoomVariants(roomCode: string) {
           <article class="rounded-[22px] bg-white/14 p-4 backdrop-blur-md">
             <p class="m-0 text-[0.68rem] uppercase tracking-[0.12em] text-white/72">Đang mở</p>
             <strong class="mt-1 block text-[1.45rem] font-black">{{ openRooms.length }}</strong>
-            <p class="mt-1 text-[0.72rem] leading-5 text-white/80">Room sẵn sàng join.</p>
+            <p class="mt-1 text-[0.72rem] leading-5 text-white/80">Bạn có thể vào chơi ngay.</p>
           </article>
 
           <article class="rounded-[22px] bg-white/14 p-4 backdrop-blur-md">
             <p class="m-0 text-[0.68rem] uppercase tracking-[0.12em] text-white/72">Sắp mở</p>
             <strong class="mt-1 block text-[1.45rem] font-black">{{ comingSoonRooms.length }}</strong>
-            <p class="mt-1 text-[0.72rem] leading-5 text-white/80">Room chuẩn bị lên sóng.</p>
+            <p class="mt-1 text-[0.72rem] leading-5 text-white/80">Sắp mở để bạn quay lại sau.</p>
           </article>
 
           <RouterLink to="/promotion" class="rounded-[22px] bg-white px-4 py-4 text-primary shadow-[0_8px_24px_rgba(255,255,255,0.16)]">
             <p class="m-0 text-[0.68rem] uppercase tracking-[0.12em] text-primary/70">Nổi bật</p>
-            <strong class="mt-1 block text-[1rem] font-black leading-5">{{ featuredRooms.length }} room chính</strong>
+            <strong class="mt-1 block text-[1rem] font-black leading-5">{{ featuredRooms.length }} phòng nổi bật</strong>
             <span class="mt-2 inline-flex items-center gap-1 text-[0.72rem] font-bold text-primary">
-              Xem khuyến mãi <span class="material-symbols-outlined text-[1rem]">chevron_right</span>
+              Xem ưu đãi <span class="material-symbols-outlined text-[1rem]">chevron_right</span>
             </span>
           </RouterLink>
         </div>
@@ -118,7 +119,7 @@ function formatRoomVariants(roomCode: string) {
                   class="rounded-full px-2.5 py-1 text-[0.64rem] font-black uppercase tracking-[0.08em]"
                   :class="room.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-700'"
                 >
-                  {{ room.status === 'OPEN' ? 'Đang mở' : 'Sắp mở' }}
+                  {{ room.status === 'OPEN' ? 'Đang mở' : 'Chờ mở' }}
                 </span>
               </div>
               <p class="mt-1 text-[0.72rem] text-on-surface-variant">
@@ -133,7 +134,7 @@ function formatRoomVariants(roomCode: string) {
 
         <div class="mt-4 grid grid-cols-2 gap-2 text-[0.72rem]">
           <div class="rounded-[16px] bg-background p-3">
-            <span class="block text-[0.68rem] text-on-surface-variant">Mức tối thiểu</span>
+            <span class="block text-[0.68rem] text-on-surface-variant">Mức cược từ</span>
             <strong class="mt-1 block text-on-surface">{{ room.minBet }}</strong>
           </div>
           <div class="rounded-[16px] bg-background p-3">
@@ -141,12 +142,12 @@ function formatRoomVariants(roomCode: string) {
             <strong class="mt-1 block text-on-surface">{{ room.payout }}</strong>
           </div>
           <div class="rounded-[16px] bg-background p-3">
-            <span class="block text-[0.68rem] text-on-surface-variant">Người chơi</span>
+            <span class="block text-[0.68rem] text-on-surface-variant">Đang chơi</span>
             <strong class="mt-1 block text-on-surface">{{ room.onlinePlayers.toLocaleString('vi-VN') }}</strong>
           </div>
           <div class="rounded-[16px] bg-background p-3">
-            <span class="block text-[0.68rem] text-on-surface-variant">Nhịp room</span>
-            <strong class="mt-1 block text-on-surface">{{ room.variants.length }} time</strong>
+            <span class="block text-[0.68rem] text-on-surface-variant">Các nhịp chơi</span>
+            <strong class="mt-1 block text-on-surface">{{ room.variants.length }} lựa chọn</strong>
           </div>
         </div>
 
@@ -162,17 +163,17 @@ function formatRoomVariants(roomCode: string) {
 
         <div class="mt-4 flex items-center gap-2">
           <div class="flex-1 rounded-[16px] bg-background px-3 py-2.5 text-[0.72rem] text-on-surface-variant">
-            <span class="block text-[0.65rem] uppercase tracking-[0.08em]">Nhịp nhanh</span>
+            <span class="block text-[0.65rem] uppercase tracking-[0.08em]">Chọn nhanh</span>
             <strong class="mt-1 block text-on-surface">
               {{ formatRoomVariants(room.code).join(' • ') }}
             </strong>
           </div>
 
           <RouterLink
-            :to="room.status === 'OPEN' ? `/play/${room.code}` : '/promotion'"
-            class="inline-flex min-h-12 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-primary-container px-4 text-[0.82rem] font-black text-white transition-transform active:scale-95"
-          >
-            {{ room.status === 'OPEN' ? 'Vào phòng' : 'Sắp mở' }}
+          :to="room.status === 'OPEN' ? { path: `/play/${room.code}`, query: { from: route.fullPath } } : '/promotion'"
+          class="inline-flex min-h-12 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-primary-container px-4 text-[0.82rem] font-black text-white transition-transform active:scale-95"
+        >
+            {{ room.status === 'OPEN' ? 'Vào chơi' : 'Chờ mở' }}
           </RouterLink>
         </div>
       </article>

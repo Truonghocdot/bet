@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { request, type ApiError } from '@/shared/api/http'
+import { connectEventStream, type StreamConnection } from '@/shared/api/stream'
 import type {
   PlayRoomBetHistoryResponse,
   PlayRoomBetResponse,
@@ -27,36 +28,59 @@ const connectionId = ref('')
 const joinLoading = ref(false)
 const joinError = ref('')
 const betMessage = ref('')
+const betMessageRoomCode = ref('')
 const betLoading = ref(false)
 const selectedMultiplier = ref(10)
 const selectedOptions = reactive<Record<string, string>>({})
 const roomState = ref<PlayRoomStateResponse | null>(null)
 const historyRows = ref<PlayRoomHistoryResponse['items']>([])
 const mineRows = ref<PlayRoomBetHistoryResponse['items']>([])
+const chartRows = ref<PlayRoomHistoryResponse['items']>([])
 const historyPage = ref(1)
 const historyTotalPages = ref(1)
 const minePage = ref(1)
 const mineTotalPages = ref(1)
 const historyLoading = ref(false)
 const mineLoading = ref(false)
+const chartLoading = ref(false)
 const historyError = ref('')
 const mineError = ref('')
+const chartError = ref('')
 const roomStateLoading = ref(false)
 const roomStateError = ref('')
 const serverTimeOffsetMs = ref(0)
 const clockTick = ref(Date.now())
+const seenSettlementPeriods = new Set<string>()
+const countdownTargetMs = ref(0)
+const countdownTargetPeriodNo = ref('')
+const countdownCachePrefix = 'ff789:play-countdown:'
 
 // Bet modal state
 const showBetModal = ref(false)
 const modalBetLabel = ref('')
 const modalBetKey = ref('')
 const modalBetGroupTitle = ref('')
-const modalBetAmount = ref(10000)
-const betPresets = [10000, 50000, 100000, 500000, 1000000]
+const baseChipAmount = 1000
+const modalBetAmount = ref(baseChipAmount * 10)
+const betPresets = [1000, 5000, 10000, 50000, 100000]
+
+// Result modal state
+const showResultModal = ref(false)
+const resultModalPeriodNo = ref('')
+const resultModalTitle = ref('')
+const resultModalDescription = ref('')
+const resultModalAmount = ref('')
+const resultModalTone = ref<'win' | 'lose' | 'draw'>('draw')
+const resultModalSettledAt = ref('')
+const resultModalStake = ref('')
+const resultModalPayout = ref('')
+const showTicketDetailModal = ref(false)
+const selectedTicketDetail = ref<PlayRoomBetHistoryResponse['items'][number] | null>(null)
 
 const stakeOptions = [1, 5, 10, 20, 50] as const
 const tablePageSize = 4
 let timer: number | undefined
+let roomStreamConnection: StreamConnection | null = null
 
 const room = computed<PlayRoom | null>(() => getPlayRoom(String(route.params.game ?? 'wingo')) ?? null)
 const isK3 = computed(() => room.value?.code === 'k3')
@@ -71,6 +95,32 @@ const selectedRoomCode = computed(() => {
   return `${room.value.code}_${selectedVariant.value.code}`
 })
 
+const backTarget = computed(() => {
+  const from = typeof route.query.from === 'string' ? route.query.from.trim() : ''
+  const cached = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('ff789:last-route') ?? '' : ''
+  const candidate = from || cached || '/play'
+  if (!candidate || candidate === '/') return '/'
+  if (candidate === '/auth' || candidate.startsWith('/auth?')) return '/'
+  return candidate
+})
+
+function navigateBack() {
+  const target = backTarget.value
+  const hasRealHistory = typeof window !== 'undefined' && window.history.length > 1
+
+  if (route.query.from || sessionStorage.getItem('ff789:last-route')) {
+    void router.push(target)
+    return
+  }
+
+  if (hasRealHistory) {
+    void router.back()
+    return
+  }
+
+  void router.push(target)
+}
+
 const walletVnd = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
 const walletUsdt = computed(() => wallet.wallets.find((item) => item.unit === 2) ?? null)
 const availableVndBalance = computed(() => {
@@ -81,8 +131,96 @@ const availableVndBalance = computed(() => {
 const canPlay = computed(() => availableVndBalance.value > 0)
 const currentPeriod = computed(() => roomState.value?.current_period ?? null)
 const syncedNow = computed(() => clockTick.value + serverTimeOffsetMs.value)
-const currentPeriodDrawAtMs = computed(() => currentPeriod.value ? new Date(currentPeriod.value.draw_at).getTime() : 0)
+const expectedPeriodSeconds = computed(() => selectedVariant.value?.countdownSeconds ?? 0)
 const currentPeriodBetLockAtMs = computed(() => currentPeriod.value ? new Date(currentPeriod.value.bet_lock_at).getTime() : 0)
+const visibleBetMessage = computed(() => {
+  if (!betMessage.value) return ''
+  if (!selectedRoomCode.value) return ''
+  return betMessageRoomCode.value === selectedRoomCode.value ? betMessage.value : ''
+})
+
+function resetTransientRoomUiState() {
+  joinError.value = ''
+  betMessage.value = ''
+  betMessageRoomCode.value = ''
+}
+
+function countdownCacheKey(roomCode: string) {
+  return `${countdownCachePrefix}${roomCode}`
+}
+
+function readCountdownCache(roomCode: string) {
+  if (typeof window === 'undefined' || !roomCode) return null
+  try {
+    const raw = window.sessionStorage.getItem(countdownCacheKey(roomCode))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { period_no?: string; target_ms?: number }
+    if (!parsed?.period_no || !Number.isFinite(parsed.target_ms)) return null
+    return { periodNo: String(parsed.period_no), targetMs: Number(parsed.target_ms) }
+  } catch {
+    return null
+  }
+}
+
+function writeCountdownCache(roomCode: string, periodNo: string, targetMs: number) {
+  if (typeof window === 'undefined' || !roomCode || !periodNo || !Number.isFinite(targetMs)) return
+  try {
+    window.sessionStorage.setItem(
+      countdownCacheKey(roomCode),
+      JSON.stringify({ period_no: periodNo, target_ms: targetMs }),
+    )
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function clearCountdownCache(roomCode: string) {
+  if (typeof window === 'undefined' || !roomCode) return
+  try {
+    window.sessionStorage.removeItem(countdownCacheKey(roomCode))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | null, nowMs = Date.now(), force = false) {
+  if (!period) {
+    countdownTargetMs.value = 0
+    countdownTargetPeriodNo.value = ''
+    return
+  }
+
+  const periodNo = String(period.period_no ?? '')
+  const rawDrawAtMs = Number(new Date(period.draw_at).getTime())
+  const expectedSeconds = Math.max(1, expectedPeriodSeconds.value || 30)
+  const fallbackTargetMs = nowMs + expectedSeconds * 1000
+  const maxReasonableMs = nowMs + Math.max(expectedSeconds * 3, 30) * 1000
+  const cached = readCountdownCache(selectedRoomCode.value)
+
+  if (!periodNo) {
+    countdownTargetMs.value = fallbackTargetMs
+    countdownTargetPeriodNo.value = ''
+    return
+  }
+
+  if (!force && countdownTargetPeriodNo.value === periodNo && countdownTargetMs.value > 0) {
+    return
+  }
+
+  if (cached?.periodNo === periodNo && cached.targetMs > nowMs) {
+    countdownTargetMs.value = cached.targetMs
+    countdownTargetPeriodNo.value = periodNo
+    return
+  }
+
+  if (Number.isFinite(rawDrawAtMs) && rawDrawAtMs > 0 && rawDrawAtMs <= maxReasonableMs) {
+    countdownTargetMs.value = rawDrawAtMs
+  } else {
+    countdownTargetMs.value = fallbackTargetMs
+  }
+  countdownTargetPeriodNo.value = periodNo
+  writeCountdownCache(selectedRoomCode.value, periodNo, countdownTargetMs.value)
+}
 const isBetLocked = computed(() => {
   if (!currentPeriod.value) return true
   if ((currentPeriod.value.status || '').toUpperCase() !== 'OPEN') return true
@@ -91,8 +229,8 @@ const isBetLocked = computed(() => {
 const canBet = computed(() => canPlay.value && !isBetLocked.value)
 
 const remainingSeconds = computed(() => {
-  if (!currentPeriod.value) return 0
-  return Math.max(0, Math.ceil((currentPeriodDrawAtMs.value - syncedNow.value) / 1000))
+  if (!currentPeriod.value || countdownTargetMs.value <= 0) return 0
+  return Math.max(0, Math.ceil((countdownTargetMs.value - syncedNow.value) / 1000))
 })
 
 const countdownParts = computed(() => {
@@ -124,7 +262,18 @@ const stakeLabel = computed(() => formatMoney(Number(stakeAmount.value)))
 const currentBalanceLabel = computed(() => formatMoney(walletVnd.value?.balance ?? 0))
 const lockedBalanceLabel = computed(() => formatMoney(walletVnd.value?.locked_balance ?? 0))
 
-const recentResults = computed(() => roomState.value?.recent_results.slice(0, 5) ?? [])
+const recentResults = computed(() => roomState.value?.recent_results?.slice(0, 5) ?? [])
+const chartSeries = computed(() =>
+  chartRows.value.map((row, index) => ({
+    ...row,
+    periodNo: row.period_no ?? '',
+    index,
+    value: chartValue(row),
+    label: chartSummaryLabel(row),
+    barClass: chartBarClass(row),
+  })),
+)
+const chartMaxValue = computed(() => Math.max(1, ...chartSeries.value.map((row) => row.value)))
 const periodHistory = computed(() => {
   if (activeHistoryTab.value === 'mine') return mineRows.value
   return historyRows.value
@@ -177,14 +326,154 @@ function diceColor(n: number): string {
 }
 
 // WinGo number color
-function wingoBallColor(n: number): string {
-  if (n === 0 || n === 5) return 'linear-gradient(135deg, #8b5cf6, #e8404a)'
-  if (n >= 1 && n <= 4) return '#e8404a'
-  return '#10b981'
+function wingoBallBackground(n: number): string {
+  const gloss = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%)'
+  const zigZagA = 'repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px)'
+  const zigZagB = 'repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px)'
+
+  if (n === 0) {
+    return `${gloss}, ${zigZagA}, ${zigZagB}, linear-gradient(135deg, #e64545 0%, #ef6b73 38%, #8b5cf6 62%, #6f3de8 100%)`
+  }
+  if (n === 5) {
+    return `${gloss}, ${zigZagA}, ${zigZagB}, linear-gradient(135deg, #24b561 0%, #59d88a 38%, #8b5cf6 62%, #6f3de8 100%)`
+  }
+  if (n % 2 === 0) {
+    return `${gloss}, ${zigZagA}, ${zigZagB}, linear-gradient(135deg, #ff8a92 0%, #e64545 48%, #c92b38 100%)`
+  }
+  return `${gloss}, ${zigZagA}, ${zigZagB}, linear-gradient(135deg, #73e7a0 0%, #24b561 48%, #149454 100%)`
+}
+
+function wingoNumberTextStyle(n: number) {
+  if (n === 0) {
+    return {
+      backgroundImage: 'linear-gradient(135deg, #8b5cf6, #e8404a)',
+      WebkitBackgroundClip: 'text',
+      backgroundClip: 'text',
+      color: 'transparent',
+      WebkitTextFillColor: 'transparent',
+    } as const
+  }
+  if (n === 5) {
+    return {
+      backgroundImage: 'linear-gradient(135deg, #8b5cf6, #24b561)',
+      WebkitBackgroundClip: 'text',
+      backgroundClip: 'text',
+      color: 'transparent',
+      WebkitTextFillColor: 'transparent',
+    } as const
+  }
+  return { color: n % 2 === 0 ? '#e64545' : '#24b561' }
 }
 
 function formatMoney(value: string | number | null | undefined, fractionDigits = 0) {
   return formatViMoney(value ?? 0, fractionDigits)
+}
+
+function formatSignedMoney(value: string | number | null | undefined) {
+  const numeric = Number(value ?? 0)
+  if (Number.isNaN(numeric)) return '0'
+  const prefix = numeric > 0 ? '+' : numeric < 0 ? '-' : ''
+  return `${prefix}${formatMoney(Math.abs(numeric))}đ`
+}
+
+function toFiniteNumber(value: string | number | null | undefined) {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function rowStatusValue(row: PlayRoomBetHistoryResponse['items'][number]) {
+  return String(row.status || '').toUpperCase()
+}
+
+function rowOriginalAmountValue(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const original = toFiniteNumber(row.original_amount)
+  if (original > 0) return original
+  return toFiniteNumber(row.stake)
+}
+
+function rowTaxAmountValue(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const tax = toFiniteNumber(row.tax_amount)
+  if (tax > 0) return tax
+  const original = rowOriginalAmountValue(row)
+  if (original <= 0) return 0
+  return original * 0.02
+}
+
+function rowNetAmountValue(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const net = toFiniteNumber(row.net_amount)
+  if (net > 0) return net
+  return Math.max(0, rowOriginalAmountValue(row) - rowTaxAmountValue(row))
+}
+
+function rowWinCreditValue(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const expected = Math.max(0, (rowOriginalAmountValue(row) * 2) - rowTaxAmountValue(row))
+  const actual = toFiniteNumber(row.actual_payout)
+  if (rowStatusValue(row) === 'WON') {
+    if (expected > 0) return expected
+    return actual
+  }
+  return actual
+}
+
+function rowProfitLossValue(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const profitLoss = toFiniteNumber(row.profit_loss)
+  if (profitLoss !== 0) return profitLoss
+
+  const status = rowStatusValue(row)
+  if (status === 'WON') {
+    return rowWinCreditValue(row) - rowOriginalAmountValue(row)
+  }
+  if (status === 'LOST') {
+    return -rowOriginalAmountValue(row)
+  }
+  return 0
+}
+
+function normalizeBetLabel(value: string | null | undefined) {
+  const raw = String(value ?? '').trim()
+  if (!raw || raw === '—') return '—'
+
+  const lower = raw.toLowerCase()
+  if (lower.startsWith('number_')) {
+    const number = lower.replace('number_', '').trim()
+    return number ? `Số ${number}` : 'Số'
+  }
+  if (lower === 'big') return 'Lớn'
+  if (lower === 'small') return 'Nhỏ'
+  if (lower === 'odd') return 'Lẻ'
+  if (lower === 'even') return 'Chẵn'
+  if (lower === 'green') return 'Xanh'
+  if (lower === 'red') return 'Đỏ'
+  if (lower === 'violet') return 'Tím'
+  if (lower === 'red_violet') return 'Đỏ / Tím'
+  if (lower === 'green_violet') return 'Xanh / Tím'
+
+  return raw.replaceAll('_', ' ')
+}
+
+function rowMainLabel(row: PlayRoomBetHistoryResponse['items'][number]) {
+  return normalizeBetLabel(row.big_small || row.color || row.result || '—')
+}
+
+function rowSubLabel(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const normalizedResult = normalizeBetLabel(row.result)
+  if (normalizedResult && normalizedResult !== '—') return normalizedResult
+  return 'Lệnh đang chờ kết quả'
+}
+
+function rowStatusText(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const status = rowStatusValue(row)
+  if (status === 'WON') return `Thắng +${formatMoney(rowWinCreditValue(row))}đ`
+  if (status === 'LOST') return `Thua ${formatSignedMoney(rowProfitLossValue(row))}`
+  if (status === 'PENDING') return 'Đang chờ chốt kỳ'
+  return status || 'Đang xử lý'
+}
+
+function rowStatusClass(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const status = rowStatusValue(row)
+  if (status === 'WON') return 'text-[#10b981]'
+  if (status === 'LOST') return 'text-slate-400'
+  return 'text-amber-500'
 }
 
 function currentPage() {
@@ -211,6 +500,7 @@ function ensureDefaultSelections(variant: PlayVariant | null) {
     }
   })
   selectedMultiplier.value = 10
+  modalBetAmount.value = baseChipAmount * selectedMultiplier.value
 }
 
 async function loadWallet() {
@@ -222,15 +512,89 @@ async function loadWallet() {
   }
 }
 
+function applyServerClock(serverTime: string, requestMidpoint = Date.now()) {
+  const serverTimeMs = new Date(serverTime).getTime()
+  if (!Number.isFinite(serverTimeMs) || serverTimeMs <= 0) return
+  serverTimeOffsetMs.value = serverTimeMs - requestMidpoint
+  clockTick.value = Date.now()
+}
+
+async function applyRoomStateResponse(
+  response: PlayRoomStateResponse,
+  options: {
+    requestStartedAt?: number
+    requestFinishedAt?: number
+    forceRebaseClock?: boolean
+  } = {},
+) {
+  const previousPeriod = roomState.value?.current_period ?? null
+  const previousPeriodNo = previousPeriod?.period_no ?? ''
+  const nextPeriodNo = response.current_period?.period_no ?? ''
+  const shouldRebaseClock = options.forceRebaseClock || !roomState.value || previousPeriodNo !== nextPeriodNo
+
+  roomState.value = response
+
+  if (shouldRebaseClock) {
+    const midpoint =
+      options.requestStartedAt !== undefined && options.requestFinishedAt !== undefined
+        ? options.requestStartedAt + Math.max(0, Math.floor((options.requestFinishedAt - options.requestStartedAt) / 2))
+        : Date.now()
+    applyServerClock(response.server_time, midpoint)
+  }
+
+  syncCountdownTarget(response.current_period, shouldRebaseClock ? clockTick.value : Date.now(), shouldRebaseClock)
+  await maybeShowSettlementModal(previousPeriod, response.current_period)
+
+  if (previousPeriodNo && previousPeriodNo !== nextPeriodNo) {
+    if (activeHistoryTab.value === 'chart') {
+      void loadChartHistory()
+    } else if (activeHistoryTab.value === 'history') {
+      void loadRoomHistory(1)
+    }
+  }
+}
+
+function disconnectRoomStateStream() {
+  roomStreamConnection?.close()
+  roomStreamConnection = null
+}
+
+function connectRoomStateStream(roomCode: string) {
+  if (!roomCode) return
+
+  disconnectRoomStateStream()
+  roomStreamConnection = connectEventStream(`/v1/play/rooms/${roomCode}/stream`, {
+    reconnectMs: 2500,
+    onEvent(payload) {
+      if (payload.event === 'room.clock') {
+        applyServerClock(String(payload.data?.server_time ?? ''))
+        return
+      }
+
+      if (payload.event === 'room.state') {
+        roomStateError.value = ''
+        void applyRoomStateResponse(payload.data as PlayRoomStateResponse)
+      }
+    },
+    onError(errorValue) {
+      const err = errorValue as ApiError
+      roomStateError.value = err?.message ?? 'Kết nối realtime phòng chơi đang được nối lại'
+    },
+  })
+}
+
 async function loadRoomState(roomCode = selectedRoomCode.value) {
   if (!roomCode) return
   roomStateLoading.value = true
   roomStateError.value = ''
   try {
+    const startedAt = Date.now()
     const response = await request<PlayRoomStateResponse>('GET', `/v1/play/rooms/${roomCode}/state`)
-    roomState.value = response
-    serverTimeOffsetMs.value = new Date(response.server_time).getTime() - Date.now()
-    clockTick.value = Date.now()
+    const finishedAt = Date.now()
+    await applyRoomStateResponse(response, {
+      requestStartedAt: startedAt,
+      requestFinishedAt: finishedAt,
+    })
   } catch (error: unknown) {
     const err = error as ApiError
     roomStateError.value = err?.message ?? 'Không thể tải trạng thái phòng chơi'
@@ -262,6 +626,26 @@ async function loadRoomHistory(page = historyPage.value) {
   }
 }
 
+async function loadChartHistory() {
+  if (!selectedRoomCode.value) return
+  chartLoading.value = true
+  chartError.value = ''
+  try {
+    const response = await request<PlayRoomHistoryResponse>(
+      'GET',
+      `/v1/play/rooms/${selectedRoomCode.value}/history?page=1&page_size=24`,
+      {},
+    )
+    chartRows.value = response.items
+  } catch (error: unknown) {
+    const err = error as ApiError
+    chartError.value = err?.message ?? 'Không thể tải dữ liệu biểu đồ'
+    chartRows.value = []
+  } finally {
+    chartLoading.value = false
+  }
+}
+
 async function loadMineHistory(page = minePage.value) {
   if (!selectedRoomCode.value || !auth.accessToken) return
   mineLoading.value = true
@@ -284,9 +668,66 @@ async function loadMineHistory(page = minePage.value) {
   }
 }
 
+async function maybeShowSettlementModal(
+  previousPeriod: PlayRoomStateResponse['current_period'] | null,
+  nextPeriod: PlayRoomStateResponse['current_period'] | null,
+) {
+  if (!nextPeriod || !auth.accessToken) return
+
+  const nextPeriodNo = nextPeriod.period_no
+  const targetPeriodNo =
+    nextPeriodNo && previousPeriod && previousPeriod.period_no !== nextPeriodNo
+      ? previousPeriod.period_no
+      : String(nextPeriod.status ?? '').toUpperCase() === 'SETTLED'
+        ? nextPeriodNo
+        : ''
+
+  if (!targetPeriodNo || seenSettlementPeriods.has(targetPeriodNo)) {
+    return
+  }
+
+  await loadMineHistory(1)
+  const settledRow = mineRows.value.find((row) => row.period_no === targetPeriodNo)
+  if (!settledRow) return
+  if (!['WON', 'LOST', 'VOID', 'HALF_WON', 'HALF_LOST', 'CANCELED', 'CASHED_OUT'].includes(String(settledRow.status ?? '').toUpperCase())) {
+    return
+  }
+
+  try {
+    await wallet.fetchSummary()
+  } catch {
+    // ignore wallet refresh error for modal flow
+  }
+
+  seenSettlementPeriods.add(targetPeriodNo)
+  resultModalPeriodNo.value = settledRow.period_no
+  resultModalTitle.value = settledRow.status === 'WON' ? 'Kỳ này bạn đã thắng' : 'Kỳ này đã kết quả'
+  resultModalDescription.value = settledRow.status === 'WON'
+    ? 'Tiền thắng đã cộng về số dư ví.'
+    : settledRow.status === 'LOST'
+      ? 'Lệnh của bạn chưa trúng kỳ này.'
+      : 'Kết quả đã được cập nhật.'
+  resultModalTone.value = settledRow.status === 'WON' ? 'win' : settledRow.status === 'LOST' ? 'lose' : 'draw'
+  resultModalStake.value = formatMoney(rowOriginalAmountValue(settledRow))
+  resultModalPayout.value = formatMoney(rowWinCreditValue(settledRow))
+  if (rowStatusValue(settledRow) === 'WON') {
+    resultModalAmount.value = `+${formatMoney(rowWinCreditValue(settledRow))}đ`
+  } else if (rowStatusValue(settledRow) === 'LOST') {
+    resultModalAmount.value = `-${formatMoney(rowOriginalAmountValue(settledRow))}đ`
+  } else {
+    resultModalAmount.value = formatSignedMoney(rowProfitLossValue(settledRow))
+  }
+  resultModalSettledAt.value = settledRow.settled_at ?? settledRow.created_at
+  showResultModal.value = true
+}
+
 async function loadActiveHistory(page = currentPage()) {
   if (activeHistoryTab.value === 'mine') {
     await loadMineHistory(page)
+    return
+  }
+  if (activeHistoryTab.value === 'chart') {
+    await loadChartHistory()
     return
   }
   await loadRoomHistory(page)
@@ -316,11 +757,17 @@ async function joinRoom() {
 }
 
 function openBetModal(groupTitle: string, optionKey: string, optionLabel: string) {
+  if (!canBet.value) return
   modalBetGroupTitle.value = groupTitle
   modalBetKey.value = optionKey
   modalBetLabel.value = optionLabel
-  modalBetAmount.value = 10000
+  modalBetAmount.value = baseChipAmount * selectedMultiplier.value
   showBetModal.value = true
+}
+
+function applyChipMultiplier(multiplier: number) {
+  selectedMultiplier.value = multiplier
+  modalBetAmount.value = baseChipAmount * multiplier
 }
 
 function selectOption(groupTitle: string, key: string, label: string) {
@@ -342,22 +789,26 @@ function groupTypeKey(group: PlayBetGroup): string {
 async function confirmBet() {
   if (!room.value || !selectedVariant.value || !auth.accessToken || !connectionId.value) {
     betMessage.value = 'Vui lòng đăng nhập và vào phòng chơi trước.'
+    betMessageRoomCode.value = selectedRoomCode.value
     showBetModal.value = false
     return
   }
   if (isBetLocked.value) {
     betMessage.value = 'Kỳ hiện tại đã khóa, không thể đặt lệnh.'
+    betMessageRoomCode.value = selectedRoomCode.value
     showBetModal.value = false
     return
   }
   if (!currentPeriod.value) {
     betMessage.value = 'Chưa có kỳ hiện tại.'
+    betMessageRoomCode.value = selectedRoomCode.value
     showBetModal.value = false
     return
   }
 
   betLoading.value = true
   betMessage.value = ''
+  betMessageRoomCode.value = ''
   showBetModal.value = false
 
   try {
@@ -376,17 +827,66 @@ async function confirmBet() {
       },
     })
     betMessage.value = res.message || 'Lệnh đã được tiếp nhận'
+    betMessageRoomCode.value = selectedRoomCode.value
     await wallet.fetchSummary()
     await loadActiveHistory()
   } catch (error: unknown) {
     const err = error as ApiError
     betMessage.value = err?.message ?? 'Không thể gửi lệnh cược'
+    betMessageRoomCode.value = selectedRoomCode.value
   } finally {
     betLoading.value = false
   }
 }
 
+function chartValue(row: PlayRoomHistoryResponse['items'][number]) {
+  const raw = String(row.result ?? '')
+  if (isK3.value) {
+    return raw.split('-').map((item) => Number(item)).reduce((total, item) => total + (Number.isFinite(item) ? item : 0), 0)
+  }
+  if (room.value?.code === 'lottery') {
+    return raw.split('').map((item) => Number(item)).reduce((total, item) => total + (Number.isFinite(item) ? item : 0), 0)
+  }
+  return Number(raw) || 0
+}
+
+function chartSummaryLabel(row: PlayRoomHistoryResponse['items'][number]) {
+  if (row.big_small) return row.big_small
+  if (row.color) return row.color
+  return row.result || '—'
+}
+
+function chartBarClass(row: PlayRoomHistoryResponse['items'][number]) {
+  const label = String(row.big_small || row.color || row.result || '').toLowerCase()
+  if (label.includes('xanh')) return 'bg-[#24b561]'
+  if (label.includes('đỏ')) return 'bg-[#e64545]'
+  if (label.includes('tím')) return 'bg-[#8b5cf6]'
+  if (label.includes('lớn') || label.includes('big')) return 'bg-primary'
+  if (label.includes('nhỏ') || label.includes('small')) return 'bg-[#3b82f6]'
+  return 'bg-slate-400'
+}
+
+function openResultModal() {
+  showResultModal.value = true
+}
+
+function closeResultModal() {
+  showResultModal.value = false
+}
+
+function openTicketDetail(row: PlayRoomBetHistoryResponse['items'][number]) {
+  selectedTicketDetail.value = row
+  showTicketDetailModal.value = true
+}
+
+function closeTicketDetail() {
+  showTicketDetailModal.value = false
+  selectedTicketDetail.value = null
+}
+
 function resultDotClass(label: string) {
+  if (label.toLowerCase().includes('green_violet')) return 'bg-[#24b561]'
+  if (label.toLowerCase().includes('red_violet')) return 'bg-[#e64545]'
   if (label.toLowerCase().includes('xanh')) return 'bg-[#24b561]'
   if (label.toLowerCase().includes('đỏ')) return 'bg-[#e64545]'
   if (label.toLowerCase().includes('tím')) return 'bg-[#8b5cf6]'
@@ -394,15 +894,75 @@ function resultDotClass(label: string) {
 }
 
 function resultBadgeClass(label: string) {
+  if (label.toLowerCase().includes('green_violet') || label.toLowerCase().includes('red_violet')) {
+    return 'border-transparent text-white'
+  }
   if (label.toLowerCase().includes('xanh')) return 'border-[#24b561] bg-[#24b561] text-white'
   if (label.toLowerCase().includes('đỏ')) return 'border-[#e64545] bg-[#e64545] text-white'
-  if (label.toLowerCase().includes('tím')) return 'border-[#8b5cf6] bg-[#8b5cf6] text-white'
+  if (label.toLowerCase().includes('tím')) return 'border-[#8b5cf6] text-white'
   return 'border-primary bg-primary text-white'
+}
+
+function resultBadgeStyle(label: string) {
+  if (label.toLowerCase().includes('red_violet')) {
+    return { background: 'linear-gradient(135deg, #e64545, #8b5cf6)' }
+  }
+  if (label.toLowerCase().includes('green_violet')) {
+    return { background: 'linear-gradient(135deg, #24b561, #8b5cf6)' }
+  }
+  if (label.toLowerCase().includes('tím')) {
+    return { background: 'linear-gradient(135deg, #8b5cf6, #e8404a)' }
+  }
+  return {}
+}
+
+function extractWingoNumber(value: string | null | undefined): number | null {
+  const raw = String(value ?? '').trim().toLowerCase()
+  if (!raw) return null
+
+  let parsed = Number.NaN
+  if (raw.startsWith('number_')) {
+    parsed = Number.parseInt(raw.replace('number_', ''), 10)
+  } else {
+    parsed = Number.parseInt(raw, 10)
+  }
+
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 9) return null
+  return parsed
+}
+
+function wingoTicketBallBackground(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const numberFromResult = extractWingoNumber(row.result)
+  if (numberFromResult !== null) return wingoBallBackground(numberFromResult)
+
+  const byColor = normalizeBetLabel(row.color)
+  if (byColor.includes('Tím')) return 'linear-gradient(135deg, #8b5cf6, #e8404a)'
+  if (byColor.includes('Xanh')) return '#24b561'
+  if (byColor.includes('Đỏ')) return '#e64545'
+
+  const main = rowMainLabel(row)
+  if (main.includes('Lớn')) return '#f6c32d'
+  if (main.includes('Nhỏ')) return '#24b561'
+  return '#94a3b8'
+}
+
+function wingoTicketBallText(row: PlayRoomBetHistoryResponse['items'][number]) {
+  const numberFromResult = extractWingoNumber(row.result)
+  if (numberFromResult !== null) return String(numberFromResult)
+
+  const main = rowMainLabel(row)
+  if (main.includes('Xanh')) return 'X'
+  if (main.includes('Đỏ')) return 'Đ'
+  if (main.includes('Tím')) return 'T'
+  if (main.includes('Lớn')) return 'L'
+  if (main.includes('Nhỏ')) return 'N'
+  return '•'
 }
 
 watch(
   () => room.value?.code,
   async () => {
+    resetTransientRoomUiState()
     if (!room.value) return
     if (room.value.variants.length === 0) {
       activeVariantCode.value = ''
@@ -421,10 +981,15 @@ watch(
 watch(
   () => selectedRoomCode.value,
   async (roomCode) => {
-    if (!roomCode) return
+    if (!roomCode) {
+      disconnectRoomStateStream()
+      return
+    }
+    resetTransientRoomUiState()
     historyPage.value = 1
     minePage.value = 1
     await loadRoomState(roomCode)
+    connectRoomStateStream(roomCode)
     await loadActiveHistory(1)
   },
   { immediate: true },
@@ -432,8 +997,26 @@ watch(
 
 watch(
   () => selectedVariant.value?.code,
-  () => { ensureDefaultSelections(selectedVariant.value) },
+  () => {
+    resetTransientRoomUiState()
+    ensureDefaultSelections(selectedVariant.value)
+  },
   { immediate: true },
+)
+
+watch(
+  () => currentPeriod.value?.period_no,
+  () => {
+    syncCountdownTarget(currentPeriod.value, clockTick.value)
+  },
+  { immediate: true },
+)
+
+watch(
+  () => expectedPeriodSeconds.value,
+  () => {
+    syncCountdownTarget(currentPeriod.value, clockTick.value, true)
+  },
 )
 
 watch(
@@ -446,14 +1029,18 @@ onMounted(() => {
   timer = window.setInterval(() => { clockTick.value = Date.now() }, 1000)
 })
 
-onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
+onBeforeUnmount(() => {
+  if (timer) window.clearInterval(timer)
+  disconnectRoomStateStream()
+})
 </script>
 
 <template>
-  <div v-if="room && selectedVariant" class="min-h-dvh pb-28" style="background: #f7f0f0;">
+  <div class="min-h-dvh bg-[#f7f0f0]">
+    <div v-if="room && selectedVariant" class="min-h-dvh pb-28">
     <!-- ===== HEADER GRADIENT ===== -->
     <header class="flex items-center justify-between bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] px-4 py-3 text-white shadow-lg">
-      <button class="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white transition-transform active:scale-95" type="button" @click="router.push('/play')">
+      <button class="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white transition-transform active:scale-95" type="button" @click="navigateBack">
         <span class="material-symbols-outlined text-[1.6rem]">arrow_back</span>
       </button>
       <div class="min-w-0 flex-1 text-center">
@@ -507,14 +1094,14 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
 
     <!-- ===== PERIOD TABS ===== -->
     <div class="mx-0 mt-2 flex bg-white border-b border-slate-100 px-2 py-2 gap-1">
-      <button
-        v-for="variant in room.variants"
-        :key="variant.code"
-        type="button"
+          <button
+            v-for="variant in room.variants"
+            :key="variant.code"
+            type="button"
         class="flex flex-1 flex-col items-center gap-1.5 rounded-[14px] py-2 px-1 transition-all active:scale-[0.97]"
         :class="variant.code === selectedVariant.code ? 'bg-[#e8404a]' : 'bg-transparent'"
-        @click="activeVariantCode = variant.code"
-      >
+            @click="activeVariantCode = variant.code"
+          >
         <div
           class="grid h-9 w-9 place-items-center rounded-full border-2 transition-all"
           :class="variant.code === selectedVariant.code ? 'border-white/40 bg-white/20' : 'border-slate-200 bg-slate-50'"
@@ -604,7 +1191,7 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
             v-for="result in recentResults"
             :key="result.period_no"
             class="flex h-7 w-7 items-center justify-center rounded-full text-[0.75rem] font-black text-white flex-shrink-0"
-            :style="{ background: wingoBallColor(Number(result.result)) }"
+            :style="{ background: wingoBallBackground(Number(result.result)) }"
           >{{ result.result }}</div>
           <div class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400 flex-shrink-0">
             <span class="material-symbols-outlined text-[0.9rem]">chevron_right</span>
@@ -618,7 +1205,7 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
             :key="i"
             class="flex h-20 w-20 items-center justify-center rounded-[14px] bg-white border-2 border-[#f0e0e0] shadow-md"
           >
-            <span class="text-[3rem] font-black leading-none" :style="{ color: wingoBallColor(n) !== 'linear-gradient(135deg, #8b5cf6, #e8404a)' ? wingoBallColor(n) : '#8b5cf6' }">
+            <span class="text-[3rem] font-black leading-none" :style="wingoNumberTextStyle(n)">
               {{ n }}
             </span>
           </div>
@@ -646,14 +1233,15 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
         <div v-for="group in activeK3Groups" :key="group.title">
           <!-- Grid mode: circles with odds (Tổng số, 2 số trùng, 3 số trùng) -->
           <div v-if="group.mode === 'grid'" class="grid grid-cols-4 gap-2 mb-3">
-            <button
-              v-for="option in group.options"
-              :key="option.key"
-              type="button"
-              class="flex flex-col items-center justify-center aspect-square rounded-full text-white transition-transform active:scale-95 hover:opacity-90 gap-0.5 p-1"
-              :style="{ background: option.accent }"
-              @click="selectOption(group.title, option.key, option.label)"
-            >
+              <button
+                v-for="option in group.options"
+                :key="option.key"
+                type="button"
+                class="flex flex-col items-center justify-center aspect-square rounded-full text-white transition-transform active:scale-95 hover:opacity-90 gap-0.5 p-1 disabled:cursor-not-allowed disabled:opacity-50"
+                :style="{ background: option.accent }"
+                :disabled="!canBet"
+                @click="selectOption(group.title, option.key, option.label)"
+              >
               <span class="text-[0.9rem] font-black leading-tight">{{ option.label }}</span>
               <span v-if="option.odds" class="text-[0.55rem] font-semibold opacity-85">{{ option.odds }}</span>
             </button>
@@ -666,8 +1254,9 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
                 v-for="option in group.options"
                 :key="option.key"
                 type="button"
-                class="flex flex-col items-center justify-center rounded-[10px] py-3 text-white font-black text-[0.82rem] transition-all active:scale-95"
+                class="flex flex-col items-center justify-center rounded-[10px] py-3 text-white font-black text-[0.82rem] transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 :style="{ background: option.accent }"
+                :disabled="!canBet"
                 @click="selectOption(group.title, option.key, option.label)"
               >
                 {{ option.label }}
@@ -679,8 +1268,9 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
                 v-for="option in group.options"
                 :key="option.key"
                 type="button"
-                class="rounded-[10px] px-4 py-2.5 text-white text-[0.82rem] font-bold transition-all active:scale-95 flex-1"
+                class="rounded-[10px] px-4 py-2.5 text-white text-[0.82rem] font-bold transition-all active:scale-95 flex-1 disabled:cursor-not-allowed disabled:opacity-50"
                 :style="{ background: option.accent }"
+                :disabled="!canBet"
                 @click="selectOption(group.title, option.key, option.label)"
               >
                 {{ option.label }}
@@ -699,8 +1289,9 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
             v-for="option in colorGroup.options"
             :key="option.key"
             type="button"
-            class="min-h-[48px] rounded-[10px] text-[0.9rem] font-black text-white transition-transform active:scale-95"
+            class="min-h-[48px] rounded-[10px] text-[0.9rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             :style="{ background: option.accent }"
+            :disabled="!canBet"
             @click="selectOption(colorGroup.title, option.key, option.label)"
           >{{ option.label }}</button>
         </div>
@@ -711,8 +1302,9 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
             v-for="option in numberGroup.options"
             :key="option.key"
             type="button"
-            class="aspect-square rounded-full text-[1rem] font-black text-white transition-transform active:scale-95 hover:scale-105"
+            class="aspect-square rounded-full text-[1rem] font-black text-white transition-transform active:scale-95 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
             :style="{ background: option.accent }"
+            :disabled="!canBet"
             @click="selectOption(numberGroup.title, option.key, option.label)"
           >{{ option.label }}</button>
         </div>
@@ -725,7 +1317,7 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
             type="button"
             class="flex-shrink-0 rounded-[8px] border-[1.5px] px-3 py-1.5 text-[0.78rem] font-black transition-all"
             :class="multiplier === selectedMultiplier ? 'border-primary bg-[#fff5f5] text-primary' : 'border-slate-200 bg-slate-50 text-slate-500'"
-            @click="selectedMultiplier = multiplier"
+            @click="applyChipMultiplier(multiplier)"
           >X{{ multiplier }}</button>
         </div>
 
@@ -735,8 +1327,9 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
             v-for="option in bigSmallGroup.options"
             :key="option.key"
             type="button"
-            class="min-h-[52px] rounded-[10px] text-[1rem] font-black text-white transition-transform active:scale-95"
+            class="min-h-[52px] rounded-[10px] text-[1rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             :style="{ background: option.accent }"
+            :disabled="!canBet"
             @click="selectOption(bigSmallGroup.title, option.key, option.label)"
           >{{ option.label }}</button>
         </div>
@@ -751,8 +1344,9 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
               v-for="option in group.options"
               :key="option.key"
               type="button"
-              class="rounded-full px-4 py-2 text-[0.82rem] font-black text-white transition-transform active:scale-95"
+              class="rounded-full px-4 py-2 text-[0.82rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               :style="{ background: option.accent }"
+              :disabled="!canBet"
               @click="selectOption(group.title, option.key, option.label)"
             >{{ option.label }}</button>
           </div>
@@ -767,7 +1361,7 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
         Kỳ hiện tại đã bước vào 5 giây cuối hoặc đã khóa lệnh. Vui lòng chờ kỳ tiếp theo.
       </div>
       <p v-if="joinError" class="mt-2 rounded-[12px] bg-red-50 px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">{{ joinError }}</p>
-      <p v-if="betMessage" class="mt-2 rounded-[12px] bg-[rgba(255,109,102,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-primary">{{ betMessage }}</p>
+      <p v-if="visibleBetMessage" class="mt-2 rounded-[12px] bg-[rgba(255,109,102,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-primary">{{ visibleBetMessage }}</p>
     </div>
 
     <!-- ===== HISTORY SECTION ===== -->
@@ -794,10 +1388,57 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
         >Lịch sử của tôi</button>
       </div>
 
-      <!-- Chart placeholder -->
-      <div v-if="activeHistoryTab === 'chart'" class="flex min-h-40 flex-col items-center justify-center gap-2 py-8 text-slate-300">
-        <span class="material-symbols-outlined text-[2.5rem]">bar_chart</span>
-        <p class="text-[0.82rem]">Biểu đồ kết quả sẽ hiển thị tại đây.</p>
+      <!-- Chart -->
+      <div v-if="activeHistoryTab === 'chart'" class="px-3 py-3">
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <p class="text-[0.68rem] uppercase tracking-[0.12em] text-slate-400">Biểu đồ kết quả</p>
+            <strong class="text-[0.9rem] font-black text-on-surface">24 kỳ gần nhất</strong>
+          </div>
+          <button
+            type="button"
+            class="rounded-full bg-[#fff5f5] px-3 py-1.5 text-[0.7rem] font-black text-primary"
+            @click="void loadChartHistory()"
+          >
+            Làm mới
+          </button>
+        </div>
+
+        <div v-if="chartLoading" class="flex min-h-40 items-center justify-center text-[0.82rem] text-slate-400">
+          Đang tải dữ liệu biểu đồ...
+        </div>
+        <div v-else-if="chartError" class="rounded-[14px] bg-red-50 px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
+          {{ chartError }}
+        </div>
+        <div v-else class="rounded-[18px] bg-[#fff9f9] p-3">
+          <div class="flex items-end gap-2 overflow-x-auto pb-2 no-scrollbar">
+            <div
+              v-for="item in chartSeries"
+              :key="item.periodNo"
+              class="flex min-w-[52px] flex-col items-center gap-2"
+            >
+              <div class="flex h-28 w-full items-end">
+                <div
+                  class="w-full rounded-t-[12px] transition-all"
+                  :class="item.barClass"
+                  :style="{ height: `${Math.max(20, (item.value / chartMaxValue) * 100)}%` }"
+                />
+              </div>
+              <span class="rounded-full px-2 py-0.5 text-[0.6rem] font-black text-white" :class="item.barClass">{{ item.label }}</span>
+              <span class="text-[0.62rem] font-semibold text-slate-400">{{ item.periodNo ? item.periodNo.slice(-4) : '—' }}</span>
+            </div>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-[0.72rem]">
+            <div class="rounded-[14px] bg-white px-3 py-2">
+              <p class="text-slate-400">Mức cao nhất</p>
+              <strong class="block text-on-surface">{{ chartMaxValue }}</strong>
+            </div>
+            <div class="rounded-[14px] bg-white px-3 py-2">
+              <p class="text-slate-400">Kết quả gần nhất</p>
+              <strong class="block text-on-surface">{{ chartSeries[0]?.label ?? '—' }}</strong>
+            </div>
+          </div>
+        </div>
       </div>
 
       <template v-else>
@@ -821,11 +1462,12 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
             :key="row.period_no"
             class="grid grid-cols-[2fr_0.8fr_1.2fr_0.8fr] items-center border-b border-[#f8f0f0] px-3 py-2.5 text-[0.78rem] hover:bg-[#fff9f9]"
           >
-            <span class="text-slate-400 text-[0.62rem]">…{{ row.period_no.slice(-6) }}</span>
+            <span class="text-slate-400 text-[0.62rem]">…{{ row.period_no ? row.period_no.slice(-6) : '—' }}</span>
             <span
               class="flex h-7 w-7 mx-auto items-center justify-center rounded-full text-[0.75rem] font-black text-white"
               :class="resultBadgeClass(row.color)"
-            >{{ row.result.slice(0, 1) }}</span>
+              :style="resultBadgeStyle(row.color)"
+            >{{ row.result ? row.result.slice(0, 1) : '—' }}</span>
             <span class="font-semibold" :class="row.big_small?.includes('Lớn') ? 'text-[#e8404a]' : 'text-[#3b82f6]'">{{ row.big_small || '—' }}</span>
             <span class="flex justify-end">
               <span class="h-3.5 w-3.5 rounded-full" :class="resultDotClass(row.color)" />
@@ -839,42 +1481,49 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
 
         <!-- Mine history cards -->
         <div v-else class="divide-y divide-[#f8f0f0]">
-          <div
+          <button
             v-for="row in mineRows"
             :key="row.id"
-            class="flex items-center gap-3 px-3 py-3"
+            type="button"
+            class="w-full px-3 py-3 text-left transition-colors hover:bg-[#fff9f9]"
+            @click="openTicketDetail(row)"
           >
-            <!-- Dice icons / color dots -->
-            <div class="flex gap-1 flex-shrink-0">
-              <div
-                v-if="isK3"
-                v-for="d in (row.result?.split('-').map(Number) ?? [1,1,1]).slice(0,3)"
-                :key="d"
-                class="flex h-7 w-7 items-center justify-center rounded-[6px] text-[0.7rem] font-black text-white"
-                :style="{ background: diceColor(d) }"
-              >{{ d }}</div>
-              <div
-                v-else
-                class="h-7 w-7 rounded-full flex items-center justify-center text-[0.75rem] font-black text-white"
-                :style="{ background: wingoBallColor(Number(row.result ?? 0)) }"
-              >{{ row.result ?? '?' }}</div>
+            <div class="flex items-start gap-3">
+              <div class="mt-0.5 flex gap-1 flex-shrink-0">
+                <div
+                  v-if="isK3"
+                  v-for="d in (row.result?.split('-').map(Number) ?? [1,1,1]).slice(0,3)"
+                  :key="d"
+                  class="flex h-7 w-7 items-center justify-center rounded-[6px] text-[0.7rem] font-black text-white"
+                  :style="{ background: diceColor(d) }"
+                >{{ d }}</div>
+                <div
+                  v-else
+                  class="h-7 w-7 rounded-full flex items-center justify-center text-[0.75rem] font-black text-white"
+                  :style="{ background: wingoTicketBallBackground(row) }"
+                >{{ wingoTicketBallText(row) }}</div>
+              </div>
+
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-[0.72rem] font-semibold text-slate-400">{{ row.period_no || '—' }}</p>
+                <p class="mt-0.5 text-[0.88rem] font-black text-on-surface">{{ rowMainLabel(row) }}</p>
+                <p class="mt-0.5 text-[0.68rem] text-slate-500">{{ rowSubLabel(row) }}</p>
+                <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span class="rounded-full bg-[#fff5f5] px-2 py-0.5 text-[0.62rem] font-semibold text-primary">Gốc {{ formatMoney(rowOriginalAmountValue(row)) }}đ</span>
+                  <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[0.62rem] font-semibold text-slate-500">Thuế {{ formatMoney(rowTaxAmountValue(row)) }}đ</span>
+                  <span class="rounded-full bg-[#f0fff6] px-2 py-0.5 text-[0.62rem] font-semibold text-[#10b981]">Nhận {{ formatMoney(rowWinCreditValue(row)) }}đ</span>
+                </div>
+              </div>
+
+              <div class="text-right flex-shrink-0">
+                <p class="text-[0.86rem] font-black text-on-surface">{{ formatMoney(rowOriginalAmountValue(row)) }}đ</p>
+                <p class="mt-0.5 text-[0.7rem] font-semibold" :class="rowStatusClass(row)">
+                  {{ rowStatusText(row) }}
+                </p>
+                <p class="mt-1 text-[0.62rem] text-slate-400 uppercase">{{ row.status }}</p>
+              </div>
             </div>
-            <!-- Period + result label -->
-            <div class="flex-1 min-w-0">
-              <p class="text-[0.68rem] text-slate-400 truncate">{{ row.period_no }}</p>
-              <p class="text-[0.78rem] font-semibold text-on-surface">{{ row.big_small || row.color || '—' }}</p>
-            </div>
-            <!-- Amount + status -->
-            <div class="text-right flex-shrink-0">
-              <p class="text-[0.82rem] font-black text-on-surface">{{ formatMoney(row.stake) }}đ</p>
-              <p
-                class="text-[0.68rem] font-semibold"
-                :class="row.status === 'WON' ? 'text-[#10b981]' : row.status === 'LOST' ? 'text-slate-400' : 'text-amber-500'"
-              >
-                {{ row.status === 'WON' ? `Thắng ${formatMoney((Number(row.stake) * 1.96).toFixed(0))}đ` : row.status === 'LOST' ? 'Thua' : 'Chờ kết quả' }}
-              </p>
-            </div>
-          </div>
+          </button>
           <div v-if="!mineRows.length" class="flex flex-col items-center gap-2 py-8 text-slate-300">
             <span class="material-symbols-outlined text-[2rem]">history</span>
             <p class="text-[0.82rem]">Không có lịch sử cược</p>
@@ -903,22 +1552,22 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
         </div>
       </template>
     </div>
-  </div>
+    </div>
 
   <!-- ===== BET MODAL (Slide-up sheet) ===== -->
-  <Teleport to="body">
-    <div
-      v-if="showBetModal"
-      class="fixed inset-0 z-50 flex items-end"
-      @click.self="showBetModal = false"
-    >
-      <!-- Backdrop -->
-      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showBetModal = false" />
+    <Teleport to="body">
+      <div
+        v-if="showBetModal"
+        class="fixed inset-0 z-50 flex items-end"
+        @click.self="showBetModal = false"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showBetModal = false" />
 
-      <!-- Sheet -->
-      <div class="relative w-full rounded-t-[24px] bg-white px-5 pt-4 pb-8 shadow-2xl" style="max-height: 85dvh; overflow-y: auto;">
-        <!-- Handle -->
-        <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200" />
+        <!-- Sheet -->
+        <div class="relative w-full rounded-t-[24px] bg-white px-5 pt-4 pb-8 shadow-2xl" style="max-height: 85dvh; overflow-y: auto;">
+          <!-- Handle -->
+          <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200" />
 
         <h3 class="mb-4 text-[1rem] font-black text-on-surface">Đặt cược</h3>
 
@@ -964,7 +1613,193 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
             @click="confirmBet"
           >{{ betLoading ? 'Đang gửi...' : 'Xác nhận' }}</button>
         </div>
+        </div>
       </div>
+    </Teleport>
+
+  <!-- ===== RESULT MODAL ===== -->
+    <Teleport to="body">
+      <div
+        v-if="showResultModal"
+        class="fixed inset-0 z-[60] flex items-end"
+        @click.self="closeResultModal"
+      >
+        <div class="absolute inset-0 bg-black/45 backdrop-blur-sm" @click="closeResultModal" />
+
+        <div class="relative w-full rounded-t-[24px] bg-white px-5 pt-4 pb-8 shadow-2xl" style="max-height: 85dvh; overflow-y: auto;">
+          <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200" />
+
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <p class="text-[0.68rem] uppercase tracking-[0.12em] text-slate-400">Kết quả kỳ</p>
+            <h3 class="text-[1rem] font-black text-on-surface">{{ resultModalTitle }}</h3>
+          </div>
+          <button class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500" type="button" @click="closeResultModal">
+            <span class="material-symbols-outlined text-[1rem]">close</span>
+          </button>
+        </div>
+
+        <div
+          class="mb-4 rounded-[18px] px-4 py-4 text-white"
+          :class="resultModalTone === 'win' ? 'bg-gradient-to-r from-[#24b561] to-[#1f9d52]' : resultModalTone === 'lose' ? 'bg-gradient-to-r from-[#e64545] to-[#c92d2d]' : 'bg-gradient-to-r from-[#f6c32d] to-[#e29f00]'"
+        >
+          <p class="text-[0.72rem] uppercase tracking-[0.12em] text-white/70">Tiền biến động</p>
+          <strong class="block text-[1.7rem] font-black">{{ resultModalAmount }}</strong>
+          <p class="mt-1 text-[0.78rem] text-white/90">{{ resultModalDescription }}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-[0.78rem]">
+          <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+            <p class="text-slate-400">Kỳ xổ</p>
+            <strong class="block text-on-surface">{{ resultModalPeriodNo }}</strong>
+          </div>
+          <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+            <p class="text-slate-400">Tiền vào lệnh</p>
+            <strong class="block text-on-surface">{{ resultModalStake }}đ</strong>
+          </div>
+          <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+            <p class="text-slate-400">Tiền nhận</p>
+            <strong class="block text-on-surface">{{ resultModalPayout }}đ</strong>
+          </div>
+          <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+            <p class="text-slate-400">Thời gian chốt</p>
+            <strong class="block text-on-surface">{{ resultModalSettledAt ? new Date(resultModalSettledAt).toLocaleTimeString('vi-VN') : '—' }}</strong>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="mt-4 min-h-[48px] w-full rounded-[16px] bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] text-[0.9rem] font-black text-white shadow-[0_8px_16px_rgba(229,46,46,0.25)]"
+          @click="closeResultModal"
+        >
+          Đã hiểu
+        </button>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="showTicketDetailModal && selectedTicketDetail"
+        class="fixed inset-0 z-[70] flex items-end"
+        @click.self="closeTicketDetail"
+      >
+        <div class="absolute inset-0 bg-black/45 backdrop-blur-sm" @click="closeTicketDetail" />
+
+        <div class="relative w-full rounded-t-[24px] bg-white px-5 pt-4 pb-8 shadow-2xl" style="max-height: 85dvh; overflow-y: auto;">
+          <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200" />
+
+          <div class="mb-4 flex items-center justify-between">
+            <div>
+              <p class="text-[0.68rem] uppercase tracking-[0.12em] text-slate-400">Chi tiết giao dịch</p>
+              <h3 class="text-[1rem] font-black text-on-surface">{{ selectedTicketDetail.period_no }}</h3>
+            </div>
+            <button class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500" type="button" @click="closeTicketDetail">
+              <span class="material-symbols-outlined text-[1rem]">close</span>
+            </button>
+          </div>
+
+          <div class="mb-4 rounded-[16px] bg-[#fff9f9] px-4 py-4">
+            <p class="text-[0.72rem] uppercase tracking-[0.12em] text-slate-400">Kết quả lệnh</p>
+            <p class="mt-1 text-[1.2rem] font-black text-on-surface">{{ rowMainLabel(selectedTicketDetail) }}</p>
+            <p class="mt-1 text-[0.78rem] text-slate-500">{{ rowSubLabel(selectedTicketDetail) }}</p>
+            <p class="mt-2 text-[0.85rem] font-semibold" :class="rowStatusClass(selectedTicketDetail)">
+              {{ rowStatusText(selectedTicketDetail) }}
+            </p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-[0.78rem]">
+            <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+              <p class="text-slate-400">Tiền gốc</p>
+              <strong class="block text-on-surface">{{ formatMoney(rowOriginalAmountValue(selectedTicketDetail)) }}đ</strong>
+            </div>
+            <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+              <p class="text-slate-400">Thuế 2%</p>
+              <strong class="block text-on-surface">{{ formatMoney(rowTaxAmountValue(selectedTicketDetail)) }}đ</strong>
+            </div>
+            <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+              <p class="text-slate-400">Tiền tính thưởng</p>
+              <strong class="block text-on-surface">{{ formatMoney(rowNetAmountValue(selectedTicketDetail)) }}đ</strong>
+            </div>
+            <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+              <p class="text-slate-400">Tiền cộng về ví</p>
+              <strong class="block text-on-surface">
+                {{ rowStatusValue(selectedTicketDetail) === 'WON' ? `+${formatMoney(rowWinCreditValue(selectedTicketDetail))}đ` : `${formatMoney(rowWinCreditValue(selectedTicketDetail))}đ` }}
+              </strong>
+            </div>
+            <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+              <p class="text-slate-400">Lãi/lỗ</p>
+              <strong class="block text-on-surface">{{ formatSignedMoney(rowProfitLossValue(selectedTicketDetail)) }}</strong>
+            </div>
+            <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+              <p class="text-slate-400">Chốt lúc</p>
+              <strong class="block text-on-surface">{{ selectedTicketDetail.settled_at ? new Date(selectedTicketDetail.settled_at).toLocaleTimeString('vi-VN') : '—' }}</strong>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="mt-4 min-h-[48px] w-full rounded-[16px] bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] text-[0.9rem] font-black text-white shadow-[0_8px_16px_rgba(229,46,46,0.25)]"
+            @click="closeTicketDetail"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
+    <div v-if="room && !selectedVariant" class="flex min-h-dvh flex-col items-center justify-center gap-4 px-5 text-center">
+    <div class="grid h-20 w-20 place-items-center rounded-[24px] bg-white shadow-[0_10px_24px_rgba(255,109,102,0.12)]">
+      <span class="material-symbols-outlined text-[2.2rem] text-primary">schedule</span>
     </div>
-  </Teleport>
+    <div class="max-w-sm space-y-2">
+      <h2 class="text-[1.25rem] font-black text-on-surface">{{ room.title }} đang sắp mở</h2>
+      <p class="text-[0.9rem] leading-6 text-slate-500">
+        Màn chơi này đã có trong danh sách nhưng chưa có room/time khả dụng để vào ngay. Hãy quay lại phòng chơi hoặc chọn game đang mở.
+      </p>
+    </div>
+    <div class="flex w-full max-w-sm gap-3">
+      <button
+        type="button"
+        class="flex-1 rounded-[16px] border-2 border-slate-200 bg-white px-4 py-3 text-[0.9rem] font-black text-slate-600"
+        @click="navigateBack"
+      >
+        Quay lại
+      </button>
+      <RouterLink
+        to="/play"
+        class="flex-1 rounded-[16px] bg-primary px-4 py-3 text-center text-[0.9rem] font-black text-white"
+      >
+        Phòng chơi
+      </RouterLink>
+    </div>
+    </div>
+
+    <div v-if="!room" class="flex min-h-dvh flex-col items-center justify-center gap-4 px-5 text-center">
+    <div class="grid h-20 w-20 place-items-center rounded-[24px] bg-white shadow-[0_10px_24px_rgba(255,109,102,0.12)]">
+      <span class="material-symbols-outlined text-[2.2rem] text-primary">search_off</span>
+    </div>
+    <div class="max-w-sm space-y-2">
+      <h2 class="text-[1.25rem] font-black text-on-surface">Không tìm thấy phòng chơi</h2>
+      <p class="text-[0.9rem] leading-6 text-slate-500">
+        Phòng bạn chọn chưa tồn tại hoặc đã bị ẩn. Mình đưa bạn quay lại danh sách phòng an toàn hơn.
+      </p>
+    </div>
+    <div class="flex w-full max-w-sm gap-3">
+      <button
+        type="button"
+        class="flex-1 rounded-[16px] border-2 border-slate-200 bg-white px-4 py-3 text-[0.9rem] font-black text-slate-600"
+        @click="navigateBack"
+      >
+        Quay lại
+      </button>
+      <RouterLink
+        to="/play"
+        class="flex-1 rounded-[16px] bg-primary px-4 py-3 text-center text-[0.9rem] font-black text-white"
+      >
+        Phòng chơi
+      </RouterLink>
+    </div>
+    </div>
+  </div>
 </template>

@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { request, type ApiError } from '@/shared/api/http'
+import { connectEventStream, type StreamConnection } from '@/shared/api/stream'
 import type {
   NotificationListItem,
   NotificationListResponse,
@@ -21,6 +22,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const loading = ref(false)
   const markingReadId = ref<number | null>(null)
   const error = ref('')
+  let streamConnection: StreamConnection | null = null
   const pagination = ref<Pagination>({
     page: 1,
     pageSize: 10,
@@ -45,13 +47,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
         `/v1/notifications?page=${page}&page_size=${pageSize}`,
         { token: auth.accessToken },
       )
-      items.value = res.items
-      pagination.value = {
-        page: res.page,
-        pageSize: res.page_size,
-        total: res.total,
-        totalPages: res.total_pages || 1,
-      }
+      applyListResponse(res)
       return res
     } catch (e: any) {
       const err = e as ApiError
@@ -64,6 +60,16 @@ export const useNotificationsStore = defineStore('notifications', () => {
       throw e
     } finally {
       loading.value = false
+    }
+  }
+
+  function applyListResponse(res: NotificationListResponse) {
+    items.value = res.items
+    pagination.value = {
+      page: res.page,
+      pageSize: res.page_size,
+      total: res.total,
+      totalPages: res.total_pages || 1,
     }
   }
 
@@ -97,7 +103,37 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
 
+  function connectStream(page = pagination.value.page, pageSize = pagination.value.pageSize) {
+    const auth = useAuthStore()
+    if (!auth.accessToken) return
+
+    disconnectStream()
+    streamConnection = connectEventStream(`/v1/notifications/stream?page=${page}&page_size=${pageSize}`, {
+      token: auth.accessToken,
+      reconnectMs: 4000,
+      onEvent(payload) {
+        if (payload.event !== 'notifications.list') return
+        applyListResponse(payload.data as NotificationListResponse)
+      },
+      onError(errorValue) {
+        const err = errorValue as ApiError
+        if (err?.status === 401) {
+          auth.logout()
+          reset()
+          return
+        }
+        error.value = err?.message ?? 'Kết nối thông báo realtime bị gián đoạn'
+      },
+    })
+  }
+
+  function disconnectStream() {
+    streamConnection?.close()
+    streamConnection = null
+  }
+
   function reset() {
+    disconnectStream()
     items.value = []
     loading.value = false
     markingReadId.value = null
@@ -118,6 +154,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
     pagination,
     unreadCount,
     fetchList,
+    connectStream,
+    disconnectStream,
     markRead,
     reset,
   }

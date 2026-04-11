@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"gin/internal/support/clock"
 	repopg "gin/internal/repository/postgres"
+	"gin/internal/support/clock"
 
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -243,15 +243,15 @@ func (s *RoomEngineService) publishPeriodCreated(ctx context.Context, period rep
 	}
 
 	payload, err := json.Marshal(map[string]any{
-		"event":       "period.created",
-		"room_code":   period.RoomCode,
-		"period_id":   period.ID,
-		"period_no":   period.PeriodNo,
-		"game_type":   period.GameType,
-		"status":      period.Status,
-		"open_at":     period.OpenAt,
-		"bet_lock_at": period.BetLockAt,
-		"draw_at":     period.DrawAt,
+		"event":        "period.created",
+		"room_code":    period.RoomCode,
+		"period_id":    period.ID,
+		"period_no":    period.PeriodNo,
+		"game_type":    period.GameType,
+		"status":       period.Status,
+		"open_at":      period.OpenAt,
+		"bet_lock_at":  period.BetLockAt,
+		"draw_at":      period.DrawAt,
 		"published_at": clock.Now(),
 	})
 	if err != nil {
@@ -292,19 +292,25 @@ func generateWingoDraw() repopg.DrawResult {
 	if number%2 != 0 {
 		oddEven = "odd"
 	}
-	color := "red"
+	primaryColor := "red"
 	if number%2 != 0 {
-		color = "green"
-	}
-	if number == 0 || number == 5 {
-		color = "violet"
+		primaryColor = "green"
 	}
 
+	color := primaryColor
 	tags := []string{
 		fmt.Sprintf("number_%d", number),
 		bigSmall,
 		oddEven,
-		color,
+	}
+	if number == 0 {
+		color = "red_violet"
+		tags = append(tags, "red", "violet")
+	} else if number == 5 {
+		color = "green_violet"
+		tags = append(tags, "green", "violet")
+	} else {
+		tags = append(tags, primaryColor)
 	}
 
 	payload, _ := json.Marshal(map[string]any{
