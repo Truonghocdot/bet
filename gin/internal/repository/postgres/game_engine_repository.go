@@ -30,6 +30,7 @@ type GamePeriodSettlementRecord struct {
 	PeriodNo      string
 	GameType      int
 	ResultPayload []byte
+	DrawAt        time.Time
 }
 
 type ticketSettleItemOutcome struct {
@@ -62,27 +63,6 @@ func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRec
 
 	created := make([]GamePeriodRecord, 0, 1)
 
-	var upcomingCount int
-	err = tx.QueryRowContext(ctx, `
-		select count(*)
-		from game_periods
-		where room_code = $1
-		  and draw_at > $2
-	`, room.Code, nowVN).Scan(&upcomingCount)
-	if err != nil {
-		log.Printf("[engine][period.ensure.error] room_code=%s stage=count_upcoming err=%v", room.Code, err)
-		return nil, err
-	}
-	log.Printf("[engine][period.ensure.state] room_code=%s upcoming_count=%d now_vn=%s", room.Code, upcomingCount, nowVN.Format(time.RFC3339Nano))
-	if upcomingCount > 0 {
-		if err := tx.Commit(); err != nil {
-			log.Printf("[engine][period.ensure.error] room_code=%s stage=commit_skip err=%v", room.Code, err)
-			return nil, err
-		}
-		log.Printf("[engine][period.ensure.skip] room_code=%s reason=upcoming_period_exists", room.Code)
-		return nil, nil
-	}
-
 	var latestDrawAt sql.NullTime
 	err = tx.QueryRowContext(ctx, `
 		select draw_at
@@ -96,19 +76,21 @@ func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRec
 		log.Printf("[engine][period.ensure.error] room_code=%s stage=latest_draw_at err=%v", room.Code, err)
 		return nil, err
 	}
+	nextDrawAt := alignNextDrawAt(nowVN, duration)
+	nextOpenAt := nextDrawAt.Add(-duration)
 
-	nextOpenAt := nowVN
 	if latestDrawAt.Valid {
 		latestVN := latestDrawAt.Time.In(clock.Location())
-		log.Printf("[engine][period.ensure.state] room_code=%s latest_draw_at_vn=%s action=create_next_from_now", room.Code, latestVN.Format(time.RFC3339Nano))
-		if latestVN.After(nowVN) {
-			nextOpenAt = latestVN
-		}
+		log.Printf(
+			"[engine][period.ensure.state] room_code=%s latest_draw_at_vn=%s target_draw_at_vn=%s policy=ignore_future_rows",
+			room.Code,
+			latestVN.Format(time.RFC3339Nano),
+			nextDrawAt.Format(time.RFC3339Nano),
+		)
 	} else {
 		log.Printf("[engine][period.ensure.state] room_code=%s latest_draw_at=nil action=bootstrap_initial_period", room.Code)
 	}
 
-	nextDrawAt := nextOpenAt.Add(duration)
 	candidateNo := buildPeriodNo(room.Code, nextDrawAt)
 	log.Printf(
 		"[engine][period.ensure.compare] room_code=%s next_open_at=%s next_draw_at=%s period_no=%s",
@@ -160,12 +142,35 @@ func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRec
 	return created, nil
 }
 
+func alignNextDrawAt(now time.Time, duration time.Duration) time.Time {
+	if duration <= 0 {
+		return now
+	}
+
+	base := now.Truncate(duration)
+	next := base.Add(duration)
+	if !next.After(now) {
+		next = next.Add(duration)
+	}
+
+	return next
+}
+
 func (r *GameRepository) MoveScheduledToOpen(ctx context.Context, now time.Time) (int64, error) {
 	result, err := r.db.ExecContext(ctx, `
 		update game_periods
 		set status = $1,
 		    updated_at = now()
-		where status = $2 and open_at <= $3
+		where id in (
+			select id
+			from (
+				select distinct on (room_code) id
+				from game_periods
+				where status = $2
+				  and open_at <= $3
+				order by room_code asc, open_at asc, id asc
+			) due_periods
+		)
 	`, periodStatusOpen, periodStatusScheduled, now)
 	if err != nil {
 		return 0, err
@@ -179,7 +184,16 @@ func (r *GameRepository) MoveOpenToLocked(ctx context.Context, now time.Time) (i
 		update game_periods
 		set status = $1,
 		    updated_at = now()
-		where status = $2 and bet_lock_at <= $3
+		where id in (
+			select id
+			from (
+				select distinct on (room_code) id
+				from game_periods
+				where status = $2
+				  and bet_lock_at <= $3
+				order by room_code asc, bet_lock_at asc, id asc
+			) due_periods
+		)
 	`, periodStatusLocked, periodStatusOpen, now)
 	if err != nil {
 		return 0, err
@@ -195,8 +209,13 @@ func (r *GameRepository) ListLockedPeriodsForDraw(ctx context.Context, now time.
 
 	rows, err := r.db.QueryContext(ctx, `
 		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
-		from game_periods
-		where status = $1 and draw_at <= $2
+		from (
+			select distinct on (room_code) id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
+			from game_periods
+			where status = $1
+			  and draw_at <= $2
+			order by room_code asc, draw_at asc, id asc
+		) due_periods
 		order by draw_at asc, id asc
 		limit $3
 	`, periodStatusLocked, now, limit)
@@ -291,9 +310,14 @@ func (r *GameRepository) ListDrawnPeriodsForSettlement(ctx context.Context, limi
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		select id, room_code, period_no, game_type, result_payload
-		from game_periods
-		where status = $1 and result_payload is not null
+		select id, room_code, period_no, game_type, result_payload, draw_at
+		from (
+			select distinct on (room_code) id, room_code, period_no, game_type, result_payload, draw_at
+			from game_periods
+			where status = $1
+			  and result_payload is not null
+			order by room_code asc, draw_at asc, id asc
+		) due_periods
 		order by draw_at asc, id asc
 		limit $2
 	`, periodStatusDrawn, limit)
@@ -305,7 +329,7 @@ func (r *GameRepository) ListDrawnPeriodsForSettlement(ctx context.Context, limi
 	periods := make([]GamePeriodSettlementRecord, 0)
 	for rows.Next() {
 		var item GamePeriodSettlementRecord
-		if err := rows.Scan(&item.ID, &item.RoomCode, &item.PeriodNo, &item.GameType, &item.ResultPayload); err != nil {
+		if err := rows.Scan(&item.ID, &item.RoomCode, &item.PeriodNo, &item.GameType, &item.ResultPayload, &item.DrawAt); err != nil {
 			return nil, err
 		}
 		periods = append(periods, item)

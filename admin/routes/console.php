@@ -19,3 +19,7 @@ Schedule::command('banks:sync-vietqr')
 Schedule::command('payment:prime-receiving-accounts')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+Schedule::command('bet:cleanup')
+    ->dailyAt('03:45')
+    ->withoutOverlapping();
