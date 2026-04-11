@@ -33,6 +33,7 @@ func NewRouter(
 	mux.HandleFunc("POST /v1/auth/reset-password", authHandler.ResetPassword)
 	mux.Handle("GET /v1/auth/me", authn.Require(http.HandlerFunc(authHandler.Me)))
 	mux.Handle("GET /v1/wallets/summary", authn.Require(http.HandlerFunc(walletHandler.ServeHTTP)))
+	mux.Handle("GET /v1/games/", authn.Require(http.HandlerFunc(gameHandler.ServeHTTP)))
 	mux.Handle("POST /v1/games/", authn.Require(http.HandlerFunc(gameHandler.ServeHTTP)))
 	mux.Handle("POST /v1/deposits/", authn.Require(http.HandlerFunc(depositHandler.ServeHTTP)))
 	mux.HandleFunc("POST /internal/v1/deposits/apply", depositHandler.Apply)

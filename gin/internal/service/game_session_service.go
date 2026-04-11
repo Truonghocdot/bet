@@ -3,25 +3,51 @@ package service
 import (
 	"context"
 	"fmt"
+	"math/big"
+	"strconv"
+	"strings"
 	"time"
 
 	"gin/internal/domain/game"
+	repopg "gin/internal/repository/postgres"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
 	"gin/internal/ws"
 )
 
 type GameSessionService struct {
-	hub *ws.Hub
+	hub              *ws.Hub
+	walletRepository *repopg.WalletRepository
 }
 
-func NewGameSessionService(hub *ws.Hub) *GameSessionService {
-	return &GameSessionService{hub: hub}
+func NewGameSessionService(hub *ws.Hub, walletRepository *repopg.WalletRepository) *GameSessionService {
+	return &GameSessionService{hub: hub, walletRepository: walletRepository}
 }
 
-func (s *GameSessionService) JoinGame(_ context.Context, gameType game.GameType, userID string) (game.JoinResponse, error) {
+func (s *GameSessionService) JoinGame(ctx context.Context, gameType game.GameType, userID string) (game.JoinResponse, error) {
 	if userID == "" {
 		return game.JoinResponse{}, fmt.Errorf(message.UserIDRequired)
+	}
+
+	if s.walletRepository != nil {
+		userNumericID, err := strconv.ParseInt(strings.TrimSpace(userID), 10, 64)
+		if err != nil {
+			return game.JoinResponse{}, fmt.Errorf(message.Unauthorized)
+		}
+
+		record, err := s.walletRepository.FindByUserAndUnit(ctx, userNumericID, 1)
+		if err != nil {
+			return game.JoinResponse{}, err
+		}
+
+		available, err := subtractDecimal(record.Balance, record.LockedBalance)
+		if err != nil {
+			return game.JoinResponse{}, err
+		}
+
+		if compareDecimal(available, "0") <= 0 {
+			return game.JoinResponse{}, fmt.Errorf(message.InsufficientBalancePlay)
+		}
 	}
 
 	connectionID := id.New()
@@ -58,4 +84,38 @@ func (s *GameSessionService) ValidateConnection(connectionID, userID string, gam
 	}
 
 	return nil
+}
+
+func subtractDecimal(left, right string) (string, error) {
+	lv, err := parseDecimal(left)
+	if err != nil {
+		return "", err
+	}
+	rv, err := parseDecimal(right)
+	if err != nil {
+		return "", err
+	}
+
+	return new(big.Rat).Sub(lv, rv).FloatString(8), nil
+}
+
+func compareDecimal(left, right string) int {
+	lv, err := parseDecimal(left)
+	if err != nil {
+		return -1
+	}
+	rv, err := parseDecimal(right)
+	if err != nil {
+		return -1
+	}
+
+	return lv.Cmp(rv)
+}
+
+func parseDecimal(value string) (*big.Rat, error) {
+	rat := new(big.Rat)
+	if _, ok := rat.SetString(strings.TrimSpace(value)); !ok {
+		return nil, fmt.Errorf("invalid decimal value: %s", value)
+	}
+	return rat, nil
 }

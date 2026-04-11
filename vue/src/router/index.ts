@@ -3,7 +3,6 @@ import type { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/home' },
-  { path: '/play', redirect: '/play' },
   {
     path: '/auth',
     name: 'auth',
@@ -57,6 +56,12 @@ const routes: RouteRecordRaw[] = [
     name: 'account',
     component: () => import('../pages/AccountView.vue'),
     meta: { layout: 'main', title: 'Cá nhân', requiresAuth: true },
+  },
+  {
+    path: '/play',
+    name: 'play-lobby',
+    component: () => import('../pages/PlayLobbyView.vue'),
+    meta: { layout: 'main', title: 'Phòng chơi', requiresAuth: true },
   },
   {
     path: '/play/:game',

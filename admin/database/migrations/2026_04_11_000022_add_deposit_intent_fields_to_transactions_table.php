@@ -16,7 +16,6 @@ return new class extends Migration
                 ->nullOnDelete()
                 ->after('provider_txn_id');
             $table->json('meta')->nullable()->after('receiving_account_id');
-            $table->index(['provider', 'provider_txn_id']);
             $table->index('receiving_account_id');
         });
     }
@@ -24,8 +23,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('transactions', function (Blueprint $table): void {
-            $table->dropIndex(['provider', 'provider_txn_id']);
-            $table->dropIndex(['receiving_account_id']);
+            $table->dropIndex('transactions_receiving_account_id_index');
             $table->dropConstrainedForeignId('receiving_account_id');
             $table->dropColumn(['client_ref', 'meta']);
         });

@@ -36,6 +36,8 @@ const (
 	GameTypeRequired               = "Thiếu loại game"
 	PeriodIDRequired               = "Thiếu mã kỳ cược"
 	BetItemsRequired               = "Phải có ít nhất một lựa chọn cược"
+	InsufficientBalancePlay        = "Số dư không đủ để vào phòng chơi"
+	InsufficientBalanceBet         = "Số dư không đủ để đặt lệnh"
 	DepositAmountRequired          = "Thiếu số tiền nạp"
 	DepositAmountInvalid           = "Số tiền nạp không hợp lệ"
 	DepositReceivingAccountMissing = "Không tìm thấy tài khoản nhận tiền phù hợp"

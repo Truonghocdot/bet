@@ -212,8 +212,6 @@ Giao dịch nạp/rút.
 - `receiving_account_id`: bigint unsigned nullable
 - `meta`: json nullable
 - `reason_failed`: text nullable
-- `approved_by`: bigint unsigned nullable
-- `approved_at`: timestamp nullable
 - `created_at`: timestamp
 - `updated_at`: timestamp
 - `deleted_at`: timestamp nullable
@@ -550,6 +548,31 @@ Nghiệp vụ:
 - Hết thời gian cược: `OPEN -> LOCKED`.
 - Chỉ cho phép settle khi `status = DRAWN`.
 
+### 6.2.1 `game_round_histories`
+
+Lưu lịch sử kết quả vòng quay để màn chơi hiển thị list gần nhất và biểu đồ.
+
+- `id`: bigint unsigned
+- `game_type`: varchar(32)
+- `period_no`: varchar(64)
+- `result`: varchar(64)
+- `big_small`: varchar(32)
+- `color`: varchar(32)
+- `draw_at`: timestamp
+- `status`: varchar(24)
+- `created_at`: timestamp
+- `updated_at`: timestamp
+
+Index:
+
+- index(`game_type`, `draw_at`, `id`)
+
+Nghiệp vụ:
+
+- Đây là nguồn dữ liệu cho phần lịch sử gần nhất trên màn play.
+- Mỗi kỳ quay chỉ có 1 record kết quả.
+- `status` dùng text để hiển thị vận hành, không thay thế `game_periods.status`.
+
 ### 6.3 `bet_tickets`
 
 Đại diện đơn cược cấp order.
@@ -558,17 +581,21 @@ Nghiệp vụ:
 - `ticket_no`: varchar(40)
 - `user_id`: bigint unsigned
 - `wallet_id`: bigint unsigned
+- `request_id`: varchar(64) nullable
+- `connection_id`: varchar(64) nullable
 - `unit`: tinyint
 - `game_type`: tinyint
 - `period_id`: bigint unsigned
 - `bet_type`: tinyint
 - `stake`: decimal(20,8)
+- `total_stake`: decimal(20,8) nullable
 - `total_odds`: decimal(14,6)
 - `potential_payout`: decimal(20,8)
 - `actual_payout`: decimal(20,8) nullable
 - `status`: tinyint
 - `placed_ip`: varchar(45) nullable
 - `placed_device`: varchar(100) nullable
+- `items`: json nullable
 - `settled_at`: timestamp nullable
 - `created_at`: timestamp
 - `updated_at`: timestamp
@@ -576,13 +603,18 @@ Nghiệp vụ:
 Constraint/index:
 
 - unique(`ticket_no`)
+- unique(`request_id`)
 - index(`user_id`, `created_at`)
 - index(`period_id`, `status`)
 - index(`game_type`, `created_at`)
+- index(`connection_id`)
 
 Nghiệp vụ:
 
 - Tạo ticket phải chạy trong DB transaction với lock wallet.
+- `request_id` là idempotency key cho thao tác đặt lệnh từ FE.
+- `connection_id` gom lệnh theo 1 session join room.
+- `total_stake` và `items` phục vụ luồng play runtime.
 - Khi đặt cược: trừ `balance`, cộng `locked_balance`, ghi ledger `bet_stake`.
 - Không cho sửa ticket sau khi `status != PENDING`.
 

@@ -14,6 +14,7 @@ const filteredArticles = computed(() => {
 })
 
 const leadArticle = computed<NewsArticle>(() => filteredArticles.value[0] ?? newsArticles[0]!)
+const compactArticles = computed(() => filteredArticles.value.slice(1, 4))
 </script>
 
 <template>
@@ -55,77 +56,78 @@ const leadArticle = computed<NewsArticle>(() => filteredArticles.value[0] ?? new
       </div>
     </section>
 
-    <section class="grid gap-3 lg:grid-cols-[1.25fr_0.75fr]">
+    <section class="grid gap-3 xl:grid-cols-[1.08fr_0.92fr]">
       <article class="overflow-hidden rounded-[26px] bg-white shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
-        <div class="h-44 bg-gradient-to-br" :class="leadArticle.cover"></div>
-        <div class="p-5">
+        <div class="h-36 bg-gradient-to-br md:h-40" :class="leadArticle.cover"></div>
+        <div class="p-4 md:p-5">
           <div class="flex items-center justify-between gap-2 text-[0.68rem] uppercase tracking-[0.08em] text-on-surface-variant">
             <span>{{ leadArticle.category }}</span>
             <span>{{ formatViDateTime(leadArticle.publishedAt) }}</span>
           </div>
-          <h3 class="mt-3 text-[1.2rem] font-black leading-7">{{ leadArticle.title }}</h3>
-          <p class="mt-2 text-[0.82rem] leading-6 text-on-surface-variant">{{ leadArticle.excerpt }}</p>
-          <div class="mt-4 flex flex-wrap gap-2">
+          <h3 class="mt-2 text-[1.1rem] font-black leading-7 md:text-[1.2rem]">{{ leadArticle.title }}</h3>
+          <p class="mt-2 text-[0.8rem] leading-6 text-on-surface-variant md:text-[0.82rem]">{{ leadArticle.excerpt }}</p>
+          <div class="mt-3 flex flex-wrap gap-2">
             <span
-              v-for="tag in leadArticle.tags"
+              v-for="tag in leadArticle.tags.slice(0, 3)"
               :key="tag"
-              class="rounded-full bg-surface-container-low px-3 py-1 text-[0.68rem] font-bold text-on-surface-variant"
+              class="rounded-full bg-surface-container-low px-3 py-1 text-[0.66rem] font-bold text-on-surface-variant"
             >
               #{{ tag }}
             </span>
           </div>
-          <RouterLink
-            :to="`/news/${leadArticle.slug}`"
-            class="mt-5 inline-flex min-h-12 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-primary-container px-5 text-[0.82rem] font-black text-white"
-          >
-            Xem chi tiết
-          </RouterLink>
-        </div>
-      </article>
-
-      <article class="rounded-[26px] bg-white p-5 shadow-[0_8px_18px_rgba(0,78,219,0.05)]">
-        <h3 class="m-0 text-[1rem] font-black">Tin hệ thống sinh tự động</h3>
-        <p class="mt-2 text-[0.78rem] leading-6 text-on-surface-variant">
-          Mục hoạt động này đóng vai trò feed cập nhật tin bài, hỗ trợ người dùng lướt nhanh các thay đổi mới nhất.
-        </p>
-
-        <div class="mt-4 space-y-3">
-          <article
-            v-for="article in filteredArticles.slice(1, 4)"
-            :key="article.slug"
-            class="rounded-[18px] border border-slate-100 bg-background p-4"
-          >
-            <div class="flex items-center justify-between gap-2 text-[0.68rem] uppercase tracking-[0.08em] text-on-surface-variant">
-              <span>{{ article.category }}</span>
-              <span>{{ formatViDateTime(article.publishedAt) }}</span>
-            </div>
-            <h4 class="mt-2 text-[0.95rem] font-black leading-6">{{ article.title }}</h4>
-            <p class="mt-1.5 text-[0.72rem] leading-6 text-on-surface-variant">{{ article.excerpt }}</p>
-            <RouterLink :to="`/news/${article.slug}`" class="mt-3 inline-flex text-[0.74rem] font-extrabold text-primary">
-              Đọc tiếp
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <RouterLink
+              :to="`/news/${leadArticle.slug}`"
+              class="inline-flex min-h-11 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-primary-container px-4 text-[0.8rem] font-black text-white"
+            >
+              Xem chi tiết
             </RouterLink>
-          </article>
+            <span class="rounded-full bg-primary/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-primary">
+              {{ leadArticle.readTime }}
+            </span>
+          </div>
         </div>
       </article>
-    </section>
 
-    <section class="grid gap-3 md:grid-cols-3">
-      <article
-        v-for="article in filteredArticles"
-        :key="article.slug"
-        class="overflow-hidden rounded-[24px] bg-white shadow-[0_8px_18px_rgba(0,78,219,0.05)]"
-      >
-        <div class="h-28 bg-gradient-to-br" :class="article.cover"></div>
-        <div class="p-4">
-          <div class="flex items-center justify-between gap-2 text-[0.66rem] uppercase tracking-[0.08em] text-on-surface-variant">
-            <span>{{ article.category }}</span>
-            <span>{{ article.readTime }}</span>
+      <article class="rounded-[26px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.05)] md:p-5">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="m-0 text-[1rem] font-black">Feed cập nhật</h3>
+            <p class="mt-1 text-[0.76rem] leading-6 text-on-surface-variant">
+              Tin được sắp theo khối ngắn để người chơi lướt nhanh trong cùng một khung hình.
+            </p>
           </div>
-          <h4 class="mt-2 text-[0.94rem] font-black leading-6">{{ article.title }}</h4>
-          <p class="mt-1.5 text-[0.72rem] leading-6 text-on-surface-variant">{{ article.excerpt }}</p>
-          <RouterLink :to="`/news/${article.slug}`" class="mt-3 inline-flex text-[0.74rem] font-extrabold text-primary">
-            Mở bài viết
+          <span class="rounded-full bg-primary/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-primary">
+            {{ filteredArticles.length }} bài
+          </span>
+        </div>
+
+        <div class="mt-4 grid gap-2">
+          <RouterLink
+            v-for="article in compactArticles"
+            :key="article.slug"
+            :to="`/news/${article.slug}`"
+            class="grid grid-cols-[72px_1fr] gap-3 rounded-[18px] border border-slate-100 bg-background p-2.5 transition-transform active:scale-[0.99]"
+          >
+            <div class="h-[72px] min-h-[72px] rounded-[14px] bg-gradient-to-br" :class="article.cover"></div>
+            <div class="min-w-0 py-0.5 pr-1">
+              <div class="flex items-center justify-between gap-2 text-[0.62rem] uppercase tracking-[0.08em] text-on-surface-variant">
+                <span>{{ article.category }}</span>
+                <span>{{ article.readTime }}</span>
+              </div>
+              <h4 class="mt-1 text-[0.92rem] font-black leading-5">{{ article.title }}</h4>
+              <p class="mt-1.5 max-h-[2.6rem] overflow-hidden text-[0.7rem] leading-5 text-on-surface-variant">{{ article.excerpt }}</p>
+            </div>
           </RouterLink>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <span class="rounded-full bg-surface-container-low px-3 py-1 text-[0.66rem] font-bold text-on-surface-variant">
+            Tổng bài {{ newsArticles.length }}
+          </span>
+          <span class="rounded-full bg-surface-container-low px-3 py-1 text-[0.66rem] font-bold text-on-surface-variant">
+            Mới nhất {{ formatViDateTime(leadArticle.publishedAt) }}
+          </span>
         </div>
       </article>
     </section>

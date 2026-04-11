@@ -118,6 +118,63 @@ export type DepositStatusResponse = {
   receiving_account?: ReceivingAccount | null
 }
 
+export type GameJoinResponse = {
+  connection_id: string
+  game_type: string
+  joined_at: string
+  message: string
+}
+
+export type GamePlaceBetResponse = {
+  request_id: string
+  connection_id: string
+  game_type: string
+  status: string
+  accepted_at: string
+  message: string
+}
+
+export type GameHistoryItem = {
+  period_no: string
+  result: string
+  big_small: string
+  color: string
+  draw_at: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export type GameHistoryResponse = {
+  message: string
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  items: GameHistoryItem[]
+}
+
+export type GameBetHistoryItem = {
+  id: number
+  period_no: string
+  result: string
+  big_small: string
+  color: string
+  stake: string
+  status: string
+  items_count: number
+  created_at: string
+}
+
+export type GameBetHistoryResponse = {
+  message: string
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  items: GameBetHistoryItem[]
+}
+
 export type WalletSummaryItem = {
   id: number
   unit: number

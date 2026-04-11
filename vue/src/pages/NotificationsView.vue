@@ -9,6 +9,8 @@ const tabs = ['Tất cả', 'Chưa đọc', 'Đã đọc']
 const activeTab = ref(tabs[0])
 
 const unreadCount = computed(() => getUnreadCount())
+const totalCount = computed(() => notificationItems.length)
+const unreadItems = computed(() => notificationItems.filter((item) => item.unread).slice(0, 2))
 
 const filteredNotifications = computed(() => {
   if (activeTab.value === 'Chưa đọc') return notificationItems.filter((item) => item.unread)
@@ -20,20 +22,34 @@ const filteredNotifications = computed(() => {
 <template>
   <div class="space-y-5 md:space-y-6">
     <section class="rounded-[28px] bg-white p-5 shadow-[0_8px_18px_rgba(0,78,219,0.05)] md:p-6">
-      <div class="flex items-start justify-between gap-3">
+      <div class="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
         <div>
           <span class="inline-flex rounded-full bg-[#b71211]/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#b71211]">
             Thông báo
           </span>
           <h2 class="mt-4 text-[1.55rem] font-black md:text-[1.8rem]">Danh sách thông báo của bạn</h2>
-          <p class="mt-2 text-sm leading-6 text-on-surface-variant">
-            Tổng hợp alert hệ thống, tin tức và nhắc nhở vận hành.
+          <p class="mt-2 max-w-[36rem] text-sm leading-6 text-on-surface-variant">
+            Alert hệ thống, tin tức và nhắc nhở vận hành được gom thành một khối để xem nhanh và thao tác ngay.
           </p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <span class="rounded-full bg-primary/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-primary">
+              Tổng {{ totalCount }}
+            </span>
+            <span class="rounded-full bg-[#b71211]/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-[#b71211]">
+              Chưa đọc {{ unreadCount }}
+            </span>
+          </div>
         </div>
 
-        <div class="rounded-[22px] bg-primary/10 px-4 py-3 text-right">
-          <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-primary/70">Chưa đọc</p>
-          <strong class="mt-1 block text-[1.35rem] font-black text-primary">{{ unreadCount }}</strong>
+        <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+          <div class="rounded-[22px] bg-primary/10 px-4 py-3 text-left">
+            <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-primary/70">Chưa đọc</p>
+            <strong class="mt-1 block text-[1.35rem] font-black text-primary">{{ unreadCount }}</strong>
+          </div>
+          <div class="rounded-[22px] bg-surface-container-low px-4 py-3 text-left">
+            <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-on-surface-variant">Đã đọc</p>
+            <strong class="mt-1 block text-[1.35rem] font-black text-on-surface">{{ totalCount - unreadCount }}</strong>
+          </div>
         </div>
       </div>
     </section>
@@ -53,7 +69,7 @@ const filteredNotifications = computed(() => {
       </div>
     </section>
 
-    <section class="space-y-3">
+    <section class="grid gap-3 md:grid-cols-2">
       <article
         v-for="item in filteredNotifications"
         :key="item.id"
@@ -101,4 +117,3 @@ const filteredNotifications = computed(() => {
     </section>
   </div>
 </template>
-

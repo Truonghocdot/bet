@@ -13,6 +13,7 @@ const navItems = [
 ]
 
 const currentTitle = computed(() => (route.meta.title as string) ?? 'FF789')
+const isPlayRoute = computed(() => route.path.startsWith('/play'))
 
 const isActive = (path: string) => {
   if (path === '/home') {
@@ -34,7 +35,7 @@ const isActive = (path: string) => {
       <div class="app-shell__blur app-shell__blur--two"></div>
     </div>
 
-    <header class="glass-bar sticky top-0 z-20">
+    <header v-if="!isPlayRoute" class="glass-bar sticky top-0 z-20">
       <div class="topbar-inner">
         <button class="icon-btn icon-btn--ghost" aria-label="Mở menu">
           <span class="material-symbols-outlined">menu</span>
@@ -59,7 +60,7 @@ const isActive = (path: string) => {
       </div>
     </main>
 
-    <nav class="bottom-nav">
+    <nav v-if="!isPlayRoute" class="bottom-nav">
       <RouterLink
         v-for="item in navItems"
         :key="item.label"
@@ -72,7 +73,7 @@ const isActive = (path: string) => {
       </RouterLink>
     </nav>
 
-    <RouterLink class="floating-action" aria-label="Nạp nhanh" to="/deposit">
+    <RouterLink v-if="!isPlayRoute" class="floating-action" aria-label="Nạp nhanh" to="/deposit">
       <span class="material-symbols-outlined">add_card</span>
     </RouterLink>
   </div>

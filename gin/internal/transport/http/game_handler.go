@@ -40,7 +40,20 @@ func (h *GameHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "join":
 		h.handleJoin(w, r, gameType)
 	case "bets":
-		h.handlePlaceBet(w, r, gameType)
+		switch r.Method {
+		case http.MethodPost:
+			h.handlePlaceBet(w, r, gameType)
+		case http.MethodGet:
+			h.handleMyBets(w, r, gameType)
+		default:
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": message.RouteNotFound})
+		}
+	case "history":
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"message": message.RouteNotFound})
+			return
+		}
+		h.handleHistory(w, r, gameType)
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]string{"message": message.RouteNotFound})
 	}
@@ -97,4 +110,60 @@ func (h *GameHandler) handlePlaceBet(w http.ResponseWriter, r *http.Request, gam
 	}
 
 	writeJSON(w, http.StatusAccepted, response)
+}
+
+func (h *GameHandler) handleHistory(w http.ResponseWriter, r *http.Request, gameType game.GameType) {
+	page, pageSize := readPagination(r)
+
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	response, err := h.betService.ListGameHistory(r.Context(), gameType, page, pageSize)
+	if err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		return
+	}
+
+	_ = claims
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *GameHandler) handleMyBets(w http.ResponseWriter, r *http.Request, gameType game.GameType) {
+	page, pageSize := readPagination(r)
+
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	response, err := h.betService.ListMyBets(r.Context(), claims.UserID, gameType, page, pageSize)
+	if err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func readPagination(r *http.Request) (int, int) {
+	page := 1
+	pageSize := 5
+
+	if raw := strings.TrimSpace(r.URL.Query().Get("page")); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil && value > 0 {
+			page = value
+		}
+	}
+
+	if raw := strings.TrimSpace(r.URL.Query().Get("page_size")); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil && value > 0 {
+			pageSize = value
+		}
+	}
+
+	return page, pageSize
 }

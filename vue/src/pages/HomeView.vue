@@ -1,16 +1,59 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { useAuthStore } from '@/stores/auth'
 import { formatViDateTime } from '@/shared/lib/date'
-import { gameRooms, getUnreadCount, homeActivities, homeMetrics, newsArticles, quickActions } from '@/data/site'
+import { formatViMoney } from '@/shared/lib/money'
+import { useAuthStore } from '@/stores/auth'
+import { useWalletStore } from '@/stores/wallet'
+import { gameRooms, getUnreadCount, homeActivities, newsArticles, quickActions } from '@/data/site'
 
 const auth = useAuthStore()
+const wallet = useWalletStore()
 
 const greetingName = computed(() => auth.user?.name || 'Người chơi')
 const featuredRooms = computed(() => gameRooms.filter((game) => game.featured))
 const featuredNews = computed(() => newsArticles.filter((article) => article.featured).slice(0, 3))
+const vndWallet = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
+const usdtWallet = computed(() => wallet.wallets.find((item) => item.unit === 2) ?? null)
+const displayMetrics = computed(() => [
+  {
+    title: 'Ví VND',
+    value: wallet.loading && !vndWallet.value ? 'Đang đồng bộ...' : (vndWallet.value ? displayBalance(vndWallet.value.balance) : '—'),
+    description: 'Số dư nội địa thật từ bảng wallets.',
+    icon: 'account_balance_wallet',
+    accent: '#004edb',
+  },
+  {
+    title: 'Ví USDT',
+    value: wallet.loading && !usdtWallet.value ? 'Đang đồng bộ...' : (usdtWallet.value ? displayBalance(usdtWallet.value.balance, 2) : '—'),
+    description: 'Số dư crypto phục vụ nạp USDT.',
+    icon: 'currency_bitcoin',
+    accent: '#6c5a00',
+  },
+  {
+    title: 'Thông báo mới',
+    value: String(getUnreadCount()).padStart(2, '0'),
+    description: 'Thông báo hệ thống chưa đọc.',
+    icon: 'notifications',
+    accent: '#b71211',
+  },
+  {
+    title: 'Phòng đang mở',
+    value: `${gameRooms.filter((game) => game.status === 'OPEN').length} trò`,
+    description: 'Win Go, K3 và Lô tô đang sẵn sàng.',
+    icon: 'casino',
+    accent: '#7e9cff',
+  },
+])
+
+function displayBalance(value: string | number | null | undefined, fractionDigits = 0) {
+  return formatViMoney(value ?? 0, fractionDigits)
+}
+
+onMounted(() => {
+  void wallet.fetchSummary()
+})
 </script>
 
 <template>
@@ -33,9 +76,44 @@ const featuredNews = computed(() => newsArticles.filter((article) => article.fea
         </div>
 
         <div class="grid gap-3 md:justify-self-end">
+          <article class="rounded-[22px] bg-white/14 p-4 backdrop-blur-md">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-white/72">Ví VND / USDT</p>
+                <strong class="mt-1 block text-[1.35rem] font-black">
+                  {{ wallet.loading && !vndWallet && !usdtWallet ? 'Đang đồng bộ...' : 'Số dư thật' }}
+                </strong>
+              </div>
+              <span class="grid h-10 w-10 place-items-center rounded-[16px] bg-white/14">
+                <span class="material-symbols-outlined">account_balance_wallet</span>
+              </span>
+            </div>
+
+            <div class="mt-4 grid gap-2">
+              <div class="flex items-center justify-between gap-3 rounded-[16px] bg-white/12 px-3 py-2">
+                <span class="text-[0.72rem] font-bold text-white/72">VND</span>
+                <span class="text-sm font-black">
+                  {{ vndWallet ? displayBalance(vndWallet.balance) : '—' }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between gap-3 rounded-[16px] bg-white/12 px-3 py-2">
+                <span class="text-[0.72rem] font-bold text-white/72">USDT</span>
+                <span class="text-sm font-black">
+                  {{ usdtWallet ? displayBalance(usdtWallet.balance, 2) : '—' }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between gap-3 rounded-[16px] bg-white/12 px-3 py-2">
+                <span class="text-[0.72rem] font-bold text-white/72">Đang khóa</span>
+                <span class="text-sm font-black">
+                  {{ vndWallet ? displayBalance(vndWallet.locked_balance) : '—' }}
+                </span>
+              </div>
+            </div>
+          </article>
+
           <RouterLink to="/notifications" class="rounded-[22px] bg-white/14 px-4 py-3 backdrop-blur-md">
             <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-white/72">Thông báo chưa đọc</p>
-          <strong class="mt-1 block text-[1.35rem] font-black">{{ getUnreadCount() }}</strong>
+            <strong class="mt-1 block text-[1.35rem] font-black">{{ getUnreadCount() }}</strong>
           </RouterLink>
           <RouterLink to="/promotion" class="rounded-[22px] bg-white px-4 py-3 text-primary shadow-[0_8px_24px_rgba(255,255,255,0.16)]">
             <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-primary/70">Hoạt động</p>
@@ -47,7 +125,7 @@ const featuredNews = computed(() => newsArticles.filter((article) => article.fea
 
     <section class="grid grid-cols-2 gap-3 md:grid-cols-4">
       <article
-        v-for="metric in homeMetrics"
+        v-for="metric in displayMetrics"
         :key="metric.title"
         class="rounded-[22px] bg-white p-4 shadow-[0_8px_18px_rgba(0,78,219,0.06)]"
       >
