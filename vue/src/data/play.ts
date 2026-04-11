@@ -20,12 +20,14 @@ export type PlayBetOption = {
   label: string
   hint?: string
   accent: string
+  odds?: string
 }
 
 export type PlayBetGroup = {
   title: string
   description: string
   mode: 'chips' | 'grid'
+  subTab?: string
   options: PlayBetOption[]
 }
 
@@ -156,7 +158,12 @@ function buildWingoVariant(code: string, label: string, durationLabel: string, c
         options: Array.from({ length: 10 }, (_, number) => ({
           key: `number_${number}`,
           label: String(number),
-          accent: number % 3 === 0 ? '#24b561' : number % 3 === 1 ? '#e64545' : '#8b5cf6',
+          accent:
+            number === 0 || number === 5
+              ? '#8b5cf6'
+              : number >= 1 && number <= 4
+                ? '#e64545'
+                : '#24b561',
         })),
       },
       {
@@ -199,37 +206,88 @@ function buildK3Variant(code: string, label: string, durationLabel: string, coun
     ]),
     betGroups: [
       {
-        title: 'Tổng điểm',
+        title: 'Tổng số',
         description: 'Chọn tổng 3 đến 18 theo bộ 3 xúc xắc.',
-        mode: 'chips',
-        options: Array.from({ length: 16 }, (_, index) => {
-          const total = index + 3
-          return { key: `sum_${total}`, label: String(total), accent: total >= 11 ? '#e64545' : '#24b561' }
-        }),
-      },
-      {
-        title: 'Chẵn / Lẻ',
-        description: 'Bám theo tổng kết quả của K3.',
-        mode: 'chips',
+        mode: 'grid',
+        subTab: 'Tổng số',
         options: [
-          { key: 'odd', label: 'Lẻ', accent: '#8b5cf6' },
-          { key: 'even', label: 'Chẵn', accent: '#f6c32d' },
-          { key: 'big', label: 'Lớn', accent: '#f6c32d' },
-          { key: 'small', label: 'Nhỏ', accent: '#24b561' },
+          { key: 'sum_3', label: '3', accent: '#10b981', odds: '207.36X' },
+          { key: 'sum_4', label: '4', accent: '#10b981', odds: '69.12X' },
+          { key: 'sum_5', label: '5', accent: '#10b981', odds: '34.56X' },
+          { key: 'sum_6', label: '6', accent: '#10b981', odds: '20.74X' },
+          { key: 'sum_7', label: '7', accent: '#10b981', odds: '13.83X' },
+          { key: 'sum_8', label: '8', accent: '#10b981', odds: '9.88X' },
+          { key: 'sum_9', label: '9', accent: '#10b981', odds: '8.3X' },
+          { key: 'sum_10', label: '10', accent: '#10b981', odds: '7.68X' },
+          { key: 'sum_11', label: '11', accent: '#10b981', odds: '7.68X' },
+          { key: 'sum_12', label: '12', accent: '#10b981', odds: '8.3X' },
+          { key: 'sum_13', label: '13', accent: '#10b981', odds: '9.88X' },
+          { key: 'sum_14', label: '14', accent: '#10b981', odds: '13.83X' },
+          { key: 'sum_15', label: '15', accent: '#10b981', odds: '20.74X' },
+          { key: 'sum_16', label: '16', accent: '#10b981', odds: '34.56X' },
+          { key: 'sum_17', label: '17', accent: '#10b981', odds: '69.12X' },
+          { key: 'sum_18', label: '18', accent: '#10b981', odds: '207.36X' },
         ],
       },
       {
-        title: 'Bộ ba',
-        description: 'Cược bộ ba toàn bộ hoặc bộ ba cụ thể.',
-        mode: 'chips',
+        title: '2 số trùng',
+        description: 'Cược 2 xúc xắc trùng nhau (đôi cụ thể hoặc đôi bất kỳ).',
+        mode: 'grid',
+        subTab: '2 số trùng',
         options: [
-          { key: 'triple_any', label: 'Any Triple', accent: '#f6c32d' },
-          { key: 'triple_111', label: '111', accent: '#e64545' },
-          { key: 'triple_222', label: '222', accent: '#e64545' },
-          { key: 'triple_333', label: '333', accent: '#e64545' },
-          { key: 'triple_444', label: '444', accent: '#e64545' },
-          { key: 'triple_555', label: '555', accent: '#e64545' },
-          { key: 'triple_666', label: '666', accent: '#e64545' },
+          { key: 'pair_1', label: '1', accent: '#e64545', odds: '13.83X' },
+          { key: 'pair_2', label: '2', accent: '#e64545', odds: '13.83X' },
+          { key: 'pair_3', label: '3', accent: '#e64545', odds: '13.83X' },
+          { key: 'pair_4', label: '4', accent: '#e64545', odds: '13.83X' },
+          { key: 'pair_5', label: '5', accent: '#e64545', odds: '13.83X' },
+          { key: 'pair_6', label: '6', accent: '#e64545', odds: '13.83X' },
+          { key: 'sspair_1', label: '1', accent: '#f59e0b', odds: '69.12X' },
+          { key: 'sspair_2', label: '2', accent: '#f59e0b', odds: '69.12X' },
+          { key: 'sspair_3', label: '3', accent: '#f59e0b', odds: '69.12X' },
+          { key: 'sspair_4', label: '4', accent: '#f59e0b', odds: '69.12X' },
+          { key: 'sspair_5', label: '5', accent: '#f59e0b', odds: '69.12X' },
+          { key: 'sspair_6', label: '6', accent: '#f59e0b', odds: '69.12X' },
+        ],
+      },
+      {
+        title: '3 số trùng',
+        description: 'Cược 3 xúc xắc trùng nhau (bộ ba cụ thể).',
+        mode: 'grid',
+        subTab: '3 số trùng',
+        options: [
+          { key: 'triple_1', label: '1', accent: '#8b5cf6', odds: '207.36X' },
+          { key: 'triple_2', label: '2', accent: '#8b5cf6', odds: '207.36X' },
+          { key: 'triple_3', label: '3', accent: '#8b5cf6', odds: '207.36X' },
+          { key: 'triple_4', label: '4', accent: '#8b5cf6', odds: '207.36X' },
+          { key: 'triple_5', label: '5', accent: '#8b5cf6', odds: '207.36X' },
+          { key: 'triple_6', label: '6', accent: '#8b5cf6', odds: '207.36X' },
+        ],
+      },
+      {
+        title: 'Khác số',
+        description: 'Cược 3 xúc xắc đều khác nhau hoặc liên tiếp.',
+        mode: 'chips',
+        subTab: 'Khác số',
+        options: [
+          { key: 'serial_any', label: '3 liên tiếp', accent: '#e64545', odds: '8.64X' },
+          { key: 'diff_1', label: '1', accent: '#10b981', odds: '34.56X' },
+          { key: 'diff_2', label: '2', accent: '#10b981', odds: '34.56X' },
+          { key: 'diff_3', label: '3', accent: '#10b981', odds: '34.56X' },
+          { key: 'diff_4', label: '4', accent: '#10b981', odds: '34.56X' },
+          { key: 'diff_5', label: '5', accent: '#10b981', odds: '34.56X' },
+          { key: 'diff_6', label: '6', accent: '#10b981', odds: '34.56X' },
+        ],
+      },
+      {
+        title: 'Lớn / Nhỏ / Chẵn / Lẻ',
+        description: 'Bám theo tổng kết quả của K3.',
+        mode: 'chips',
+        subTab: 'Lớn / Nhỏ / Chẵn / Lẻ',
+        options: [
+          { key: 'big', label: 'Lớn', accent: '#e64545', odds: '2X' },
+          { key: 'small', label: 'Nhỏ', accent: '#3b82f6', odds: '2X' },
+          { key: 'odd', label: 'Lẻ', accent: '#f59e0b', odds: '2X' },
+          { key: 'even', label: 'Chẵn', accent: '#10b981', odds: '2X' },
         ],
       },
     ],

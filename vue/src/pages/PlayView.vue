@@ -22,6 +22,7 @@ const wallet = useWalletStore()
 
 const activeVariantCode = ref('')
 const activeHistoryTab = ref<'history' | 'chart' | 'mine'>('history')
+const activeK3SubTab = ref('Tổng số')
 const connectionId = ref('')
 const joinLoading = ref(false)
 const joinError = ref('')
@@ -45,11 +46,22 @@ const roomStateError = ref('')
 const serverTimeOffsetMs = ref(0)
 const clockTick = ref(Date.now())
 
+// Bet modal state
+const showBetModal = ref(false)
+const modalBetLabel = ref('')
+const modalBetKey = ref('')
+const modalBetGroupTitle = ref('')
+const modalBetAmount = ref(10000)
+const betPresets = [10000, 50000, 100000, 500000, 1000000]
+
 const stakeOptions = [1, 5, 10, 20, 50] as const
 const tablePageSize = 4
 let timer: number | undefined
 
 const room = computed<PlayRoom | null>(() => getPlayRoom(String(route.params.game ?? 'wingo')) ?? null)
+const isK3 = computed(() => room.value?.code === 'k3')
+const isWingo = computed(() => room.value?.code === 'wingo')
+
 const selectedVariant = computed<PlayVariant | null>(() => {
   if (!room.value || room.value.variants.length === 0) return null
   return room.value.variants.find((variant) => variant.code === activeVariantCode.value) ?? room.value.variants[0] ?? null
@@ -88,17 +100,17 @@ const countdownParts = computed(() => {
   const minutes = Math.floor(total / 60)
   const seconds = total % 60
   return {
-    minutes: String(minutes).padStart(2, '0'),
-    seconds: String(seconds).padStart(2, '0'),
+    m0: String(Math.floor(minutes / 10)),
+    m1: String(minutes % 10),
+    s0: String(Math.floor(seconds / 10)),
+    s1: String(seconds % 10),
   }
 })
 
 const roomStatusLabel = computed(() => {
   const status = (currentPeriod.value?.status || '').toUpperCase()
   if (!currentPeriod.value) return room.value?.status === 'COMING_SOON' ? 'Sắp mở' : 'Chưa cập nhật'
-  if (status === 'OPEN') {
-    return isBetLocked.value ? 'Đang khóa' : 'Đang mở'
-  }
+  if (status === 'OPEN') return isBetLocked.value ? 'Đang khóa' : 'Đang mở'
   if (status === 'LOCKED') return 'Đang khóa'
   if (status === 'DRAWN') return 'Đã ra kết quả'
   if (status === 'SETTLED') return 'Đã chốt'
@@ -118,9 +130,58 @@ const periodHistory = computed(() => {
   return historyRows.value
 })
 
+// K3 sub-tabs: get unique subTab labels from betGroups
+const k3SubTabs = computed(() => {
+  if (!isK3.value || !selectedVariant.value) return []
+  const tabs: string[] = []
+  for (const group of selectedVariant.value.betGroups) {
+    if (group.subTab && !tabs.includes(group.subTab)) tabs.push(group.subTab)
+  }
+  return tabs
+})
+
+// K3 active groups filtered by sub-tab
+const activeK3Groups = computed(() => {
+  if (!isK3.value || !selectedVariant.value) return []
+  return selectedVariant.value.betGroups.filter((g) => g.subTab === activeK3SubTab.value)
+})
+
+// WinGo specific groups
 const colorGroup = computed(() => selectedVariant.value?.betGroups.find((group) => groupTypeKey(group) === 'COLOR') ?? null)
 const numberGroup = computed(() => selectedVariant.value?.betGroups.find((group) => groupTypeKey(group) === 'NUMBER') ?? null)
 const bigSmallGroup = computed(() => selectedVariant.value?.betGroups.find((group) => groupTypeKey(group) === 'BIG_SMALL') ?? null)
+
+// Dice render for K3
+const currentDice = computed<number[]>(() => {
+  const recent = roomState.value?.recent_results?.[0]
+  if (recent?.result && recent.result.includes('-')) {
+    return recent.result.split('-').map(Number).filter((n) => n >= 1 && n <= 6)
+  }
+  return [4, 2, 3]
+})
+
+function diceDots(n: number): Array<{ x: string; y: string }> {
+  const positions: Record<number, Array<[string, string]>> = {
+    1: [['50%', '50%']],
+    2: [['28%', '28%'], ['72%', '72%']],
+    3: [['28%', '28%'], ['50%', '50%'], ['72%', '72%']],
+    4: [['28%', '28%'], ['72%', '28%'], ['28%', '72%'], ['72%', '72%']],
+    5: [['28%', '28%'], ['72%', '28%'], ['50%', '50%'], ['28%', '72%'], ['72%', '72%']],
+    6: [['28%', '22%'], ['72%', '22%'], ['28%', '50%'], ['72%', '50%'], ['28%', '78%'], ['72%', '78%']],
+  }
+  return (positions[n] ?? []).map(([x, y]) => ({ x, y }))
+}
+
+function diceColor(n: number): string {
+  return n <= 3 ? '#e8404a' : '#10b981'
+}
+
+// WinGo number color
+function wingoBallColor(n: number): string {
+  if (n === 0 || n === 5) return 'linear-gradient(135deg, #8b5cf6, #e8404a)'
+  if (n >= 1 && n <= 4) return '#e8404a'
+  return '#10b981'
+}
 
 function formatMoney(value: string | number | null | undefined, fractionDigits = 0) {
   return formatViMoney(value ?? 0, fractionDigits)
@@ -163,7 +224,6 @@ async function loadWallet() {
 
 async function loadRoomState(roomCode = selectedRoomCode.value) {
   if (!roomCode) return
-
   roomStateLoading.value = true
   roomStateError.value = ''
   try {
@@ -182,15 +242,13 @@ async function loadRoomState(roomCode = selectedRoomCode.value) {
 
 async function loadRoomHistory(page = historyPage.value) {
   if (!selectedRoomCode.value) return
-
   historyLoading.value = true
   historyError.value = ''
   try {
     const response = await request<PlayRoomHistoryResponse>(
       'GET',
       `/v1/play/rooms/${selectedRoomCode.value}/history?page=${page}&page_size=${tablePageSize}`,
-      {
-      },
+      {},
     )
     historyRows.value = response.items
     historyPage.value = response.page
@@ -206,16 +264,13 @@ async function loadRoomHistory(page = historyPage.value) {
 
 async function loadMineHistory(page = minePage.value) {
   if (!selectedRoomCode.value || !auth.accessToken) return
-
   mineLoading.value = true
   mineError.value = ''
   try {
     const response = await request<PlayRoomBetHistoryResponse>(
       'GET',
       `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${page}&page_size=${tablePageSize}`,
-      {
-        token: auth.accessToken,
-      },
+      { token: auth.accessToken },
     )
     mineRows.value = response.items
     minePage.value = response.page
@@ -239,18 +294,14 @@ async function loadActiveHistory(page = currentPage()) {
 
 async function joinRoom() {
   if (!room.value || room.value.status !== 'OPEN' || !auth.accessToken) return
-  if (!wallet.wallets.length) {
-    await loadWallet()
-  }
+  if (!wallet.wallets.length) await loadWallet()
   if (availableVndBalance.value <= 0) {
     joinError.value = 'Số dư không đủ để vào phòng chơi. Vui lòng nạp tiền.'
     return
   }
-
   joinLoading.value = true
   joinError.value = ''
   connectionId.value = ''
-
   try {
     const res = await request<GameJoinResponse>('POST', `/v1/games/${room.value.code}/join`, {
       token: auth.accessToken,
@@ -264,13 +315,17 @@ async function joinRoom() {
   }
 }
 
-function selectOption(groupTitle: string, key: string) {
-  selectedOptions[groupTitle] = key
+function openBetModal(groupTitle: string, optionKey: string, optionLabel: string) {
+  modalBetGroupTitle.value = groupTitle
+  modalBetKey.value = optionKey
+  modalBetLabel.value = optionLabel
+  modalBetAmount.value = 10000
+  showBetModal.value = true
 }
 
-function selectRandomStake() {
-  const index = Math.floor(Math.random() * stakeOptions.length)
-  selectedMultiplier.value = stakeOptions[index] ?? 10
+function selectOption(groupTitle: string, key: string, label: string) {
+  selectedOptions[groupTitle] = key
+  openBetModal(groupTitle, key, label)
 }
 
 function groupTypeKey(group: PlayBetGroup): string {
@@ -284,74 +339,40 @@ function groupTypeKey(group: PlayBetGroup): string {
   return 'OPTION'
 }
 
-function groupButtonClass(group: PlayBetGroup, optionKey: string) {
-  const selected = selectedOptions[group.title] === optionKey
-  const title = group.title.toLowerCase()
-
-  if (title.includes('màu')) {
-    return selected ? 'ring-2 ring-offset-2 ring-primary shadow-[0_12px_24px_rgba(255,109,102,0.12)]' : 'shadow-[0_10px_18px_rgba(17,24,39,0.08)]'
-  }
-  if (title.includes('lớn') || title.includes('nhỏ')) {
-    return selected ? 'ring-2 ring-offset-2 ring-primary shadow-[0_12px_24px_rgba(255,109,102,0.12)]' : 'shadow-[0_10px_18px_rgba(17,24,39,0.08)]'
-  }
-  return selected ? 'border-primary bg-primary/10 text-primary' : 'border-slate-200 bg-white text-on-surface'
-}
-
-async function submitBet() {
-  if (!room.value || !selectedVariant.value || !auth.accessToken || !connectionId.value) return
-  if (remainingSeconds.value === 0 || roomStatusLabel.value === 'Đang khóa' || room.value.status !== 'OPEN') {
-    betMessage.value = 'Kỳ hiện tại đã khóa, không thể đặt lệnh.'
-    return
-  }
-
-  const amount = Number.parseFloat(stakeAmount.value || '0')
-  if (!Number.isFinite(amount) || amount <= 0) {
-    betMessage.value = 'Vui lòng nhập số tiền hợp lệ.'
-    return
-  }
-
-  const items = selectedVariant.value.betGroups.flatMap((group) => {
-    const selected = selectedOptions[group.title]
-    if (!selected) return []
-    return [{
-      option_type: groupTypeKey(group),
-      option_key: selected,
-      stake: String(amount),
-    }]
-  })
-
-  if (!items.length) {
-    betMessage.value = 'Vui lòng chọn ít nhất một cửa cược.'
-    return
-  }
-
-  if (availableVndBalance.value < Number(stakeAmount.value)) {
-    betMessage.value = 'Số dư không đủ để đặt lệnh.'
-    return
-  }
-  if (!currentPeriod.value) {
-    betMessage.value = 'Chưa có kỳ hiện tại để đặt lệnh.'
+async function confirmBet() {
+  if (!room.value || !selectedVariant.value || !auth.accessToken || !connectionId.value) {
+    betMessage.value = 'Vui lòng đăng nhập và vào phòng chơi trước.'
+    showBetModal.value = false
     return
   }
   if (isBetLocked.value) {
     betMessage.value = 'Kỳ hiện tại đã khóa, không thể đặt lệnh.'
+    showBetModal.value = false
+    return
+  }
+  if (!currentPeriod.value) {
+    betMessage.value = 'Chưa có kỳ hiện tại.'
+    showBetModal.value = false
     return
   }
 
   betLoading.value = true
   betMessage.value = ''
+  showBetModal.value = false
 
   try {
     const requestId = globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}`
     const res = await request<PlayRoomBetResponse>('POST', `/v1/play/rooms/${selectedRoomCode.value}/bets`, {
       token: auth.accessToken,
-      headers: {
-        'X-Connection-ID': connectionId.value,
-      },
+      headers: { 'X-Connection-ID': connectionId.value },
       body: {
         request_id: requestId,
         period_id: String(currentPeriod.value.id),
-        items,
+        items: [{
+          option_type: groupTypeKey({ title: modalBetGroupTitle.value, description: '', mode: 'chips', options: [] }),
+          option_key: modalBetKey.value,
+          stake: String(modalBetAmount.value),
+        }],
       },
     })
     betMessage.value = res.message || 'Lệnh đã được tiếp nhận'
@@ -388,6 +409,8 @@ watch(
       return
     }
     activeVariantCode.value = room.value.variants[0]?.code ?? ''
+    // Reset K3 sub-tab to first
+    if (isK3.value) activeK3SubTab.value = 'Tổng số'
     await nextTick()
     ensureDefaultSelections(room.value.variants[0] ?? null)
     await joinRoom()
@@ -409,338 +432,539 @@ watch(
 
 watch(
   () => selectedVariant.value?.code,
-  () => {
-    ensureDefaultSelections(selectedVariant.value)
-  },
+  () => { ensureDefaultSelections(selectedVariant.value) },
   { immediate: true },
 )
 
 watch(
   () => activeHistoryTab.value,
-  async () => {
-    await loadActiveHistory(currentPage())
-  },
+  async () => { await loadActiveHistory(currentPage()) },
 )
 
 onMounted(() => {
   void loadWallet()
-  timer = window.setInterval(() => {
-    clockTick.value = Date.now()
-  }, 1000)
+  timer = window.setInterval(() => { clockTick.value = Date.now() }, 1000)
 })
 
-onBeforeUnmount(() => {
-  if (timer) window.clearInterval(timer)
-})
+onBeforeUnmount(() => { if (timer) window.clearInterval(timer) })
 </script>
 
 <template>
-  <div v-if="room && selectedVariant" class="space-y-3 pb-24 pt-1 md:space-y-4 md:pb-28">
-    <header class="flex items-center justify-between gap-3 bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] -mx-3 -mt-3 p-4 pb-8 md:-mx-4 md:-mt-4 text-white rounded-b-[30px] shadow-[0_8px_20px_rgba(229,46,46,0.15)]">
-      <button class="grid h-10 w-10 place-items-center rounded-full text-white transition-transform active:scale-95" type="button" @click="router.push('/play')">
-        <span class="material-symbols-outlined text-[1.9rem]">arrow_back</span>
+  <div v-if="room && selectedVariant" class="min-h-dvh pb-28" style="background: #f7f0f0;">
+    <!-- ===== HEADER GRADIENT ===== -->
+    <header class="flex items-center justify-between bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] px-4 py-3 text-white shadow-lg">
+      <button class="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white transition-transform active:scale-95" type="button" @click="router.push('/play')">
+        <span class="material-symbols-outlined text-[1.6rem]">arrow_back</span>
       </button>
-
       <div class="min-w-0 flex-1 text-center">
-        <h1 class="truncate text-[1.35rem] font-black tracking-[-0.04em] text-white md:text-[1.5rem]">
-          {{ room.title }} {{ selectedVariant.durationLabel }}
+        <h1 class="truncate text-[1.1rem] font-black text-white">
+          {{ room.title }}
         </h1>
+        <p class="text-[0.7rem] text-white/80">{{ selectedVariant.durationLabel }}</p>
       </div>
-
-      <button class="text-[1rem] font-bold text-white transition-opacity active:opacity-80" type="button">
-        Hỗ trợ
-      </button>
+      <div class="flex items-center gap-2">
+        <button class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white" type="button">
+          <span class="material-symbols-outlined text-[1.2rem]">headphones</span>
+        </button>
+        <button class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white" type="button">
+          <span class="material-symbols-outlined text-[1.2rem]">person</span>
+        </button>
+      </div>
     </header>
 
-    <section class="relative overflow-hidden rounded-[24px] bg-white p-4 text-on-surface shadow-[0_14px_28px_rgba(229,46,46,0.08)] md:p-5 mx-2 -mt-6 z-10">
-      <div class="absolute right-5 top-5 grid h-14 w-14 place-items-center rounded-[18px] bg-primary/10 text-primary">
-        <span class="material-symbols-outlined text-[2rem]">account_balance_wallet</span>
-      </div>
-      <div class="relative z-10 max-w-[78%]">
-        <p class="text-[0.74rem] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
-          Số dư hiện tại
-        </p>
-        <div class="mt-1 flex items-baseline gap-2">
-          <strong class="text-[2.35rem] font-black leading-none tracking-[-0.05em] md:text-[2.7rem] text-primary">
-            {{ currentBalanceLabel }}đ
-          </strong>
-          <span class="material-symbols-outlined text-[1.2rem] text-primary/80">refresh</span>
+    <!-- ===== BALANCE CARD ===== -->
+    <div class="mx-3 -mt-0 bg-white rounded-b-[20px] px-4 py-4 shadow-md border border-slate-100">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-[0.7rem] text-slate-500">Số dư ví</p>
+          <strong class="text-[1.5rem] font-black text-on-surface">{{ currentBalanceLabel }}đ</strong>
         </div>
+        <span class="material-symbols-outlined text-[1.1rem] text-slate-400 cursor-pointer">refresh</span>
       </div>
-
-      <div class="mt-5 grid grid-cols-2 gap-3">
-        <RouterLink to="/deposit" class="flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#24b561] to-[#2fcc71] shadow-[0_8px_16px_rgba(36,181,97,0.25)] px-4 font-black text-white transition-transform active:scale-95">
-          <span class="material-symbols-outlined text-[1.2rem]">add_circle</span>
-          Nạp tiền
-        </RouterLink>
-        <RouterLink to="/account" class="flex min-h-14 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#ff8a00] to-[#f6c32d] shadow-[0_8px_16px_rgba(255,138,0,0.25)] px-4 font-black text-white transition-transform active:scale-95">
-          <span class="material-symbols-outlined text-[1.2rem]">account_balance</span>
+      <p class="text-[0.68rem] text-slate-400 mt-0.5">Số dư vi</p>
+      <div class="grid grid-cols-2 gap-2 mt-3">
+        <RouterLink to="/account" class="flex items-center justify-center gap-1.5 rounded-full border-2 border-primary bg-white py-2.5 text-[0.82rem] font-black text-primary active:scale-95 transition-transform">
           Rút tiền
         </RouterLink>
-      </div>
-    </section>
-
-    <div class="rounded-full bg-white px-4 py-3 text-[0.8rem] font-semibold text-on-surface shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
-      <div class="flex items-center gap-2 overflow-hidden">
-        <span class="material-symbols-outlined text-primary">campaign</span>
-        <span class="whitespace-nowrap text-on-surface-variant">
-          Chúc mừng người chơi ***123 vừa thắng 2,500,000đ
-        </span>
+        <RouterLink to="/deposit" class="flex items-center justify-center gap-1.5 rounded-full bg-primary py-2.5 text-[0.82rem] font-black text-white shadow-[0_6px_16px_rgba(255,109,102,0.3)] active:scale-95 transition-transform">
+          Nạp tiền
+        </RouterLink>
       </div>
     </div>
 
-    <p v-if="roomStateError" class="rounded-[14px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
+    <!-- ===== MARQUEE NOTICE ===== -->
+    <div class="mx-3 mt-2 flex items-center gap-2 rounded-[12px] bg-white px-3 py-2.5 shadow-sm">
+      <span class="material-symbols-outlined text-[1rem] text-primary flex-shrink-0">campaign</span>
+      <span class="flex-1 overflow-hidden text-[0.72rem] text-slate-600 whitespace-nowrap truncate">
+        Chúc mừng người chơi ***123 vừa thắng 2,500,000đ · Nạp tiền ngay để nhận thưởng VIP
+      </span>
+      <RouterLink to="/promotion" class="flex-shrink-0 rounded-full bg-primary px-2.5 py-1 text-[0.65rem] font-black text-white">Chi tiết</RouterLink>
+    </div>
+
+    <p v-if="roomStateError" class="mx-3 mt-2 rounded-[12px] bg-red-50 px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
       {{ roomStateError }}
     </p>
 
-    <section class="grid grid-cols-4 gap-2 md:gap-3">
+    <!-- ===== PERIOD TABS ===== -->
+    <div class="mx-0 mt-2 flex bg-white border-b border-slate-100 px-2 py-2 gap-1">
       <button
         v-for="variant in room.variants"
         :key="variant.code"
         type="button"
-        class="grid min-h-[94px] place-items-center rounded-[20px] transition-all active:scale-[0.98] px-2 py-3 text-center"
-        :class="variant.code === selectedVariant.code ? 'bg-gradient-to-tr from-[#ff8a00] to-[#e52e2e] text-white shadow-[0_12px_24px_rgba(229,46,46,0.3)]' : 'bg-white border border-slate-100 text-slate-500 shadow-sm'"
+        class="flex flex-1 flex-col items-center gap-1.5 rounded-[14px] py-2 px-1 transition-all active:scale-[0.97]"
+        :class="variant.code === selectedVariant.code ? 'bg-[#e8404a]' : 'bg-transparent'"
         @click="activeVariantCode = variant.code"
       >
-        <span class="material-symbols-outlined text-[1.9rem]" :class="variant.code === selectedVariant.code ? 'text-white/90' : 'text-slate-400'">
-          schedule
-        </span>
-        <span class="mt-1 text-[0.76rem] font-black uppercase tracking-[0.04em]">
-          {{ variant.durationLabel }}
+        <div
+          class="grid h-9 w-9 place-items-center rounded-full border-2 transition-all"
+          :class="variant.code === selectedVariant.code ? 'border-white/40 bg-white/20' : 'border-slate-200 bg-slate-50'"
+        >
+          <span
+            class="material-symbols-outlined text-[1.2rem]"
+            :class="variant.code === selectedVariant.code ? 'text-white' : 'text-slate-400'"
+          >schedule</span>
+        </div>
+        <span
+          class="text-center text-[0.6rem] font-bold leading-tight whitespace-nowrap"
+          :class="variant.code === selectedVariant.code ? 'text-white' : 'text-slate-500'"
+        >
+          {{ room.title }}<br>{{ variant.durationLabel }}
         </span>
       </button>
-    </section>
+    </div>
 
-    <section class="grid gap-3 md:grid-cols-2">
-      <article class="rounded-[20px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
-        <p class="text-[0.92rem] font-medium text-on-surface-variant">
-          Số kỳ: <strong class="text-primary">{{ currentPeriod?.period_no ?? '—' }}</strong>
-        </p>
-        <div class="mt-3 flex items-center gap-1.5 justify-center h-14 bg-transparent text-[2.2rem] font-black text-primary">
-          <span>{{ countdownParts.minutes[0] }}</span>
-          <span>{{ countdownParts.minutes[1] }}</span>
-          <span class="mx-1 pb-1 text-[#e64545]">:</span>
-          <span class="text-[#e64545]">{{ countdownParts.seconds[0] }}</span>
-          <span class="text-[#e64545]">{{ countdownParts.seconds[1] }}</span>
+    <!-- ===== PERIOD INFO + COUNTDOWN ===== -->
+    <div class="mx-3 mt-2 rounded-[16px] bg-white px-4 py-3 shadow-sm border border-slate-100">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-[0.72rem] text-slate-500">Kỳ xổ</span>
+          <button class="flex items-center gap-1 rounded-full border border-[#f0c0c0] bg-[#fff5f5] px-2.5 py-1 text-[0.65rem] font-semibold text-primary">
+            <span class="material-symbols-outlined text-[0.8rem]">menu_book</span>
+            Cách chơi
+          </button>
         </div>
-        <p class="mt-3 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
-          {{ roomStatusLabel }}
-        </p>
-      </article>
+        <span class="text-[0.72rem] text-slate-500">Thời gian còn lại</span>
+      </div>
+      <div class="flex items-center justify-between mt-2">
+        <div>
+          <p class="text-[0.78rem] font-bold text-on-surface">{{ currentPeriod?.period_no ?? '—' }}</p>
+          <p class="text-[0.65rem] text-slate-400 uppercase tracking-wide mt-0.5">{{ roomStatusLabel }}</p>
+        </div>
+        <!-- Digit-box countdown (matching source design) -->
+        <div class="flex items-center gap-1">
+          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ countdownParts.m0 }}</div>
+          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ countdownParts.m1 }}</div>
+          <span class="text-[1.1rem] font-black text-[#1a1a1a] px-0.5">:</span>
+          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ countdownParts.s0 }}</div>
+          <div class="flex h-8 w-7 items-center justify-center rounded-[6px] bg-[#1a1a1a] text-[1rem] font-black text-white">{{ countdownParts.s1 }}</div>
+        </div>
+      </div>
+    </div>
 
-      <article class="rounded-[20px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
-        <p class="text-[0.92rem] font-medium text-on-surface-variant">
-          Kết quả gần đây
-        </p>
-        <div class="mt-3 flex flex-wrap gap-2.5">
-          <span
+    <!-- ===== K3: DICE DISPLAY ===== -->
+    <template v-if="isK3">
+      <div class="mx-3 mt-2 rounded-[16px] overflow-hidden">
+        <div class="flex justify-center gap-4 bg-[#1a5c34] border-[3px] border-[#2d8c4e] rounded-[16px] py-5 px-4">
+          <div
+            v-for="(d, i) in currentDice"
+            :key="i"
+            class="relative h-[62px] w-[62px] rounded-[14px]"
+            :style="{ background: diceColor(d), boxShadow: '0 4px 12px rgba(0,0,0,0.35), inset 0 2px 4px rgba(255,255,255,0.2)' }"
+          >
+            <span
+              v-for="(dot, di) in diceDots(d)"
+              :key="di"
+              class="absolute h-[10px] w-[10px] rounded-full bg-white"
+              :style="{ left: dot.x, top: dot.y, transform: 'translate(-50%, -50%)' }"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- K3 Recent Results -->
+      <div class="mx-3 mt-2 flex items-center gap-2 rounded-[14px] bg-white px-3 py-2.5 shadow-sm border border-slate-100">
+        <span class="text-[0.7rem] text-slate-400">Gần đây:</span>
+        <div v-for="result in recentResults" :key="result.period_no" class="flex gap-1">
+          <div
+            v-for="(d, di) in result.result.split('-').map(Number)"
+            :key="di"
+            class="flex h-5 w-5 items-center justify-center rounded-[4px] text-[0.6rem] font-black text-white"
+            :style="{ background: diceColor(d) }"
+          >{{ d }}</div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ===== WINGO: RESULT BALLS + SLOTS ===== -->
+    <template v-if="isWingo">
+      <div class="mx-3 mt-2 rounded-[16px] bg-white px-4 py-3 shadow-sm border border-slate-100">
+        <!-- Recent result balls row -->
+        <div class="flex items-center gap-2 mb-3">
+          <div
             v-for="result in recentResults"
             :key="result.period_no"
-            class="grid h-9 w-9 place-items-center rounded-full border text-[0.82rem] font-black text-white"
-            :class="resultDotClass(result.color)"
-          >
-            {{ result.result }}
-          </span>
+            class="flex h-7 w-7 items-center justify-center rounded-full text-[0.75rem] font-black text-white flex-shrink-0"
+            :style="{ background: wingoBallColor(Number(result.result)) }"
+          >{{ result.result }}</div>
+          <div class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400 flex-shrink-0">
+            <span class="material-symbols-outlined text-[0.9rem]">chevron_right</span>
+          </div>
         </div>
-      </article>
-    </section>
 
-    <section class="rounded-[22px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)] md:p-5">
-      <div class="grid gap-3">
-        <div v-if="colorGroup" class="grid grid-cols-3 gap-3">
+        <!-- Large number display -->
+        <div class="flex justify-center gap-3 rounded-[14px] bg-[#f8f0f0] py-4 border border-[#f0e0e0]">
+          <div
+            v-for="(n, i) in recentResults.slice(0, 2).map(r => Number(r.result))"
+            :key="i"
+            class="flex h-20 w-20 items-center justify-center rounded-[14px] bg-white border-2 border-[#f0e0e0] shadow-md"
+          >
+            <span class="text-[3rem] font-black leading-none" :style="{ color: wingoBallColor(n) !== 'linear-gradient(135deg, #8b5cf6, #e8404a)' ? wingoBallColor(n) : '#8b5cf6' }">
+              {{ n }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ===== BET AREA ===== -->
+    <div class="mx-3 mt-2 rounded-[16px] bg-white px-3 py-3 shadow-sm border border-slate-100">
+
+      <!-- K3: Sub-tabs for bet types -->
+      <template v-if="isK3">
+        <div class="flex gap-1.5 overflow-x-auto pb-2 no-scrollbar mb-3">
+          <button
+            v-for="tab in k3SubTabs"
+            :key="tab"
+            type="button"
+            class="flex-shrink-0 rounded-full border-[1.5px] px-3.5 py-1.5 text-[0.72rem] font-semibold transition-all"
+            :class="activeK3SubTab === tab ? 'border-[#e8404a] bg-[#e8404a] text-white' : 'border-slate-200 bg-white text-slate-500'"
+            @click="activeK3SubTab = tab"
+          >{{ tab }}</button>
+        </div>
+
+        <!-- K3: Options grid for active sub-tab -->
+        <div v-for="group in activeK3Groups" :key="group.title">
+          <!-- Grid mode: circles with odds (Tổng số, 2 số trùng, 3 số trùng) -->
+          <div v-if="group.mode === 'grid'" class="grid grid-cols-4 gap-2 mb-3">
+            <button
+              v-for="option in group.options"
+              :key="option.key"
+              type="button"
+              class="flex flex-col items-center justify-center aspect-square rounded-full text-white transition-transform active:scale-95 hover:opacity-90 gap-0.5 p-1"
+              :style="{ background: option.accent }"
+              @click="selectOption(group.title, option.key, option.label)"
+            >
+              <span class="text-[0.9rem] font-black leading-tight">{{ option.label }}</span>
+              <span v-if="option.odds" class="text-[0.55rem] font-semibold opacity-85">{{ option.odds }}</span>
+            </button>
+          </div>
+
+          <!-- Chips mode: Khác số & Lớn/Nhỏ -->
+          <div v-else>
+            <div v-if="group.title === 'Lớn / Nhỏ / Chẵn / Lẻ'" class="grid grid-cols-4 gap-2 mb-3">
+              <button
+                v-for="option in group.options"
+                :key="option.key"
+                type="button"
+                class="flex flex-col items-center justify-center rounded-[10px] py-3 text-white font-black text-[0.82rem] transition-all active:scale-95"
+                :style="{ background: option.accent }"
+                @click="selectOption(group.title, option.key, option.label)"
+              >
+                {{ option.label }}
+                <span v-if="option.odds" class="text-[0.6rem] font-semibold opacity-80 mt-0.5">{{ option.odds }}</span>
+              </button>
+            </div>
+            <div v-else class="flex flex-wrap gap-2 mb-3">
+              <button
+                v-for="option in group.options"
+                :key="option.key"
+                type="button"
+                class="rounded-[10px] px-4 py-2.5 text-white text-[0.82rem] font-bold transition-all active:scale-95 flex-1"
+                :style="{ background: option.accent }"
+                @click="selectOption(group.title, option.key, option.label)"
+              >
+                {{ option.label }}
+                <span v-if="option.odds" class="ml-1 text-[0.65rem] opacity-80">({{ option.odds }})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- WINGO specific bet UI -->
+      <template v-if="isWingo">
+        <!-- Color buttons -->
+        <div v-if="colorGroup" class="grid grid-cols-3 gap-2 mb-3">
           <button
             v-for="option in colorGroup.options"
             :key="option.key"
             type="button"
-            class="min-h-14 rounded-[16px] px-3 py-3 text-[1rem] font-black text-white transition-transform active:scale-[0.98]"
-            :style="{ backgroundColor: option.accent }"
-            :class="groupButtonClass(colorGroup, option.key)"
-            @click="selectOption(colorGroup.title, option.key)"
-          >
-            {{ option.label }}
-          </button>
+            class="min-h-[48px] rounded-[10px] text-[0.9rem] font-black text-white transition-transform active:scale-95"
+            :style="{ background: option.accent }"
+            @click="selectOption(colorGroup.title, option.key, option.label)"
+          >{{ option.label }}</button>
         </div>
 
-        <div v-if="numberGroup" class="grid grid-cols-5 gap-3">
+        <!-- Number balls 0-9 -->
+        <div v-if="numberGroup" class="grid grid-cols-5 gap-2 mb-3">
           <button
             v-for="option in numberGroup.options"
             :key="option.key"
             type="button"
-            class="grid h-14 place-items-center rounded-full border-2 bg-white text-[1.2rem] font-black transition-transform active:scale-[0.98]"
-            :class="groupButtonClass(numberGroup, option.key)"
-            @click="selectOption(numberGroup.title, option.key)"
-          >
-            {{ option.label }}
-          </button>
+            class="aspect-square rounded-full text-[1rem] font-black text-white transition-transform active:scale-95 hover:scale-105"
+            :style="{ background: option.accent }"
+            @click="selectOption(numberGroup.title, option.key, option.label)"
+          >{{ option.label }}</button>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            class="rounded-[14px] bg-[#fff0ee] px-4 py-3 text-[0.88rem] font-black text-[#7a433e] transition-transform active:scale-[0.98]"
-            @click="selectRandomStake"
-          >
-            Ngẫu nhiên
-          </button>
+        <!-- Multiplier / Stake row -->
+        <div class="flex gap-1.5 mb-3 overflow-x-auto no-scrollbar">
           <button
             v-for="multiplier in stakeOptions"
             :key="multiplier"
             type="button"
-            class="rounded-[12px] px-3 py-2 text-[0.86rem] font-black transition-transform active:scale-[0.98]"
-            :class="multiplier === selectedMultiplier ? 'bg-primary text-white shadow-[0_10px_18px_rgba(255,109,102,0.18)]' : 'bg-[#fff4f2] text-[#2c2f33]'"
+            class="flex-shrink-0 rounded-[8px] border-[1.5px] px-3 py-1.5 text-[0.78rem] font-black transition-all"
+            :class="multiplier === selectedMultiplier ? 'border-primary bg-[#fff5f5] text-primary' : 'border-slate-200 bg-slate-50 text-slate-500'"
             @click="selectedMultiplier = multiplier"
-          >
-            x{{ multiplier }}
-          </button>
+          >X{{ multiplier }}</button>
         </div>
 
-        <div v-if="bigSmallGroup" class="grid grid-cols-2 gap-3">
+        <!-- Big / Small buttons -->
+        <div v-if="bigSmallGroup" class="grid grid-cols-2 gap-2 mb-3">
           <button
             v-for="option in bigSmallGroup.options"
             :key="option.key"
             type="button"
-            class="min-h-16 rounded-[16px] px-4 text-[1.15rem] font-black transition-transform active:scale-[0.98]"
-            :style="{ backgroundColor: option.accent }"
-            :class="groupButtonClass(bigSmallGroup, option.key)"
-            @click="selectOption(bigSmallGroup.title, option.key)"
+            class="min-h-[52px] rounded-[10px] text-[1rem] font-black text-white transition-transform active:scale-95"
+            :style="{ background: option.accent }"
+            @click="selectOption(bigSmallGroup.title, option.key, option.label)"
+          >{{ option.label }}</button>
+        </div>
+      </template>
+
+      <!-- Fallback for other games (5D etc) -->
+      <template v-if="!isK3 && !isWingo">
+        <div v-for="group in selectedVariant.betGroups" :key="group.title" class="mb-4">
+          <p class="text-[0.72rem] font-bold text-slate-500 mb-2 uppercase tracking-wide">{{ group.title }}</p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="option in group.options"
+              :key="option.key"
+              type="button"
+              class="rounded-full px-4 py-2 text-[0.82rem] font-black text-white transition-transform active:scale-95"
+              :style="{ background: option.accent }"
+              @click="selectOption(group.title, option.key, option.label)"
+            >{{ option.label }}</button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Bet status messages -->
+      <div v-if="!canPlay" class="rounded-[12px] bg-red-50 px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
+        Số dư hiện tại bằng 0. Vui lòng nạp tiền.
+      </div>
+      <div v-else-if="isBetLocked" class="rounded-[12px] bg-amber-50 px-4 py-3 text-[0.78rem] font-semibold text-amber-700">
+        Kỳ hiện tại đã bước vào 5 giây cuối hoặc đã khóa lệnh. Vui lòng chờ kỳ tiếp theo.
+      </div>
+      <p v-if="joinError" class="mt-2 rounded-[12px] bg-red-50 px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">{{ joinError }}</p>
+      <p v-if="betMessage" class="mt-2 rounded-[12px] bg-[rgba(255,109,102,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-primary">{{ betMessage }}</p>
+    </div>
+
+    <!-- ===== HISTORY SECTION ===== -->
+    <div class="mx-3 mt-2 rounded-[16px] bg-white shadow-sm border border-slate-100 overflow-hidden">
+      <!-- History tabs -->
+      <div class="flex bg-[#fff5f5] border-b border-[#f0e0e0]">
+        <button
+          type="button"
+          class="flex-1 py-2.5 text-[0.72rem] font-semibold border-b-2 transition-all"
+          :class="activeHistoryTab === 'history' ? 'border-[#e8404a] text-[#e8404a] bg-white' : 'border-transparent text-slate-500'"
+          @click="activeHistoryTab = 'history'"
+        >Lịch sử trò chơi</button>
+        <button
+          type="button"
+          class="flex-1 py-2.5 text-[0.72rem] font-semibold border-b-2 transition-all"
+          :class="activeHistoryTab === 'chart' ? 'border-[#e8404a] text-[#e8404a] bg-white' : 'border-transparent text-slate-500'"
+          @click="activeHistoryTab = 'chart'"
+        >Biểu đồ</button>
+        <button
+          type="button"
+          class="flex-1 py-2.5 text-[0.72rem] font-semibold border-b-2 transition-all"
+          :class="activeHistoryTab === 'mine' ? 'border-[#e8404a] text-[#e8404a] bg-white' : 'border-transparent text-slate-500'"
+          @click="activeHistoryTab = 'mine'"
+        >Lịch sử của tôi</button>
+      </div>
+
+      <!-- Chart placeholder -->
+      <div v-if="activeHistoryTab === 'chart'" class="flex min-h-40 flex-col items-center justify-center gap-2 py-8 text-slate-300">
+        <span class="material-symbols-outlined text-[2.5rem]">bar_chart</span>
+        <p class="text-[0.82rem]">Biểu đồ kết quả sẽ hiển thị tại đây.</p>
+      </div>
+
+      <template v-else>
+        <div v-if="historyLoading || mineLoading" class="flex min-h-36 items-center justify-center text-[0.82rem] text-slate-400">
+          Đang tải dữ liệu...
+        </div>
+
+        <div v-else-if="activeHistoryTab === 'history' && historyError" class="px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">{{ historyError }}</div>
+        <div v-else-if="activeHistoryTab === 'mine' && mineError" class="px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">{{ mineError }}</div>
+
+        <!-- History table -->
+        <div v-else-if="activeHistoryTab === 'history'" class="overflow-hidden">
+          <div class="grid grid-cols-[2fr_0.8fr_1.2fr_0.8fr] bg-[#f9f9f9] border-b border-[#f0e0e0] px-3 py-2 text-[0.62rem] font-black uppercase tracking-wide text-slate-400">
+            <span>Kỳ xổ</span>
+            <span class="text-center">Số</span>
+            <span>Lớn nhỏ</span>
+            <span class="text-right">Màu sắc</span>
+          </div>
+          <div
+            v-for="row in historyRows"
+            :key="row.period_no"
+            class="grid grid-cols-[2fr_0.8fr_1.2fr_0.8fr] items-center border-b border-[#f8f0f0] px-3 py-2.5 text-[0.78rem] hover:bg-[#fff9f9]"
           >
-            {{ option.label }}
+            <span class="text-slate-400 text-[0.62rem]">…{{ row.period_no.slice(-6) }}</span>
+            <span
+              class="flex h-7 w-7 mx-auto items-center justify-center rounded-full text-[0.75rem] font-black text-white"
+              :class="resultBadgeClass(row.color)"
+            >{{ row.result.slice(0, 1) }}</span>
+            <span class="font-semibold" :class="row.big_small?.includes('Lớn') ? 'text-[#e8404a]' : 'text-[#3b82f6]'">{{ row.big_small || '—' }}</span>
+            <span class="flex justify-end">
+              <span class="h-3.5 w-3.5 rounded-full" :class="resultDotClass(row.color)" />
+            </span>
+          </div>
+          <div v-if="!historyRows.length" class="flex flex-col items-center gap-2 py-8 text-slate-300">
+            <span class="material-symbols-outlined text-[2rem]">history</span>
+            <p class="text-[0.82rem]">Không có dữ liệu</p>
+          </div>
+        </div>
+
+        <!-- Mine history cards -->
+        <div v-else class="divide-y divide-[#f8f0f0]">
+          <div
+            v-for="row in mineRows"
+            :key="row.id"
+            class="flex items-center gap-3 px-3 py-3"
+          >
+            <!-- Dice icons / color dots -->
+            <div class="flex gap-1 flex-shrink-0">
+              <div
+                v-if="isK3"
+                v-for="d in (row.result?.split('-').map(Number) ?? [1,1,1]).slice(0,3)"
+                :key="d"
+                class="flex h-7 w-7 items-center justify-center rounded-[6px] text-[0.7rem] font-black text-white"
+                :style="{ background: diceColor(d) }"
+              >{{ d }}</div>
+              <div
+                v-else
+                class="h-7 w-7 rounded-full flex items-center justify-center text-[0.75rem] font-black text-white"
+                :style="{ background: wingoBallColor(Number(row.result ?? 0)) }"
+              >{{ row.result ?? '?' }}</div>
+            </div>
+            <!-- Period + result label -->
+            <div class="flex-1 min-w-0">
+              <p class="text-[0.68rem] text-slate-400 truncate">{{ row.period_no }}</p>
+              <p class="text-[0.78rem] font-semibold text-on-surface">{{ row.big_small || row.color || '—' }}</p>
+            </div>
+            <!-- Amount + status -->
+            <div class="text-right flex-shrink-0">
+              <p class="text-[0.82rem] font-black text-on-surface">{{ formatMoney(row.stake) }}đ</p>
+              <p
+                class="text-[0.68rem] font-semibold"
+                :class="row.status === 'WON' ? 'text-[#10b981]' : row.status === 'LOST' ? 'text-slate-400' : 'text-amber-500'"
+              >
+                {{ row.status === 'WON' ? `Thắng ${formatMoney((Number(row.stake) * 1.96).toFixed(0))}đ` : row.status === 'LOST' ? 'Thua' : 'Chờ kết quả' }}
+              </p>
+            </div>
+          </div>
+          <div v-if="!mineRows.length" class="flex flex-col items-center gap-2 py-8 text-slate-300">
+            <span class="material-symbols-outlined text-[2rem]">history</span>
+            <p class="text-[0.82rem]">Không có lịch sử cược</p>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between px-3 py-3 border-t border-[#f0e0e0]">
+          <button
+            type="button"
+            class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-400 disabled:opacity-30 transition-all"
+            :disabled="currentPage() <= 1"
+            @click="setCurrentPage(Math.max(1, currentPage() - 1)); void loadActiveHistory(currentPage())"
+          >
+            <span class="material-symbols-outlined text-[1.1rem]">chevron_left</span>
+          </button>
+          <span class="text-[0.75rem] text-slate-500 font-semibold">{{ currentPage() }} / {{ currentTotalPages() }}</span>
+          <button
+            type="button"
+            class="flex h-8 w-8 items-center justify-center rounded-full border border-[#e8404a] bg-[#e8404a] text-white disabled:opacity-30 transition-all"
+            :disabled="currentPage() >= currentTotalPages()"
+            @click="setCurrentPage(Math.min(currentTotalPages(), currentPage() + 1)); void loadActiveHistory(currentPage())"
+          >
+            <span class="material-symbols-outlined text-[1.1rem]">chevron_right</span>
           </button>
         </div>
-
-        <div class="text-center text-[0.76rem] font-semibold text-on-surface-variant">
-          Mức đặt hiện tại: <span class="text-on-surface">{{ stakeLabel }}đ</span>
-          <span class="mx-2 text-slate-300">•</span>
-          Ví khóa: <span class="text-on-surface">{{ lockedBalanceLabel }}đ</span>
-          <span class="mx-2 text-slate-300">•</span>
-          USDT: <span class="text-on-surface">{{ formatMoney(walletUsdt?.balance ?? 0, 2) }}</span>
-        </div>
-
-        <div v-if="!canPlay" class="rounded-[14px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
-          Số dư hiện tại bằng 0. Vui lòng nạp tiền trước khi vào phòng chơi.
-        </div>
-
-        <div v-else-if="isBetLocked" class="rounded-[14px] bg-[rgba(255,170,0,0.12)] px-4 py-3 text-[0.78rem] font-semibold text-amber-700">
-          Kỳ hiện tại đã bước vào 5 giây cuối hoặc đã khóa lệnh. Vui lòng chờ kỳ tiếp theo.
-        </div>
-
-        <button
-          type="button"
-          class="min-h-14 rounded-[18px] bg-[linear-gradient(90deg,#fdd404_0%,#ffd400_100%)] text-[1.2rem] font-black text-[#5a4600] shadow-[0_12px_24px_rgba(253,212,4,0.16)] transition-transform active:scale-[0.98]"
-          :disabled="betLoading || !canBet"
-          @click="submitBet"
-        >
-          {{ betLoading ? 'Đang gửi...' : 'ĐẶT LỆNH' }}
-        </button>
-
-        <p v-if="joinError" class="rounded-[14px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
-          {{ joinError }}
-        </p>
-        <p v-if="betMessage" class="rounded-[14px] bg-[rgba(255,109,102,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-primary">
-          {{ betMessage }}
-        </p>
-      </div>
-    </section>
-
-    <section class="rounded-[22px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.05)] border border-slate-100/50 mt-4 overflow-hidden">
-      <div class="flex items-center gap-2 p-3 pb-2 text-[0.76rem] font-black w-full overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          class="px-4 py-2.5 transition-all rounded-full whitespace-nowrap"
-          :class="activeHistoryTab === 'history' ? 'bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] text-white shadow-[0_6px_14px_rgba(229,46,46,0.25)]' : 'bg-slate-100 text-slate-500'"
-          @click="activeHistoryTab = 'history'"
-        >
-          Lịch sử trò chơi
-        </button>
-        <button
-          type="button"
-          class="px-4 py-2.5 transition-all rounded-full whitespace-nowrap"
-          :class="activeHistoryTab === 'chart' ? 'bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] text-white shadow-[0_6px_14px_rgba(229,46,46,0.25)]' : 'bg-slate-100 text-slate-500'"
-          @click="activeHistoryTab = 'chart'"
-        >
-          Biểu đồ
-        </button>
-        <button
-          type="button"
-          class="px-4 py-2.5 transition-all rounded-full whitespace-nowrap"
-          :class="activeHistoryTab === 'mine' ? 'bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] text-white shadow-[0_6px_14px_rgba(229,46,46,0.25)]' : 'bg-slate-100 text-slate-500'"
-          @click="activeHistoryTab = 'mine'"
-        >
-          Lịch sử của tôi
-        </button>
-      </div>
-
-      <div class="p-3">
-        <template v-if="activeHistoryTab === 'chart'">
-          <div class="grid min-h-52 place-items-center rounded-[18px] bg-slate-50 text-center text-[0.82rem] text-slate-400">
-            Biểu đồ kết quả sẽ hiển thị tại đây.
-          </div>
-        </template>
-
-        <template v-else>
-          <div v-if="historyLoading || mineLoading" class="grid min-h-48 place-items-center rounded-[18px] bg-background text-[0.82rem] text-on-surface-variant">
-            Đang tải dữ liệu...
-          </div>
-
-          <div v-else-if="activeHistoryTab === 'history' && historyError" class="rounded-[18px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
-            {{ historyError }}
-          </div>
-
-          <div v-else-if="activeHistoryTab === 'mine' && mineError" class="rounded-[18px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
-            {{ mineError }}
-          </div>
-
-          <div class="overflow-hidden rounded-[18px] border border-slate-200/70 mt-1 shadow-sm">
-          <div class="grid grid-cols-[1fr_auto_1fr_auto] gap-2 bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] px-4 py-3.5 text-[0.7rem] font-black uppercase tracking-[0.06em] text-white">
-              <span>Kỳ xổ</span>
-              <span>Số</span>
-              <span>Lớn nhỏ</span>
-              <span>Màu sắc</span>
-            </div>
-
-            <div
-              v-for="row in periodHistory"
-              :key="row.period_no"
-              class="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 border-t border-slate-200/70 px-4 py-4 text-[0.86rem]"
-            >
-              <span class="font-medium text-on-surface">…{{ row.period_no.slice(-3) }}</span>
-              <span class="grid h-8 w-8 place-items-center rounded-full border text-[0.78rem] font-black shadow-sm" :class="resultBadgeClass(row.result)">
-                {{ row.result.slice(0, 1) }}
-              </span>
-              <span class="font-semibold" :class="row.status === 'WON' || row.status === 'DRAWN' ? 'text-primary' : 'text-amber-700'">
-                {{ row.big_small || '—' }}
-              </span>
-              <span class="grid place-items-center">
-                <span class="h-3.5 w-3.5 rounded-full" :class="resultDotClass(row.color)" />
-              </span>
-            </div>
-          </div>
-
-          <div class="mt-4 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              class="rounded-full bg-surface-container-low px-4 py-2 text-[0.76rem] font-black text-on-surface-variant disabled:opacity-40"
-              :disabled="currentPage() <= 1"
-              @click="setCurrentPage(Math.max(1, currentPage() - 1)); void loadActiveHistory(currentPage())"
-            >
-              Trang trước
-            </button>
-
-            <span class="text-[0.74rem] font-bold text-on-surface-variant">
-              Trang {{ currentPage() }} / {{ currentTotalPages() }}
-            </span>
-
-            <button
-              type="button"
-              class="rounded-full bg-primary px-4 py-2 text-[0.76rem] font-black text-white disabled:opacity-40"
-              :disabled="currentPage() >= currentTotalPages()"
-              @click="setCurrentPage(Math.min(currentTotalPages(), currentPage() + 1)); void loadActiveHistory(currentPage())"
-            >
-              Trang sau
-            </button>
-          </div>
-        </template>
-      </div>
-    </section>
+      </template>
+    </div>
   </div>
+
+  <!-- ===== BET MODAL (Slide-up sheet) ===== -->
+  <Teleport to="body">
+    <div
+      v-if="showBetModal"
+      class="fixed inset-0 z-50 flex items-end"
+      @click.self="showBetModal = false"
+    >
+      <!-- Backdrop -->
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showBetModal = false" />
+
+      <!-- Sheet -->
+      <div class="relative w-full rounded-t-[24px] bg-white px-5 pt-4 pb-8 shadow-2xl" style="max-height: 85dvh; overflow-y: auto;">
+        <!-- Handle -->
+        <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200" />
+
+        <h3 class="mb-4 text-[1rem] font-black text-on-surface">Đặt cược</h3>
+
+        <div class="mb-3 flex items-center justify-between rounded-[14px] bg-[#fff5f5] px-4 py-3">
+          <span class="text-[0.82rem] text-slate-500">Lựa chọn</span>
+          <span class="text-[0.9rem] font-black text-[#e8404a]">{{ modalBetLabel }}</span>
+        </div>
+
+        <div class="mb-3 flex items-center justify-between rounded-[14px] bg-slate-50 px-4 py-3">
+          <span class="text-[0.82rem] text-slate-500">Tổng tiền cược</span>
+          <div class="flex items-center gap-3">
+            <button
+              class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-[1.1rem] font-bold text-slate-500 transition-all hover:border-primary hover:text-primary"
+              @click="modalBetAmount = Math.max(10000, modalBetAmount - 10000)"
+            >−</button>
+            <span class="min-w-[90px] text-center text-[0.95rem] font-black text-on-surface">{{ formatMoney(modalBetAmount) }}đ</span>
+            <button
+              class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-[1.1rem] font-bold text-slate-500 transition-all hover:border-primary hover:text-primary"
+              @click="modalBetAmount += 10000"
+            >+</button>
+          </div>
+        </div>
+
+        <!-- Preset amounts -->
+        <div class="mb-5 flex flex-wrap gap-2">
+          <button
+            v-for="preset in betPresets"
+            :key="preset"
+            class="rounded-full border-[1.5px] border-primary bg-[#fff5f5] px-3 py-1.5 text-[0.72rem] font-black text-primary transition-all hover:bg-primary hover:text-white"
+            @click="modalBetAmount = preset"
+          >{{ formatMoney(preset) }}</button>
+        </div>
+
+        <!-- Confirm / Cancel -->
+        <div class="grid grid-cols-2 gap-3">
+          <button
+            class="min-h-[50px] rounded-[14px] border-2 border-slate-200 bg-white text-[0.9rem] font-black text-slate-500 transition-all active:scale-95"
+            @click="showBetModal = false"
+          >Hủy bỏ</button>
+          <button
+            class="min-h-[50px] rounded-[14px] bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] text-[0.9rem] font-black text-white shadow-[0_8px_16px_rgba(229,46,46,0.25)] transition-all active:scale-95 disabled:opacity-50"
+            :disabled="betLoading || !canBet"
+            @click="confirmBet"
+          >{{ betLoading ? 'Đang gửi...' : 'Xác nhận' }}</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>

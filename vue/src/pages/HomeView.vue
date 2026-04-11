@@ -2,56 +2,72 @@
 import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { formatViDateTime } from '@/shared/lib/date'
+import BannerCarousel from '@/components/BannerCarousel.vue'
+import MarqueeBar from '@/components/MarqueeBar.vue'
+import Leaderboard from '@/components/Leaderboard.vue'
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
-import { gameRooms, getUnreadCount, homeActivities, newsArticles, quickActions } from '@/data/site'
+import { gameRooms } from '@/data/site'
 
 const auth = useAuthStore()
 const wallet = useWalletStore()
 
-const greetingName = computed(() => auth.user?.name || 'Người chơi')
-const featuredRooms = computed(() => gameRooms.filter((game) => game.featured))
-const featuredNews = computed(() => newsArticles.filter((article) => article.featured).slice(0, 3))
+const greetingName = computed(() => auth.user?.name || 'Bạn')
+const featuredRooms = computed(() => gameRooms.filter((g) => g.featured))
 const vndWallet = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
-const usdtWallet = computed(() => wallet.wallets.find((item) => item.unit === 2) ?? null)
-const categoryTiles = computed(() => [
-  {
-    title: 'Xổ số',
-    subtitle: 'Win Go / 5D',
-    icon: 'confirmation_number',
-    accent: '#ff6d66',
-  },
-  {
-    title: 'Casino',
-    subtitle: 'K3 / Xúc xắc',
-    icon: 'casino',
-    accent: '#f6c32d',
-  },
-  {
-    title: 'Bắn cá',
-    subtitle: 'Sắp mở',
-    icon: 'skull',
-    accent: '#e64545',
-  },
-  {
-    title: 'Thể thao',
-    subtitle: 'Hot game',
-    icon: 'sports_soccer',
-    accent: '#24b561',
-  },
-  {
-    title: 'Game bài',
-    subtitle: 'Nhiều lựa chọn',
-    icon: 'playing_cards',
-    accent: '#ff9c95',
-  },
-])
 
-function displayBalance(value: string | number | null | undefined, fractionDigits = 0) {
-  return formatViMoney(value ?? 0, fractionDigits)
+function displayBalance(value: string | number | null | undefined) {
+  return formatViMoney(value ?? 0, 0)
 }
+
+const gameCards = [
+  {
+    name: 'Win Go',
+    desc: 'Đoán số Xanh/Đỏ/Tím',
+    route: '/play/wingo',
+    gradient: 'from-[#ff6d66] to-[#e52e2e]',
+    icon: 'rocket_launch',
+  },
+  {
+    name: 'K3',
+    desc: 'Lớn/Nhỏ/Lẻ/Chẵn',
+    route: '/play/k3',
+    gradient: 'from-[#f59e0b] to-[#ef4444]',
+    icon: 'casino',
+  },
+  {
+    name: '5D Lô Tô',
+    desc: 'Chọn số 5 vị trí',
+    route: '/play/lottery',
+    gradient: 'from-[#8b5cf6] to-[#6366f1]',
+    icon: 'looks_5',
+  },
+  {
+    name: 'Trx Win',
+    desc: 'Sắp ra mắt',
+    route: '/play/trx_win',
+    gradient: 'from-[#10b981] to-[#059669]',
+    icon: 'currency_bitcoin',
+  },
+]
+
+const categoryTabs = [
+  { label: 'Xổ số', icon: 'confirmation_number', accent: '#ff6d66' },
+  { label: 'Casino', icon: 'casino', accent: '#f6c32d' },
+  { label: 'Bắn cá', icon: 'skull', accent: '#e64545' },
+  { label: 'Thể thao', icon: 'sports_soccer', accent: '#24b561' },
+  { label: 'Game bài', icon: 'playing_cards', accent: '#8b5cf6' },
+]
+
+const winInfo = [
+  { user: 'Mem***AXG', game: 'K3 Lotre', amount: '+895,200đ', avatar: 21 },
+  { user: 'Mem***DMT', game: 'Win Go', amount: '+342,000đ', avatar: 22 },
+  { user: 'Mem***ZHS', game: '5D Lô Tô', amount: '+1,280,000đ', avatar: 23 },
+  { user: 'Mem***QRT', game: 'K3 Lotre', amount: '+210,000đ', avatar: 24 },
+  { user: 'Mem***UHE', game: 'Win Go', amount: '+560,000đ', avatar: 25 },
+  { user: 'Mem***FVT', game: '5D Lô Tô', amount: '+980,000đ', avatar: 26 },
+]
 
 onMounted(() => {
   void wallet.fetchSummary()
@@ -59,239 +75,174 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4 md:space-y-6">
-    <section
-      class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-5 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)] md:p-7"
-    >
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_28%)]"></div>
-      <div class="relative z-10 grid gap-4 md:grid-cols-[1.2fr_0.8fr] md:items-end">
-        <div>
-          <span class="inline-flex rounded-full bg-[#fdd404] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#594a00]">
-            Siêu khuyến mãi
-          </span>
-          <h2 class="mt-4 max-w-[18rem] text-[1.7rem] font-black leading-[1.08] md:max-w-[28rem] md:text-[2.2rem]">
-            Thưởng nạp lần đầu đến 100% giá trị
-          </h2>
-          <p class="mt-2 text-[0.82rem] font-bold uppercase tracking-[0.08em] text-white/82">
-            Chào mừng quay lại, {{ greetingName }}
-          </p>
-          <p class="mt-3 max-w-[24rem] text-sm leading-6 text-white/88 md:max-w-[30rem] md:text-[0.98rem]">
-            Tham gia ngay để nhận ưu đãi VIP dành riêng cho bạn.
-          </p>
-        </div>
+  <div class="space-y-0 pb-2">
 
-        <div class="grid gap-3 md:justify-self-end">
-          <article class="rounded-[22px] bg-white/14 p-4 backdrop-blur-md">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-white/72">Ví VND / USDT</p>
-                <strong class="mt-1 block text-[1.35rem] font-black">
-                  {{ wallet.loading && !vndWallet && !usdtWallet ? 'Đang đồng bộ...' : 'Số dư thật' }}
-                </strong>
-              </div>
-              <span class="grid h-10 w-10 place-items-center rounded-[16px] bg-white/14">
-                <span class="material-symbols-outlined">account_balance_wallet</span>
-              </span>
-            </div>
+    <!-- ===== TOP HEADER (inline, no layout header for home since MainLayout shows it) ===== -->
+    <!-- MarqueeBar -->
+    <MarqueeBar />
 
-            <div class="mt-4 grid gap-2">
-              <div class="flex items-center justify-between gap-3 rounded-[16px] bg-white/12 px-3 py-2">
-                <span class="text-[0.72rem] font-bold text-white/72">VND</span>
-                <span class="text-sm font-black">
-                  {{ vndWallet ? displayBalance(vndWallet.balance) : '—' }}
-                </span>
-              </div>
-              <div class="flex items-center justify-between gap-3 rounded-[16px] bg-white/12 px-3 py-2">
-                <span class="text-[0.72rem] font-bold text-white/72">USDT</span>
-                <span class="text-sm font-black">
-                  {{ usdtWallet ? displayBalance(usdtWallet.balance, 2) : '—' }}
-                </span>
-              </div>
-              <div class="flex items-center justify-between gap-3 rounded-[16px] bg-white/12 px-3 py-2">
-                <span class="text-[0.72rem] font-bold text-white/72">Đang khóa</span>
-                <span class="text-sm font-black">
-                  {{ vndWallet ? displayBalance(vndWallet.locked_balance) : '—' }}
-                </span>
-              </div>
-            </div>
+    <!-- ===== BANNER CAROUSEL ===== -->
+    <BannerCarousel />
 
-            <div class="mt-4 grid grid-cols-2 gap-2">
-              <RouterLink to="/account" class="grid min-h-11 place-items-center rounded-[16px] bg-white text-[0.82rem] font-black text-[#e64545]">
-                Rút tiền
-              </RouterLink>
-              <RouterLink to="/deposit" class="grid min-h-11 place-items-center rounded-[16px] bg-[#24b561] text-[0.82rem] font-black text-white">
-                Nạp tiền
-              </RouterLink>
-            </div>
-          </article>
+    <!-- ===== CATEGORY QUICK TABS ===== -->
+    <div class="flex gap-2 overflow-x-auto px-3 py-3 no-scrollbar">
+      <button
+        v-for="tab in categoryTabs"
+        :key="tab.label"
+        class="flex flex-shrink-0 flex-col items-center gap-1.5 rounded-[16px] bg-white px-3 py-2.5 shadow-sm border border-slate-100 transition-transform active:scale-95"
+      >
+        <span
+          class="grid h-9 w-9 place-items-center rounded-full text-xl"
+          :style="{ backgroundColor: `${tab.accent}18`, color: tab.accent }"
+        >
+          <span class="material-symbols-outlined text-[1.1rem]">{{ tab.icon }}</span>
+        </span>
+        <span class="text-[0.65rem] font-bold text-on-surface">{{ tab.label }}</span>
+      </button>
+    </div>
 
-          <RouterLink to="/notifications" class="rounded-[22px] bg-white/14 px-4 py-3 backdrop-blur-md">
-            <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-white/72">Thông báo chưa đọc</p>
-            <strong class="mt-1 block text-[1.35rem] font-black">{{ getUnreadCount() }}</strong>
+    <!-- ===== WALLET CARD ===== -->
+    <div class="mx-3 overflow-hidden rounded-[20px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-4 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)]">
+      <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_26%)]" />
+      <div class="relative">
+        <p class="text-[0.7rem] uppercase tracking-[0.12em] text-white/72">Số dư ví VND</p>
+        <strong class="mt-1 block text-[1.6rem] font-black">
+          {{ vndWallet ? displayBalance(vndWallet.balance) : '0' }}đ
+        </strong>
+        <p class="text-[0.68rem] text-white/70 mt-0.5">Chào {{ greetingName }} 👋</p>
+        <div class="mt-3 grid grid-cols-2 gap-2">
+          <RouterLink
+            to="/account"
+            class="flex items-center justify-center gap-1.5 rounded-full border-2 border-white/40 bg-white/10 py-2.5 text-[0.82rem] font-black text-white active:scale-95 transition-transform"
+          >
+            <span class="material-symbols-outlined text-[1rem]">account_balance</span>
+            Rút tiền
           </RouterLink>
-          <RouterLink to="/promotion" class="rounded-[22px] bg-white px-4 py-3 text-primary shadow-[0_8px_24px_rgba(255,255,255,0.16)]">
-            <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-primary/70">Hoạt động</p>
-            <strong class="mt-1 block text-[1rem] font-black">Tin tức hệ thống</strong>
+          <RouterLink
+            to="/deposit"
+            class="flex items-center justify-center gap-1.5 rounded-full bg-white py-2.5 text-[0.82rem] font-black text-primary shadow-md active:scale-95 transition-transform"
+          >
+            <span class="material-symbols-outlined text-[1rem]">add_circle</span>
+            Nạp tiền
           </RouterLink>
         </div>
       </div>
-    </section>
+    </div>
 
-    <section class="grid grid-cols-5 gap-2.5 md:gap-3">
-      <article
-        v-for="metric in categoryTiles"
-        :key="metric.title"
-        class="rounded-[20px] bg-white px-2.5 py-3 text-center shadow-[0_8px_18px_rgba(255,109,102,0.06)]"
-      >
-        <span class="mx-auto grid h-10 w-10 place-items-center rounded-full" :style="{ backgroundColor: `${metric.accent}18`, color: metric.accent }">
-          <span class="material-symbols-outlined">{{ metric.icon }}</span>
-        </span>
-        <strong class="mt-2 block text-[0.7rem] font-black leading-4 text-on-surface">{{ metric.title }}</strong>
-        <p class="mt-1 text-[0.62rem] leading-4 text-on-surface-variant">{{ metric.subtitle }}</p>
-      </article>
-    </section>
+    <!-- ===== GAME SECTION TITLE ===== -->
+    <div class="flex items-center justify-between px-4 pt-4 pb-1">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-[1.1rem] text-primary">confirmation_number</span>
+        <h2 class="text-[0.92rem] font-black text-on-surface">Xổ Số</h2>
+      </div>
+      <RouterLink to="/play" class="flex items-center gap-0.5 text-[0.75rem] font-bold text-primary">
+        Xem tất cả <span class="material-symbols-outlined text-[1rem]">chevron_right</span>
+      </RouterLink>
+    </div>
 
-    <section class="grid grid-cols-3 gap-2.5 md:grid-cols-5 md:gap-3">
+    <!-- ===== GAME CARDS (horizontal scroll) ===== -->
+    <div class="flex gap-3 overflow-x-auto px-3 pb-1 no-scrollbar">
       <RouterLink
-        v-for="item in quickActions"
-        :key="item.title"
-        :to="item.to"
-        class="grid min-h-[88px] place-items-center gap-2 rounded-[20px] bg-white px-2 py-3 text-on-surface shadow-[0_6px_18px_rgba(255,109,102,0.06)] transition-transform active:scale-95"
+        v-for="game in gameCards"
+        :key="game.name"
+        :to="game.route"
+        class="flex-shrink-0 w-[160px] overflow-hidden rounded-[20px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.08)] border border-slate-100 transition-transform active:scale-[0.97]"
       >
-        <span class="grid h-10 w-10 place-items-center rounded-full" :style="{ backgroundColor: `${item.accent}15`, color: item.accent }">
-          <span class="material-symbols-outlined">{{ item.symbol }}</span>
-        </span>
-        <span class="text-center text-[0.68rem] font-extrabold">{{ item.title }}</span>
+        <!-- Color banner top -->
+        <div
+          class="flex h-[90px] items-center justify-center bg-gradient-to-br"
+          :class="game.gradient"
+        >
+          <span class="material-symbols-outlined text-[3.2rem] text-white/90">{{ game.icon }}</span>
+        </div>
+        <div class="px-3 py-3">
+          <strong class="block text-[0.88rem] font-black text-on-surface">{{ game.name }}</strong>
+          <p class="mt-0.5 text-[0.7rem] text-slate-500">{{ game.desc }}</p>
+          <div class="mt-2.5 flex items-center gap-1 text-[0.68rem] font-bold text-primary">
+            Vào chơi <span class="material-symbols-outlined text-[0.9rem]">arrow_forward</span>
+          </div>
+        </div>
       </RouterLink>
-    </section>
+    </div>
 
-    <section class="flex items-center justify-between gap-3">
-      <div>
-        <h3 class="m-0 text-[1.05rem] font-black md:text-[1.15rem]">Phòng chơi nổi bật</h3>
-        <p class="mt-1 text-[0.76rem] text-on-surface-variant">Danh sách các game-room đang mở, sẵn sàng join.</p>
+    <!-- ===== FEATURED ROOMS (vertical cards) ===== -->
+    <div class="px-3 pt-2 pb-1">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-[0.88rem] font-black text-on-surface">Phòng nổi bật</h3>
+        <RouterLink to="/play" class="text-[0.75rem] font-bold text-primary flex items-center gap-0.5">
+          Xem phòng <span class="material-symbols-outlined text-[1rem]">chevron_right</span>
+        </RouterLink>
       </div>
-      <RouterLink to="/play" class="inline-flex items-center gap-1 text-[0.78rem] font-extrabold text-primary">
-        Xem phòng <span class="material-symbols-outlined text-[1rem]">chevron_right</span>
-      </RouterLink>
-    </section>
-
-    <section class="grid grid-cols-1 gap-3 md:grid-cols-3">
-      <article
-        v-for="game in featuredRooms"
-        :key="game.code"
-        class="overflow-hidden rounded-[24px] border-b-4 bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)]"
-        :style="{ borderBottomColor: game.accent }"
-      >
-        <div class="flex items-start justify-between gap-3">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <RouterLink
+          v-for="game in featuredRooms"
+          :key="game.code"
+          :to="`/play/${game.code}`"
+          class="flex items-center gap-3 rounded-[18px] bg-white p-3.5 shadow-sm border border-slate-100 active:scale-[0.99] transition-transform"
+        >
           <div
-            class="grid h-[44px] w-[44px] place-items-center rounded-[14px]"
+            class="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[14px]"
             :style="{ backgroundColor: `${game.accent}18`, color: game.accent }"
           >
-            <span class="material-symbols-outlined">{{ game.symbol }}</span>
+            <span class="material-symbols-outlined text-[1.4rem]">{{ game.symbol }}</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <strong class="block text-[0.88rem] font-black text-on-surface">{{ game.title }}</strong>
+            <p class="mt-0.5 truncate text-[0.7rem] text-slate-500">{{ game.subtitle }}</p>
           </div>
           <span
-            class="rounded-full px-2.5 py-1 text-[0.64rem] font-black uppercase tracking-[0.08em]"
-            :class="game.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-slate-200 text-slate-600'"
-          >
-            {{ game.status === 'OPEN' ? 'Đang mở' : 'Sắp mở' }}
-          </span>
-        </div>
-
-        <h4 class="m-0 mt-3 text-[1rem] font-black">{{ game.title }}</h4>
-        <p class="mt-1.5 text-[0.72rem] leading-6 text-on-surface-variant">
-          {{ game.subtitle }}
-        </p>
-
-        <div class="mt-4 grid grid-cols-2 gap-2 text-[0.72rem]">
-          <div class="rounded-[16px] bg-background p-3">
-            <span class="block text-on-surface-variant">Kỳ</span>
-            <strong class="mt-1 block text-on-surface">{{ game.roundTime }}</strong>
-          </div>
-          <div class="rounded-[16px] bg-background p-3">
-            <span class="block text-on-surface-variant">Người chơi</span>
-            <strong class="mt-1 block text-on-surface">{{ game.onlinePlayers.toLocaleString('vi-VN') }}</strong>
-          </div>
-        </div>
-
-        <RouterLink
-          :to="`/play/${game.code}`"
-          class="mt-4 flex min-h-12 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-primary-container text-[0.82rem] font-black text-white"
-        >
-          Vào phòng
+            class="flex-shrink-0 rounded-full px-2.5 py-1 text-[0.62rem] font-black"
+            :class="game.status === 'OPEN' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'"
+          >{{ game.status === 'OPEN' ? 'Đang mở' : 'Sắp mở' }}</span>
         </RouterLink>
-      </article>
-    </section>
+      </div>
+    </div>
 
-    <section class="grid gap-3 md:grid-cols-[1.1fr_0.9fr]">
-      <article class="rounded-[24px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)] md:p-5">
-        <div class="flex items-center justify-between gap-2">
-          <div>
-            <h3 class="m-0 text-[1rem] font-black md:text-[1.08rem]">Hoạt động gần đây</h3>
-            <p class="m-0 mt-1 text-[0.76rem] text-on-surface-variant">Dòng sự kiện hệ thống đang được tạo tự động.</p>
+    <!-- ===== LEADERBOARD ===== -->
+    <div class="px-3 pb-1 pt-2">
+      <Leaderboard />
+    </div>
+
+    <!-- ===== WIN INFO ===== -->
+    <div class="mx-3 mb-2 overflow-hidden rounded-[20px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.06)] border border-slate-100">
+      <div class="flex items-center gap-2 border-b border-slate-100 px-4 py-3.5">
+        <span class="text-[1.1rem]">🎉</span>
+        <span class="text-[0.9rem] font-black text-on-surface">Thông tin trúng thưởng</span>
+      </div>
+      <div class="divide-y divide-slate-50">
+        <div
+          v-for="(item, i) in winInfo"
+          :key="i"
+          class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors"
+        >
+          <img
+            :src="`https://i.pravatar.cc/40?img=${item.avatar}`"
+            :alt="item.user"
+            class="h-8 w-8 rounded-full object-cover flex-shrink-0 border border-slate-100"
+          />
+          <div class="flex-1 min-w-0">
+            <strong class="block text-[0.8rem] font-semibold text-on-surface">{{ item.user }}</strong>
+            <span class="text-[0.68rem] text-slate-400">{{ item.game }}</span>
           </div>
-          <RouterLink to="/promotion" class="text-[0.76rem] font-extrabold text-primary">Mở rộng</RouterLink>
+          <span class="flex-shrink-0 text-[0.82rem] font-black text-[#10b981]">{{ item.amount }}</span>
         </div>
+      </div>
+    </div>
 
-        <div class="mt-4 space-y-3">
-          <article
-            v-for="item in homeActivities"
-            :key="item.title"
-            class="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[18px] bg-background p-3"
-          >
-            <div
-              class="grid h-10 w-10 place-items-center rounded-full text-white"
-              :class="{
-                'bg-emerald-500': item.tone === 'success',
-                'bg-primary': item.tone === 'info',
-                'bg-amber-500': item.tone === 'warning',
-              }"
-            >
-              <span class="material-symbols-outlined text-[1.05rem]">{{ item.symbol }}</span>
-            </div>
+    <!-- ===== DOMAIN ACCESS LINKS ===== -->
+    <div class="mx-3 mb-4 rounded-[16px] bg-gradient-to-br from-slate-800 to-slate-900 p-4 text-white">
+      <p class="text-[0.72rem] text-white/60 mb-2 uppercase tracking-wide font-bold">Thông tin truy cập</p>
+      <p class="text-[0.82rem] text-white/90 leading-6">
+        Nếu không truy cập được, hãy thử các domain dự phòng hoặc liên hệ CSKH để được hỗ trợ.
+      </p>
+      <RouterLink
+        to="/cskh"
+        class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[0.78rem] font-black text-white active:scale-95 transition-transform"
+      >
+        <span class="material-symbols-outlined text-[0.9rem]">headphones</span>
+        Liên hệ CSKH
+      </RouterLink>
+    </div>
 
-            <div>
-              <strong class="block text-[0.82rem]">{{ item.title }}</strong>
-              <p class="m-0 mt-1 text-[0.68rem] text-on-surface-variant">{{ item.subtitle }}</p>
-            </div>
-
-            <div class="text-right">
-              <strong class="block text-[0.82rem]" :class="item.tone === 'warning' ? 'text-amber-600' : 'text-emerald-600'">
-                {{ item.amount }}
-              </strong>
-              <span class="mt-0.5 block text-[0.64rem] text-on-surface-variant">{{ item.tag }}</span>
-            </div>
-          </article>
-        </div>
-      </article>
-
-      <article class="rounded-[24px] bg-white p-4 shadow-[0_8px_18px_rgba(255,109,102,0.05)] md:p-5">
-        <div class="flex items-center justify-between gap-2">
-          <div>
-            <h3 class="m-0 text-[1rem] font-black md:text-[1.08rem]">Tin mới</h3>
-            <p class="m-0 mt-1 text-[0.76rem] text-on-surface-variant">Bản tin hệ thống và ưu đãi.</p>
-          </div>
-          <RouterLink to="/promotion" class="text-[0.76rem] font-extrabold text-primary">Xem tất cả</RouterLink>
-        </div>
-
-        <div class="mt-4 space-y-3">
-          <RouterLink
-            v-for="article in featuredNews"
-            :key="article.slug"
-            :to="`/news/${article.slug}`"
-            class="block overflow-hidden rounded-[18px] border border-slate-100 bg-background transition-transform active:scale-[0.99]"
-          >
-            <div class="h-24 bg-gradient-to-br" :class="article.cover"></div>
-            <div class="p-4">
-              <div class="flex items-center justify-between gap-2 text-[0.68rem] uppercase tracking-[0.08em] text-on-surface-variant">
-                <span>{{ article.category }}</span>
-                <span>{{ formatViDateTime(article.publishedAt) }}</span>
-              </div>
-              <h4 class="mt-2 text-[0.92rem] font-black leading-6">{{ article.title }}</h4>
-              <p class="mt-1.5 text-[0.72rem] leading-6 text-on-surface-variant">{{ article.excerpt }}</p>
-            </div>
-          </RouterLink>
-        </div>
-      </article>
-    </section>
   </div>
 </template>

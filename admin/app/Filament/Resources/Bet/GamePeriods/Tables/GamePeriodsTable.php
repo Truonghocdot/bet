@@ -55,7 +55,6 @@ class GamePeriodsTable
                             'settled_at' => now(),
                         ])->save();
                     }),
-                EditAction::make(),
             ]);
     }
 }

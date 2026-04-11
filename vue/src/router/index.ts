@@ -10,6 +10,10 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'auth', title: 'Đăng nhập' },
   },
   {
+    path: '/login',
+    redirect: '/auth',
+  },
+  {
     path: '/register',
     name: 'register',
     component: () => import('../pages/RegisterView.vue'),
@@ -68,6 +72,12 @@ const routes: RouteRecordRaw[] = [
     name: 'play',
     component: () => import('../pages/PlayView.vue'),
     meta: { layout: 'main', title: 'Phòng chơi', requiresAuth: true },
+  },
+  {
+    path: '/cskh',
+    name: 'cskh',
+    component: () => import('../pages/CSKHView.vue'),
+    meta: { layout: 'main', title: 'Hỗ Trợ' },
   },
 ]
 
