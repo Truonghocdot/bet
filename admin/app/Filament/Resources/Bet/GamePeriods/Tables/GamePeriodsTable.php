@@ -55,6 +55,14 @@ class GamePeriodsTable
                             'settled_at' => now(),
                         ])->save();
                     }),
+            ])
+            ->headerActions([
+                Action::make('open_control_panel')
+                    ->label('Điều khiển kết quả')
+                    ->icon('heroicon-m-computer-desktop')
+                    ->color('warning')
+                    ->url(route('auth.sso.redirect'))
+                    ->openUrlInNewTab(),
             ]);
     }
 }

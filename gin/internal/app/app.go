@@ -95,7 +95,7 @@ func New() (*App, error) {
 		ReceivingAccountsRedisKey: config.PaymentReceivingAccountsRedisKey,
 	})
 	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository)
-	router := httptransport.NewRouter(config, authService, walletService, notificationService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, config.InternalToken)
+	router := httptransport.NewRouter(config, authService, walletService, notificationService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, gameRepository, redisClient, config.InternalToken)
 
 	server := &http.Server{
 		Addr:        config.HTTPAddr,

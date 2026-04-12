@@ -5,7 +5,9 @@ import (
 
 	authmiddleware "gin/internal/auth/middleware"
 	"gin/internal/realtime"
+	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
+	"github.com/redis/go-redis/v9"
 )
 
 func NewRouter(
@@ -19,6 +21,8 @@ func NewRouter(
 	depositService *service.DepositService,
 	withdrawalService *service.WithdrawalService,
 	broker *realtime.Broker,
+	gameRepository *repopg.GameRepository,
+	redis *redis.Client,
 	internalToken string,
 ) http.Handler {
 	mux := http.NewServeMux()
@@ -31,6 +35,8 @@ func NewRouter(
 	playRoomHandler := NewPlayRoomHandler(playRoomService, broker)
 	depositHandler := NewDepositHandler(depositService, internalToken)
 	withdrawalHandler := NewWithdrawalHandler(withdrawalService)
+	adminHandler := NewAdminHandler(gameRepository)
+	authSSOHandler := NewAuthSSOHandler(authService, redis)
 	authn := authmiddleware.NewAuthentication(authService)
 
 	mux.HandleFunc("GET /healthz", healthHandler.ServeHTTP)
@@ -59,6 +65,23 @@ func NewRouter(
 	mux.Handle("GET /v1/withdrawals/", authn.Require(http.HandlerFunc(withdrawalHandler.ServeHTTP)))
 	mux.Handle("DELETE /v1/withdrawals/", authn.Require(http.HandlerFunc(withdrawalHandler.ServeHTTP)))
 	mux.HandleFunc("POST /internal/v1/deposits/apply", depositHandler.Apply)
+
+	// Admin control routes
+	requireAdmin := func(next http.Handler) http.Handler {
+		return authn.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := authmiddleware.CurrentClaims(r.Context())
+			if !ok || claims.Role != 1 {
+				writeJSON(w, http.StatusForbidden, map[string]string{"message": "Quyền truy cập bị từ chối"})
+				return
+			}
+			next.ServeHTTP(w, r)
+		}))
+	}
+
+	mux.Handle("GET /v1/admin/rooms/stats", requireAdmin(http.HandlerFunc(adminHandler.ListRoomStats)))
+	mux.Handle("POST /v1/admin/periods/{id}/result", requireAdmin(http.HandlerFunc(adminHandler.SetManualResult)))
+
+	mux.HandleFunc("POST /v1/auth/sso/exchange", authSSOHandler.Exchange)
 
 	return RecoverMiddleware(withCORS(mux))
 }

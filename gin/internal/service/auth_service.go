@@ -160,6 +160,22 @@ func (s *AuthService) Login(ctx context.Context, request auth.LoginRequest, meta
 	return s.newAuthResponse(profile)
 }
 
+func (s *AuthService) LoginByUserID(ctx context.Context, userID int64) (auth.AuthResponse, error) {
+	profile, err := s.repository.FindProfileByUserID(ctx, userID)
+	if err != nil {
+		return auth.AuthResponse{}, err
+	}
+
+	now := clock.Now()
+	if err := s.repository.MarkLoggedIn(ctx, profile.User.ID, now); err != nil {
+		return auth.AuthResponse{}, err
+	}
+	profile.User.LastLoginAt = &now
+
+	return s.newAuthResponse(profile)
+}
+
+
 func (s *AuthService) ForgotPassword(ctx context.Context, request auth.ForgotPasswordRequest, meta auth.RequestMeta) (auth.MessageResponse, error) {
 	channel, channelDBValue, err := s.parseChannel(request.Channel)
 	if err != nil {

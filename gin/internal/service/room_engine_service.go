@@ -176,7 +176,7 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 			continue
 		}
 
-		draw, err := s.generateDraw(period.GameType)
+		draw, err := s.generateDraw(period)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return err
@@ -282,8 +282,17 @@ func (s *RoomEngineService) releaseLock(ctx context.Context, key string) {
 	_, _ = s.redis.Del(ctx, key).Result()
 }
 
-func (s *RoomEngineService) generateDraw(gameType int) (repopg.DrawResult, error) {
-	switch gameType {
+func (s *RoomEngineService) generateDraw(period repopg.GamePeriodRecord) (repopg.DrawResult, error) {
+	if len(period.ManualResultJSON) > 0 {
+		var manualResult repopg.DrawResult
+		if err := json.Unmarshal(period.ManualResultJSON, &manualResult); err == nil && manualResult.Result != "" {
+			log.Printf("[engine][period.draw.manual] period_id=%d using_manual_result=%s", period.ID, manualResult.Result)
+			return manualResult, nil
+		}
+		log.Printf("[engine][period.draw.manual.error] period_id=%d logic=fallback_to_random err=unmarshal_failed", period.ID)
+	}
+
+	switch period.GameType {
 	case 1:
 		return generateWingoDraw(), nil
 	case 2:
@@ -291,7 +300,7 @@ func (s *RoomEngineService) generateDraw(gameType int) (repopg.DrawResult, error
 	case 3:
 		return generateLotteryDraw(), nil
 	default:
-		return repopg.DrawResult{}, fmt.Errorf("game_type không hỗ trợ: %d", gameType)
+		return repopg.DrawResult{}, fmt.Errorf("game_type không hỗ trợ: %d", period.GameType)
 	}
 }
 

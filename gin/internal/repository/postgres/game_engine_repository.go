@@ -239,9 +239,9 @@ func (r *GameRepository) ListLockedPeriodsForDraw(ctx context.Context, now time.
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
+		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
 		from (
-			select distinct on (room_code) id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
+			select distinct on (room_code) id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
 			from game_periods
 			where status = $1
 			  and draw_at <= $2
@@ -267,6 +267,7 @@ func (r *GameRepository) ListLockedPeriodsForDraw(ctx context.Context, now time.
 			&item.BetLockAt,
 			&item.DrawAt,
 			&item.Status,
+			&item.ManualResultJSON,
 		); err != nil {
 			return nil, err
 		}
@@ -653,7 +654,7 @@ func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room Ga
 			$1, $2, $3, $4, $5, $5, $6, $7, now(), now()
 		)
 		on conflict (room_code, period_no) do nothing
-		returning id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
+		returning id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
 	`, room.GameType, periodNo, room.Code, openAt, lockAt, drawAt, status).Scan(
 		&record.ID,
 		&record.RoomCode,
@@ -663,6 +664,7 @@ func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room Ga
 		&record.BetLockAt,
 		&record.DrawAt,
 		&record.Status,
+		&record.ManualResultJSON,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

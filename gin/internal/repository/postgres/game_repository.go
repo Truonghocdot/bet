@@ -61,9 +61,10 @@ type GamePeriodRecord struct {
 	GameType  int
 	PeriodNo  string
 	OpenAt    time.Time
-	BetLockAt time.Time
-	DrawAt    time.Time
-	Status    int
+	BetLockAt        time.Time
+	DrawAt           time.Time
+	Status           int
+	ManualResultJSON []byte
 }
 
 type GameRoundRecord struct {
@@ -131,9 +132,84 @@ type SettleBetTicketRecord struct {
 	ItemsJSON      []byte
 }
 
+type PeriodBetStats struct {
+	OptionKey   string `json:"option_key"`
+	OptionType  int    `json:"option_type"`
+	PlayerCount int    `json:"player_count"`
+	TotalStake  string `json:"total_stake"`
+}
+
 func NewGameRepository(db *sql.DB) *GameRepository {
 	return &GameRepository{db: db}
 }
+
+func (r *GameRepository) GetPeriodBetStats(ctx context.Context, periodID int64) ([]PeriodBetStats, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		select option_key, option_type, count(distinct user_id) as player_count, sum(stake)::text as total_stake
+		from bet_items i
+		inner join bet_tickets t on t.id = i.ticket_id
+		where i.period_id = $1
+		group by option_key, option_type
+		order by total_stake desc
+	`, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	stats := make([]PeriodBetStats, 0)
+	for rows.Next() {
+		var item PeriodBetStats
+		if err := rows.Scan(&item.OptionKey, &item.OptionType, &item.PlayerCount, &item.TotalStake); err != nil {
+			return nil, err
+		}
+		stats = append(stats, item)
+	}
+	return stats, rows.Err()
+}
+
+func (r *GameRepository) SetPeriodManualResult(ctx context.Context, periodID int64, resultJSON []byte) error {
+	_, err := r.db.ExecContext(ctx, `
+		update game_periods
+		set manual_result = $1,
+		    updated_at = now()
+		where id = $2 and status in (1, 2, 3)
+	`, resultJSON, periodID)
+	return err
+}
+
+func (r *GameRepository) ListAllRoomsWithCurrentPeriod(ctx context.Context) ([]struct {
+	Room   GameRoomRecord
+	Period *GamePeriodRecord
+}, error) {
+	rooms, err := r.ListRooms(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]struct {
+		Room   GameRoomRecord
+		Period *GamePeriodRecord
+	}, 0, len(rooms))
+
+	for _, room := range rooms {
+		period, err := r.GetCurrentPeriodByRoom(ctx, room.Code)
+		if err != nil && !errors.Is(err, ErrPeriodNotFound) {
+			return nil, err
+		}
+		var pPtr *GamePeriodRecord
+		if err == nil {
+			pPtr = &period
+		}
+		result = append(result, struct {
+			Room   GameRoomRecord
+			Period *GamePeriodRecord
+		}{Room: room, Period: pPtr})
+	}
+
+	return result, nil
+}
+
 
 func (r *GameRepository) ListRooms(ctx context.Context) ([]GameRoomRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
@@ -208,6 +284,7 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 			&period.BetLockAt,
 			&period.DrawAt,
 			&period.Status,
+			&period.ManualResultJSON,
 		)
 		if err != nil {
 			return GamePeriodRecord{}, err
@@ -216,7 +293,7 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 	}
 
 	current, err := scanPeriod(`
-		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
+		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
 		from game_periods
 		where room_code = $1
 		  and status in ($2, $3, $4)
@@ -627,7 +704,7 @@ func (r *GameRepository) ListBetTickets(ctx context.Context, userID int64, gameT
 func (r *GameRepository) lockPeriodForBet(ctx context.Context, tx *sql.Tx, roomCode string, periodID int64) (GamePeriodRecord, error) {
 	var period GamePeriodRecord
 	err := tx.QueryRowContext(ctx, `
-		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status
+		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
 		from game_periods
 		where id = $1 and room_code = $2
 		limit 1
@@ -641,6 +718,7 @@ func (r *GameRepository) lockPeriodForBet(ctx context.Context, tx *sql.Tx, roomC
 		&period.BetLockAt,
 		&period.DrawAt,
 		&period.Status,
+		&period.ManualResultJSON,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

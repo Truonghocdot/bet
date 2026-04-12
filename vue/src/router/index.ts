@@ -20,6 +20,18 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'auth', title: 'Đăng ký' },
   },
   {
+    path: '/auth/sso',
+    name: 'auth-sso',
+    component: () => import('../pages/SSOView.vue'),
+    meta: { layout: 'auth', title: 'Xác thực SSO' },
+  },
+  {
+    path: '/admin/control',
+    name: 'admin-control',
+    component: () => import('../pages/AdminControlView.vue'),
+    meta: { layout: 'main', title: 'Điều khiển kết quả', requiresAuth: true },
+  },
+  {
     path: '/forgot-password',
     name: 'forgot-password',
     component: () => import('../pages/ForgotPasswordView.vue'),
@@ -93,9 +105,34 @@ const routes: RouteRecordRaw[] = [
   },
 ]
 
+import { useAuthStore } from '@/stores/auth'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
+})
+
+router.beforeEach((to, from, next) => {
+  const auth = useAuthStore()
+  const isAuthenticated = !!auth.accessToken
+  const userRole = auth.user?.role
+
+  // Title update
+  if (to.meta.title) {
+    document.title = `${to.meta.title} - ff789`
+  }
+
+  // Auth check
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    return next({ name: 'auth' })
+  }
+
+  // Admin role check for specific route
+  if (to.name === 'admin-control' && userRole !== 1) {
+    return next({ name: 'home' })
+  }
+
+  next()
 })
 
 export default router

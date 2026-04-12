@@ -187,6 +187,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     isAuthenticated,
     hydrate,
+    applyAuthResponse,
     login,
     register,
     fetchMe,
