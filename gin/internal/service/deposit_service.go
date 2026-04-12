@@ -58,6 +58,7 @@ func (s *DepositService) InitVietQRDeposit(ctx context.Context, userID int64, re
 
 func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, request deposit.DepositInitRequest) (deposit.DepositInitResponse, error) {
 	if s.gate == nil {
+		log.Printf("[deposit][usdt.init.error] user_id=%d reason=gate_client_nil", userID)
 		return deposit.DepositInitResponse{}, ErrDepositUSDTNotAvailable
 	}
 
@@ -67,17 +68,20 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 
 	amount := normalizeDepositAmount(request.Amount)
 	if amount == "" {
+		log.Printf("[deposit][usdt.init.error] user_id=%d reason=amount_required raw_amount=%q", userID, request.Amount)
 		return deposit.DepositInitResponse{}, fmt.Errorf(message.DepositAmountRequired)
 	}
 
 	amountRat, _ := new(big.Rat).SetString(amount)
-	minUSDT := big.NewRat(5, 1)
+	minUSDT := big.NewRat(15, 1)
 	if amountRat == nil || amountRat.Cmp(minUSDT) < 0 {
+		log.Printf("[deposit][usdt.init.error] user_id=%d reason=amount_invalid amount=%s", userID, amount)
 		return deposit.DepositInitResponse{}, fmt.Errorf(message.DepositAmountInvalid)
 	}
 
 	walletID, _, err := s.repository.FindWalletByUserAndUnit(ctx, userID, user.WalletUnitUSDT)
 	if err != nil {
+		log.Printf("[deposit][usdt.init.error] user_id=%d reason=find_wallet_failed err=%v", userID, err)
 		return deposit.DepositInitResponse{}, err
 	}
 
@@ -87,6 +91,7 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 		Amount:    amount,
 	})
 	if err != nil {
+		log.Printf("[deposit][usdt.init.error] user_id=%d client_ref=%s reason=gate_create_nowpayments_failed err=%v", userID, clientRef, err)
 		return deposit.DepositInitResponse{}, err
 	}
 
@@ -122,6 +127,7 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 		Meta:               meta,
 	})
 	if err != nil {
+		log.Printf("[deposit][usdt.init.error] user_id=%d client_ref=%s reason=create_deposit_intent_failed err=%v", userID, clientRef, err)
 		return deposit.DepositInitResponse{}, err
 	}
 
@@ -167,6 +173,14 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 	if err := s.savePendingDepositCache(ctx, userID, deposit.DepositMethodUSDT, response); err != nil {
 		log.Printf("[deposit][cache.save.error] user_id=%d method=%s client_ref=%s err=%v", userID, deposit.DepositMethodUSDT, clientRef, err)
 	}
+	log.Printf(
+		"[deposit][usdt.init.ok] user_id=%d client_ref=%s payment_id=%s pay_currency=%s pay_amount=%s",
+		userID,
+		clientRef,
+		strings.TrimSpace(created.PaymentID),
+		strings.TrimSpace(created.PayCurrency),
+		strings.TrimSpace(created.PayAmount),
+	)
 
 	return response, nil
 }

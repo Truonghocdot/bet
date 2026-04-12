@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -26,18 +27,21 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	rawBody, err := io.ReadAll(r.Body)
 	if err != nil {
+		log.Printf("[gate][webhook.error] provider=%s reason=read_body_failed err=%v", provider, err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "invalid webhook payload"})
 		return
 	}
 
 	var payload map[string]any
 	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		log.Printf("[gate][webhook.error] provider=%s reason=unmarshal_failed err=%v", provider, err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "invalid webhook payload"})
 		return
 	}
 
 	event, err := h.webhookService.HandleDepositWebhook(r.Context(), provider, payload, rawBody, r.Header)
 	if err != nil {
+		log.Printf("[gate][webhook.error] provider=%s reason=handle_failed err=%v", provider, err)
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
 		return
 	}

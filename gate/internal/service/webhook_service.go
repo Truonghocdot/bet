@@ -48,13 +48,15 @@ type CreateNowPaymentsDepositResponse struct {
 }
 
 type WebhookService struct {
-	ginClient     *ginclient.Client
-	nowPayments   *nowpayments.Client
-	internalToken string
-	publicBaseURL string
-	ipnSecret     string
-	payCurrency   string
-	priceCurrency string
+	ginClient           *ginclient.Client
+	nowPayments         *nowpayments.Client
+	credentialsProvider NowPaymentsCredentialsProvider
+	internalToken       string
+	publicBaseURL       string
+	fallbackAPIKey      string
+	fallbackIPNSecret   string
+	payCurrency         string
+	priceCurrency       string
 }
 
 func NewWebhookService(
@@ -63,18 +65,26 @@ func NewWebhookService(
 	config WebhookConfig,
 ) *WebhookService {
 	return &WebhookService{
-		ginClient:     ginClient,
-		nowPayments:   nowPayments,
-		internalToken: strings.TrimSpace(config.GateInternalToken),
-		publicBaseURL: strings.TrimRight(strings.TrimSpace(config.PublicBaseURL), "/"),
-		ipnSecret:     strings.TrimSpace(config.NowPaymentsIPNSecret),
-		payCurrency:   strings.ToLower(strings.TrimSpace(config.NowPaymentsPayCurrency)),
-		priceCurrency: strings.ToLower(strings.TrimSpace(config.NowPaymentsPriceCurrency)),
+		ginClient:         ginClient,
+		nowPayments:       nowPayments,
+		internalToken:     strings.TrimSpace(config.GateInternalToken),
+		publicBaseURL:     strings.TrimRight(strings.TrimSpace(config.PublicBaseURL), "/"),
+		fallbackIPNSecret: strings.TrimSpace(config.NowPaymentsIPNSecret),
+		payCurrency:       strings.ToLower(strings.TrimSpace(config.NowPaymentsPayCurrency)),
+		priceCurrency:     strings.ToLower(strings.TrimSpace(config.NowPaymentsPriceCurrency)),
 	}
 }
 
 func (s *WebhookService) InternalToken() string {
 	return s.internalToken
+}
+
+func (s *WebhookService) SetCredentialsProvider(provider NowPaymentsCredentialsProvider) {
+	s.credentialsProvider = provider
+}
+
+func (s *WebhookService) SetFallbackAPIKey(apiKey string) {
+	s.fallbackAPIKey = strings.TrimSpace(apiKey)
 }
 
 func (s *WebhookService) CreateNowPaymentsDeposit(ctx context.Context, request CreateNowPaymentsDepositRequest) (CreateNowPaymentsDepositResponse, error) {
@@ -88,11 +98,23 @@ func (s *WebhookService) CreateNowPaymentsDeposit(ctx context.Context, request C
 		return CreateNowPaymentsDepositResponse{}, fmt.Errorf("client_ref and amount are required")
 	}
 
-	payCurrency := s.payCurrency
+	credentials, err := s.resolveNowPaymentsCredentials(ctx)
+	if err != nil {
+		log.Printf("[gate][nowpayments.credentials.warn] source=fallback err=%v", err)
+	}
+
+	payCurrency := credentials.PayCurrency
+	if payCurrency == "" {
+		payCurrency = s.payCurrency
+	}
 	if payCurrency == "" {
 		payCurrency = "usdttrc20"
 	}
-	priceCurrency := s.priceCurrency
+
+	priceCurrency := credentials.PriceCurrency
+	if priceCurrency == "" {
+		priceCurrency = s.priceCurrency
+	}
 	if priceCurrency == "" {
 		priceCurrency = "usd"
 	}
@@ -102,15 +124,25 @@ func (s *WebhookService) CreateNowPaymentsDeposit(ctx context.Context, request C
 		callbackURL = ""
 	}
 
-	created, err := s.nowPayments.CreatePayment(ctx, nowpayments.CreatePaymentRequest{
+	created, err := s.nowPayments.CreatePaymentWithAPIKey(ctx, credentials.APIKey, nowpayments.CreatePaymentRequest{
 		PriceAmount:      amount,
 		PriceCurrency:    priceCurrency,
+		PayAmount:        amount,
 		PayCurrency:      payCurrency,
 		OrderID:          clientRef,
 		OrderDescription: "deposit " + clientRef,
 		IPNCallbackURL:   callbackURL,
 	})
 	if err != nil {
+		log.Printf(
+			"[gate][nowpayments.create.error] client_ref=%s amount=%s price_currency=%s pay_currency=%s source=%s err=%v",
+			clientRef,
+			amount,
+			priceCurrency,
+			payCurrency,
+			credentials.Source,
+			err,
+		)
 		return CreateNowPaymentsDepositResponse{}, err
 	}
 
@@ -140,7 +172,7 @@ func (s *WebhookService) HandleDepositWebhook(
 
 	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
 	if normalizedProvider == providerNowPayments {
-		if err := s.verifyNowPaymentsSignature(rawBody, headers); err != nil {
+		if err := s.verifyNowPaymentsSignature(ctx, rawBody, headers); err != nil {
 			return event.WebhookEvent{}, err
 		}
 	}
@@ -167,8 +199,14 @@ func (s *WebhookService) HandleDepositWebhook(
 	return webhookEvent, nil
 }
 
-func (s *WebhookService) verifyNowPaymentsSignature(rawBody []byte, headers http.Header) error {
-	if s.ipnSecret == "" {
+func (s *WebhookService) verifyNowPaymentsSignature(ctx context.Context, rawBody []byte, headers http.Header) error {
+	credentials, err := s.resolveNowPaymentsCredentials(ctx)
+	if err != nil {
+		log.Printf("[gate][nowpayments.credentials.warn] source=fallback err=%v", err)
+	}
+
+	secret := strings.TrimSpace(credentials.IPNSecret)
+	if secret == "" {
 		return fmt.Errorf("nowpayments ipn secret is not configured")
 	}
 
@@ -180,7 +218,7 @@ func (s *WebhookService) verifyNowPaymentsSignature(rawBody []byte, headers http
 		return fmt.Errorf("missing nowpayments signature")
 	}
 
-	mac := hmac.New(sha512.New, []byte(s.ipnSecret))
+	mac := hmac.New(sha512.New, []byte(secret))
 	_, _ = mac.Write(rawBody)
 	expectedHex := hex.EncodeToString(mac.Sum(nil))
 
@@ -195,6 +233,35 @@ func (s *WebhookService) verifyNowPaymentsSignature(rawBody []byte, headers http
 	}
 
 	return nil
+}
+
+func (s *WebhookService) resolveNowPaymentsCredentials(ctx context.Context) (NowPaymentsCredentials, error) {
+	fallback := NowPaymentsCredentials{
+		APIKey:    strings.TrimSpace(s.fallbackAPIKey),
+		IPNSecret: strings.TrimSpace(s.fallbackIPNSecret),
+		Source:    "env",
+	}
+
+	if s.credentialsProvider == nil {
+		return fallback, nil
+	}
+
+	credentials, err := s.credentialsProvider.Get(ctx)
+	if err != nil {
+		return fallback, err
+	}
+
+	if strings.TrimSpace(credentials.APIKey) == "" {
+		credentials.APIKey = fallback.APIKey
+	}
+	if strings.TrimSpace(credentials.IPNSecret) == "" {
+		credentials.IPNSecret = fallback.IPNSecret
+	}
+	if strings.TrimSpace(credentials.Source) == "" {
+		credentials.Source = fallback.Source
+	}
+
+	return credentials, nil
 }
 
 func (s *WebhookService) buildApplyRequest(provider string, payload map[string]any) (event.DepositApplyRequest, error) {

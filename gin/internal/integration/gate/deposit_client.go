@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -73,7 +74,12 @@ func (c *DepositClient) CreateNowPaymentsDeposit(ctx context.Context, request Cr
 	defer response.Body.Close()
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return CreateNowPaymentsDepositResponse{}, fmt.Errorf("gate nowpayments create returned status %d", response.StatusCode)
+		body, _ := io.ReadAll(response.Body)
+		return CreateNowPaymentsDepositResponse{}, fmt.Errorf(
+			"gate nowpayments create returned status %d body=%s",
+			response.StatusCode,
+			strings.TrimSpace(string(body)),
+		)
 	}
 
 	var parsed CreateNowPaymentsDepositResponse

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ type Client struct {
 type CreatePaymentRequest struct {
 	PriceAmount      string
 	PriceCurrency    string
+	PayAmount        string
 	PayCurrency      string
 	OrderID          string
 	OrderDescription string
@@ -48,10 +50,15 @@ func NewClient(baseURL, apiKey string) *Client {
 }
 
 func (c *Client) CreatePayment(ctx context.Context, request CreatePaymentRequest) (CreatePaymentResponse, error) {
+	return c.CreatePaymentWithAPIKey(ctx, c.apiKey, request)
+}
+
+func (c *Client) CreatePaymentWithAPIKey(ctx context.Context, apiKey string, request CreatePaymentRequest) (CreatePaymentResponse, error) {
 	if c.baseURL == "" {
 		return CreatePaymentResponse{}, fmt.Errorf("nowpayments base url is required")
 	}
-	if c.apiKey == "" {
+	resolvedAPIKey := strings.TrimSpace(apiKey)
+	if resolvedAPIKey == "" {
 		return CreatePaymentResponse{}, fmt.Errorf("nowpayments api key is required")
 	}
 
@@ -69,6 +76,12 @@ func (c *Client) CreatePayment(ctx context.Context, request CreatePaymentRequest
 		"ipn_callback_url":  strings.TrimSpace(request.IPNCallbackURL),
 	}
 
+	if payAmountStr := strings.TrimSpace(request.PayAmount); payAmountStr != "" {
+		if payAmount, err := strconv.ParseFloat(payAmountStr, 64); err == nil && payAmount > 0 {
+			bodyMap["pay_amount"] = payAmount
+		}
+	}
+
 	body, err := json.Marshal(bodyMap)
 	if err != nil {
 		return CreatePaymentResponse{}, err
@@ -80,7 +93,7 @@ func (c *Client) CreatePayment(ctx context.Context, request CreatePaymentRequest
 	}
 
 	httpRequest.Header.Set("Content-Type", "application/json")
-	httpRequest.Header.Set("x-api-key", c.apiKey)
+	httpRequest.Header.Set("x-api-key", resolvedAPIKey)
 
 	httpResponse, err := c.client.Do(httpRequest)
 	if err != nil {
@@ -89,7 +102,29 @@ func (c *Client) CreatePayment(ctx context.Context, request CreatePaymentRequest
 	defer httpResponse.Body.Close()
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
-		return CreatePaymentResponse{}, fmt.Errorf("nowpayments create payment returned status %d", httpResponse.StatusCode)
+		rawBody, _ := io.ReadAll(httpResponse.Body)
+		bodyText := strings.TrimSpace(string(rawBody))
+		if bodyText == "" {
+			return CreatePaymentResponse{}, fmt.Errorf("nowpayments create payment returned status %d", httpResponse.StatusCode)
+		}
+
+		var payload map[string]any
+		if err := json.Unmarshal(rawBody, &payload); err == nil {
+			if message := firstNonEmptyString(payload, []string{"message", "error", "errors"}); message != "" {
+				return CreatePaymentResponse{}, fmt.Errorf(
+					"nowpayments create payment returned status %d message=%s body=%s",
+					httpResponse.StatusCode,
+					message,
+					bodyText,
+				)
+			}
+		}
+
+		return CreatePaymentResponse{}, fmt.Errorf(
+			"nowpayments create payment returned status %d body=%s",
+			httpResponse.StatusCode,
+			bodyText,
+		)
 	}
 
 	var raw map[string]any
