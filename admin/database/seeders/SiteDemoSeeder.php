@@ -160,17 +160,13 @@ class SiteDemoSeeder extends Seeder
                 ->orderBy('short_name')
                 ->first();
 
-            PaymentReceivingAccount::query()->updateOrCreate(
-                ['code' => 'SEED-BANK-VND'],
+            PaymentReceivingAccount::query()->create(
                 [
-                    'name' => 'Tài khoản nạp ngân hàng chính',
                     'type' => PaymentReceivingAccountType::BANK,
                     'unit' => UnitTransaction::VND,
                     'provider_code' => $bank?->code ?? 'VCB',
                     'account_name' => 'CONG TY FF789',
                     'account_number' => '1900100008888',
-                    'qr_code_path' => null,
-                    'instructions' => 'Chuyển khoản đúng nội dung để hệ thống đối soát nhanh.',
                     'status' => PaymentReceivingAccountStatus::ACTIVE,
                     'is_default' => true,
                     'sort_order' => 1,

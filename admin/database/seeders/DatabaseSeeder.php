@@ -13,9 +13,9 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             GameRoomSeeder::class,
-            // ExchangeRateSettingSeeder::class,
-            // VietQrBankSeeder::class,
-            // SiteDemoSeeder::class,
+            ExchangeRateSettingSeeder::class,
+            VietQrBankSeeder::class,
+            SiteDemoSeeder::class,
         ]);
     }
 }
