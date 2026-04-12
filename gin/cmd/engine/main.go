@@ -13,9 +13,11 @@ import (
 	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
+	"gin/internal/support/logger"
 )
 
 func main() {
+	logger.Init("storage/logs/gin.log")
 	config := app.LoadConfig()
 
 	db, err := platformpg.Open(config.DatabaseURL)

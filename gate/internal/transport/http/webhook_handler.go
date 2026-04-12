@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 
@@ -23,13 +24,19 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var payload map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	rawBody, err := io.ReadAll(r.Body)
+	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "invalid webhook payload"})
 		return
 	}
 
-	event, err := h.webhookService.HandleDepositWebhook(r.Context(), provider, payload)
+	var payload map[string]any
+	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "invalid webhook payload"})
+		return
+	}
+
+	event, err := h.webhookService.HandleDepositWebhook(r.Context(), provider, payload, rawBody, r.Header)
 	if err != nil {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
 		return

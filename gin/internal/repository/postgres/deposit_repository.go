@@ -33,11 +33,19 @@ type ReceivingAccountRecord struct {
 	ProviderCode  *string
 	AccountName   *string
 	AccountNumber *string
-	WalletAddress *string
-	Network       *string
 	Status        int
 	IsDefault     bool
 	SortOrder     int
+}
+
+type VietQrBankRecord struct {
+	ProviderCode string
+	ShortName    string
+	Name         string
+	Bin          string
+	Logo         *string
+	AccountCount int
+	IsDefault    bool
 }
 
 type DepositTransactionRecord struct {
@@ -75,7 +83,7 @@ func NewDepositRepository(db *sql.DB) *DepositRepository {
 func (r *DepositRepository) ListActiveReceivingAccounts(ctx context.Context) ([]ReceivingAccountRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		select id, type, unit, provider_code, account_name, account_number,
-		       wallet_address, network, status, is_default, sort_order
+		       status, is_default, sort_order
 		from payment_receiving_accounts
 		where deleted_at is null and status = $1
 		order by is_default desc, unit asc, type asc, sort_order asc, id asc
@@ -95,8 +103,6 @@ func (r *DepositRepository) ListActiveReceivingAccounts(ctx context.Context) ([]
 			&record.ProviderCode,
 			&record.AccountName,
 			&record.AccountNumber,
-			&record.WalletAddress,
-			&record.Network,
 			&record.Status,
 			&record.IsDefault,
 			&record.SortOrder,
@@ -108,6 +114,58 @@ func (r *DepositRepository) ListActiveReceivingAccounts(ctx context.Context) ([]
 	}
 
 	return accounts, rows.Err()
+}
+
+func (r *DepositRepository) ListVietQrBanks(ctx context.Context) ([]VietQrBankRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		select
+			p.provider_code,
+			coalesce(b.short_name, p.provider_code) as short_name,
+			coalesce(b.name, p.provider_code) as name,
+			coalesce(b.bin, '') as bin,
+			b.logo,
+			count(*) as account_count,
+			max(case when p.is_default then 1 else 0 end) as is_default
+		from payment_receiving_accounts p
+		left join vietqr_banks b on b.code = p.provider_code
+		where p.deleted_at is null
+		  and p.status = $1
+		  and p.type = $2
+		  and p.unit = $3
+		group by p.provider_code, b.short_name, b.name, b.bin, b.logo
+		order by is_default desc, account_count desc, short_name asc, p.provider_code asc
+	`, 1, 1, 1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var banks []VietQrBankRecord
+	for rows.Next() {
+		var record VietQrBankRecord
+		var logo sql.NullString
+		var isDefault int
+
+		if err := rows.Scan(
+			&record.ProviderCode,
+			&record.ShortName,
+			&record.Name,
+			&record.Bin,
+			&logo,
+			&record.AccountCount,
+			&isDefault,
+		); err != nil {
+			return nil, err
+		}
+
+		if logo.Valid {
+			record.Logo = &logo.String
+		}
+		record.IsDefault = isDefault > 0
+		banks = append(banks, record)
+	}
+
+	return banks, rows.Err()
 }
 
 func (r *DepositRepository) FindWalletByUserAndUnit(ctx context.Context, userID int64, unit int) (walletID int64, balance string, err error) {
@@ -163,7 +221,7 @@ func (r *DepositRepository) FindDepositIntentByClientRef(ctx context.Context, cl
 		       t.status, t.provider, t.provider_txn_id, t.receiving_account_id, t.meta, t.reason_failed,
 		       t.approved_by, t.approved_at, t.created_at, t.updated_at,
 		       p.id, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
-		       p.wallet_address, p.network, p.status, p.is_default, p.sort_order
+		       p.status, p.is_default, p.sort_order
 		from transactions t
 		left join payment_receiving_accounts p on p.id = t.receiving_account_id
 		where t.client_ref = $1 and t.deleted_at is null
@@ -184,7 +242,7 @@ func (r *DepositRepository) FindDepositIntentByProviderTxnID(ctx context.Context
 		       t.status, t.provider, t.provider_txn_id, t.receiving_account_id, t.meta, t.reason_failed,
 		       t.approved_by, t.approved_at, t.created_at, t.updated_at,
 		       p.id, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
-		       p.wallet_address, p.network, p.status, p.is_default, p.sort_order
+		       p.status, p.is_default, p.sort_order
 		from transactions t
 		left join payment_receiving_accounts p on p.id = t.receiving_account_id
 		where t.provider = $1 and t.provider_txn_id = $2 and t.deleted_at is null
@@ -519,24 +577,22 @@ func scanDepositTransaction(row *sql.Row, record *DepositTransactionRecord) erro
 
 func scanDepositTransactionWithAccount(row *sql.Row, record *DepositTransactionRecord) error {
 	var (
-		account              ReceivingAccountRecord
-		providerTxnID        sql.NullString
-		receivingAccountID   sql.NullInt64
-		metaJSON             []byte
-		reasonFailed         sql.NullString
-		approvedBy           sql.NullInt64
-		approvedAt           sql.NullTime
-		accountID            sql.NullInt64
-		accountType          sql.NullInt64
-		accountUnit          sql.NullInt64
-		accountProviderCode  sql.NullString
-		accountName          sql.NullString
-		accountNumber        sql.NullString
-		accountWalletAddress sql.NullString
-		accountNetwork       sql.NullString
-		accountStatus        sql.NullInt64
-		accountIsDefault     sql.NullBool
-		accountSortOrder     sql.NullInt64
+		account             ReceivingAccountRecord
+		providerTxnID       sql.NullString
+		receivingAccountID  sql.NullInt64
+		metaJSON            []byte
+		reasonFailed        sql.NullString
+		approvedBy          sql.NullInt64
+		approvedAt          sql.NullTime
+		accountID           sql.NullInt64
+		accountType         sql.NullInt64
+		accountUnit         sql.NullInt64
+		accountProviderCode sql.NullString
+		accountName         sql.NullString
+		accountNumber       sql.NullString
+		accountStatus       sql.NullInt64
+		accountIsDefault    sql.NullBool
+		accountSortOrder    sql.NullInt64
 	)
 
 	if err := row.Scan(
@@ -564,8 +620,6 @@ func scanDepositTransactionWithAccount(row *sql.Row, record *DepositTransactionR
 		&accountProviderCode,
 		&accountName,
 		&accountNumber,
-		&accountWalletAddress,
-		&accountNetwork,
 		&accountStatus,
 		&accountIsDefault,
 		&accountSortOrder,
@@ -596,8 +650,6 @@ func scanDepositTransactionWithAccount(row *sql.Row, record *DepositTransactionR
 		account.ProviderCode = nullStringPtr(accountProviderCode)
 		account.AccountName = nullStringPtr(accountName)
 		account.AccountNumber = nullStringPtr(accountNumber)
-		account.WalletAddress = nullStringPtr(accountWalletAddress)
-		account.Network = nullStringPtr(accountNetwork)
 		account.Status = int(accountStatus.Int64)
 		account.IsDefault = accountIsDefault.Bool
 		account.SortOrder = int(accountSortOrder.Int64)
@@ -618,9 +670,9 @@ func marshalJSON(value map[string]any) ([]byte, error) {
 func classifyProviderStatus(status string) (success bool, failed bool) {
 	normalized := strings.ToLower(strings.TrimSpace(status))
 	switch normalized {
-	case "success", "succeeded", "paid", "completed", "confirmed", "done", "ok", "1", "00":
+	case "success", "succeeded", "paid", "completed", "confirmed", "done", "ok", "1", "00", "finished":
 		return true, false
-	case "failed", "canceled", "cancelled", "rejected", "error", "0":
+	case "failed", "canceled", "cancelled", "rejected", "error", "0", "expired", "refunded":
 		return false, true
 	default:
 		return false, false

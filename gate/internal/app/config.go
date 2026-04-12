@@ -14,6 +14,13 @@ type Config struct {
 	ShutdownTimout     time.Duration
 	GinInternalBaseURL string
 	GinInternalToken   string
+	GateInternalToken  string
+	PublicBaseURL      string
+	NowPaymentsBaseURL string
+	NowPaymentsAPIKey  string
+	NowPaymentsIPNKey  string
+	NowPaymentsPayCode string
+	NowPaymentsPrice   string
 }
 
 func LoadConfig() Config {
@@ -25,6 +32,13 @@ func LoadConfig() Config {
 		ShutdownTimout:     getEnvDuration("HTTP_SHUTDOWN_TIMEOUT", 10*time.Second),
 		GinInternalBaseURL: getEnv("GIN_INTERNAL_BASE_URL", "http://localhost:8081"),
 		GinInternalToken:   getEnv("GIN_INTERNAL_TOKEN", ""),
+		GateInternalToken:  getEnv("GATE_INTERNAL_TOKEN", getEnv("GIN_INTERNAL_TOKEN", "")),
+		PublicBaseURL:      getEnv("GATE_PUBLIC_BASE_URL", "http://localhost:8082"),
+		NowPaymentsBaseURL: getEnv("NOWPAYMENTS_BASE_URL", "https://api.nowpayments.io"),
+		NowPaymentsAPIKey:  getEnv("NOWPAYMENTS_API_KEY", ""),
+		NowPaymentsIPNKey:  getEnv("NOWPAYMENTS_IPN_SECRET", ""),
+		NowPaymentsPayCode: getEnv("NOWPAYMENTS_PAY_CURRENCY", "usdttrc20"),
+		NowPaymentsPrice:   getEnv("NOWPAYMENTS_PRICE_CURRENCY", "usd"),
 	}
 }
 

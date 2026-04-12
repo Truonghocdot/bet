@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	ginclient "gate/internal/integration/gin"
+	nowpayments "gate/internal/integration/nowpayments"
 	"gate/internal/service"
 	httptransport "gate/internal/transport/http"
 )
@@ -20,7 +21,14 @@ type App struct {
 func New() (*App, error) {
 	config := LoadConfig()
 	ginClient := ginclient.NewClient(config.GinInternalBaseURL, config.GinInternalToken)
-	webhookService := service.NewWebhookService(ginClient)
+	nowPaymentsClient := nowpayments.NewClient(config.NowPaymentsBaseURL, config.NowPaymentsAPIKey)
+	webhookService := service.NewWebhookService(ginClient, nowPaymentsClient, service.WebhookConfig{
+		GateInternalToken:        config.GateInternalToken,
+		PublicBaseURL:            config.PublicBaseURL,
+		NowPaymentsIPNSecret:     config.NowPaymentsIPNKey,
+		NowPaymentsPayCurrency:   config.NowPaymentsPayCode,
+		NowPaymentsPriceCurrency: config.NowPaymentsPrice,
+	})
 	notificationService := service.NewNotificationService()
 	router := httptransport.NewRouter(webhookService, notificationService)
 

@@ -3,21 +3,26 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
 	"math/rand"
+	"net/url"
 	"strings"
 	"time"
 
 	"gin/internal/domain/deposit"
 	"gin/internal/domain/user"
+	gateclient "gin/internal/integration/gate"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
 	goredis "github.com/redis/go-redis/v9"
 )
+
+var ErrDepositUSDTNotAvailable = errors.New(message.DepositUSDTNotAvailable)
 
 type DepositConfig struct {
 	ReceivingAccountsRedisKey string
@@ -28,14 +33,22 @@ type DepositService struct {
 	redis      *goredis.Client
 	config     DepositConfig
 	wallets    *WalletService
+	gate       *gateclient.DepositClient
 }
 
-func NewDepositService(repository *repopg.DepositRepository, redis *goredis.Client, wallets *WalletService, config DepositConfig) *DepositService {
+func NewDepositService(
+	repository *repopg.DepositRepository,
+	redis *goredis.Client,
+	wallets *WalletService,
+	gate *gateclient.DepositClient,
+	config DepositConfig,
+) *DepositService {
 	return &DepositService{
 		repository: repository,
 		redis:      redis,
 		config:     config,
 		wallets:    wallets,
+		gate:       gate,
 	}
 }
 
@@ -44,7 +57,118 @@ func (s *DepositService) InitVietQRDeposit(ctx context.Context, userID int64, re
 }
 
 func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, request deposit.DepositInitRequest) (deposit.DepositInitResponse, error) {
-	return s.initDeposit(ctx, userID, request, deposit.DepositMethodUSDT, deposit.DepositProviderUSDTGateway, deposit.ReceivingAccountTypeCrypto, user.WalletUnitUSDT)
+	if s.gate == nil {
+		return deposit.DepositInitResponse{}, ErrDepositUSDTNotAvailable
+	}
+
+	if cached, err := s.loadPendingDepositCache(ctx, userID, deposit.DepositMethodUSDT); err == nil && cached.ClientRef != "" {
+		return cached, nil
+	}
+
+	amount := normalizeDepositAmount(request.Amount)
+	if amount == "" {
+		return deposit.DepositInitResponse{}, fmt.Errorf(message.DepositAmountRequired)
+	}
+
+	amountRat, _ := new(big.Rat).SetString(amount)
+	minUSDT := big.NewRat(5, 1)
+	if amountRat == nil || amountRat.Cmp(minUSDT) < 0 {
+		return deposit.DepositInitResponse{}, fmt.Errorf(message.DepositAmountInvalid)
+	}
+
+	walletID, _, err := s.repository.FindWalletByUserAndUnit(ctx, userID, user.WalletUnitUSDT)
+	if err != nil {
+		return deposit.DepositInitResponse{}, err
+	}
+
+	clientRef := "DEP-" + id.New()
+	created, err := s.gate.CreateNowPaymentsDeposit(ctx, gateclient.CreateNowPaymentsDepositRequest{
+		ClientRef: clientRef,
+		Amount:    amount,
+	})
+	if err != nil {
+		return deposit.DepositInitResponse{}, err
+	}
+
+	meta := map[string]any{
+		"method":         deposit.DepositMethodUSDT,
+		"provider":       deposit.DepositProviderNowPayments,
+		"payment_id":     strings.TrimSpace(created.PaymentID),
+		"payment_status": strings.TrimSpace(created.PaymentStatus),
+		"pay_currency":   strings.TrimSpace(created.PayCurrency),
+		"pay_amount":     strings.TrimSpace(created.PayAmount),
+		"pay_address":    strings.TrimSpace(created.PayAddress),
+		"payin_extra_id": strings.TrimSpace(created.PayinExtraID),
+		"invoice_url":    strings.TrimSpace(created.InvoiceURL),
+		"raw":            created.Raw,
+	}
+
+	var providerTxnID *string
+	if trimmed := strings.TrimSpace(created.PaymentID); trimmed != "" {
+		providerTxnID = &trimmed
+	}
+
+	record, err := s.repository.CreateDepositIntent(ctx, repopg.CreateDepositIntentParams{
+		UserID:             userID,
+		WalletID:           walletID,
+		ClientRef:          clientRef,
+		Unit:               user.WalletUnitUSDT,
+		Type:               1,
+		Amount:             amount,
+		Status:             1,
+		Provider:           string(deposit.DepositProviderNowPayments),
+		ProviderTxnID:      providerTxnID,
+		ReceivingAccountID: nil,
+		Meta:               meta,
+	})
+	if err != nil {
+		return deposit.DepositInitResponse{}, err
+	}
+
+	expiresAt := clock.Now().Add(10 * time.Minute)
+	transaction := s.toDomainTransaction(record)
+
+	network := strings.ToUpper(strings.TrimSpace(created.PayCurrency))
+	address := strings.TrimSpace(created.PayAddress)
+	memo := strings.TrimSpace(created.PayinExtraID)
+
+	var qrContent string
+	if memo != "" {
+		qrContent = fmt.Sprintf("%s|memo:%s", address, memo)
+	} else {
+		qrContent = address
+	}
+
+	receiving := &deposit.ReceivingAccount{
+		Type:          0,
+		Unit:          user.WalletUnitUSDT,
+		ProviderCode:  stringPtrOrNil(network),
+		AccountName:   stringPtrOrNil("NOWPayments"),
+		AccountNumber: stringPtrOrNil(address),
+		Status:        1,
+	}
+	transaction.ReceivingAccount = receiving
+
+	response := deposit.DepositInitResponse{
+		Message:          message.DepositCreated,
+		Provider:         string(deposit.DepositProviderNowPayments),
+		Method:           deposit.DepositMethodUSDT,
+		ClientRef:        clientRef,
+		Amount:           amount,
+		Transaction:      transaction,
+		Instructions:     "Chuyen dung dia chi vi va memo/tag (neu co) de he thong doi soat tu dong.",
+		QRContent:        qrContent,
+		QRCodeURL:        "",
+		PayURL:           strings.TrimSpace(created.InvoiceURL),
+		ExpiresAt:        expiresAt,
+		ReceivingAccount: receiving,
+	}
+
+	if err := s.savePendingDepositCache(ctx, userID, deposit.DepositMethodUSDT, response); err != nil {
+		log.Printf("[deposit][cache.save.error] user_id=%d method=%s client_ref=%s err=%v", userID, deposit.DepositMethodUSDT, clientRef, err)
+	}
+
+	return response, nil
 }
 
 func (s *DepositService) GetDepositStatus(ctx context.Context, userID int64, clientRef string) (deposit.DepositStatusResponse, error) {
@@ -57,10 +181,41 @@ func (s *DepositService) GetDepositStatus(ctx context.Context, userID int64, cli
 		return deposit.DepositStatusResponse{}, fmt.Errorf(message.Unauthorized)
 	}
 
-	return deposit.DepositStatusResponse{
+	response := deposit.DepositStatusResponse{
 		Message:          message.DepositAccepted,
 		Transaction:      s.toDomainTransaction(record),
 		ReceivingAccount: s.toDomainReceivingAccount(record.ReceivingAccount),
+	}
+
+	if response.Transaction.Status == 2 || response.Transaction.Status == 3 || response.Transaction.Status == 4 {
+		_ = s.clearPendingDepositCache(ctx, userID, depositProviderToMethod(record.Provider))
+	}
+
+	return response, nil
+}
+
+func (s *DepositService) ListVietQrBanks(ctx context.Context) (deposit.DepositBankListResponse, error) {
+	records, err := s.repository.ListVietQrBanks(ctx)
+	if err != nil {
+		return deposit.DepositBankListResponse{}, err
+	}
+
+	items := make([]deposit.DepositBankOption, 0, len(records))
+	for _, record := range records {
+		items = append(items, deposit.DepositBankOption{
+			ProviderCode: record.ProviderCode,
+			ShortName:    record.ShortName,
+			Name:         record.Name,
+			Bin:          record.Bin,
+			Logo:         firstNonNilString(record.Logo),
+			AccountCount: record.AccountCount,
+			IsDefault:    record.IsDefault,
+		})
+	}
+
+	return deposit.DepositBankListResponse{
+		Message: message.DepositAccepted,
+		Banks:   items,
 	}, nil
 }
 
@@ -112,6 +267,10 @@ func (s *DepositService) ApplyDeposit(ctx context.Context, request deposit.Apply
 		}
 	}
 
+	if result.Applied || result.AlreadyDone || result.Transaction.Status == 4 {
+		_ = s.clearPendingDepositCache(ctx, result.Transaction.UserID, depositProviderToMethod(result.Transaction.Provider))
+	}
+
 	return deposit.ApplyDepositResponse{
 		Message:   messageText,
 		ClientRef: request.ClientRef,
@@ -129,12 +288,16 @@ func (s *DepositService) initDeposit(
 	accountType deposit.ReceivingAccountType,
 	unit int,
 ) (deposit.DepositInitResponse, error) {
+	if cached, err := s.loadPendingDepositCache(ctx, userID, method); err == nil && cached.ClientRef != "" {
+		return cached, nil
+	}
+
 	amount := normalizeDepositAmount(request.Amount)
 	if amount == "" {
 		return deposit.DepositInitResponse{}, fmt.Errorf(message.DepositAmountRequired)
 	}
 
-	candidates, err := s.receivingAccounts(ctx, unit, int(accountType))
+	candidates, err := s.receivingAccounts(ctx, unit, int(accountType), strings.TrimSpace(request.ProviderCode))
 	if err != nil {
 		return deposit.DepositInitResponse{}, err
 	}
@@ -173,7 +336,7 @@ func (s *DepositService) initDeposit(
 		return deposit.DepositInitResponse{}, err
 	}
 
-	expiresAt := clock.Now().Add(15 * time.Minute)
+	expiresAt := clock.Now().Add(10 * time.Minute)
 	transaction := s.toDomainTransaction(record)
 	transaction.ReceivingAccount = s.toDomainReceivingAccount(&selected)
 
@@ -192,20 +355,21 @@ func (s *DepositService) initDeposit(
 	case deposit.DepositMethodVietQR:
 		response.Instructions = "Quét QR hoặc chuyển khoản đúng nội dung để hệ thống tự động đối soát."
 		response.QRContent = buildQRContent(selected, amount, clientRef)
-		response.QRCodeURL = ""
+		response.QRCodeURL = buildVietQrImageURL(selected, amount, clientRef)
 		response.PayURL = ""
-	case deposit.DepositMethodUSDT:
-		response.Instructions = "Chuyển đúng mạng lưới và đúng số tiền để hệ thống tự động đối soát."
-		response.QRContent = buildUSDTContent(selected, amount, clientRef)
+	}
+
+	if err := s.savePendingDepositCache(ctx, userID, method, response); err != nil {
+		log.Printf("[deposit][cache.save.error] user_id=%d method=%s client_ref=%s err=%v", userID, method, clientRef, err)
 	}
 
 	return response, nil
 }
 
-func (s *DepositService) receivingAccounts(ctx context.Context, unit int, accountType int) ([]repopg.ReceivingAccountRecord, error) {
+func (s *DepositService) receivingAccounts(ctx context.Context, unit int, accountType int, providerCode string) ([]repopg.ReceivingAccountRecord, error) {
 	snapshot, err := s.loadReceivingAccountsSnapshot(ctx)
 	if err == nil && len(snapshot) > 0 {
-		filtered := filterReceivingAccounts(snapshot, unit, accountType)
+		filtered := filterReceivingAccounts(snapshot, unit, accountType, providerCode)
 		if len(filtered) > 0 {
 			return filtered, nil
 		}
@@ -216,7 +380,7 @@ func (s *DepositService) receivingAccounts(ctx context.Context, unit int, accoun
 		return nil, err
 	}
 
-	return filterReceivingAccounts(accounts, unit, accountType), nil
+	return filterReceivingAccounts(accounts, unit, accountType, providerCode), nil
 }
 
 func (s *DepositService) loadReceivingAccountsSnapshot(ctx context.Context) ([]repopg.ReceivingAccountRecord, error) {
@@ -251,8 +415,6 @@ func (s *DepositService) toDomainReceivingAccount(record *repopg.ReceivingAccoun
 		ProviderCode:  record.ProviderCode,
 		AccountName:   record.AccountName,
 		AccountNumber: record.AccountNumber,
-		WalletAddress: record.WalletAddress,
-		Network:       record.Network,
 		Status:        record.Status,
 		IsDefault:     record.IsDefault,
 		SortOrder:     record.SortOrder,
@@ -283,12 +445,18 @@ func (s *DepositService) toDomainTransaction(record repopg.DepositTransactionRec
 	}
 }
 
-func filterReceivingAccounts(accounts []repopg.ReceivingAccountRecord, unit int, accountType int) []repopg.ReceivingAccountRecord {
+func filterReceivingAccounts(accounts []repopg.ReceivingAccountRecord, unit int, accountType int, providerCode string) []repopg.ReceivingAccountRecord {
 	filtered := make([]repopg.ReceivingAccountRecord, 0, len(accounts))
 	for _, account := range accounts {
-		if account.Unit == unit && account.Type == accountType {
-			filtered = append(filtered, account)
+		if account.Unit != unit || account.Type != accountType {
+			continue
 		}
+
+		if providerCode != "" && (account.ProviderCode == nil || !strings.EqualFold(strings.TrimSpace(*account.ProviderCode), providerCode)) {
+			continue
+		}
+
+		filtered = append(filtered, account)
 	}
 
 	return filtered
@@ -359,14 +527,106 @@ func buildQRContent(account repopg.ReceivingAccountRecord, amount string, client
 	}, "|")
 }
 
-func buildUSDTContent(account repopg.ReceivingAccountRecord, amount string, clientRef string) string {
-	return strings.Join([]string{
-		"USDT",
-		firstNonEmptyString(account.WalletAddress, ""),
-		firstNonEmptyString(account.Network, ""),
-		amount,
-		clientRef,
-	}, "|")
+func buildVietQrImageURL(account repopg.ReceivingAccountRecord, amount string, clientRef string) string {
+	bankCode := strings.ToLower(strings.TrimSpace(firstNonEmptyString(account.ProviderCode, "")))
+	accountNumber := strings.TrimSpace(firstNonEmptyString(account.AccountNumber, ""))
+	if bankCode == "" || accountNumber == "" {
+		return ""
+	}
+
+	baseURL := fmt.Sprintf(
+		"https://img.vietqr.io/image/%s-%s-compact.jpg",
+		url.PathEscape(bankCode),
+		url.PathEscape(accountNumber),
+	)
+
+	query := url.Values{}
+	if trimmedAmount := strings.TrimSpace(amount); trimmedAmount != "" {
+		query.Set("amount", trimmedAmount)
+	}
+	if trimmedClientRef := strings.TrimSpace(clientRef); trimmedClientRef != "" {
+		query.Set("addInfo", trimmedClientRef)
+	}
+	if accountName := strings.TrimSpace(firstNonEmptyString(account.AccountName, "")); accountName != "" {
+		query.Set("accountName", accountName)
+	}
+
+	encoded := query.Encode()
+	if encoded == "" {
+		return baseURL
+	}
+
+	return baseURL + "?" + encoded
+}
+
+func (s *DepositService) loadPendingDepositCache(ctx context.Context, userID int64, method deposit.DepositMethod) (deposit.DepositInitResponse, error) {
+	if s.redis == nil {
+		return deposit.DepositInitResponse{}, fmt.Errorf("redis disabled")
+	}
+
+	raw, err := s.redis.Get(ctx, pendingDepositCacheKey(userID, method)).Result()
+	if err != nil {
+		return deposit.DepositInitResponse{}, err
+	}
+
+	var response deposit.DepositInitResponse
+	if err := json.Unmarshal([]byte(raw), &response); err != nil {
+		return deposit.DepositInitResponse{}, err
+	}
+
+	if response.ClientRef == "" {
+		return deposit.DepositInitResponse{}, fmt.Errorf("pending deposit cache empty")
+	}
+
+	if response.Transaction.Status == 2 || response.Transaction.Status == 3 || response.Transaction.Status == 4 {
+		return deposit.DepositInitResponse{}, fmt.Errorf("pending deposit already finished")
+	}
+
+	return response, nil
+}
+
+func (s *DepositService) savePendingDepositCache(ctx context.Context, userID int64, method deposit.DepositMethod, response deposit.DepositInitResponse) error {
+	if s.redis == nil {
+		return fmt.Errorf("redis disabled")
+	}
+
+	payload, err := json.Marshal(response)
+	if err != nil {
+		return err
+	}
+
+	return s.redis.Set(ctx, pendingDepositCacheKey(userID, method), payload, 10*time.Minute).Err()
+}
+
+func (s *DepositService) clearPendingDepositCache(ctx context.Context, userID int64, method deposit.DepositMethod) error {
+	if s.redis == nil {
+		return nil
+	}
+
+	return s.redis.Del(ctx, pendingDepositCacheKey(userID, method)).Err()
+}
+
+func pendingDepositCacheKey(userID int64, method deposit.DepositMethod) string {
+	return fmt.Sprintf("deposit:pending:user:%d:method:%s", userID, method)
+}
+
+func depositProviderToMethod(provider string) deposit.DepositMethod {
+	switch strings.TrimSpace(strings.ToLower(provider)) {
+	case string(deposit.DepositProviderSepayVietQR):
+		return deposit.DepositMethodVietQR
+	case string(deposit.DepositProviderNowPayments):
+		return deposit.DepositMethodUSDT
+	default:
+		return deposit.DepositMethodVietQR
+	}
+}
+
+func firstNonNilString(value *string) string {
+	if value == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(*value)
 }
 
 func firstNonEmptyString(value *string, fallback string) string {
@@ -380,4 +640,13 @@ func firstNonEmptyString(value *string, fallback string) string {
 	}
 
 	return trimmed
+}
+
+func stringPtrOrNil(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+
+	return &trimmed
 }

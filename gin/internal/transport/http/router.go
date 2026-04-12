@@ -60,5 +60,5 @@ func NewRouter(
 	mux.Handle("DELETE /v1/withdrawals/", authn.Require(http.HandlerFunc(withdrawalHandler.ServeHTTP)))
 	mux.HandleFunc("POST /internal/v1/deposits/apply", depositHandler.Apply)
 
-	return withCORS(mux)
+	return RecoverMiddleware(withCORS(mux))
 }

@@ -26,6 +26,7 @@ type Config struct {
 	RedisPassword                    string
 	RedisDB                          int
 	GateBaseURL                      string
+	GateInternalToken                string
 	InternalToken                    string
 	PaymentReceivingAccountsRedisKey string
 	ForgotOTPTTL                     time.Duration
@@ -65,6 +66,7 @@ func LoadConfig() Config {
 		RedisPassword:                    getEnv("REDIS_PASSWORD", ""),
 		RedisDB:                          getEnvInt("REDIS_DB", 0),
 		GateBaseURL:                      getEnv("GATE_BASE_URL", "http://localhost:8082"),
+		GateInternalToken:                getEnv("GATE_INTERNAL_TOKEN", getEnv("GIN_INTERNAL_TOKEN", "")),
 		InternalToken:                    getEnv("GIN_INTERNAL_TOKEN", ""),
 		PaymentReceivingAccountsRedisKey: getEnv("PAYMENT_RECEIVING_ACCOUNTS_REDIS_KEY", "shared:payment:receiving-accounts:v1"),
 		ForgotOTPTTL:                     getEnvDuration("AUTH_FORGOT_OTP_TTL", 5*time.Minute),

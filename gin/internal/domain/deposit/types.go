@@ -5,8 +5,7 @@ import "time"
 type ReceivingAccountType int
 
 const (
-	ReceivingAccountTypeBank   ReceivingAccountType = 1
-	ReceivingAccountTypeCrypto ReceivingAccountType = 2
+	ReceivingAccountTypeBank ReceivingAccountType = 1
 )
 
 type DepositMethod string
@@ -20,30 +19,25 @@ type DepositProvider string
 
 const (
 	DepositProviderSepayVietQR DepositProvider = "sepay_vietqr"
-	DepositProviderUSDTGateway DepositProvider = "usdt_gateway"
+	DepositProviderNowPayments DepositProvider = "nowpayments_usdt"
 )
 
 type ReceivingAccount struct {
 	ID            int64   `json:"id"`
-	Code          string  `json:"code"`
-	Name          string  `json:"name"`
 	Type          int     `json:"type"`
 	Unit          int     `json:"unit"`
 	ProviderCode  *string `json:"provider_code,omitempty"`
 	AccountName   *string `json:"account_name,omitempty"`
 	AccountNumber *string `json:"account_number,omitempty"`
-	WalletAddress *string `json:"wallet_address,omitempty"`
-	Network       *string `json:"network,omitempty"`
-	QRCodePath    *string `json:"qr_code_path,omitempty"`
-	Instructions  *string `json:"instructions,omitempty"`
 	Status        int     `json:"status"`
 	IsDefault     bool    `json:"is_default"`
 	SortOrder     int     `json:"sort_order"`
 }
 
 type DepositInitRequest struct {
-	Amount string `json:"amount"`
-	Note   string `json:"note,omitempty"`
+	Amount       string `json:"amount"`
+	Note         string `json:"note,omitempty"`
+	ProviderCode string `json:"provider_code,omitempty"`
 }
 
 type DepositTransaction struct {
@@ -82,6 +76,21 @@ type DepositStatusResponse struct {
 	Message          string             `json:"message"`
 	Transaction      DepositTransaction `json:"transaction"`
 	ReceivingAccount *ReceivingAccount  `json:"receiving_account,omitempty"`
+}
+
+type DepositBankOption struct {
+	ProviderCode string `json:"provider_code"`
+	ShortName    string `json:"short_name"`
+	Name         string `json:"name"`
+	Bin          string `json:"bin"`
+	Logo         string `json:"logo,omitempty"`
+	AccountCount int    `json:"account_count"`
+	IsDefault    bool   `json:"is_default"`
+}
+
+type DepositBankListResponse struct {
+	Message string              `json:"message"`
+	Banks   []DepositBankOption `json:"banks"`
 }
 
 type ApplyDepositRequest struct {

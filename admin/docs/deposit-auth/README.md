@@ -4,7 +4,7 @@ Tài liệu này ghi lại luồng nghiệp vụ cho:
 
 - đăng ký / đăng nhập user end-user
 - đăng ký có mã giới thiệu
-- nạp USDT
+- nạp USDT qua NOWPayments
 - nạp VietQR qua Sepay
 - webhook nạp tiền ở `gate` không cần xác thực
 
@@ -23,7 +23,7 @@ Phân tách cấu hình payment trong ERP (source of truth):
 - NowPayments:
   - nơi cấu hình: màn setting schema
     - `/home/truonghocdot/study/practice/admin/app/Filament/Pages/System/Schemas/ExchangeRatePageForm.php`
-  - ý nghĩa: chứa thông tin kết nối/credential để `gate`/`gin` dùng khi làm việc với NowPayments (USDT)
+  - ý nghĩa: chứa thông tin kết nối/credential cho luồng nạp USDT tự động qua NOWPayments
 - Sepay:
   - nơi cấu hình danh sách tài khoản nhận tiền:
     - `/home/truonghocdot/study/practice/admin/app/Filament/Resources/Payment/PaymentReceivingAccounts`
@@ -31,7 +31,8 @@ Phân tách cấu hình payment trong ERP (source of truth):
 
 Webhook:
 
-- `gate.ff789.club` là nơi **nhận webhook thanh toán cho cả 2 hướng** (Sepay + NowPayments) và forward sang `api.ff789.club` (gin).
+- `gate.ff789.club` là nơi **nhận webhook thanh toán** và forward sang `api.ff789.club` (gin).
+- Sepay và NOWPayments đều đi qua `gate` trước khi vào `gin`.
 - Webhook inbound ở `gate` không cần xác thực (public callback), nhưng forward nội bộ từ `gate -> gin` nên có token nội bộ.
 
 ## 1. Auth end-user
@@ -59,16 +60,21 @@ Webhook:
 ## 2. Nạp tiền
 
 ### Nạp USDT
-- Chỉ hỗ trợ 1 loại tiền ảo ở phase đầu: `USDT`.
-- User chọn nạp USDT:
-  - `gin` tạo invoice/payment session qua NowPayments (hoặc generate address theo policy sản phẩm)
-  - config/credential NowPayments lấy từ ERP (xem mục 0)
-  - trả về địa chỉ ví, mạng lưới và hướng dẫn chuyển tiền
-  - tạo `transactions` trạng thái `PENDING`
-- Khi provider xác nhận on-chain:
-  - `gate` nhận webhook callback
-  - `gate` đẩy payload đã chuẩn hóa sang `gin`
-  - `gin` cập nhật transaction, cộng ví, ghi ledger
+- User gọi `POST /v1/deposits/usdt/init` vào `gin`.
+- `gin` tạo `client_ref` và gọi nội bộ sang `gate` để tạo payment NOWPayments.
+- `gate` gọi `POST /v1/payment` của NOWPayments và trả về:
+  - `payment_id`
+  - `pay_address`
+  - `pay_amount`
+  - `pay_currency`
+  - `invoice_url`
+- `gin` tạo `transactions` trạng thái `PENDING` với provider `nowpayments_usdt`.
+- Khi NOWPayments callback:
+  - `gate` verify IPN signature (`x-nowpayments-sig`)
+  - map payload sang request apply
+  - forward `POST /internal/v1/deposits/apply` vào `gin`
+  - `gin` cập nhật trạng thái giao dịch và cộng ví tự động
+- Luồng này **không dùng ví cố định** từ `payment_receiving_accounts`.
 
 ### Nạp VietQR qua Sepay
 - User nhập số tiền VND.
@@ -99,7 +105,7 @@ Webhook:
 ## 5. Setup tối thiểu
 
 1. Admin tạo `payment_receiving_accounts` (Sepay/VietQR).
-2. Admin cấu hình NowPayments (USDT) ở `ExchangeRatePageForm` (mục 0).
+2. Admin cấu hình NowPayments ở `ExchangeRatePageForm`.
 3. Chạy command prime cache account nhận tiền:
    - `php artisan payment:prime-receiving-accounts`
 4. Set Redis shared DB giống giữa `admin` và `gin`.

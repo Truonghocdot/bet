@@ -67,6 +67,7 @@ func New() (*App, error) {
 	withdrawalRepository := repopg.NewWithdrawalRepository(db)
 	limiter := ratelimit.New(redisClient)
 	notifier := gate.NewNotifier(config.GateBaseURL)
+	depositGateway := gate.NewDepositClient(config.GateBaseURL, config.GateInternalToken)
 	authService := service.NewAuthService(userRepository, tokenSigner, limiter, notifier, service.AuthConfig{
 		RegisterURL:           config.RegisterURL,
 		OTPSecret:             config.AuthSecret,
@@ -90,7 +91,7 @@ func New() (*App, error) {
 	sessionService := service.NewGameSessionService(hub, walletRepository)
 	betService := service.NewBetService(publisher, sessionService, gameRepository, walletRepository)
 	playRoomService := service.NewPlayRoomService(gameRepository, walletRepository, walletService, redisClient, broker)
-	depositService := service.NewDepositService(depositRepository, redisClient, walletService, service.DepositConfig{
+	depositService := service.NewDepositService(depositRepository, redisClient, walletService, depositGateway, service.DepositConfig{
 		ReceivingAccountsRedisKey: config.PaymentReceivingAccountsRedisKey,
 	})
 	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository)

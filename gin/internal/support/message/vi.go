@@ -50,6 +50,7 @@ const (
 	DepositIntentNotFound          = "Không tìm thấy yêu cầu nạp tiền"
 	DepositAlreadyCompleted        = "Giao dịch nạp tiền đã được xử lý"
 	DepositProviderInvalid         = "Nhà cung cấp nạp tiền không hợp lệ"
+	DepositUSDTNotAvailable        = "Nạp USDT chưa sẵn sàng, vui lòng kiểm tra cấu hình NOWPayments"
 	DepositProviderTxnIDMismatch   = "Mã giao dịch từ nhà cung cấp không khớp"
 	DepositInternalTokenInvalid    = "Token nội bộ không hợp lệ"
 	JoinGameSuccess                = "Vào phòng game thành công"

@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -40,6 +41,11 @@ func (h *DepositHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(parts) == 2 && parts[1] == "banks" && r.Method == http.MethodGet {
+		h.handleBanks(w, r, parts[0])
+		return
+	}
+
 	if len(parts) != 2 || parts[1] != "init" || r.Method != http.MethodPost {
 		writeJSON(w, http.StatusNotFound, map[string]string{"message": message.RouteNotFound})
 		return
@@ -69,7 +75,7 @@ func (h *DepositHandler) Apply(w http.ResponseWriter, r *http.Request) {
 
 	response, err := h.depositService.ApplyDeposit(r.Context(), request)
 	if err != nil {
-		h.writeError(w, err)
+		h.writeError(r, w, err, "apply")
 		return
 	}
 
@@ -91,7 +97,7 @@ func (h *DepositHandler) handleInitVietQR(w http.ResponseWriter, r *http.Request
 
 	response, err := h.depositService.InitVietQRDeposit(r.Context(), claims.UserID, request)
 	if err != nil {
-		h.writeError(w, err)
+		h.writeError(r, w, err, "init_vietqr")
 		return
 	}
 
@@ -113,11 +119,33 @@ func (h *DepositHandler) handleInitUSDT(w http.ResponseWriter, r *http.Request) 
 
 	response, err := h.depositService.InitUSDTDeposit(r.Context(), claims.UserID, request)
 	if err != nil {
-		h.writeError(w, err)
+		h.writeError(r, w, err, "init_usdt")
 		return
 	}
 
 	writeJSON(w, http.StatusCreated, response)
+}
+
+func (h *DepositHandler) handleBanks(w http.ResponseWriter, r *http.Request, method string) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	switch method {
+	case string(deposit.DepositMethodVietQR):
+		response, err := h.depositService.ListVietQrBanks(r.Context())
+		if err != nil {
+			h.writeError(r, w, err, "list_banks")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, response)
+	default:
+		_ = claims
+		writeJSON(w, http.StatusNotFound, map[string]string{"message": message.RouteNotFound})
+	}
 }
 
 func (h *DepositHandler) handleStatus(w http.ResponseWriter, r *http.Request, clientRef string) {
@@ -129,7 +157,7 @@ func (h *DepositHandler) handleStatus(w http.ResponseWriter, r *http.Request, cl
 
 	response, err := h.depositService.GetDepositStatus(r.Context(), claims.UserID, clientRef)
 	if err != nil {
-		h.writeError(w, err)
+		h.writeError(r, w, err, "status")
 		return
 	}
 
@@ -145,7 +173,7 @@ func (h *DepositHandler) handleStatusStream(w http.ResponseWriter, r *http.Reque
 
 	initialResponse, err := h.depositService.GetDepositStatus(r.Context(), claims.UserID, clientRef)
 	if err != nil {
-		h.writeError(w, err)
+		h.writeError(r, w, err, "status_stream_init")
 		return
 	}
 
@@ -210,16 +238,30 @@ func (h *DepositHandler) handleStatusStream(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (h *DepositHandler) writeError(w http.ResponseWriter, err error) {
+func (h *DepositHandler) writeError(r *http.Request, w http.ResponseWriter, err error, operation string) {
+	statusCode := http.StatusInternalServerError
+	messageText := message.InternalServerError
+
 	switch {
 	case errors.Is(err, repopg.ErrDepositNotFound):
-		writeJSON(w, http.StatusNotFound, map[string]string{"message": err.Error()})
+		statusCode = http.StatusNotFound
+		messageText = err.Error()
 	case errors.Is(err, repopg.ErrDepositProviderInvalid),
 		errors.Is(err, repopg.ErrDepositReceivingAccount),
 		errors.Is(err, repopg.ErrDepositWalletNotFound),
-		errors.Is(err, repopg.ErrDepositAmountInvalid):
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
-	default:
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		errors.Is(err, repopg.ErrDepositAmountInvalid),
+		errors.Is(err, service.ErrDepositUSDTNotAvailable):
+		statusCode = http.StatusUnprocessableEntity
+		messageText = err.Error()
 	}
+
+	log.Printf(
+		"[deposit][handler.error] op=%s method=%s path=%s status=%d err=%v",
+		operation,
+		r.Method,
+		r.URL.Path,
+		statusCode,
+		err,
+	)
+	writeJSON(w, statusCode, map[string]string{"message": messageText})
 }

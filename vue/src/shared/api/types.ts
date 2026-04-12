@@ -66,20 +66,29 @@ export type ResetPasswordRequest = {
 
 export type ReceivingAccount = {
   id: number
-  code: string
-  name: string
   type: number
   unit: number
   provider_code?: string | null
   account_name?: string | null
   account_number?: string | null
-  wallet_address?: string | null
-  network?: string | null
-  qr_code_path?: string | null
-  instructions?: string | null
   status: number
   is_default: boolean
   sort_order: number
+}
+
+export type VietQrBankOption = {
+  provider_code: string
+  short_name: string
+  name: string
+  bin: string
+  logo?: string | null
+  account_count: number
+  is_default: boolean
+}
+
+export type VietQrBankListResponse = {
+  message: string
+  banks: VietQrBankOption[]
 }
 
 export type DepositTransaction = {
@@ -110,6 +119,12 @@ export type DepositInitResponse = {
   pay_url?: string | null
   receiving_account?: ReceivingAccount | null
   transaction?: DepositTransaction | null
+}
+
+export type DepositInitRequest = {
+  amount: string
+  note?: string
+  provider_code?: string
 }
 
 export type DepositStatusResponse = {
