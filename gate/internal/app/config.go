@@ -81,6 +81,13 @@ func loadEnvFiles(paths ...string) {
 			value = strings.TrimSpace(value)
 			value = strings.Trim(value, `"'`)
 
+			// Strip inline comments: VALUE   # comment → VALUE
+			// Only strip if '#' is preceded by whitespace to avoid breaking tokens like "pass#123"
+			if idx := strings.Index(value, " #"); idx != -1 {
+				value = strings.TrimSpace(value[:idx])
+				value = strings.Trim(value, `"'`)
+			}
+
 			if key == "" {
 				continue
 			}
