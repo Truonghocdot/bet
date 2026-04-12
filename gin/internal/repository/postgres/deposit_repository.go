@@ -399,7 +399,7 @@ func (r *DepositRepository) ApplyDeposit(ctx context.Context, params ApplyDeposi
 		    meta = coalesce($3::json, meta),
 		    approved_at = $4,
 		    updated_at = now()
-		where id = $6
+		where id = $5
 	`, 3, params.ProviderTxnID, metaJSON, now, record.ID); err != nil {
 		return DepositApplyResult{}, err
 	}
