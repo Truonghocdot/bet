@@ -513,15 +513,15 @@ func (r *DepositRepository) lockWalletForUpdate(ctx context.Context, tx *sql.Tx,
 func (r *DepositRepository) qualifyReferral(ctx context.Context, tx *sql.Tx, userID int64, transactionID int64, amount string, at time.Time) error {
 	_, err := tx.ExecContext(ctx, `
 		update affiliate_referrals
-		set first_deposit_transaction_id = $1,
-		    first_deposit_amount = $2::numeric(20,8),
+		set first_deposit_transaction_id = CAST($1 AS BIGINT),
+		    first_deposit_amount = CAST($2 AS NUMERIC),
 		    qualified_at = $3,
-		    status = $4,
+		    status = CAST($4 AS INT),
 		    updated_at = $3
-		where referred_user_id = $5
+		where referred_user_id = CAST($5 AS BIGINT)
 		  and first_deposit_transaction_id is null
-		  and status = $6
-		  and $2::numeric(20,8) >= $7::numeric(20,8)
+		  and status = CAST($6 AS INT)
+		  and CAST($2 AS NUMERIC) >= CAST($7 AS NUMERIC)
 	`, transactionID, amount, at, 2, userID, 1, "50000")
 	return err
 }
