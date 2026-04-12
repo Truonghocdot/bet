@@ -119,7 +119,7 @@ async function handleRemoveMethod() {
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
           :class="method === 'vnd' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
           type="button"
-          @click="method = 'vnd'; isAddingForm = false;"
+          @click="method = 'vnd'; isAddingForm = false; amount = ''; addProvider = ''; addHolder = ''; addNumber = '';"
         >
           Ngân hàng (VND)
         </button>
@@ -127,7 +127,7 @@ async function handleRemoveMethod() {
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
           :class="method === 'usdt' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
           type="button"
-          @click="method = 'usdt'; isAddingForm = false;"
+          @click="method = 'usdt'; isAddingForm = false; amount = ''; addProvider = ''; addHolder = ''; addNumber = '';"
         >
           Ví USDT Crypto
         </button>

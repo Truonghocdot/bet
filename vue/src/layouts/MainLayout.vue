@@ -10,7 +10,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const wallet = useWalletStore()
-const { isLoading } = useLoading()
+const { isLoading, setLoading } = useLoading()
 
 const isDrawerOpen = ref(false)
 
