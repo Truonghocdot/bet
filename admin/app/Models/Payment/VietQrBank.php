@@ -2,8 +2,10 @@
 
 namespace App\Models\Payment;
 
+use App\Enum\Payment\PaymentReceivingAccountType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class VietQrBank extends Model
 {
@@ -35,5 +37,11 @@ class VietQrBank extends Model
             'raw_payload' => 'array',
             'synced_at' => 'datetime',
         ];
+    }
+
+    public function receivingAccounts(): HasMany
+    {
+        return $this->hasMany(PaymentReceivingAccount::class, 'provider_code', 'code')
+            ->where('type', PaymentReceivingAccountType::BANK->value);
     }
 }

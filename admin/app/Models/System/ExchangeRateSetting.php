@@ -26,6 +26,10 @@ class ExchangeRateSetting extends Model
         'last_synced_at',
         'updated_by',
         'note',
+        'nowpayments_api_key',
+        'nowpayments_ipn_secret',
+        'nowpayments_payout_wallet',
+        'nowpayments_sandbox',
     ];
 
     protected $casts = [
@@ -33,6 +37,7 @@ class ExchangeRateSetting extends Model
         'source_rate' => 'decimal:8',
         'auto_sync' => 'boolean',
         'last_synced_at' => 'datetime',
+        'nowpayments_sandbox' => 'boolean',
     ];
 
     public function updatedBy(): BelongsTo

@@ -17,6 +17,7 @@ func NewRouter(
 	betService *service.BetService,
 	playRoomService *service.PlayRoomService,
 	depositService *service.DepositService,
+	withdrawalService *service.WithdrawalService,
 	broker *realtime.Broker,
 	internalToken string,
 ) http.Handler {
@@ -29,6 +30,7 @@ func NewRouter(
 	gameHandler := NewGameHandler(sessionService, betService)
 	playRoomHandler := NewPlayRoomHandler(playRoomService, broker)
 	depositHandler := NewDepositHandler(depositService, internalToken)
+	withdrawalHandler := NewWithdrawalHandler(withdrawalService)
 	authn := authmiddleware.NewAuthentication(authService)
 
 	mux.HandleFunc("GET /healthz", healthHandler.ServeHTTP)
@@ -53,6 +55,9 @@ func NewRouter(
 	mux.Handle("POST /v1/games/", authn.Require(http.HandlerFunc(gameHandler.ServeHTTP)))
 	mux.Handle("POST /v1/deposits/", authn.Require(http.HandlerFunc(depositHandler.ServeHTTP)))
 	mux.Handle("GET /v1/deposits/", authn.Require(http.HandlerFunc(depositHandler.ServeHTTP)))
+	mux.Handle("POST /v1/withdrawals/", authn.Require(http.HandlerFunc(withdrawalHandler.ServeHTTP)))
+	mux.Handle("GET /v1/withdrawals/", authn.Require(http.HandlerFunc(withdrawalHandler.ServeHTTP)))
+	mux.Handle("DELETE /v1/withdrawals/", authn.Require(http.HandlerFunc(withdrawalHandler.ServeHTTP)))
 	mux.HandleFunc("POST /internal/v1/deposits/apply", depositHandler.Apply)
 
 	return withCORS(mux)

@@ -86,17 +86,11 @@ class PaymentReceivingAccountService
             ->map(static function (PaymentReceivingAccount $account): array {
                 return [
                     'id' => $account->id,
-                    'code' => $account->code,
-                    'name' => $account->name,
                     'type' => $account->type?->value ?? $account->type,
                     'unit' => $account->unit?->value ?? $account->unit,
                     'provider_code' => $account->provider_code,
                     'account_name' => $account->account_name,
                     'account_number' => $account->account_number,
-                    'wallet_address' => $account->wallet_address,
-                    'network' => $account->network,
-                    'qr_code_path' => $account->qr_code_path,
-                    'instructions' => $account->instructions,
                     'status' => $account->status?->value ?? $account->status,
                     'is_default' => (bool) $account->is_default,
                     'sort_order' => (int) $account->sort_order,

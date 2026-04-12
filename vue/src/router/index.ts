@@ -56,6 +56,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'main', title: 'Nạp tiền', requiresAuth: true },
   },
   {
+    path: '/withdraw',
+    name: 'withdraw',
+    component: () => import('../pages/WithdrawView.vue'),
+    meta: { layout: 'main', title: 'Rút tiền', requiresAuth: true },
+  },
+  {
     path: '/account',
     name: 'account',
     component: () => import('../pages/AccountView.vue'),

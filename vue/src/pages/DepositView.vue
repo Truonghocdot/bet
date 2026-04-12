@@ -26,6 +26,31 @@ const statusLabel = computed(() => {
   return `Mã trạng thái: ${value}`
 })
 
+const presetAmounts = computed(() => {
+  if (method.value === 'vietqr') {
+    return [50000, 100000, 200000, 500000, 1000000, 5000000]
+  }
+  return [5, 10, 20, 50, 100, 500]
+})
+
+const isAmountValid = computed(() => {
+  const numericAmount = Number(amount.value) || 0
+  if (method.value === 'vietqr') return numericAmount >= 50000
+  if (method.value === 'usdt') return numericAmount >= 5
+  return false
+})
+
+const validationMessage = computed(() => {
+  if (!amount.value) return ''
+  if (method.value === 'vietqr' && Number(amount.value) < 50000) {
+    return 'Nạp tối thiểu 50.000 VND'
+  }
+  if (method.value === 'usdt' && Number(amount.value) < 5) {
+    return 'Nạp tối thiểu 5 USDT'
+  }
+  return ''
+})
+
 watch(
   () => intent.value?.client_ref,
   (clientRef) => {
@@ -59,6 +84,7 @@ onBeforeUnmount(() => {
 })
 
 async function submitDeposit() {
+  if (!isAmountValid.value) return
   const payload = { amount: amount.value.trim(), note: note.value.trim() || undefined }
   if (method.value === 'vietqr') {
     await deposit.initVietQR(payload)
@@ -110,14 +136,29 @@ async function logout() {
 
       <form class="mt-4 space-y-3" @submit.prevent="submitDeposit">
         <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
-          <input v-model="amount" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" inputmode="decimal" placeholder="Số tiền nạp" />
+          <input v-model="amount" type="number" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold text-lg" inputmode="decimal" placeholder="Nhập số tiền nạp" />
         </label>
+        
+        <p v-if="validationMessage" class="text-xs font-bold text-[#e64545] px-2 m-0">{{ validationMessage }}</p>
+
+        <div class="grid grid-cols-3 gap-2">
+          <button
+            v-for="amt in presetAmounts"
+            :key="amt"
+            type="button"
+            class="min-h-12 rounded-[14px] bg-slate-50 font-bold text-on-surface transition-transform active:scale-95"
+            :class="Number(amount) === amt ? 'bg-primary/10 text-primary border-primary border' : ''"
+            @click="amount = String(amt)"
+          >
+            {{ method === 'vietqr' ? (amt >= 1000 ? (amt / 1000) + 'K' : amt) : amt + ' USDT' }}
+          </button>
+        </div>
 
         <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
           <input v-model="note" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" placeholder="Ghi chú (không bắt buộc)" />
         </label>
 
-        <button class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white disabled:opacity-60" type="submit" :disabled="deposit.loading || !amount.trim()">
+        <button class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white disabled:opacity-60" type="submit" :disabled="deposit.loading || !isAmountValid">
           {{ deposit.loading ? 'Đang tạo giao dịch...' : 'Tạo yêu cầu nạp' }}
         </button>
       </form>

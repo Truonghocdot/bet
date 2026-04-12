@@ -153,7 +153,6 @@ func (s *DepositService) initDeposit(
 	meta := map[string]any{
 		"method":              method,
 		"provider":            provider,
-		"selected_account":    selected.Code,
 		"selected_account_id": selected.ID,
 		"note":                strings.TrimSpace(request.Note),
 	}
@@ -191,12 +190,12 @@ func (s *DepositService) initDeposit(
 
 	switch method {
 	case deposit.DepositMethodVietQR:
-		response.Instructions = firstNonEmptyString(selected.Instructions, "Quét QR hoặc chuyển khoản đúng nội dung để hệ thống tự động đối soát.")
+		response.Instructions = "Quét QR hoặc chuyển khoản đúng nội dung để hệ thống tự động đối soát."
 		response.QRContent = buildQRContent(selected, amount, clientRef)
-		response.QRCodeURL = firstNonEmptyString(selected.QRCodePath, "")
+		response.QRCodeURL = ""
 		response.PayURL = ""
 	case deposit.DepositMethodUSDT:
-		response.Instructions = firstNonEmptyString(selected.Instructions, "Chuyển đúng mạng lưới và đúng số tiền để hệ thống tự động đối soát.")
+		response.Instructions = "Chuyển đúng mạng lưới và đúng số tiền để hệ thống tự động đối soát."
 		response.QRContent = buildUSDTContent(selected, amount, clientRef)
 	}
 
@@ -247,8 +246,6 @@ func (s *DepositService) toDomainReceivingAccount(record *repopg.ReceivingAccoun
 
 	return &deposit.ReceivingAccount{
 		ID:            record.ID,
-		Code:          record.Code,
-		Name:          record.Name,
 		Type:          record.Type,
 		Unit:          record.Unit,
 		ProviderCode:  record.ProviderCode,
@@ -256,8 +253,6 @@ func (s *DepositService) toDomainReceivingAccount(record *repopg.ReceivingAccoun
 		AccountNumber: record.AccountNumber,
 		WalletAddress: record.WalletAddress,
 		Network:       record.Network,
-		QRCodePath:    record.QRCodePath,
-		Instructions:  record.Instructions,
 		Status:        record.Status,
 		IsDefault:     record.IsDefault,
 		SortOrder:     record.SortOrder,
@@ -354,9 +349,10 @@ func normalizeDepositAmount(value string) string {
 }
 
 func buildQRContent(account repopg.ReceivingAccountRecord, amount string, clientRef string) string {
+	provider := firstNonEmptyString(account.ProviderCode, "BANK")
 	return strings.Join([]string{
 		"VIETQR",
-		account.Code,
+		provider,
 		firstNonEmptyString(account.AccountNumber, ""),
 		amount,
 		clientRef,

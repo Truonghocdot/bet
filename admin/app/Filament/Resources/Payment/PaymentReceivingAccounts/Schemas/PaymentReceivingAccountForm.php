@@ -5,13 +5,15 @@ namespace App\Filament\Resources\Payment\PaymentReceivingAccounts\Schemas;
 use App\Enum\Payment\PaymentReceivingAccountStatus;
 use App\Enum\Payment\PaymentReceivingAccountType;
 use App\Enum\Wallet\UnitTransaction;
+use App\Models\Payment\VietQrBank;
 use App\Support\Filament\EnumPresenter;
 use Filament\Forms\Components\FileUpload;
-use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class PaymentReceivingAccountForm
@@ -22,46 +24,28 @@ class PaymentReceivingAccountForm
             ->components([
                 Section::make('Thông tin tài khoản nhận tiền')
                     ->schema([
-                        TextInput::make('code')
-                            ->label('Mã')
-                            ->required()
-                            ->maxLength(50),
-                        TextInput::make('name')
-                            ->label('Tên')
-                            ->required()
-                            ->maxLength(100),
-                        Select::make('type')
-                            ->label('Loại')
-                            ->options(EnumPresenter::options(PaymentReceivingAccountType::class))
+                        Hidden::make('type')
+                            ->default(PaymentReceivingAccountType::BANK->value),
+                        Hidden::make('unit')
+                            ->default(UnitTransaction::VND->value),
+                        Select::make('provider_code')
+                            ->label('Ngân hàng (VietQR)')
+                            ->options(fn (): array => VietQrBank::query()
+                                ->orderBy('short_name')
+                                ->get()
+                                ->mapWithKeys(fn (VietQrBank $bank): array => [$bank->code => "{$bank->short_name} ({$bank->code})"])
+                                ->all())
+                            ->searchable()
+                            ->preload()
                             ->required(),
-                        Select::make('unit')
-                            ->label('Đơn vị')
-                            ->options(EnumPresenter::options(UnitTransaction::class))
-                            ->required(),
-                        TextInput::make('provider_code')
-                            ->label('Mã nhà cung cấp')
-                            ->maxLength(50),
                         TextInput::make('account_name')
                             ->label('Chủ tài khoản')
+                            ->required()
                             ->maxLength(255),
                         TextInput::make('account_number')
                             ->label('Số tài khoản')
+                            ->required()
                             ->maxLength(255),
-                        TextInput::make('wallet_address')
-                            ->label('Địa chỉ ví')
-                            ->maxLength(255),
-                        TextInput::make('network')
-                            ->label('Mạng')
-                            ->maxLength(50),
-                        FileUpload::make('qr_code_path')
-                            ->label('Ảnh QR')
-                            ->disk('public')
-                            ->directory('payment-receiving-accounts')
-                            ->preserveFilenames(),
-                        Textarea::make('instructions')
-                            ->label('Hướng dẫn')
-                            ->rows(3)
-                            ->columnSpanFull(),
                         Select::make('status')
                             ->label('Trạng thái')
                             ->options(EnumPresenter::options(PaymentReceivingAccountStatus::class))
@@ -73,7 +57,8 @@ class PaymentReceivingAccountForm
                             ->numeric()
                             ->default(0),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->columnSpanFull(),
             ]);
     }
 }

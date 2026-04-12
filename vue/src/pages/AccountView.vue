@@ -147,9 +147,9 @@ onMounted(() => {
         <RouterLink to="/deposit" class="grid min-h-14 place-items-center rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-extrabold text-white transition-transform active:scale-95">
           Nạp tiền
         </RouterLink>
-        <button class="min-h-14 rounded-[18px] bg-white font-extrabold text-on-surface shadow-[0_8px_20px_rgba(255,109,102,0.05)] transition-transform active:scale-95">
+        <RouterLink to="/withdraw" class="grid min-h-14 place-items-center rounded-[18px] bg-white font-extrabold text-on-surface shadow-[0_8px_20px_rgba(255,109,102,0.05)] transition-transform active:scale-95">
           Rút tiền
-        </button>
+        </RouterLink>
       </div>
 
       <article class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(255,109,102,0.05)] md:p-5">

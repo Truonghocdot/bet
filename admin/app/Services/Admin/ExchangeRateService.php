@@ -51,6 +51,10 @@ class ExchangeRateService
                 'source_name' => $data['source_name'] ?? 'manual',
                 'last_synced_at' => now(),
                 'note' => $data['note'] ?? null,
+                'nowpayments_api_key' => $data['nowpayments_api_key'] ?? null,
+                'nowpayments_ipn_secret' => $data['nowpayments_ipn_secret'] ?? null,
+                'nowpayments_payout_wallet' => $data['nowpayments_payout_wallet'] ?? null,
+                'nowpayments_sandbox' => (bool) ($data['nowpayments_sandbox'] ?? false),
                 'updated_by' => $actor?->id,
             ]);
 
@@ -187,6 +191,10 @@ class ExchangeRateService
             'last_synced_at' => $setting->last_synced_at?->toIso8601String(),
             'updated_at' => $setting->updated_at?->toIso8601String(),
             'note' => $setting->note,
+            'nowpayments_api_key' => $setting->nowpayments_api_key,
+            'nowpayments_ipn_secret' => $setting->nowpayments_ipn_secret,
+            'nowpayments_payout_wallet' => $setting->nowpayments_payout_wallet,
+            'nowpayments_sandbox' => (bool) $setting->nowpayments_sandbox,
             'cache_store' => $this->cacheStore(),
             'cache_key' => $this->cacheKey(),
             'redis_connection' => $this->redisConnection(),

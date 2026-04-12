@@ -169,32 +169,11 @@ class SiteDemoSeeder extends Seeder
                     'provider_code' => $bank?->code ?? 'VCB',
                     'account_name' => 'CONG TY FF789',
                     'account_number' => '1900100008888',
-                    'wallet_address' => null,
-                    'network' => null,
                     'qr_code_path' => null,
                     'instructions' => 'Chuyển khoản đúng nội dung để hệ thống đối soát nhanh.',
                     'status' => PaymentReceivingAccountStatus::ACTIVE,
                     'is_default' => true,
                     'sort_order' => 1,
-                ],
-            );
-
-            PaymentReceivingAccount::query()->updateOrCreate(
-                ['code' => 'SEED-USDT-TRC20'],
-                [
-                    'name' => 'Ví nạp USDT TRC20',
-                    'type' => PaymentReceivingAccountType::CRYPTO,
-                    'unit' => UnitTransaction::USDT,
-                    'provider_code' => 'TRC20',
-                    'account_name' => 'FF789 Treasury',
-                    'account_number' => null,
-                    'wallet_address' => 'TQ8XDemoWalletAddress000000000001',
-                    'network' => 'TRC20',
-                    'qr_code_path' => null,
-                    'instructions' => 'Chỉ chuyển đúng mạng TRC20.',
-                    'status' => PaymentReceivingAccountStatus::ACTIVE,
-                    'is_default' => true,
-                    'sort_order' => 2,
                 ],
             );
 

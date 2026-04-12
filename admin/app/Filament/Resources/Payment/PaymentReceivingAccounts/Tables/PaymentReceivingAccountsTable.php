@@ -3,8 +3,6 @@
 namespace App\Filament\Resources\Payment\PaymentReceivingAccounts\Tables;
 
 use App\Enum\Payment\PaymentReceivingAccountStatus;
-use App\Enum\Payment\PaymentReceivingAccountType;
-use App\Enum\Wallet\UnitTransaction;
 use App\Support\Filament\EnumPresenter;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -23,18 +21,11 @@ class PaymentReceivingAccountsTable
         return $table
             ->columns([
                 TextColumn::make('id')->label('ID')->sortable(),
-                TextColumn::make('code')->label('Mã')->searchable()->sortable(),
-                TextColumn::make('name')->label('Tên')->searchable()->sortable(),
-                TextColumn::make('type')
-                    ->label('Loại')
-                    ->badge()
-                    ->formatStateUsing(fn ($state): string => EnumPresenter::label(PaymentReceivingAccountType::class, $state))
-                    ->color(fn ($state): string => EnumPresenter::color(PaymentReceivingAccountType::class, $state)),
-                TextColumn::make('unit')
-                    ->label('Đơn vị')
-                    ->badge()
-                    ->formatStateUsing(fn ($state): string => EnumPresenter::label(UnitTransaction::class, $state))
-                    ->color(fn ($state): string => EnumPresenter::color(UnitTransaction::class, $state)),
+                TextColumn::make('bank.short_name')
+                    ->label('Ngân hàng')
+                    ->placeholder('-')
+                    ->searchable(),
+                TextColumn::make('account_number')->label('Số tài khoản')->searchable(),
                 TextColumn::make('status')
                     ->label('Trạng thái')
                     ->badge()

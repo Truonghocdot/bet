@@ -63,6 +63,28 @@ class ExchangeRatePageForm
                         ->columnSpanFull(),
                 ])
                 ->columns(2),
+
+            Section::make('Cấu hình NOWPayments')
+                ->description('Thông số kết nối cổng thanh toán Crypto.')
+                ->schema([
+                    TextInput::make('nowpayments_api_key')
+                        ->label('NOWPayments API Key')
+                        ->password()
+                        ->revealable()
+                        ->helperText('Lấy từ dashboard nowpayments.io'),
+                    TextInput::make('nowpayments_ipn_secret')
+                        ->label('IPN Secret Key')
+                        ->password()
+                        ->revealable()
+                        ->helperText('Dùng để xác thực Webhook gửi từ NOWPayments.'),
+                    TextInput::make('nowpayments_payout_wallet')
+                        ->label('Ví nhận tiền (Payout Wallet)')
+                        ->helperText('Địa chỉ ví USDT TRC20 để nhận tiền rút.'),
+                    Toggle::make('nowpayments_sandbox')
+                        ->label('Chế độ Sandbox (Test)')
+                        ->helperText('Bật nếu đang dùng môi trường thử nghiệm.'),
+                ])
+                ->columns(2),
         ]);
     }
 }

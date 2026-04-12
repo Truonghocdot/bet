@@ -28,8 +28,6 @@ type DepositRepository struct {
 
 type ReceivingAccountRecord struct {
 	ID            int64
-	Code          string
-	Name          string
 	Type          int
 	Unit          int
 	ProviderCode  *string
@@ -37,8 +35,6 @@ type ReceivingAccountRecord struct {
 	AccountNumber *string
 	WalletAddress *string
 	Network       *string
-	QRCodePath    *string
-	Instructions  *string
 	Status        int
 	IsDefault     bool
 	SortOrder     int
@@ -78,8 +74,8 @@ func NewDepositRepository(db *sql.DB) *DepositRepository {
 
 func (r *DepositRepository) ListActiveReceivingAccounts(ctx context.Context) ([]ReceivingAccountRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		select id, code, name, type, unit, provider_code, account_name, account_number,
-		       wallet_address, network, qr_code_path, instructions, status, is_default, sort_order
+		select id, type, unit, provider_code, account_name, account_number,
+		       wallet_address, network, status, is_default, sort_order
 		from payment_receiving_accounts
 		where deleted_at is null and status = $1
 		order by is_default desc, unit asc, type asc, sort_order asc, id asc
@@ -94,8 +90,6 @@ func (r *DepositRepository) ListActiveReceivingAccounts(ctx context.Context) ([]
 		var record ReceivingAccountRecord
 		if err := rows.Scan(
 			&record.ID,
-			&record.Code,
-			&record.Name,
 			&record.Type,
 			&record.Unit,
 			&record.ProviderCode,
@@ -103,8 +97,6 @@ func (r *DepositRepository) ListActiveReceivingAccounts(ctx context.Context) ([]
 			&record.AccountNumber,
 			&record.WalletAddress,
 			&record.Network,
-			&record.QRCodePath,
-			&record.Instructions,
 			&record.Status,
 			&record.IsDefault,
 			&record.SortOrder,
@@ -170,10 +162,10 @@ func (r *DepositRepository) FindDepositIntentByClientRef(ctx context.Context, cl
 		select t.id, t.user_id, t.wallet_id, t.client_ref, t.unit, t.type, t.amount::text, t.net_amount::text,
 		       t.status, t.provider, t.provider_txn_id, t.receiving_account_id, t.meta, t.reason_failed,
 		       t.approved_by, t.approved_at, t.created_at, t.updated_at,
-		       p.id, p.code, p.name, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
-		       p.wallet_address, p.network, p.qr_code_path, p.instructions, p.status, p.is_default, p.sort_order
+		       p.id, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
+		       p.wallet_address, p.network, p.status, p.is_default, p.sort_order
 		from transactions t
-		join payment_receiving_accounts p on p.id = t.receiving_account_id
+		left join payment_receiving_accounts p on p.id = t.receiving_account_id
 		where t.client_ref = $1 and t.deleted_at is null
 		limit 1
 	`, clientRef)
@@ -191,10 +183,10 @@ func (r *DepositRepository) FindDepositIntentByProviderTxnID(ctx context.Context
 		select t.id, t.user_id, t.wallet_id, t.client_ref, t.unit, t.type, t.amount::text, t.net_amount::text,
 		       t.status, t.provider, t.provider_txn_id, t.receiving_account_id, t.meta, t.reason_failed,
 		       t.approved_by, t.approved_at, t.created_at, t.updated_at,
-		       p.id, p.code, p.name, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
-		       p.wallet_address, p.network, p.qr_code_path, p.instructions, p.status, p.is_default, p.sort_order
+		       p.id, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
+		       p.wallet_address, p.network, p.status, p.is_default, p.sort_order
 		from transactions t
-		join payment_receiving_accounts p on p.id = t.receiving_account_id
+		left join payment_receiving_accounts p on p.id = t.receiving_account_id
 		where t.provider = $1 and t.provider_txn_id = $2 and t.deleted_at is null
 		limit 1
 	`, provider, providerTxnID)
@@ -534,15 +526,16 @@ func scanDepositTransactionWithAccount(row *sql.Row, record *DepositTransactionR
 		reasonFailed         sql.NullString
 		approvedBy           sql.NullInt64
 		approvedAt           sql.NullTime
+		accountID            sql.NullInt64
+		accountType          sql.NullInt64
+		accountUnit          sql.NullInt64
 		accountProviderCode  sql.NullString
 		accountName          sql.NullString
 		accountNumber        sql.NullString
 		accountWalletAddress sql.NullString
 		accountNetwork       sql.NullString
-		accountQRCodePath    sql.NullString
-		accountInstructions  sql.NullString
 		accountStatus        sql.NullInt64
-		accountIsDefault     bool
+		accountIsDefault     sql.NullBool
 		accountSortOrder     sql.NullInt64
 	)
 
@@ -565,18 +558,14 @@ func scanDepositTransactionWithAccount(row *sql.Row, record *DepositTransactionR
 		&approvedAt,
 		&record.CreatedAt,
 		&record.UpdatedAt,
-		&account.ID,
-		&account.Code,
-		&account.Name,
-		&account.Type,
-		&account.Unit,
+		&accountID,
+		&accountType,
+		&accountUnit,
 		&accountProviderCode,
 		&accountName,
 		&accountNumber,
 		&accountWalletAddress,
 		&accountNetwork,
-		&accountQRCodePath,
-		&accountInstructions,
 		&accountStatus,
 		&accountIsDefault,
 		&accountSortOrder,
@@ -600,16 +589,17 @@ func scanDepositTransactionWithAccount(row *sql.Row, record *DepositTransactionR
 	if approvedAt.Valid {
 		record.ApprovedAt = &approvedAt.Time
 	}
-	if account.ID > 0 {
+	if accountID.Valid && accountID.Int64 > 0 {
+		account.ID = accountID.Int64
+		account.Type = int(accountType.Int64)
+		account.Unit = int(accountUnit.Int64)
 		account.ProviderCode = nullStringPtr(accountProviderCode)
 		account.AccountName = nullStringPtr(accountName)
 		account.AccountNumber = nullStringPtr(accountNumber)
 		account.WalletAddress = nullStringPtr(accountWalletAddress)
 		account.Network = nullStringPtr(accountNetwork)
-		account.QRCodePath = nullStringPtr(accountQRCodePath)
-		account.Instructions = nullStringPtr(accountInstructions)
 		account.Status = int(accountStatus.Int64)
-		account.IsDefault = accountIsDefault
+		account.IsDefault = accountIsDefault.Bool
 		account.SortOrder = int(accountSortOrder.Int64)
 		record.ReceivingAccount = &account
 	}
