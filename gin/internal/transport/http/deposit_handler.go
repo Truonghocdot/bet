@@ -240,7 +240,7 @@ func (h *DepositHandler) handleStatusStream(w http.ResponseWriter, r *http.Reque
 
 func (h *DepositHandler) writeError(r *http.Request, w http.ResponseWriter, err error, operation string) {
 	statusCode := http.StatusInternalServerError
-	messageText := message.InternalServerError
+	messageText := message.InternalServerError + ": " + err.Error()
 
 	switch {
 	case errors.Is(err, repopg.ErrDepositNotFound):
