@@ -45,8 +45,8 @@ const statusLabel = computed(() => {
   const value = status.value?.transaction?.status
   if (value === undefined || value === null) return 'Chưa cập nhật'
   if (value === 1) return 'Đang chờ'
-  if (value === 2) return 'Hoàn tất'
-  if (value === 3 || value === 4) return 'Thất bại'
+  if (value === 2 || value === 3) return 'Hoàn tất'
+  if (value === 4) return 'Thất bại'
   return `Mã trạng thái: ${value}`
 })
 
@@ -178,7 +178,7 @@ watch(
   () => status.value?.transaction?.status,
   async (nextStatus, previousStatus) => {
     if (nextStatus === previousStatus) return
-    if (nextStatus === 2) {
+    if (nextStatus === 2 || nextStatus === 3) {
       try {
         await wallet.fetchSummary()
       } catch {
