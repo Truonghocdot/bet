@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -374,14 +375,20 @@ func (r *DepositRepository) ApplyDeposit(ctx context.Context, params ApplyDeposi
 		return DepositApplyResult{}, err
 	}
 
+	bAmount, _ := new(big.Float).SetString(params.Amount)
+	bBefore, _ := new(big.Float).SetString(balanceBefore)
+	bAfter := new(big.Float).Add(bBefore, bAmount)
+	balanceAfter := bAfter.Text('f', 8)
+
 	if _, err := tx.ExecContext(ctx, `
 		insert into wallet_ledger_entries (
 			wallet_id, user_id, direction, amount, balance_before, balance_after,
 			reference_type, reference_id, note, created_at
 		)
-		values ($1, $2, $3, $4, $5, (CAST($5 AS NUMERIC) + CAST($4 AS NUMERIC)),
-		        $6, $7, $8, now())
-	`, walletID, record.UserID, 1, params.Amount, balanceBefore, "App\\Models\\Transaction\\Transaction", record.ID, "Nạp tiền thành công"); err != nil {
+		values ($1, $2, $3, $4, $5, $6,
+		        $7, $8, $9, now())
+	`, walletID, record.UserID, 1, params.Amount, balanceBefore, balanceAfter,
+		"App\\Models\\Transaction\\Transaction", record.ID, "Nạp tiền thành công"); err != nil {
 		return DepositApplyResult{}, err
 	}
 
