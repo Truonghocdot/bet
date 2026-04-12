@@ -222,7 +222,7 @@ onMounted(() => {
       </button>
     </section>
 
-    <button class="min-h-14 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#e64545] transition-transform active:scale-95" @click="logout">
+    <button class="min-h-14 p-2 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#e64545] transition-transform active:scale-95" @click="logout">
       Đăng xuất tài khoản
     </button>
 

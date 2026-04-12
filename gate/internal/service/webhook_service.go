@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,7 +21,12 @@ const (
 	providerNowPayments          = "nowpayments"
 	providerNowPaymentsForGin    = "nowpayments_usdt"
 	depositWebhookPathNowPayment = "/v1/webhooks/deposits/nowpayments"
+	providerSepay                = "sepay"
 )
+
+// sepayClientRefRe extracts a DEP/WD transaction code from SePay's content string.
+// SePay content looks like: "DEPed9e4061cb1320e083ade36e566ad947   Ma giao dich  Trace..."
+var sepayClientRefRe = regexp.MustCompile(`(?i)(DEP|WD)[a-zA-Z0-9]+`)
 
 type WebhookConfig struct {
 	GateInternalToken        string
@@ -185,6 +191,7 @@ func (s *WebhookService) HandleDepositWebhook(
 	}
 
 	log.Printf("[gate] webhook provider=%s payload=%v", normalizedProvider, payload)
+	fmt.Printf("[gate][debug] RECEIVED WEBHOOK provider=%s payload_keys=%d\n", normalizedProvider, len(payload))
 
 	if s.ginClient != nil {
 		request, err := s.buildApplyRequest(normalizedProvider, payload)
@@ -265,6 +272,14 @@ func (s *WebhookService) resolveNowPaymentsCredentials(ctx context.Context) (Now
 }
 
 func (s *WebhookService) buildApplyRequest(provider string, payload map[string]any) (event.DepositApplyRequest, error) {
+	log.Printf("[gate][debug] building apply request for provider=%s", provider)
+
+	// ── SePay-specific handling ──────────────────────────────────────────────
+	if provider == providerSepay {
+		return s.buildSepayApplyRequest(payload)
+	}
+
+	// ── Generic mapping ──────────────────────────────────────────────────────
 	request := event.DepositApplyRequest{
 		Provider:       provider,
 		ProviderStatus: firstNonEmptyString(payload, []string{"provider_status", "status", "state", "payment_status", "code"}),
@@ -295,7 +310,8 @@ func (s *WebhookService) buildApplyRequest(provider string, payload map[string]a
 	}
 
 	if request.ClientRef == "" && request.ProviderTxnID == "" {
-		return event.DepositApplyRequest{}, fmt.Errorf("client_ref or provider_txn_id is required")
+		log.Printf("[gate][debug.error] both ClientRef and ProviderTxnID are empty for provider=%s", provider)
+		return event.DepositApplyRequest{}, fmt.Errorf("client_ref or provider_txn_id is required (v2.1)")
 	}
 
 	return request, nil
@@ -324,4 +340,59 @@ func firstNonEmptyString(payload map[string]any, keys []string) string {
 	}
 
 	return ""
+}
+
+// buildSepayApplyRequest maps SePay's specific webhook payload to a DepositApplyRequest.
+//
+// SePay payload example:
+//
+//	{
+//	  "gateway": "MBBank",
+//	  "content": "DEPed9e4061cb1320e083ade36e566ad947   Ma giao dich  Trace260709",
+//	  "transferAmount": 50000,
+//	  "transferType": "in",
+//	  "referenceCode": "FT26103263302800",
+//	  "id": 50026418
+//	}
+func (s *WebhookService) buildSepayApplyRequest(payload map[string]any) (event.DepositApplyRequest, error) {
+	// ── 1. Extract client_ref from the content field via regex ────────────────
+	clientRef := ""
+	if raw, ok := payload["content"]; ok {
+		content := strings.TrimSpace(fmt.Sprint(raw))
+		if match := sepayClientRefRe.FindString(content); match != "" {
+			clientRef = match
+			log.Printf("[gate][sepay] extracted client_ref=%s from content=%q", clientRef, content)
+		}
+	}
+
+	// ── 2. provider_txn_id: prefer referenceCode, fallback to id ─────────────
+	providerTxnID := firstNonEmptyString(payload, []string{"referenceCode", "reference_code", "id"})
+
+	// ── 3. Amount from transferAmount ─────────────────────────────────────────
+	amount := firstNonEmptyString(payload, []string{"transferAmount", "transfer_amount", "amount"})
+
+	// ── 4. Status: "in" = finished (money received) ───────────────────────────
+	transferType := strings.ToLower(strings.TrimSpace(fmt.Sprint(payload["transferType"])))
+	providerStatus := "pending"
+	if transferType == "in" {
+		providerStatus = "finished"
+	}
+
+	log.Printf("[gate][sepay] client_ref=%q provider_txn_id=%q amount=%q status=%s",
+		clientRef, providerTxnID, amount, providerStatus)
+
+	if clientRef == "" && providerTxnID == "" {
+		return event.DepositApplyRequest{}, fmt.Errorf("sepay: could not extract client_ref from content and no id/referenceCode found")
+	}
+
+	return event.DepositApplyRequest{
+		Provider:       providerSepay,
+		ProviderStatus: providerStatus,
+		ClientRef:      clientRef,
+		ProviderTxnID:  providerTxnID,
+		Amount:         amount,
+		Currency:       "VND",
+		PaidAt:         time.Now(),
+		Raw:            payload,
+	}, nil
 }
