@@ -228,7 +228,7 @@ class SiteDemoSeeder extends Seeder
                 [
                     'affiliate_profile_id' => $agencyProfile->id,
                     'campaign_name' => 'Agency Main Campaign',
-                    'landing_url' => rtrim((string) config('app.url'), '/').'/register?source=agency-main',
+                    'landing_url' => rtrim((string) config('app.url'), '/') . '/register?source=agency-main',
                     'status' => AffiliateLinkStatus::ACTIVE,
                 ],
             );
@@ -521,9 +521,10 @@ class SiteDemoSeeder extends Seeder
                 ['period_no' => 'WINGO-20260410-001'],
                 [
                     'game_type' => GameType::WINGO,
-                    'room_code' => 'A1',
+                    'room_code' => 'wingo_1m',
                     'open_at' => now()->subHours(3),
                     'close_at' => now()->subHours(2)->subMinutes(59),
+                    'bet_lock_at' => now()->subHours(2)->subMinutes(59)->subSeconds(5),
                     'draw_at' => now()->subHours(2)->subMinutes(58),
                     'settled_at' => now()->subHours(2)->subMinutes(55),
                     'status' => PeriodStatus::SETTLED,
@@ -545,6 +546,7 @@ class SiteDemoSeeder extends Seeder
                     'room_code' => 'K3-1',
                     'open_at' => now()->subHour(),
                     'close_at' => now()->subMinutes(55),
+                    'bet_lock_at' => now()->subMinutes(55)->subSeconds(5),
                     'draw_at' => now()->subMinutes(54),
                     'settled_at' => null,
                     'status' => PeriodStatus::DRAWN,
@@ -564,12 +566,17 @@ class SiteDemoSeeder extends Seeder
                     'room_code' => 'L1',
                     'open_at' => now()->addMinutes(15),
                     'close_at' => now()->addMinutes(20),
+                    'bet_lock_at' => now()->addMinutes(20)->subSeconds(5),
                     'draw_at' => now()->addMinutes(21),
                     'settled_at' => null,
                     'status' => PeriodStatus::OPEN,
                     'draw_source' => DrawSource::MANUAL,
                     'result_payload' => null,
                     'result_hash' => null,
+                    'manual_result' => [
+                        'result' => '51382',
+                        'meta' => ['note' => 'Hệ thống can thiệp tự động - Seeder'],
+                    ],
                 ],
             );
 
@@ -830,7 +837,7 @@ class SiteDemoSeeder extends Seeder
             'email_verified_at' => $values['email_verified_at'] ?? null,
             'phone_verified_at' => $values['phone_verified_at'] ?? null,
             'last_login_at' => $values['last_login_at'] ?? null,
-        ], static fn ($value) => $value !== null);
+        ], static fn($value) => $value !== null);
 
         if ($timestamps !== []) {
             $user->forceFill($timestamps)->save();

@@ -25,6 +25,7 @@ class GamePeriod extends Model
         'draw_source',
         'result_payload',
         'result_hash',
+        'manual_result',
     ];
 
     protected function casts(): array
@@ -39,6 +40,7 @@ class GamePeriod extends Model
             'status' => PeriodStatus::class,
             'draw_source' => DrawSource::class,
             'result_payload' => 'array',
+            'manual_result' => 'array',
         ];
     }
 
