@@ -379,7 +379,7 @@ func (r *DepositRepository) ApplyDeposit(ctx context.Context, params ApplyDeposi
 			wallet_id, user_id, direction, amount, balance_before, balance_after,
 			reference_type, reference_id, note, created_at
 		)
-		values ($1, $2, $3, $4::numeric(20,8), $5::numeric(20,8), ($5::numeric(20,8) + $4::numeric(20,8)),
+		values ($1, $2, $3, $4, $5, (CAST($5 AS NUMERIC) + CAST($4 AS NUMERIC)),
 		        $6, $7, $8, now())
 	`, walletID, record.UserID, 1, params.Amount, balanceBefore, "App\\Models\\Transaction\\Transaction", record.ID, "Nạp tiền thành công"); err != nil {
 		return DepositApplyResult{}, err
