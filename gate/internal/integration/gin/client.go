@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -53,7 +54,8 @@ func (c *Client) ApplyDeposit(ctx context.Context, request event.DepositApplyReq
 	defer response.Body.Close()
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("gin internal deposit apply returned status %d", response.StatusCode)
+		bodyBytes, _ := io.ReadAll(response.Body)
+		return fmt.Errorf("gin internal deposit apply returned status %d: %s", response.StatusCode, string(bodyBytes))
 	}
 
 	return nil
