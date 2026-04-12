@@ -268,8 +268,8 @@ func (s *WebhookService) buildApplyRequest(provider string, payload map[string]a
 	request := event.DepositApplyRequest{
 		Provider:       provider,
 		ProviderStatus: firstNonEmptyString(payload, []string{"provider_status", "status", "state", "payment_status", "code"}),
-		ClientRef:      firstNonEmptyString(payload, []string{"client_ref", "order_id", "order_code", "orderCode", "reference", "ref"}),
-		ProviderTxnID:  firstNonEmptyString(payload, []string{"provider_txn_id", "payment_id", "transaction_id", "transactionId", "txid", "tx_hash", "txHash"}),
+		ClientRef:      firstNonEmptyString(payload, []string{"client_ref", "order_id", "order_code", "orderCode", "reference", "ref", "content"}),
+		ProviderTxnID:  firstNonEmptyString(payload, []string{"provider_txn_id", "payment_id", "transaction_id", "transactionId", "txid", "tx_hash", "txHash", "id"}),
 		Amount:         firstNonEmptyString(payload, []string{"actually_paid", "pay_amount", "amount", "outcome_amount", "paid_amount", "transfer_amount", "price_amount"}),
 		Currency:       strings.ToUpper(firstNonEmptyString(payload, []string{"currency", "pay_currency", "outcome_currency", "price_currency"})),
 		PaidAt:         time.Now(),

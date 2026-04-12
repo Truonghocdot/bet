@@ -61,6 +61,7 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
             ])
             ->databaseTransactions()
+            ->spa(true)
             ->maxContentWidth(Width::Full);;
     }
 }

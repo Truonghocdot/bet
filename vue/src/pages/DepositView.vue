@@ -81,6 +81,10 @@ const validationMessage = computed(() => {
   return ''
 })
 
+function redirectBack() {
+  router.back()
+}
+
 const depositCountdown = computed(() => {
   const expiresAt = intent.value?.expires_at
   if (!expiresAt) return '10:00'
@@ -236,7 +240,7 @@ async function logout() {
           <span class="material-symbols-outlined">arrow_back</span>
         </button>
         <h1 class="m-0 text-center text-[1.1rem] font-black tracking-tight md:text-[1.2rem]">Nạp tiền</h1>
-        <button class="justify-self-end text-right text-sm font-extrabold text-white/95" type="button" @click="logout">Thoát</button>
+        <button class="justify-self-end text-right text-sm font-extrabold text-white/95" type="button" @click="redirectBack()">Thoát</button>
       </header>
 
       <div class="mt-4">
