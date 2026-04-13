@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import BannerCarousel from '@/components/BannerCarousel.vue'
 import MarqueeBar from '@/components/MarqueeBar.vue'
 import Leaderboard from '@/components/Leaderboard.vue'
+import { request } from '@/shared/api/http'
+import type { ContentBannerItem, ContentHomeResponse, ContentNewsItem } from '@/shared/api/types'
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
@@ -17,6 +19,9 @@ const route = useRoute()
 const greetingName = computed(() => auth.user?.name || 'Bạn')
 const featuredRooms = computed(() => gameRooms.filter((g) => g.featured))
 const vndWallet = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
+const homeBanners = ref<ContentBannerItem[]>([])
+const homeHighlights = ref<ContentNewsItem[]>([])
+const contentError = ref('')
 
 function displayBalance(value: string | number | null | undefined) {
   return formatViMoney(value ?? 0, 0)
@@ -61,17 +66,22 @@ const categoryTabs = [
   { label: 'Game bài', icon: 'playing_cards', accent: '#8b5cf6' },
 ]
 
-const winInfo = [
-  { user: 'Mem***AXG', game: 'K3 Lotre', amount: '+895,200đ', avatar: 21 },
-  { user: 'Mem***DMT', game: 'Win Go', amount: '+342,000đ', avatar: 22 },
-  { user: 'Mem***ZHS', game: '5D Lô Tô', amount: '+1,280,000đ', avatar: 23 },
-  { user: 'Mem***QRT', game: 'K3 Lotre', amount: '+210,000đ', avatar: 24 },
-  { user: 'Mem***UHE', game: 'Win Go', amount: '+560,000đ', avatar: 25 },
-  { user: 'Mem***FVT', game: '5D Lô Tô', amount: '+980,000đ', avatar: 26 },
-]
+async function fetchHomeContent() {
+  contentError.value = ''
+  try {
+    const response = await request<ContentHomeResponse>('GET', '/v1/content/home')
+    homeBanners.value = response.banners || []
+    homeHighlights.value = response.highlights || []
+  } catch {
+    homeBanners.value = []
+    homeHighlights.value = []
+    contentError.value = 'Không thể tải nội dung trang chủ'
+  }
+}
 
 onMounted(() => {
   void wallet.fetchSummary()
+  void fetchHomeContent()
 })
 </script>
 
@@ -83,7 +93,7 @@ onMounted(() => {
     <MarqueeBar />
 
     <!-- ===== BANNER CAROUSEL ===== -->
-    <BannerCarousel />
+    <BannerCarousel :banners="homeBanners" />
 
     <!-- ===== CATEGORY QUICK TABS ===== -->
     <div class="flex gap-2 overflow-x-auto px-3 py-3 no-scrollbar">
@@ -204,28 +214,46 @@ onMounted(() => {
       <Leaderboard />
     </div>
 
-    <!-- ===== WIN INFO ===== -->
+    <!-- ===== NEWS HIGHLIGHTS ===== -->
     <div class="mx-3 mb-2 overflow-hidden rounded-[20px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.06)] border border-slate-100">
       <div class="flex items-center gap-2 border-b border-slate-100 px-4 py-3.5">
-        <span class="text-[1.1rem]">🎉</span>
-        <span class="text-[0.9rem] font-black text-on-surface">Thông tin trúng thưởng</span>
+        <span class="text-[1.1rem]">📰</span>
+        <span class="text-[0.9rem] font-black text-on-surface">Tin nổi bật</span>
       </div>
       <div class="divide-y divide-slate-50">
-        <div
-          v-for="(item, i) in winInfo"
-          :key="i"
-          class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors"
+        <RouterLink
+          v-for="item in homeHighlights"
+          :key="item.id"
+          :to="`/news/${item.slug}`"
+          class="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
         >
           <img
-            :src="`https://i.pravatar.cc/40?img=${item.avatar}`"
-            :alt="item.user"
-            class="h-8 w-8 rounded-full object-cover flex-shrink-0 border border-slate-100"
+            v-if="item.cover_image_url"
+            :src="item.cover_image_url"
+            :alt="item.title"
+            class="h-12 w-12 rounded-[10px] object-cover flex-shrink-0 border border-slate-100"
           />
-          <div class="flex-1 min-w-0">
-            <strong class="block text-[0.8rem] font-semibold text-on-surface">{{ item.user }}</strong>
-            <span class="text-[0.68rem] text-slate-400">{{ item.game }}</span>
+          <div
+            v-else
+            class="grid h-12 w-12 flex-shrink-0 place-items-center rounded-[10px] bg-[#ffefef] text-primary border border-[#ffd8d8]"
+          >
+            <span class="material-symbols-outlined text-[1.1rem]">newspaper</span>
           </div>
-          <span class="flex-shrink-0 text-[0.82rem] font-black text-[#10b981]">{{ item.amount }}</span>
+          <div class="flex-1 min-w-0">
+            <strong class="line-clamp-1 block text-[0.82rem] font-black text-on-surface">{{ item.title }}</strong>
+            <span class="line-clamp-2 text-[0.7rem] text-slate-500">
+              {{ item.excerpt || item.content || 'Đang cập nhật nội dung...' }}
+            </span>
+          </div>
+          <span class="flex-shrink-0 text-[0.68rem] font-bold text-slate-400">
+            {{ item.published_at || item.created_at }}
+          </span>
+        </RouterLink>
+        <div v-if="!homeHighlights.length && !contentError" class="px-4 py-3 text-[0.78rem] font-semibold text-slate-500">
+          Chưa có tin nổi bật.
+        </div>
+        <div v-if="contentError" class="px-4 py-3 text-[0.78rem] font-semibold text-red-500">
+          {{ contentError }}
         </div>
       </div>
     </div>

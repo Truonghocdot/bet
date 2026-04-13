@@ -345,6 +345,45 @@ export type WalletSummaryResponse = {
   wallets: WalletSummaryItem[]
 }
 
+export type ContentBannerItem = {
+  id: number
+  title: string
+  image_url: string
+  link_url?: string
+}
+
+export type ContentNewsItem = {
+  id: number
+  title: string
+  slug: string
+  excerpt?: string
+  content?: string
+  cover_image_url?: string
+  published_at?: string | null
+  created_at: string
+}
+
+export type ContentHomeResponse = {
+  message: string
+  banners: ContentBannerItem[]
+  highlights: ContentNewsItem[]
+}
+
+export type ContentListResponse = {
+  message: string
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  items: ContentNewsItem[]
+}
+
+export type ContentDetailResponse = {
+  message: string
+  item: ContentNewsItem
+  related: ContentNewsItem[]
+}
+
 export type NotificationListItem = {
   id: number
   title: string

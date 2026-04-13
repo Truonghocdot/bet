@@ -29,6 +29,8 @@ class AuthServiceProvider extends ServiceProvider
             'finance.withdrawal-requests' => [RoleUser::ADMIN, RoleUser::STAFF],
             'finance.account-withdrawal-infos' => [RoleUser::ADMIN, RoleUser::STAFF],
             'system.notifications' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'system.banners' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'system.news-articles' => [RoleUser::ADMIN, RoleUser::STAFF],
             'payment.payment-receiving-accounts' => [RoleUser::ADMIN, RoleUser::STAFF],
             'bet.game-periods' => [RoleUser::ADMIN, RoleUser::STAFF],
             'bet.bet-tickets' => [RoleUser::ADMIN, RoleUser::STAFF],

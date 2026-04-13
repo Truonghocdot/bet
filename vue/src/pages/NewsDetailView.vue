@@ -1,19 +1,69 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
+import { request, type ApiError } from '@/shared/api/http'
+import type { ContentDetailResponse, ContentNewsItem } from '@/shared/api/types'
 import { formatViDateTime } from '@/shared/lib/date'
-import { getNewsBySlug, getRelatedNews } from '@/data/site'
 
 const route = useRoute()
 const router = useRouter()
 
-const article = computed(() => getNewsBySlug(String(route.params.slug ?? '')))
-const relatedArticles = computed(() => (article.value ? getRelatedNews(article.value.slug, 3) : []))
+const loading = ref(false)
+const error = ref('')
+const article = ref<ContentNewsItem | null>(null)
+const relatedArticles = ref<ContentNewsItem[]>([])
+
+const articleParagraphs = computed(() =>
+  String(article.value?.content || '')
+    .split(/\n{2,}/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0),
+)
+
+async function loadNewsDetail() {
+  const slug = String(route.params.slug ?? '').trim()
+  if (!slug) {
+    article.value = null
+    relatedArticles.value = []
+    error.value = 'Không tìm thấy bài viết'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+  try {
+    const response = await request<ContentDetailResponse>('GET', `/v1/content/news/${encodeURIComponent(slug)}`)
+    article.value = response.item
+    relatedArticles.value = response.related || []
+  } catch (e: any) {
+    const apiErr = e as ApiError
+    article.value = null
+    relatedArticles.value = []
+    error.value = apiErr?.message || 'Không tải được chi tiết tin tức'
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(
+  () => route.params.slug,
+  () => {
+    void loadNewsDetail()
+  },
+)
+
+onMounted(() => {
+  void loadNewsDetail()
+})
 </script>
 
 <template>
-  <div v-if="article" class="space-y-5 md:space-y-6">
+  <div v-if="loading" class="grid min-h-[40vh] place-items-center rounded-[28px] bg-white p-8 text-center shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
+    <p class="text-sm font-semibold text-on-surface-variant">Đang tải bài viết...</p>
+  </div>
+
+  <div v-else-if="article" class="space-y-5 md:space-y-6">
     <header class="flex items-center justify-between gap-3">
       <button class="grid h-10 w-10 place-items-center rounded-full bg-white text-primary shadow-[0_6px_18px_rgba(255,109,102,0.06)]" type="button" @click="router.back()">
         <span class="material-symbols-outlined">arrow_back</span>
@@ -22,37 +72,31 @@ const relatedArticles = computed(() => (article.value ? getRelatedNews(article.v
     </header>
 
     <section class="overflow-hidden rounded-[28px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
-      <div class="h-52 bg-gradient-to-br md:h-60" :class="article.cover"></div>
+      <img
+        v-if="article.cover_image_url"
+        :src="article.cover_image_url"
+        :alt="article.title"
+        class="h-52 w-full object-cover md:h-60"
+      >
+      <div v-else class="h-52 bg-gradient-to-br from-[#ff6d66] to-[#ff9f98] md:h-60"></div>
       <div class="p-5 md:p-6">
         <div class="flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.08em] text-on-surface-variant">
-          <span class="rounded-full bg-surface-container-low px-3 py-1 font-bold">{{ article.category }}</span>
-          <span>{{ formatViDateTime(article.publishedAt) }}</span>
-          <span>{{ article.readTime }}</span>
-          <span>{{ article.author }}</span>
+          <span class="rounded-full bg-surface-container-low px-3 py-1 font-bold">Tin tức</span>
+          <span>{{ formatViDateTime(article.published_at || article.created_at) }}</span>
         </div>
 
         <h1 class="mt-4 text-[1.65rem] font-black leading-[1.15] md:text-[2rem]">{{ article.title }}</h1>
-        <p class="mt-3 text-[0.92rem] leading-7 text-on-surface-variant">{{ article.excerpt }}</p>
+        <p v-if="article.excerpt" class="mt-3 text-[0.92rem] leading-7 text-on-surface-variant">{{ article.excerpt }}</p>
 
-        <div class="mt-5 space-y-4">
-          <p v-for="paragraph in article.content" :key="paragraph" class="text-[0.92rem] leading-7 text-on-surface">
+        <div v-if="articleParagraphs.length" class="mt-5 space-y-4">
+          <p v-for="paragraph in articleParagraphs" :key="paragraph" class="text-[0.92rem] leading-7 text-on-surface">
             {{ paragraph }}
           </p>
-        </div>
-
-        <div class="mt-5 flex flex-wrap gap-2">
-          <span
-            v-for="tag in article.tags"
-            :key="tag"
-            class="rounded-full bg-background px-3 py-1 text-[0.68rem] font-bold text-on-surface-variant"
-          >
-            #{{ tag }}
-          </span>
         </div>
       </div>
     </section>
 
-    <section class="space-y-3">
+    <section v-if="relatedArticles.length" class="space-y-3">
       <div class="flex items-center justify-between gap-2">
         <h2 class="m-0 text-[1rem] font-black md:text-[1.08rem]">Bài viết liên quan</h2>
         <RouterLink to="/promotion" class="text-[0.76rem] font-extrabold text-primary">Xem thêm</RouterLink>
@@ -65,11 +109,17 @@ const relatedArticles = computed(() => (article.value ? getRelatedNews(article.v
           :to="`/news/${related.slug}`"
           class="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.05)]"
         >
-          <div class="h-28 bg-gradient-to-br" :class="related.cover"></div>
+          <img
+            v-if="related.cover_image_url"
+            :src="related.cover_image_url"
+            :alt="related.title"
+            class="h-28 w-full object-cover"
+          >
+          <div v-else class="h-28 bg-gradient-to-br from-[#ff6d66] to-[#ff9f98]"></div>
           <div class="p-4">
-            <p class="m-0 text-[0.66rem] uppercase tracking-[0.08em] text-on-surface-variant">{{ related.category }}</p>
+            <p class="m-0 text-[0.66rem] uppercase tracking-[0.08em] text-on-surface-variant">Tin tức</p>
             <h3 class="mt-2 text-[0.92rem] font-black leading-6">{{ related.title }}</h3>
-            <p class="mt-1.5 text-[0.72rem] leading-6 text-on-surface-variant">{{ related.excerpt }}</p>
+            <p class="mt-1.5 text-[0.72rem] leading-6 text-on-surface-variant">{{ related.excerpt || related.content }}</p>
           </div>
         </RouterLink>
       </div>
@@ -79,11 +129,10 @@ const relatedArticles = computed(() => (article.value ? getRelatedNews(article.v
   <div v-else class="grid min-h-[40vh] place-items-center rounded-[28px] bg-white p-8 text-center shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
     <div>
       <h1 class="text-[1.3rem] font-black">Không tìm thấy bài viết</h1>
-      <p class="mt-2 text-sm text-on-surface-variant">Bài viết có thể đã bị ẩn hoặc chưa tồn tại.</p>
+      <p class="mt-2 text-sm text-on-surface-variant">{{ error || 'Bài viết có thể đã bị ẩn hoặc chưa tồn tại.' }}</p>
       <RouterLink to="/promotion" class="mt-4 inline-flex rounded-[16px] bg-primary px-4 py-2 text-sm font-black text-white">
         Quay về Hoạt động
       </RouterLink>
     </div>
   </div>
 </template>
-

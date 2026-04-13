@@ -186,37 +186,16 @@ onMounted(() => {
         </span>
       </RouterLink>
 
-      <button class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3.5 border-b border-slate-200/60 px-4 py-3.5 text-left">
-        <div class="grid h-10 w-10 place-items-center rounded-full bg-[#fdd404]/20 text-[#f6c32d]">
-          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">redeem</span>
-        </div>
-        <span class="font-extrabold">Quy đổi quà</span>
-        <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
-      </button>
-
-      <button class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3.5 border-b border-slate-200/60 px-4 py-3.5 text-left">
+      <RouterLink to="/game-stats" class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3.5 px-4 py-3.5 text-left">
         <div class="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
           <span class="material-symbols-outlined">monitoring</span>
         </div>
-        <span class="font-extrabold">Thống kê trò chơi</span>
+        <span class="font-extrabold">Thống kê trò</span>
         <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
-      </button>
-
-      <button class="grid w-full grid-cols-[auto_1fr_auto_auto] items-center gap-3.5 px-4 py-3.5 text-left">
-        <div class="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-on-surface-variant">
-          <span class="material-symbols-outlined">language</span>
-        </div>
-        <span class="font-extrabold">Ngôn ngữ</span>
-        <span class="text-sm font-bold text-on-surface-variant">Tiếng Việt</span>
-        <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
-      </button>
+      </RouterLink>
     </section>
 
-    <section class="grid grid-cols-3 gap-2.5">
-      <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
-        <span class="material-symbols-outlined text-primary">settings</span>
-        <span>Cài đặt</span>
-      </button>
+    <section class="grid grid-cols-2 gap-2.5">
       <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
         <span class="material-symbols-outlined text-primary">chat_bubble</span>
         <span>Góp ý</span>

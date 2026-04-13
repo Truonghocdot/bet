@@ -52,7 +52,7 @@ async function handleRegister() {
         <span class="text-[1.1rem] font-black italic tracking-[-0.06em] text-primary">ff789</span>
       </div>
       <h2 class="m-0 text-[1.55rem] font-black">Tạo tài khoản mới</h2>
-      <p class="mt-1.5 text-sm text-on-surface-variant">Đăng ký bằng số điện thoại hoặc email</p>
+      <p class="mt-1.5 text-sm text-on-surface-variant">Đăng ký bằng số điện thoại </p>
     </section>
 
     <section v-if="submitError" class="rounded-2xl bg-secondary/10 p-4 text-sm font-bold text-on-secondary-container">
@@ -90,14 +90,26 @@ async function handleRegister() {
         <input v-model="refCode" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="text" placeholder="Mã giới thiệu (không bắt buộc)" />
       </label>
 
-      <button
-        class="min-h-14 rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white shadow-[0_8px_20px_rgba(255,109,102,0.18)] transition-transform active:scale-95 disabled:opacity-60"
-        type="submit"
-        :disabled="auth.loading || !canSubmit"
-      >
-        {{ auth.loading ? 'Đang tạo tài khoản...' : 'Đăng ký' }}
-      </button>
+      <div class="flex flex-row w-full items-center justify-center">
+        <button
+          class="min-h-14 rounded-[18px] px-2 bg-red-500 font-black text-white shadow-[0_8px_20px_rgba(255,109,102,0.18)] transition-transform active:scale-95 disabled:opacity-60"
+          type="submit"
+          :disabled="auth.loading || !canSubmit"
+        >
+          {{ auth.loading ? 'Đang tạo tài khoản...' : 'Đăng ký' }}
+        </button>
+      </div>
     </form>
+    <section class="mt-2 grid grid-cols-2 gap-3">
+      <a href="#" class="grid min-h-[84px] place-items-center gap-1 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
+        <span class="material-symbols-outlined text-primary">support_agent</span>
+        <span>CSKH</span>
+      </a>
+      <a href="#" class="grid min-h-[84px] place-items-center gap-1 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
+        <span class="material-symbols-outlined text-primary">security</span>
+        <span>Bảo mật</span>
+      </a>
+    </section>
   </div>
 </template>
 

@@ -20,7 +20,6 @@ const remember = ref(true)
 const submitError = ref('')
 
 const account = computed(() => {
-  if (mode.value === 'email') return String(emailInput.value ?? '').trim().toLowerCase()
   return normalizeVNPhone(phoneInput.value)
 })
 
@@ -64,25 +63,6 @@ async function handleLogin() {
 
     <section v-if="submitError" class="rounded-2xl bg-secondary/10 p-4 text-sm font-bold text-on-secondary-container">
       {{ submitError }}
-    </section>
-
-    <section class="grid grid-cols-2 gap-2 rounded-[18px] bg-surface-container p-1.5">
-      <button
-        class="min-h-11 rounded-[14px] font-extrabold transition-all"
-        :class="mode === 'phone' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
-        type="button"
-        @click="mode = 'phone'"
-      >
-        Số điện thoại
-      </button>
-      <button
-        class="min-h-11 rounded-[14px] font-extrabold transition-all"
-        :class="mode === 'email' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
-        type="button"
-        @click="mode = 'email'"
-      >
-        Đăng nhập email
-      </button>
     </section>
 
     <form class="space-y-3" @submit.prevent="handleLogin">

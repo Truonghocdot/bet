@@ -44,6 +44,7 @@ type Config struct {
 	RegisterLimitEmail               int
 	RegisterLimitPhone               int
 	AuthRefreshTTL                   time.Duration
+	ContentAssetBaseURL              string
 }
 
 func LoadConfig() Config {
@@ -85,6 +86,7 @@ func LoadConfig() Config {
 		RegisterLimitEmail:               getEnvInt("AUTH_REGISTER_LIMIT_EMAIL", 3),
 		RegisterLimitPhone:               getEnvInt("AUTH_REGISTER_LIMIT_PHONE", 3),
 		AuthRefreshTTL:                   getEnvDuration("AUTH_REFRESH_TOKEN_TTL", 30*24*time.Hour),
+		ContentAssetBaseURL:              getEnv("CONTENT_ASSET_BASE_URL", "http://127.0.0.1:8000"),
 	}
 }
 

@@ -1,24 +1,42 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 
-const banners = [
-  'https://ossimg.vn168vn168vn.com/VN168/banner/Banner_20251209174412poex.png',
-  'https://ossimg.vn168vn168vn.com/VN168/banner/Banner_202510271109361o47.jpg',
-  'https://ossimg.vn168vn168vn.com/VN168/banner/Banner_20241212201908rh8b.jpg',
-  'https://ossimg.vn168vn168vn.com/VN168/banner/Banner_202404191437083m86.jpg',
-]
+type BannerInput = {
+  id?: number
+  title?: string
+  image_url: string
+  link_url?: string
+}
+
+const props = withDefaults(
+  defineProps<{
+    banners?: BannerInput[]
+  }>(),
+  {
+    banners: () => [],
+  },
+)
 
 const fallback = 'https://images.unsplash.com/photo-1642790551116-18e150f248e3?w=800&q=80'
+const fallbackList = [
+  {
+    id: 0,
+    title: 'Banner',
+    image_url: fallback,
+    link_url: '',
+  },
+]
+const banners = computed(() => (props.banners.length > 0 ? props.banners : fallbackList))
 
 const current = ref(0)
 let autoTimer: number | undefined
 
 function next() {
-  current.value = (current.value + 1) % banners.length
+  current.value = (current.value + 1) % banners.value.length
 }
 
 function prev() {
-  current.value = (current.value - 1 + banners.length) % banners.length
+  current.value = (current.value - 1 + banners.value.length) % banners.value.length
 }
 
 function goTo(i: number) {
@@ -29,6 +47,13 @@ function onImgError(e: Event) {
   ;(e.target as HTMLImageElement).src = fallback
 }
 
+watch(
+  () => props.banners,
+  () => {
+    current.value = 0
+  },
+  { deep: true },
+)
 
 onMounted(() => {
   autoTimer = window.setInterval(next, 3500)
@@ -47,10 +72,10 @@ onBeforeUnmount(() => {
       :style="{ transform: `translateX(-${current * 100}%)` }"
     >
       <img
-        v-for="(src, i) in banners"
-        :key="i"
-        :src="src"
-        :alt="`Banner ${i + 1}`"
+        v-for="(banner, i) in banners"
+        :key="banner.id ?? i"
+        :src="banner.image_url"
+        :alt="banner.title || `Banner ${i + 1}`"
         class="h-full w-full min-w-full object-cover"
         @error="onImgError"
       />

@@ -86,6 +86,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'main', title: 'Cá nhân', requiresAuth: true },
   },
   {
+    path: '/game-stats',
+    name: 'game-stats',
+    component: () => import('../pages/GameStatsView.vue'),
+    meta: { layout: 'main', title: 'Thống kê trò chơi', requiresAuth: true },
+  },
+  {
     path: '/play',
     name: 'play-lobby',
     component: () => import('../pages/PlayLobbyView.vue'),
