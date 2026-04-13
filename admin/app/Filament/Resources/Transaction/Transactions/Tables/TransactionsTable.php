@@ -41,6 +41,8 @@ class TransactionsTable
                 TextColumn::make('approved_at')->label('Duyệt lúc')->dateTime()->toggleable(),
                 TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
             ])
+            ->defaultSort('id', 'desc')
+            ->poll(2000)
             ->filters([
                 TrashedFilter::make(),
             ]);

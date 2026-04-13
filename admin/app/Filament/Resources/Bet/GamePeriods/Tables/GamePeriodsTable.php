@@ -56,6 +56,8 @@ class GamePeriodsTable
                         ])->save();
                     }),
             ])
+            ->defaultSort('id', 'desc')
+            ->poll(2000)
             ->headerActions([
                 Action::make('open_control_panel')
                     ->label('Điều khiển kết quả')

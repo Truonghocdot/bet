@@ -83,6 +83,8 @@ class UsersTable
             ->filters([
                 TrashedFilter::make(),
             ])
+            ->defaultSort('id', 'desc')
+            ->poll(2000)
             ->recordActions([
                 EditAction::make(),
             ])

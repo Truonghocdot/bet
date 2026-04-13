@@ -11,8 +11,6 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Width;
-use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -32,7 +30,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogo(asset('logo.png'))
             ->favicon(asset('favicon.png'))
             ->colors([
-                'primary' => Color::Blue,
+                'primary' => Color::Red,
             ])
             ->brandName(config('app.name'))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')

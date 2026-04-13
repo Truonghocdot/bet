@@ -6,7 +6,6 @@ use App\Enum\Payment\PaymentReceivingAccountStatus;
 use App\Support\Filament\EnumPresenter;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\IconColumn;
@@ -29,8 +28,8 @@ class PaymentReceivingAccountsTable
                 TextColumn::make('status')
                     ->label('Trạng thái')
                     ->badge()
-                    ->formatStateUsing(fn ($state): string => EnumPresenter::label(PaymentReceivingAccountStatus::class, $state))
-                    ->color(fn ($state): string => EnumPresenter::color(PaymentReceivingAccountStatus::class, $state)),
+                    ->formatStateUsing(fn($state): string => EnumPresenter::label(PaymentReceivingAccountStatus::class, $state))
+                    ->color(fn($state): string => EnumPresenter::color(PaymentReceivingAccountStatus::class, $state)),
                 IconColumn::make('is_default')->label('Mặc định')->boolean(),
                 TextColumn::make('sort_order')->label('Thứ tự')->sortable(),
                 TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
@@ -38,9 +37,9 @@ class PaymentReceivingAccountsTable
             ->filters([
                 TrashedFilter::make(),
             ])
-            ->recordActions([
-                EditAction::make(),
-            ])
+            ->recordActions([])
+            ->defaultSort('id', 'desc')
+            ->poll(2000)
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),

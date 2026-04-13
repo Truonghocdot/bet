@@ -72,7 +72,10 @@ class WithdrawalRequestsTable
                         Textarea::make('reason')->label('Lý do từ chối')->required()->rows(3),
                     ])
                     ->action(function ($record, array $data): void {
-                        app(WithdrawalWorkflowService::class)->reject($record, auth()->user(), $data['reason'] ?? null);
+                        app(WithdrawalWorkflowService::class)->reject($record,
+                         /** @var App/Model/User */ 
+                                                   auth()->user()
+                         , $data['reason'] ?? null);
                     }),
                 Action::make('markPaid')
                     ->label('Đã chi trả')
@@ -103,6 +106,8 @@ class WithdrawalRequestsTable
                     }),
                 EditAction::make(),
             ])
+            ->defaultSort('id', 'desc')
+            ->poll(2000)
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
