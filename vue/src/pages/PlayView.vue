@@ -2,8 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
+import { env } from '@/shared/config/env'
 import { request, type ApiError } from '@/shared/api/http'
-import { connectEventStream, type StreamConnection } from '@/shared/api/stream'
 import type {
   PlayRoomBetHistoryResponse,
   PlayRoomBetResponse,
@@ -67,19 +67,34 @@ const baseChipAmount = 1000
 const modalBetAmount = ref(baseChipAmount * 10)
 const betPresets = [1000, 5000, 10000, 50000, 100000]
 
-// Sound effects (using a reliable public asset)
-const tickSoundUrl = 'https://raw.githubusercontent.com/rafaelrinaldi/tic-tac-toe/master/assets/audio/click.mp3'
-let tickAudio: HTMLAudioElement | null = null
+// Countdown beep for the last seconds before bet lock.
+let tickAudioContext: AudioContext | null = null
+let tickGainNode: GainNode | null = null
 
 function playTickSound() {
-  if (!tickAudio) {
-    tickAudio = new Audio(tickSoundUrl)
-    tickAudio.volume = 0.5
+  if (typeof window === 'undefined') return
+  const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  if (!AudioCtx) return
+
+  if (!tickAudioContext) {
+    tickAudioContext = new AudioCtx()
+    tickGainNode = tickAudioContext.createGain()
+    tickGainNode.gain.value = 0.06
+    tickGainNode.connect(tickAudioContext.destination)
   }
-  tickAudio.currentTime = 0
-  void tickAudio.play().catch(() => {
-    // ignore autoplay block errors
-  })
+
+  if (tickAudioContext.state === 'suspended') {
+    void tickAudioContext.resume().catch(() => {
+      // ignore resume errors
+    })
+  }
+
+  const oscillator = tickAudioContext.createOscillator()
+  oscillator.type = 'square'
+  oscillator.frequency.setValueAtTime(880, tickAudioContext.currentTime)
+  oscillator.connect(tickGainNode as GainNode)
+  oscillator.start()
+  oscillator.stop(tickAudioContext.currentTime + 0.08)
 }
 
 // Result modal state
@@ -167,7 +182,8 @@ function formatMultiplierLabel(m: number) {
 }
 const tablePageSize = 4
 let timer: number | undefined
-let roomStreamConnection: StreamConnection | null = null
+let roomStreamConnection: WebSocket | null = null
+let roomStreamReconnectTimer: number | undefined
 
 const room = computed<PlayRoom | null>(() => getPlayRoom(String(route.params.game ?? 'wingo')) ?? null)
 const isK3 = computed(() => room.value?.code === 'k3')
@@ -650,32 +666,75 @@ async function applyRoomStateResponse(
 }
 
 function disconnectRoomStateStream() {
+  if (roomStreamReconnectTimer) {
+    window.clearTimeout(roomStreamReconnectTimer)
+    roomStreamReconnectTimer = undefined
+  }
   roomStreamConnection?.close()
   roomStreamConnection = null
+}
+
+function buildRoomWSUrl(roomCode: string): string {
+  const endpoint = `/v1/play/rooms/${roomCode}/ws`
+  const fallbackProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const fallback = `${fallbackProtocol}//${window.location.host}${endpoint}`
+  try {
+    const rawBase = (env.apiBaseUrl || '').trim()
+    const baseUrl = new URL(rawBase || window.location.origin, window.location.origin)
+    const wsProtocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${wsProtocol}//${baseUrl.host}${endpoint}`
+  } catch {
+    return fallback
+  }
+}
+
+function scheduleRoomWSReconnect(roomCode: string) {
+  if (roomStreamReconnectTimer) return
+  roomStreamReconnectTimer = window.setTimeout(() => {
+    roomStreamReconnectTimer = undefined
+    connectRoomStateStream(roomCode)
+  }, 2500)
 }
 
 function connectRoomStateStream(roomCode: string) {
   if (!roomCode) return
 
   disconnectRoomStateStream()
-  roomStreamConnection = connectEventStream(`/v1/play/rooms/${roomCode}/stream`, {
-    reconnectMs: 2500,
-    onEvent(payload) {
-      if (payload.event === 'room.clock') {
-        applyServerClock(String(payload.data?.server_time ?? ''))
-        return
-      }
+  try {
+    const socket = new WebSocket(buildRoomWSUrl(roomCode))
+    roomStreamConnection = socket
+    socket.onopen = () => {
+      roomStateError.value = ''
+    }
 
-      if (payload.event === 'room.state') {
-        roomStateError.value = ''
-        void applyRoomStateResponse(payload.data as PlayRoomStateResponse)
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(String(event.data)) as { event?: string; data?: any }
+        if (payload.event === 'room.clock') {
+          applyServerClock(String(payload.data?.server_time ?? ''))
+          return
+        }
+        if (payload.event === 'room.state') {
+          roomStateError.value = ''
+          void applyRoomStateResponse(payload.data as PlayRoomStateResponse)
+        }
+      } catch {
+        // ignore malformed ws payload
       }
-    },
-    onError(errorValue) {
-      const err = errorValue as ApiError
-      roomStateError.value = err?.message ?? 'Kết nối realtime phòng chơi đang được nối lại'
-    },
-  })
+    }
+
+    socket.onerror = () => {
+      roomStateError.value = 'Kết nối realtime phòng chơi đang được nối lại'
+    }
+
+    socket.onclose = () => {
+      roomStreamConnection = null
+      scheduleRoomWSReconnect(roomCode)
+    }
+  } catch {
+    roomStateError.value = 'Kết nối realtime phòng chơi đang được nối lại'
+    scheduleRoomWSReconnect(roomCode)
+  }
 }
 
 async function loadRoomState(roomCode = selectedRoomCode.value) {

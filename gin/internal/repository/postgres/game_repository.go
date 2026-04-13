@@ -205,6 +205,9 @@ func (r *GameRepository) ListAllRoomsWithCurrentPeriod(ctx context.Context) ([]s
 
 	for _, room := range rooms {
 		period, err := r.GetCurrentPeriodByRoom(ctx, room.Code)
+		if errors.Is(err, ErrPeriodNotFound) {
+			period, err = r.GetNearestUpcomingPeriodByRoom(ctx, room.Code)
+		}
 		if err != nil && !errors.Is(err, ErrPeriodNotFound) {
 			return nil, err
 		}
@@ -219,6 +222,39 @@ func (r *GameRepository) ListAllRoomsWithCurrentPeriod(ctx context.Context) ([]s
 	}
 
 	return result, nil
+}
+
+func (r *GameRepository) GetNearestUpcomingPeriodByRoom(ctx context.Context, roomCode string) (GamePeriodRecord, error) {
+	now := clock.Now()
+	var period GamePeriodRecord
+	err := r.db.QueryRowContext(ctx, `
+		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
+		from game_periods
+		where room_code = $1
+		  and status in ($2, $3, $4)
+		  and draw_at > $5
+		order by draw_at asc, open_at asc, id asc
+		limit 1
+	`, roomCode, periodStatusScheduled, periodStatusOpen, periodStatusLocked, now).Scan(
+		&period.ID,
+		&period.RoomCode,
+		&period.GameType,
+		&period.PeriodNo,
+		&period.OpenAt,
+		&period.BetLockAt,
+		&period.DrawAt,
+		&period.Status,
+		&period.ManualResultJSON,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GamePeriodRecord{}, ErrPeriodNotFound
+		}
+		return GamePeriodRecord{}, err
+	}
+
+	log.Printf("[engine][period.current.lookup.fallback] room_code=%s period_id=%d period_no=%s status=%d source=nearest_upcoming", roomCode, period.ID, period.PeriodNo, period.Status)
+	return period, nil
 }
 
 func (r *GameRepository) ListRooms(ctx context.Context) ([]GameRoomRecord, error) {

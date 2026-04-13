@@ -2,8 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import ControlRoomCard from '@/components/ControlRoomCard.vue'
+import { env } from '@/shared/config/env'
 import { request, type ApiError } from '@/shared/api/http'
-import { connectEventStream, type StreamConnection } from '@/shared/api/stream'
 import { useAuthStore } from '@/stores/auth'
 
 interface BetStat {
@@ -46,6 +46,7 @@ const activeTab = ref(1)
 const autoRefresh = ref(true)
 const serverTimeOffsetMs = ref(0)
 const clockTick = ref(Date.now())
+const wsState = ref<'connecting' | 'connected' | 'disconnected'>('disconnected')
 
 const pendingSubmit = ref<ManualSubmitRequest | null>(null)
 const submittingPeriodId = ref<number | null>(null)
@@ -54,7 +55,9 @@ const pulseUntil = ref<Record<string, number>>({})
 
 let clockTimer: number | undefined
 let toastTimer: number | undefined
-let streamConnection: StreamConnection | null = null
+let fallbackPollTimer: number | undefined
+let wsConnection: WebSocket | null = null
+let wsReconnectTimer: number | undefined
 
 function parseStake(value: string): number {
   const num = Number.parseFloat(value ?? '0')
@@ -111,28 +114,94 @@ async function fetchStats() {
   }
 }
 
+function buildAdminWSUrl(token: string): string {
+  const endpoint = '/v1/admin/rooms/stats/ws'
+  const encodedToken = encodeURIComponent(token)
+  const fallbackProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const fallback = `${fallbackProtocol}//${window.location.host}${endpoint}?token=${encodedToken}`
+
+  try {
+    const rawBase = (env.apiBaseUrl || '').trim()
+    const baseUrl = new URL(rawBase || window.location.origin, window.location.origin)
+    const wsProtocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${wsProtocol}//${baseUrl.host}${endpoint}?token=${encodedToken}`
+  } catch {
+    return fallback
+  }
+}
+
+function scheduleWSReconnect() {
+  if (!autoRefresh.value || wsReconnectTimer) return
+  wsReconnectTimer = window.setTimeout(() => {
+    wsReconnectTimer = undefined
+    startStatsStream()
+  }, 2000)
+}
+
 function startStatsStream() {
-  if (!autoRefresh.value || !auth.accessToken || streamConnection) return
-  streamConnection = connectEventStream('/v1/admin/rooms/stats/stream', {
-    token: auth.accessToken,
-    reconnectMs: 2000,
-    onEvent(payload) {
-      if (payload.event !== 'admin.rooms.stats') return
-      if (!payload.data || typeof payload.data !== 'object') return
-      applySnapshot(payload.data as { server_time: string; rooms: RoomStats[] })
+  if (!autoRefresh.value || !auth.accessToken || wsConnection) return
+
+  try {
+    wsState.value = 'connecting'
+    const socket = new WebSocket(buildAdminWSUrl(auth.accessToken))
+    wsConnection = socket
+    socket.onopen = () => {
+      wsState.value = 'connected'
       error.value = ''
-      loading.value = false
-    },
-    onError(err) {
-      const apiError = err as ApiError
-      error.value = apiError?.message || 'Mất kết nối realtime admin'
-    },
-  })
+    }
+
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(String(event.data)) as { event?: string; data?: any }
+        if (payload?.event !== 'admin.rooms.stats') return
+        if (!payload.data || typeof payload.data !== 'object') return
+        applySnapshot(payload.data as { server_time: string; rooms: RoomStats[] })
+        error.value = ''
+        loading.value = false
+      } catch {
+        // ignore malformed payload
+      }
+    }
+
+    socket.onerror = () => {
+      wsState.value = 'disconnected'
+      error.value = 'Mất kết nối realtime admin'
+    }
+
+    socket.onclose = () => {
+      wsState.value = 'disconnected'
+      wsConnection = null
+      scheduleWSReconnect()
+    }
+  } catch {
+    wsState.value = 'disconnected'
+    error.value = 'Không thể khởi tạo realtime admin'
+    scheduleWSReconnect()
+  }
 }
 
 function stopStatsStream() {
-  streamConnection?.close()
-  streamConnection = null
+  if (wsReconnectTimer) {
+    window.clearTimeout(wsReconnectTimer)
+    wsReconnectTimer = undefined
+  }
+  wsConnection?.close()
+  wsConnection = null
+  wsState.value = 'disconnected'
+}
+
+function startFallbackPolling() {
+  if (!autoRefresh.value || fallbackPollTimer) return
+  fallbackPollTimer = window.setInterval(() => {
+    if (!autoRefresh.value) return
+    void fetchStats()
+  }, 5000)
+}
+
+function stopFallbackPolling() {
+  if (!fallbackPollTimer) return
+  window.clearInterval(fallbackPollTimer)
+  fallbackPollTimer = undefined
 }
 
 function showToast(type: 'success' | 'error', text: string) {
@@ -182,9 +251,43 @@ async function confirmSubmit() {
 const syncedNowMs = computed(() => clockTick.value + serverTimeOffsetMs.value)
 const filteredRooms = computed(() => rooms.value.filter((room) => Number(room.game_type) === Number(activeTab.value)))
 
+function normalizeOptionLabel(rawKey: string): string {
+  const key = String(rawKey || '').trim().toLowerCase()
+  if (!key) return '—'
+  if (key.startsWith('number_')) return `Số ${key.replace('number_', '')}`
+  if (key.startsWith('sum_')) return `Tổng ${key.replace('sum_', '')}`
+  if (key === 'big') return 'Lớn'
+  if (key === 'small') return 'Nhỏ'
+  if (key === 'odd') return 'Lẻ'
+  if (key === 'even') return 'Chẵn'
+  if (key === 'red') return 'Đỏ'
+  if (key === 'green') return 'Xanh'
+  if (key === 'violet') return 'Tím'
+  if (key === 'red_violet') return 'Đỏ / Tím'
+  if (key === 'green_violet') return 'Xanh / Tím'
+  return key.replaceAll('_', ' ')
+}
+
+const optionVolumeRows = computed(() => {
+  const map = new Map<string, { optionKey: string; stake: number; players: number }>()
+  for (const room of filteredRooms.value) {
+    for (const stat of room.bet_stats ?? []) {
+      const key = stat.option_key || 'unknown'
+      const prev = map.get(key) ?? { optionKey: key, stake: 0, players: 0 }
+      prev.stake += parseStake(stat.total_stake)
+      prev.players += Number(stat.player_count || 0)
+      map.set(key, prev)
+    }
+  }
+  return Array.from(map.values())
+    .sort((a, b) => b.stake - a.stake)
+    .slice(0, 12)
+})
+
 onMounted(() => {
   void fetchStats()
   startStatsStream()
+  startFallbackPolling()
   clockTimer = window.setInterval(() => {
     clockTick.value = Date.now()
   }, 1000)
@@ -192,6 +295,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopStatsStream()
+  stopFallbackPolling()
   if (clockTimer) window.clearInterval(clockTimer)
   if (toastTimer) window.clearTimeout(toastTimer)
 })
@@ -200,10 +304,25 @@ watch(autoRefresh, (enabled) => {
   if (enabled) {
     void fetchStats()
     startStatsStream()
+    startFallbackPolling()
   } else {
     stopStatsStream()
+    stopFallbackPolling()
   }
 })
+
+watch(
+  () => auth.accessToken,
+  (token) => {
+    if (token && autoRefresh.value) {
+      void fetchStats()
+      startStatsStream()
+      startFallbackPolling()
+      return
+    }
+    stopStatsStream()
+  },
+)
 </script>
 
 <template>
@@ -221,13 +340,28 @@ watch(autoRefresh, (enabled) => {
           <button :class="{ 'is-active': activeTab === 2 }" @click="activeTab = 2">K3</button>
           <button :class="{ 'is-active': activeTab === 3 }" @click="activeTab = 3">5D</button>
         </div>
-        <button class="live-btn" :class="{ 'is-on': autoRefresh }" @click="autoRefresh = !autoRefresh">
-          {{ autoRefresh ? 'Realtime ON' : 'Realtime OFF' }}
-        </button>
+        <div class="ws-chip" :class="`ws-chip--${wsState}`">
+          {{ wsState === 'connected' ? 'WS: Connected' : wsState === 'connecting' ? 'WS: Connecting' : 'WS: Disconnected' }}
+        </div>
       </div>
     </header>
 
     <p v-if="error" class="error-banner">{{ error }}</p>
+
+    <section class="volume-panel glass-card">
+      <div class="volume-panel__head">
+        <h3>Khối lượng theo cửa</h3>
+        <span>Top {{ optionVolumeRows.length }} cửa</span>
+      </div>
+      <div v-if="optionVolumeRows.length === 0" class="volume-empty">Chưa có lệnh cược trong tab hiện tại.</div>
+      <div v-else class="volume-grid">
+        <div v-for="item in optionVolumeRows" :key="item.optionKey" class="volume-card">
+          <p class="volume-card__label">{{ normalizeOptionLabel(item.optionKey) }}</p>
+          <p class="volume-card__stake">{{ item.stake.toLocaleString('vi-VN') }}đ</p>
+          <p class="volume-card__meta">{{ item.players.toLocaleString('vi-VN') }} lượt đặt</p>
+        </div>
+      </div>
+    </section>
 
     <section v-if="loading && rooms.length === 0" class="loading-block">
       <div class="spinner"></div>
@@ -322,6 +456,33 @@ watch(autoRefresh, (enabled) => {
   gap: 10px;
 }
 
+.ws-chip {
+  justify-self: end;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.ws-chip--connected {
+  border-color: rgba(16, 185, 129, 0.6);
+  color: #86efac;
+}
+
+.ws-chip--connecting {
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #93c5fd;
+}
+
+.ws-chip--disconnected {
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fda4af;
+}
+
 .tab-switch {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -367,6 +528,70 @@ watch(autoRefresh, (enabled) => {
   padding: 10px 12px;
   color: #fecdd3;
   font-size: 0.8rem;
+}
+
+.volume-panel {
+  margin-bottom: 12px;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.volume-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.volume-panel__head h3 {
+  font-size: 0.86rem;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.volume-panel__head span {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.volume-empty {
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  padding: 10px;
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.volume-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.volume-card {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 8px 10px;
+}
+
+.volume-card__label {
+  color: #e2e8f0;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.volume-card__stake {
+  color: #fef08a;
+  font-size: 0.82rem;
+  font-weight: 900;
+  margin-top: 2px;
+}
+
+.volume-card__meta {
+  color: #94a3b8;
+  font-size: 0.68rem;
+  margin-top: 2px;
 }
 
 .loading-block,

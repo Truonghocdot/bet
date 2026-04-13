@@ -14,6 +14,7 @@ import (
 	"gin/internal/service"
 	"gin/internal/support/clock"
 	"gin/internal/support/message"
+	"github.com/gorilla/websocket"
 )
 
 type PlayRoomHandler struct {
@@ -103,6 +104,102 @@ func (h *PlayRoomHandler) RoomStateStream(w http.ResponseWriter, r *http.Request
 			}
 		case <-heartbeatTicker.C:
 			if err := stream.KeepAlive(); err != nil {
+				return
+			}
+		}
+	}
+}
+
+type wsRoomEventPayload struct {
+	Event string `json:"event"`
+	Data  any    `json:"data"`
+}
+
+var playWSUpgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+func (h *PlayRoomHandler) RoomStateWS(w http.ResponseWriter, r *http.Request) {
+	roomCode := strings.TrimSpace(r.PathValue("room_code"))
+	if roomCode == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": message.GameRoomCodeRequired})
+		return
+	}
+
+	initialResponse, err := h.playRoomService.GetRoomState(r.Context(), roomCode)
+	if err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": playRoomErrorMessage(err)})
+		return
+	}
+
+	conn, err := playWSUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	_ = conn.SetReadDeadline(time.Now().Add(75 * time.Second))
+	conn.SetPongHandler(func(_ string) error {
+		return conn.SetReadDeadline(time.Now().Add(75 * time.Second))
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, readErr := conn.ReadMessage(); readErr != nil {
+				return
+			}
+		}
+	}()
+
+	if err := conn.WriteJSON(wsRoomEventPayload{Event: "room.state", Data: initialResponse}); err != nil {
+		return
+	}
+
+	updates, unsubscribe, err := h.broker.Subscribe(r.Context(), realtime.PlayRoomTopic(roomCode))
+	if err != nil {
+		_ = conn.WriteJSON(wsRoomEventPayload{Event: "error", Data: map[string]string{"message": message.InternalServerError}})
+		return
+	}
+	defer unsubscribe()
+
+	clockTicker := time.NewTicker(time.Second)
+	pingTicker := time.NewTicker(20 * time.Second)
+	defer clockTicker.Stop()
+	defer pingTicker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-done:
+			return
+		case update, ok := <-updates:
+			if !ok {
+				return
+			}
+			if update.Event != "room.state" {
+				continue
+			}
+			if err := conn.WriteJSON(wsRoomEventPayload{Event: update.Event, Data: json.RawMessage(update.Data)}); err != nil {
+				return
+			}
+		case <-clockTicker.C:
+			if err := conn.WriteJSON(wsRoomEventPayload{
+				Event: "room.clock",
+				Data: map[string]any{
+					"server_time": clock.Now(),
+				},
+			}); err != nil {
+				return
+			}
+		case <-pingTicker.C:
+			if err := conn.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(10*time.Second)); err != nil {
 				return
 			}
 		}

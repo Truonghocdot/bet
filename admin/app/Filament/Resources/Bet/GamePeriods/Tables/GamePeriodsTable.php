@@ -42,20 +42,6 @@ class GamePeriodsTable
                 TextColumn::make('settled_at')->label('Chốt lúc')->dateTime()->toggleable(),
                 TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
             ])
-            ->recordActions([
-                Action::make('settle')
-                    ->label('Chốt kỳ')
-                    ->icon('heroicon-m-check-badge')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->visible(fn ($record): bool => Gate::allows('bet.game-periods.settle') && in_array($record->status, [PeriodStatus::DRAWN, PeriodStatus::LOCKED], true))
-                    ->action(function ($record): void {
-                        $record->forceFill([
-                            'status' => PeriodStatus::SETTLED,
-                            'settled_at' => now(),
-                        ])->save();
-                    }),
-            ])
             ->defaultSort('id', 'desc')
             ->poll(2000)
             ->headerActions([

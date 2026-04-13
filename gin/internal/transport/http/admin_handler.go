@@ -3,35 +3,128 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"gin/internal/domain/game"
 	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
+	"gin/internal/service"
 	"gin/internal/support/clock"
 	"gin/internal/support/message"
+	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
 )
 
 type AdminHandler struct {
 	gameRepository *repopg.GameRepository
 	broker         *realtime.Broker
+	redis          *redis.Client
+	authService    *service.AuthService
 }
 
-func NewAdminHandler(gameRepo *repopg.GameRepository, broker *realtime.Broker) *AdminHandler {
-	return &AdminHandler{gameRepository: gameRepo, broker: broker}
+func NewAdminHandler(gameRepo *repopg.GameRepository, broker *realtime.Broker, redisClient *redis.Client, authService *service.AuthService) *AdminHandler {
+	return &AdminHandler{gameRepository: gameRepo, broker: broker, redis: redisClient, authService: authService}
+}
+
+type adminPeriodDetail struct {
+	ID           int64   `json:"id"`
+	PeriodNo     string  `json:"period_no"`
+	DrawAt       string  `json:"draw_at"`
+	BetLockAt    string  `json:"bet_lock_at"`
+	Status       int     `json:"status"`
+	ManualResult *string `json:"manual_result"`
 }
 
 type adminRoomDetail struct {
-	Code     string                   `json:"code"`
-	GameType int                      `json:"game_type"`
-	Period   *repopg.GamePeriodRecord `json:"period"`
-	Stats    []repopg.PeriodBetStats  `json:"bet_stats"`
+	Code     string                  `json:"code"`
+	GameType int                     `json:"game_type"`
+	Period   *adminPeriodDetail      `json:"period"`
+	Stats    []repopg.PeriodBetStats `json:"bet_stats"`
 }
 
 type adminStatsResponse struct {
 	ServerTime time.Time         `json:"server_time"`
 	Rooms      []adminRoomDetail `json:"rooms"`
+}
+
+type wsEventPayload struct {
+	Event string `json:"event"`
+	Data  any    `json:"data"`
+}
+
+type cachedRoomState struct {
+	Payload game.RoomStateResponse `json:"payload"`
+}
+
+func toAdminPeriod(record *repopg.GamePeriodRecord) *adminPeriodDetail {
+	if record == nil {
+		return nil
+	}
+	var manual *string
+	raw := strings.TrimSpace(string(record.ManualResultJSON))
+	if raw != "" && raw != "null" {
+		manual = &raw
+	}
+	return &adminPeriodDetail{
+		ID:           record.ID,
+		PeriodNo:     record.PeriodNo,
+		DrawAt:       record.DrawAt.Format(time.RFC3339),
+		BetLockAt:    record.BetLockAt.Format(time.RFC3339),
+		Status:       record.Status,
+		ManualResult: manual,
+	}
+}
+
+func toPeriodStatusCode(status string) int {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "SCHEDULED":
+		return 1
+	case "OPEN":
+		return 2
+	case "LOCKED":
+		return 3
+	case "DRAWN":
+		return 4
+	case "SETTLED":
+		return 5
+	case "CANCELED":
+		return 6
+	default:
+		return 0
+	}
+}
+
+func (h *AdminHandler) roomStateCacheKey(roomCode string) string {
+	return "cache:play:room_state:" + strings.TrimSpace(roomCode)
+}
+
+func (h *AdminHandler) loadPeriodFromRoomStateCache(r *http.Request, roomCode string) *adminPeriodDetail {
+	if h.redis == nil {
+		return nil
+	}
+	raw, err := h.redis.Get(r.Context(), h.roomStateCacheKey(roomCode)).Bytes()
+	if err != nil || len(raw) == 0 {
+		return nil
+	}
+	var cached cachedRoomState
+	if err := json.Unmarshal(raw, &cached); err != nil {
+		return nil
+	}
+	if cached.Payload.CurrentPeriod.ID == 0 {
+		return nil
+	}
+	return &adminPeriodDetail{
+		ID:           cached.Payload.CurrentPeriod.ID,
+		PeriodNo:     cached.Payload.CurrentPeriod.PeriodNo,
+		DrawAt:       cached.Payload.CurrentPeriod.DrawAt.Format(time.RFC3339),
+		BetLockAt:    cached.Payload.CurrentPeriod.BetLockAt.Format(time.RFC3339),
+		Status:       toPeriodStatusCode(cached.Payload.CurrentPeriod.Status),
+		ManualResult: nil,
+	}
 }
 
 func (h *AdminHandler) buildStatsSnapshot(r *http.Request) (adminStatsResponse, error) {
@@ -43,14 +136,19 @@ func (h *AdminHandler) buildStatsSnapshot(r *http.Request) (adminStatsResponse, 
 
 	rooms := make([]adminRoomDetail, 0, len(stats))
 	for _, s := range stats {
+		period := toAdminPeriod(s.Period)
+		if period == nil {
+			period = h.loadPeriodFromRoomStateCache(r, s.Room.Code)
+		}
+
 		var betStats []repopg.PeriodBetStats
-		if s.Period != nil {
-			betStats, _ = h.gameRepository.GetPeriodBetStats(ctx, s.Period.ID)
+		if period != nil {
+			betStats, _ = h.gameRepository.GetPeriodBetStats(ctx, period.ID)
 		}
 		rooms = append(rooms, adminRoomDetail{
 			Code:     s.Room.Code,
 			GameType: s.Room.GameType,
-			Period:   s.Period,
+			Period:   period,
 			Stats:    betStats,
 		})
 	}
@@ -126,6 +224,113 @@ func (h *AdminHandler) StreamRoomStats(w http.ResponseWriter, r *http.Request) {
 			}
 		case <-heartbeatTicker.C:
 			if err := stream.KeepAlive(); err != nil {
+				return
+			}
+		}
+	}
+}
+
+var adminWSUpgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+func (h *AdminHandler) StreamRoomStatsWS(w http.ResponseWriter, r *http.Request) {
+	if h.authService == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+
+	tokenValue := strings.TrimSpace(r.URL.Query().Get("token"))
+	if tokenValue == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.MissingBearerToken})
+		return
+	}
+
+	claims, err := h.authService.VerifyAccessToken(tokenValue)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.InvalidAccessToken})
+		return
+	}
+	if claims.Role != 1 {
+		writeJSON(w, http.StatusForbidden, map[string]string{"message": "Quyền truy cập bị từ chối"})
+		return
+	}
+
+	conn, err := adminWSUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	_ = conn.SetReadDeadline(time.Now().Add(75 * time.Second))
+	conn.SetPongHandler(func(_ string) error {
+		return conn.SetReadDeadline(time.Now().Add(75 * time.Second))
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, readErr := conn.ReadMessage(); readErr != nil {
+				return
+			}
+		}
+	}()
+
+	initial, err := h.buildStatsSnapshot(r)
+	if err != nil {
+		_ = conn.WriteJSON(wsEventPayload{Event: "error", Data: map[string]string{"message": "Lỗi khi tải danh sách phòng"}})
+		return
+	}
+	if err := conn.WriteJSON(wsEventPayload{Event: "admin.rooms.stats", Data: initial}); err != nil {
+		return
+	}
+
+	updates, unsubscribe, err := h.broker.Subscribe(r.Context(), realtime.AdminRoomsTopic())
+	if err != nil {
+		_ = conn.WriteJSON(wsEventPayload{Event: "error", Data: map[string]string{"message": message.InternalServerError}})
+		return
+	}
+	defer unsubscribe()
+
+	pingTicker := time.NewTicker(20 * time.Second)
+	fullRefreshTicker := time.NewTicker(30 * time.Second)
+	defer pingTicker.Stop()
+	defer fullRefreshTicker.Stop()
+
+	emitSnapshot := func() bool {
+		snapshot, buildErr := h.buildStatsSnapshot(r)
+		if buildErr != nil {
+			log.Printf("[admin.ws] build snapshot error: %v", buildErr)
+			return false
+		}
+		writeErr := conn.WriteJSON(wsEventPayload{Event: "admin.rooms.stats", Data: snapshot})
+		return writeErr == nil
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-done:
+			return
+		case <-pingTicker.C:
+			if err := conn.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(10*time.Second)); err != nil {
+				return
+			}
+		case <-fullRefreshTicker.C:
+			if !emitSnapshot() {
+				return
+			}
+		case _, ok := <-updates:
+			if !ok {
+				return
+			}
+			if !emitSnapshot() {
 				return
 			}
 		}
