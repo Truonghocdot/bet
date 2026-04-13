@@ -308,10 +308,18 @@ const lotteryMatrix = computed<MatrixCell[][]>(() => {
       key.match(/(?:position_|pos_|digit_)?([abcde])[_-]?(\d)$/) ||
       key.match(/^([abcde])(\d)$/)
     if (!m) continue
-    const rowIdx = 'abcde'.indexOf(m[1])
-    const digit = Number.parseInt(m[2], 10)
+    const rowChar = m[1]
+    const digitStr = m[2]
+    if (!rowChar || !digitStr) continue
+
+    const rowIdx = 'abcde'.indexOf(rowChar)
+    const digit = Number.parseInt(digitStr, 10)
     if (rowIdx < 0 || digit < 0 || digit > 9) continue
-    rows[rowIdx][digit].stake += parseStake(stat.total_stake)
+
+    const row = rows[rowIdx]
+    if (row && row[digit]) {
+      row[digit].stake += parseStake(stat.total_stake)
+    }
   }
 
   return rows
@@ -509,7 +517,7 @@ function heatHeight(stake: number, maxStake: number): string {
               >
                 <span
                   class="matrix-cell__bg"
-                  :style="{ opacity: Math.max(0.08, Math.min(1, cell.stake / lotteryRowMax[rowIdx])) }"
+                  :style="{ opacity: Math.max(0.08, Math.min(1, cell.stake / (lotteryRowMax[rowIdx] || 1))) }"
                 ></span>
                 <span class="matrix-cell__digit">{{ digit }}</span>
                 <span class="matrix-cell__stake">{{ formatViMoney(cell.stake.toString()) }}</span>
