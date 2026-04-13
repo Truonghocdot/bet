@@ -7,4 +7,8 @@
 *.log.gz
 /storage
 /bin
-main
+
+./gate/tmp/main
+./gin/api
+./gin/tmp/main
+./gin/gip-api

@@ -240,19 +240,30 @@ func (h *DepositHandler) handleStatusStream(w http.ResponseWriter, r *http.Reque
 
 func (h *DepositHandler) writeError(r *http.Request, w http.ResponseWriter, err error, operation string) {
 	statusCode := http.StatusInternalServerError
-	messageText := message.InternalServerError + ": " + err.Error()
+	messageText := message.InternalServerError
 
 	switch {
 	case errors.Is(err, repopg.ErrDepositNotFound):
 		statusCode = http.StatusNotFound
-		messageText = err.Error()
-	case errors.Is(err, repopg.ErrDepositProviderInvalid),
-		errors.Is(err, repopg.ErrDepositReceivingAccount),
-		errors.Is(err, repopg.ErrDepositWalletNotFound),
-		errors.Is(err, repopg.ErrDepositAmountInvalid),
-		errors.Is(err, service.ErrDepositUSDTNotAvailable):
+		messageText = message.DepositIntentNotFound
+	case errors.Is(err, repopg.ErrDepositAlreadyDone):
 		statusCode = http.StatusUnprocessableEntity
-		messageText = err.Error()
+		messageText = message.DepositAlreadyCompleted
+	case errors.Is(err, repopg.ErrDepositProviderInvalid):
+		statusCode = http.StatusUnprocessableEntity
+		messageText = message.DepositProviderInvalid
+	case errors.Is(err, repopg.ErrDepositReceivingAccount):
+		statusCode = http.StatusUnprocessableEntity
+		messageText = message.DepositReceivingAccountMissing
+	case errors.Is(err, repopg.ErrDepositWalletNotFound):
+		statusCode = http.StatusUnprocessableEntity
+		messageText = message.DepositWalletMissing
+	case errors.Is(err, repopg.ErrDepositAmountInvalid):
+		statusCode = http.StatusUnprocessableEntity
+		messageText = message.DepositAmountInvalid
+	case errors.Is(err, service.ErrDepositUSDTNotAvailable):
+		statusCode = http.StatusUnprocessableEntity
+		messageText = message.DepositUSDTNotAvailable
 	}
 
 	log.Printf(

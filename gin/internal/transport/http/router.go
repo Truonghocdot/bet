@@ -37,7 +37,7 @@ func NewRouter(
 	playRoomHandler := NewPlayRoomHandler(playRoomService, broker)
 	depositHandler := NewDepositHandler(depositService, internalToken)
 	withdrawalHandler := NewWithdrawalHandler(withdrawalService)
-	adminHandler := NewAdminHandler(gameRepository)
+	adminHandler := NewAdminHandler(gameRepository, broker)
 	authSSOHandler := NewAuthSSOHandler(authService, redis)
 	authn := authmiddleware.NewAuthentication(authService)
 
@@ -87,6 +87,7 @@ func NewRouter(
 	}
 
 	mux.Handle("GET /v1/admin/rooms/stats", requireAdmin(http.HandlerFunc(adminHandler.ListRoomStats)))
+	mux.Handle("GET /v1/admin/rooms/stats/stream", requireAdmin(http.HandlerFunc(adminHandler.StreamRoomStats)))
 	mux.Handle("POST /v1/admin/periods/{id}/result", requireAdmin(http.HandlerFunc(adminHandler.SetManualResult)))
 
 	mux.HandleFunc("POST /v1/auth/sso/exchange", authSSOHandler.Exchange)

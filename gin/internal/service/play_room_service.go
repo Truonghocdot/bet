@@ -105,6 +105,13 @@ func (s *PlayRoomService) RefreshRoomState(ctx context.Context, roomCode string,
 	if err := s.broker.Publish(ctx, realtime.PlayRoomTopic(roomCode), "room.state", response); err != nil {
 		log.Printf("[realtime][room.publish.error] room_code=%s source=%s err=%v", roomCode, source, err)
 	}
+	if err := s.broker.Publish(ctx, realtime.AdminRoomsTopic(), "admin.rooms.changed", map[string]any{
+		"room_code": roomCode,
+		"source":    source,
+		"at":        clock.Now(),
+	}); err != nil {
+		log.Printf("[realtime][admin.rooms.publish.error] room_code=%s source=%s err=%v", roomCode, source, err)
+	}
 
 	return response, nil
 }

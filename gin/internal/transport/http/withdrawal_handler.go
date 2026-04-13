@@ -125,17 +125,17 @@ func (h *WithdrawalHandler) handleAddAccount(w http.ResponseWriter, r *http.Requ
 
 	var req withdrawal.SetupAccountRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid payload format"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Dữ liệu tài khoản rút tiền không hợp lệ"})
 		return
 	}
 
 	if req.Unit != 1 && req.Unit != 2 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Unit must be 1 (VND) or 2 (USDT)"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Loại ví không hợp lệ"})
 		return
 	}
 
 	if strings.TrimSpace(req.AccountNumber) == "" || strings.TrimSpace(req.AccountName) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Missing required fields"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Thiếu thông tin tài khoản nhận tiền"})
 		return
 	}
 
@@ -177,7 +177,7 @@ func (h *WithdrawalHandler) handleSubmitWithdrawal(w http.ResponseWriter, r *htt
 
 	var req withdrawal.SubmitWithdrawalRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Invalid payload format"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Dữ liệu yêu cầu rút tiền không hợp lệ"})
 		return
 	}
 
@@ -191,7 +191,7 @@ func (h *WithdrawalHandler) handleSubmitWithdrawal(w http.ResponseWriter, r *htt
 			writeJSON(w, http.StatusNotFound, map[string]string{"message": "Tài khoản nhận tiền không tồn tại"})
 			return
 		}
-		writeJSON(w, http.StatusBadRequest, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Không thể tạo lệnh rút tiền, vui lòng kiểm tra lại dữ liệu"})
 		return
 	}
 

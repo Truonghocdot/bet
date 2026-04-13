@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	authmiddleware "gin/internal/auth/middleware"
 	"gin/internal/domain/game"
 	"gin/internal/realtime"
+	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
 	"gin/internal/support/clock"
 	"gin/internal/support/message"
@@ -26,7 +28,7 @@ func NewPlayRoomHandler(playRoomService *service.PlayRoomService, broker *realti
 func (h *PlayRoomHandler) ListRooms(w http.ResponseWriter, r *http.Request) {
 	response, err := h.playRoomService.ListRooms(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": playRoomErrorMessage(err)})
 		return
 	}
 
@@ -37,7 +39,7 @@ func (h *PlayRoomHandler) RoomState(w http.ResponseWriter, r *http.Request) {
 	roomCode := strings.TrimSpace(r.PathValue("room_code"))
 	response, err := h.playRoomService.GetRoomState(r.Context(), roomCode)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": playRoomErrorMessage(err)})
 		return
 	}
 
@@ -53,7 +55,7 @@ func (h *PlayRoomHandler) RoomStateStream(w http.ResponseWriter, r *http.Request
 
 	initialResponse, err := h.playRoomService.GetRoomState(r.Context(), roomCode)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": playRoomErrorMessage(err)})
 		return
 	}
 
@@ -113,7 +115,7 @@ func (h *PlayRoomHandler) RoomHistory(w http.ResponseWriter, r *http.Request) {
 
 	response, err := h.playRoomService.ListRoomHistory(r.Context(), roomCode, page, pageSize)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": playRoomErrorMessage(err)})
 		return
 	}
 
@@ -132,7 +134,7 @@ func (h *PlayRoomHandler) MyRoomBets(w http.ResponseWriter, r *http.Request) {
 
 	response, err := h.playRoomService.ListMyRoomBets(r.Context(), claims.UserID, roomCode, page, pageSize)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": playRoomErrorMessage(err)})
 		return
 	}
 
@@ -163,9 +165,28 @@ func (h *PlayRoomHandler) PlaceRoomBet(w http.ResponseWriter, r *http.Request) {
 		strings.TrimSpace(r.Header.Get("X-Connection-ID")),
 	)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": playRoomErrorMessage(err)})
 		return
 	}
 
 	writeJSON(w, http.StatusAccepted, response)
+}
+
+func playRoomErrorMessage(err error) string {
+	switch {
+	case errors.Is(err, repopg.ErrGameRoomNotFound):
+		return message.GameRoomNotFound
+	case errors.Is(err, repopg.ErrPeriodNotFound):
+		return message.PeriodNotFound
+	case errors.Is(err, repopg.ErrPeriodNotOpen):
+		return message.PeriodNotOpen
+	case errors.Is(err, repopg.ErrPeriodBetLocked):
+		return message.PeriodBetLocked
+	case errors.Is(err, repopg.ErrInsufficientBetBalance):
+		return message.InsufficientBalanceBet
+	case errors.Is(err, repopg.ErrInsufficientPlayBalance):
+		return message.InsufficientBalancePlay
+	default:
+		return message.InternalServerError
+	}
 }

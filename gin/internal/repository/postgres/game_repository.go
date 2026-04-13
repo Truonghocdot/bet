@@ -55,11 +55,11 @@ type GameRoomRecord struct {
 }
 
 type GamePeriodRecord struct {
-	ID        int64
-	RoomCode  string
-	GameType  int
-	PeriodNo  string
-	OpenAt    time.Time
+	ID               int64
+	RoomCode         string
+	GameType         int
+	PeriodNo         string
+	OpenAt           time.Time
 	BetLockAt        time.Time
 	DrawAt           time.Time
 	Status           int
@@ -168,13 +168,25 @@ func (r *GameRepository) GetPeriodBetStats(ctx context.Context, periodID int64) 
 }
 
 func (r *GameRepository) SetPeriodManualResult(ctx context.Context, periodID int64, resultJSON []byte) error {
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		update game_periods
 		set manual_result = $1,
 		    updated_at = now()
-		where id = $2 and status in (1, 2, 3)
+		where id = $2
+		  and status in (1, 2)
+		  and now() < bet_lock_at
 	`, resultJSON, periodID)
-	return err
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrPeriodBetLocked
+	}
+	return nil
 }
 
 func (r *GameRepository) ListAllRoomsWithCurrentPeriod(ctx context.Context) ([]struct {
@@ -208,7 +220,6 @@ func (r *GameRepository) ListAllRoomsWithCurrentPeriod(ctx context.Context) ([]s
 
 	return result, nil
 }
-
 
 func (r *GameRepository) ListRooms(ctx context.Context) ([]GameRoomRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `

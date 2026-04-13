@@ -2,12 +2,14 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	authmiddleware "gin/internal/auth/middleware"
 	"gin/internal/domain/game"
+	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
 	"gin/internal/support/message"
 )
@@ -74,7 +76,7 @@ func (h *GameHandler) handleJoin(w http.ResponseWriter, r *http.Request, gameTyp
 
 	response, err := h.sessionService.JoinGame(r.Context(), gameType, request.UserID)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": gameErrorMessage(err)})
 		return
 	}
 
@@ -105,7 +107,7 @@ func (h *GameHandler) handlePlaceBet(w http.ResponseWriter, r *http.Request, gam
 
 	response, err := h.betService.PlaceBet(r.Context(), connectionID, request)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": gameErrorMessage(err)})
 		return
 	}
 
@@ -123,7 +125,7 @@ func (h *GameHandler) handleHistory(w http.ResponseWriter, r *http.Request, game
 
 	response, err := h.betService.ListGameHistory(r.Context(), gameType, page, pageSize)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": gameErrorMessage(err)})
 		return
 	}
 
@@ -142,11 +144,30 @@ func (h *GameHandler) handleMyBets(w http.ResponseWriter, r *http.Request, gameT
 
 	response, err := h.betService.ListMyBets(r.Context(), claims.UserID, gameType, page, pageSize)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": gameErrorMessage(err)})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func gameErrorMessage(err error) string {
+	switch {
+	case errors.Is(err, repopg.ErrGameRoomNotFound):
+		return message.GameRoomNotFound
+	case errors.Is(err, repopg.ErrPeriodNotFound):
+		return message.PeriodNotFound
+	case errors.Is(err, repopg.ErrPeriodNotOpen):
+		return message.PeriodNotOpen
+	case errors.Is(err, repopg.ErrPeriodBetLocked):
+		return message.PeriodBetLocked
+	case errors.Is(err, repopg.ErrInsufficientBetBalance):
+		return message.InsufficientBalanceBet
+	case errors.Is(err, repopg.ErrInsufficientPlayBalance):
+		return message.InsufficientBalancePlay
+	default:
+		return message.InternalServerError
+	}
 }
 
 func readPagination(r *http.Request) (int, int) {

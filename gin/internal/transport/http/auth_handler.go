@@ -133,30 +133,32 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) writeError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, repopg.ErrEmailExists),
-		errors.Is(err, repopg.ErrPhoneExists),
-		errors.Is(err, repopg.ErrRefCodeNotFound),
-		errors.Is(err, repopg.ErrInvalidSelfReferral):
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+	case errors.Is(err, repopg.ErrEmailExists):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.EmailExists})
+	case errors.Is(err, repopg.ErrPhoneExists):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.PhoneExists})
+	case errors.Is(err, repopg.ErrRefCodeNotFound):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.ReferralCodeNotFound})
+	case errors.Is(err, repopg.ErrInvalidSelfReferral):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.InvalidSelfReferral})
 	case errors.Is(err, service.ErrInvalidCredentials):
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.InvalidCredentials})
 	case errors.Is(err, service.ErrRateLimited):
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"message": message.TooManyRequests})
 	case errors.Is(err, service.ErrLoginLocked):
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"message": message.LoginTemporarilyLocked})
-	case errors.Is(err, service.ErrOTPInvalid),
-		errors.Is(err, service.ErrOTPExpired),
-		errors.Is(err, service.ErrOTPLocked),
-		errors.Is(err, service.ErrResetTokenInvalid),
-		errors.Is(err, repopg.ErrOTPNotFound),
-		errors.Is(err, repopg.ErrOTPExpired),
-		errors.Is(err, repopg.ErrOTPLocked),
-		errors.Is(err, repopg.ErrResetTokenInvalid):
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
+	case errors.Is(err, service.ErrOTPInvalid), errors.Is(err, repopg.ErrOTPNotFound):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.OTPInvalid})
+	case errors.Is(err, service.ErrOTPExpired), errors.Is(err, repopg.ErrOTPExpired):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.OTPExpired})
+	case errors.Is(err, service.ErrOTPLocked), errors.Is(err, repopg.ErrOTPLocked):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.OTPLocked})
+	case errors.Is(err, service.ErrResetTokenInvalid), errors.Is(err, repopg.ErrResetTokenInvalid):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.ResetTokenInvalid})
 	case errors.Is(err, repopg.ErrAccountNotFound), errors.Is(err, service.ErrUnauthorized):
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
 	case errors.Is(err, repopg.ErrUserDisabled):
-		writeJSON(w, http.StatusForbidden, map[string]string{"message": err.Error()})
+		writeJSON(w, http.StatusForbidden, map[string]string{"message": message.UserNotActive})
 	default:
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
 	}
