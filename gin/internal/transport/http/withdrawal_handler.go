@@ -26,6 +26,9 @@ func NewWithdrawalHandler(withdrawalService *service.WithdrawalService) *Withdra
 
 func (h *WithdrawalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/v1/withdrawals")
+	if path != "" && path != "/" {
+		path = strings.TrimSuffix(path, "/")
+	}
 	
 	if path == "/accounts" {
 		if r.Method == http.MethodGet {
@@ -46,12 +49,50 @@ func (h *WithdrawalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if path == "" && r.Method == http.MethodPost {
+	if (path == "" || path == "/") && r.Method == http.MethodPost {
 		h.handleSubmitWithdrawal(w, r)
 		return
 	}
 
+	if (path == "" || path == "/") && r.Method == http.MethodGet {
+		h.handleListHistory(w, r)
+		return
+	}
+
 	writeJSON(w, http.StatusNotFound, map[string]string{"message": message.RouteNotFound})
+}
+
+func (h *WithdrawalHandler) handleListHistory(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	limit := 20
+	offset := 0
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+			limit = val
+		}
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
+			offset = val
+		}
+	}
+
+	requests, err := h.withdrawalService.ListHistory(r.Context(), claims.UserID, limit, offset)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+
+	if requests == nil {
+		requests = []withdrawal.WithdrawalRequest{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": requests})
 }
 
 func (h *WithdrawalHandler) handleListAccounts(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +134,7 @@ func (h *WithdrawalHandler) handleAddAccount(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if strings.TrimSpace(req.ProviderCode) == "" || strings.TrimSpace(req.AccountNumber) == "" || strings.TrimSpace(req.AccountName) == "" {
+	if strings.TrimSpace(req.AccountNumber) == "" || strings.TrimSpace(req.AccountName) == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Missing required fields"})
 		return
 	}

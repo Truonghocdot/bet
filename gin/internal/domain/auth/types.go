@@ -92,12 +92,18 @@ type UserProfile struct {
 	AffiliateProfile *AffiliateProfile `json:"affiliate_profile,omitempty"`
 }
 
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 type AuthResponse struct {
-	User        User              `json:"user"`
-	Affiliate   *AffiliateProfile `json:"affiliate_profile,omitempty"`
-	AccessToken string            `json:"access_token"`
-	TokenType   string            `json:"token_type"`
-	ExpiresIn   int64             `json:"expires_in"`
+	User             User              `json:"user"`
+	Affiliate        *AffiliateProfile `json:"affiliate_profile,omitempty"`
+	AccessToken      string            `json:"access_token"`
+	RefreshToken     string            `json:"refresh_token,omitempty"`
+	TokenType        string            `json:"token_type"`
+	ExpiresIn        int64             `json:"expires_in"`
+	RefreshExpiresIn int64             `json:"refresh_expires_in,omitempty"`
 }
 
 type TokenClaims struct {

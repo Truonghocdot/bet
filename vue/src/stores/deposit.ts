@@ -120,6 +120,15 @@ export const useDepositStore = defineStore('deposit', () => {
     } catch (e: any) {
       const err = e as ApiError
       if (err?.status === 401) {
+        if (auth.refreshToken) {
+          try {
+            await auth.refresh()
+            return await getStatus(clientRef)
+          } catch {
+            auth.logout()
+            throw e
+          }
+        }
         auth.logout()
         throw e
       }

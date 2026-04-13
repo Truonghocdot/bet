@@ -25,8 +25,14 @@ export type AuthResponse = {
   user: AuthUser
   affiliate_profile?: AffiliateProfile | null
   access_token: string
+  refresh_token?: string
   token_type: string
   expires_in: number
+  refresh_expires_in?: number
+}
+
+export type RefreshTokenRequest = {
+  refresh_token: string
 }
 
 export type RegisterRequest = {
@@ -131,6 +137,43 @@ export type DepositStatusResponse = {
   message: string
   transaction: DepositTransaction
   receiving_account?: ReceivingAccount | null
+}
+export type SetupAccountRequest = {
+  unit: number
+  provider_code: string
+  account_name: string
+  account_number: string
+  is_default?: boolean
+}
+
+export type WithdrawalRequest = {
+  id: number
+  unit: number
+  amount: string
+  fee: string
+  net_amount: string
+  status: number
+  reason_rejected?: string
+  account_withdrawal_info_id: number
+  account_name: string
+  account_number: string
+  provider_code: string
+  created_at: string
+}
+
+export type ExchangeRequest = {
+  from_unit: number
+  to_unit: number
+  amount: string
+}
+
+export type ExchangeResponse = {
+  message: string
+  from_unit: number
+  to_unit: number
+  from_amount: string
+  to_amount: string
+  exchange_rate: string
 }
 
 export type PlayRoomItem = {
@@ -298,6 +341,7 @@ export type WalletSummaryItem = {
 
 export type WalletSummaryResponse = {
   message: string
+  exchange_rate: string
   wallets: WalletSummaryItem[]
 }
 

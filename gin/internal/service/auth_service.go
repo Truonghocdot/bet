@@ -16,6 +16,7 @@ import (
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/security/ratelimit"
 	"gin/internal/support/clock"
+	"gin/internal/support/id"
 	"gin/internal/support/message"
 )
 
@@ -47,6 +48,7 @@ type AuthConfig struct {
 	RegisterLimitIP       int
 	RegisterLimitEmail    int
 	RegisterLimitPhone    int
+	RefreshTokenTTL       time.Duration
 }
 
 type AuthService struct {
@@ -119,7 +121,7 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 		return auth.AuthResponse{}, err
 	}
 
-	return s.newAuthResponse(profile)
+	return s.newAuthResponse(ctx, profile, meta)
 }
 
 func (s *AuthService) Login(ctx context.Context, request auth.LoginRequest, meta auth.RequestMeta) (auth.AuthResponse, error) {
@@ -157,7 +159,7 @@ func (s *AuthService) Login(ctx context.Context, request auth.LoginRequest, meta
 	profile.User.LastLoginAt = &now
 	_ = s.clearLoginFailureState(ctx, account, meta)
 
-	return s.newAuthResponse(profile)
+	return s.newAuthResponse(ctx, profile, meta)
 }
 
 func (s *AuthService) LoginByUserID(ctx context.Context, userID int64) (auth.AuthResponse, error) {
@@ -172,7 +174,7 @@ func (s *AuthService) LoginByUserID(ctx context.Context, userID int64) (auth.Aut
 	}
 	profile.User.LastLoginAt = &now
 
-	return s.newAuthResponse(profile)
+	return s.newAuthResponse(ctx, profile, auth.RequestMeta{})
 }
 
 
@@ -339,6 +341,28 @@ func (s *AuthService) VerifyAccessToken(tokenValue string) (auth.TokenClaims, er
 	return s.tokenSigner.Verify(tokenValue)
 }
 
+func (s *AuthService) Refresh(ctx context.Context, request auth.RefreshTokenRequest, meta auth.RequestMeta) (auth.AuthResponse, error) {
+	userID, expiresAt, err := s.repository.FindRefreshToken(ctx, request.RefreshToken)
+	if err != nil {
+		return auth.AuthResponse{}, err
+	}
+
+	if clock.Now().After(expiresAt) {
+		_ = s.repository.DeleteRefreshToken(ctx, request.RefreshToken)
+		return auth.AuthResponse{}, errors.New(message.Unauthorized)
+	}
+
+	profile, err := s.repository.FindProfileByUserID(ctx, userID)
+	if err != nil {
+		return auth.AuthResponse{}, err
+	}
+
+	// Rotate token: delete old one
+	_ = s.repository.DeleteRefreshToken(ctx, request.RefreshToken)
+
+	return s.newAuthResponse(ctx, profile, meta)
+}
+
 func (s *AuthService) enforceRegisterRateLimit(ctx context.Context, meta auth.RequestMeta, email string, phone *string) error {
 	if strings.TrimSpace(meta.IP) != "" {
 		result, err := s.limiter.HitWindow(ctx, "auth:rate:register:ip:"+meta.IP, int64(s.config.RegisterLimitIP), s.config.RegisterWindow)
@@ -485,7 +509,7 @@ func normalizeAccount(channel auth.OTPChannel, account string) string {
 	}
 }
 
-func (s *AuthService) newAuthResponse(profile auth.UserProfile) (auth.AuthResponse, error) {
+func (s *AuthService) newAuthResponse(ctx context.Context, profile auth.UserProfile, meta auth.RequestMeta) (auth.AuthResponse, error) {
 	issuedAt := clock.Now()
 	expiresAt := issuedAt.Add(s.tokenSigner.TTL())
 
@@ -500,11 +524,31 @@ func (s *AuthService) newAuthResponse(profile auth.UserProfile) (auth.AuthRespon
 		return auth.AuthResponse{}, err
 	}
 
+	refreshTokenValue := id.Long()
+	refreshTTL := s.config.RefreshTokenTTL
+	if refreshTTL == 0 {
+		refreshTTL = 30 * 24 * time.Hour
+	}
+	refreshExpiresAt := issuedAt.Add(refreshTTL)
+
+	err = s.repository.CreateRefreshToken(ctx, repopg.CreateRefreshTokenParams{
+		UserID:    profile.User.ID,
+		Token:     refreshTokenValue,
+		ExpiresAt: refreshExpiresAt,
+		IP:        meta.IP,
+		UserAgent: meta.UserAgent,
+	})
+	if err != nil {
+		return auth.AuthResponse{}, err
+	}
+
 	return auth.AuthResponse{
-		User:        profile.User,
-		Affiliate:   profile.AffiliateProfile,
-		AccessToken: accessToken,
-		TokenType:   "Bearer",
-		ExpiresIn:   int64(time.Until(expiresAt).Seconds()),
+		User:             profile.User,
+		Affiliate:        profile.AffiliateProfile,
+		AccessToken:      accessToken,
+		RefreshToken:     refreshTokenValue,
+		TokenType:        "Bearer",
+		ExpiresIn:        int64(time.Until(expiresAt).Seconds()),
+		RefreshExpiresIn: int64(time.Until(refreshExpiresAt).Seconds()),
 	}, nil
 }

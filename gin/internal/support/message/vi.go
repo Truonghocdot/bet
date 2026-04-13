@@ -11,6 +11,7 @@ const (
 	InvalidResetPayload            = "Dữ liệu đặt lại mật khẩu không hợp lệ"
 	InvalidBetPayload              = "Dữ liệu đặt cược không hợp lệ"
 	InvalidDepositPayload          = "Dữ liệu nạp tiền không hợp lệ"
+	InvalidTokenPayload            = "Dữ liệu token không hợp lệ"
 	RouteNotFound                  = "Không tìm thấy đường dẫn"
 	MissingConnectionID            = "Thiếu header X-Connection-ID"
 	InternalServerError            = "Lỗi hệ thống"

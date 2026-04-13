@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
-
 import { useAuthStore } from './auth'
 import { useNotificationsStore } from './notifications'
+import { request, type ApiError } from '@/shared/api/http'
+import type { SetupAccountRequest, WithdrawalRequest } from '@/shared/api/types'
+import { computed, ref } from 'vue'
 
 export interface WithdrawalAccount {
   id: number
@@ -19,119 +20,182 @@ export const useWithdrawStore = defineStore('withdraw', () => {
   const notify = useNotificationsStore()
 
   const accounts = ref<WithdrawalAccount[]>([])
+  const history = ref<WithdrawalRequest[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
   const vndAccounts = computed(() => accounts.value.filter((a) => a.unit === 1))
   const usdtAccounts = computed(() => accounts.value.filter((a) => a.unit === 2))
 
-  async function fetchAccounts() {
+  async function fetchAccounts(): Promise<any> {
     if (!auth.accessToken) return
     loading.value = true
     error.value = null
 
     try {
-      const response = await fetch('/api/v1/withdrawals/accounts', {
-        headers: {
-          'Authorization': `Bearer ${auth.accessToken}`,
-          'Accept': 'application/json',
-        },
+      const res = await request<{ data: WithdrawalAccount[] }>('GET', '/v1/withdrawals/accounts', {
+         token: auth.accessToken
       })
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data?.message || 'Có lỗi khi tải danh sách phương thức rút tiền')
+      accounts.value = res.data || []
+      return res
+    } catch (e: any) {
+      const err = e as ApiError
+      if (err?.status === 401) {
+        if (auth.refreshToken) {
+           try {
+             await auth.refresh()
+             return await fetchAccounts()
+           } catch {
+             auth.logout()
+             throw e
+           }
+        }
+        auth.logout()
+        throw e
       }
-      accounts.value = data.data || []
-    } catch (err: any) {
-      error.value = err.message
+      error.value = err.message || 'Có lỗi khi tải danh sách phương thức rút tiền'
+      throw e
     } finally {
       loading.value = false
     }
   }
 
-  async function addAccount(payload: { unit: number; provider_code: string; account_name: string; account_number: string }) {
+  async function addAccount(payload: SetupAccountRequest): Promise<any> {
     if (!auth.accessToken) return
     loading.value = true
     error.value = null
 
     try {
-      const response = await fetch('/api/v1/withdrawals/accounts', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${auth.accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ ...payload, is_default: true }),
+      const res = await request<{ id: number; message: string }>('POST', '/v1/withdrawals/accounts', {
+        token: auth.accessToken,
+        body: { ...payload, is_default: true }
       })
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data?.message || 'Thêm tài khoản thất bại')
-      }
+      
       notify.addLocalNotification('Thành công', 'Đã lưu cấu hình nhận tiền của bạn.')
       await fetchAccounts()
-    } catch (err: any) {
-      error.value = err.message
-      throw err
+      return res
+    } catch (e: any) {
+      const err = e as ApiError
+      if (err?.status === 401) {
+        if (auth.refreshToken) {
+           try {
+              await auth.refresh()
+              return await addAccount(payload)
+           } catch {
+              auth.logout()
+              throw e
+           }
+        }
+        auth.logout()
+        throw e
+      }
+      error.value = err.message || 'Thêm tài khoản thất bại'
+      throw e
     } finally {
       loading.value = false
     }
   }
 
-  async function deleteAccount(id: number) {
+  async function deleteAccount(id: number): Promise<any> {
     if (!auth.accessToken) return
     loading.value = true
     error.value = null
 
     try {
-      const response = await fetch(`/api/v1/withdrawals/accounts/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${auth.accessToken}`,
-          'Accept': 'application/json',
-        },
-      })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data?.message || 'Có lỗi khi xóa phương thức')
-      }
+       const res = await request<{ message: string }>('DELETE', `/v1/withdrawals/accounts/${id}`, {
+          token: auth.accessToken
+       })
       notify.addLocalNotification('Thành công', 'Đã xoá hồ sơ nhận tiền.')
       accounts.value = accounts.value.filter((a) => a.id !== id)
-    } catch (err: any) {
-      error.value = err.message
-      throw err
+      return res
+    } catch (e: any) {
+       const err = e as ApiError
+       if (err?.status === 401) {
+          if (auth.refreshToken) {
+             try {
+                await auth.refresh()
+                return await deleteAccount(id)
+             } catch {
+                auth.logout()
+                throw e
+             }
+          }
+          auth.logout()
+          throw e
+       }
+      error.value = err.message || 'Có lỗi khi xóa phương thức'
+      throw e
     } finally {
       loading.value = false
     }
   }
 
-  async function submitWithdrawal(payload: { account_withdrawal_info_id: number; amount: string }) {
+  async function submitWithdrawal(payload: { account_withdrawal_info_id: number; amount: string }): Promise<boolean> {
     if (!auth.accessToken) return false
     loading.value = true
     error.value = null
 
     try {
-      const response = await fetch('/api/v1/withdrawals/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${auth.accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload),
+      await request<any>('POST', '/v1/withdrawals', {
+        token: auth.accessToken,
+        body: payload
       })
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data?.message || 'Không thể tạo lệnh rút đổi')
-      }
+      
       notify.addLocalNotification('Đã tạo lệnh rút', 'Vui lòng chờ chuyên viên xét duyệt phiếu rút.')
       return true
-    } catch (err: any) {
+    } catch (e: any) {
+      const err = e as ApiError
+      if (err?.status === 401) {
+         if (auth.refreshToken) {
+            try {
+               await auth.refresh()
+               return await submitWithdrawal(payload)
+            } catch {
+               auth.logout()
+               return false
+            }
+         }
+         auth.logout()
+         return false
+      }
       error.value = err.message
       notify.addLocalNotification('Lỗi', err.message, 'error')
       return false
     } finally {
       loading.value = false
+    }
+  }
+
+  async function fetchHistory(limit = 20, offset = 0): Promise<any> {
+    if (!auth.accessToken) return
+    loading.value = true
+    error.value = null
+
+    try {
+       const res = await request<{ data: WithdrawalRequest[] }>('GET', `/v1/withdrawals?limit=${limit}&offset=${offset}`, {
+          token: auth.accessToken
+       })
+       history.value = res.data || []
+       return res
+    } catch (e: any) {
+       const err = e as ApiError
+       if (err?.status === 401) {
+          if (auth.refreshToken) {
+             try {
+                await auth.refresh()
+                return await fetchHistory(limit, offset)
+             } catch {
+                auth.logout()
+                throw e
+             }
+          }
+          auth.logout()
+          throw e
+       }
+       error.value = err.message || 'Không thể tải lịch sử rút tiền'
+       throw e
+    } finally {
+       loading.value = false
     }
   }
 
@@ -141,9 +205,11 @@ export const useWithdrawStore = defineStore('withdraw', () => {
     usdtAccounts,
     loading,
     error,
+    history,
     fetchAccounts,
     addAccount,
     deleteAccount,
     submitWithdrawal,
+    fetchHistory,
   }
 })

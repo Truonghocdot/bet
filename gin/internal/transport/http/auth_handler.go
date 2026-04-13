@@ -51,6 +51,21 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, response)
 }
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	var request auth.RefreshTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": message.InvalidTokenPayload})
+		return
+	}
+
+	response, err := h.authService.Refresh(r.Context(), request, extractRequestMeta(r))
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	claims, ok := authmiddleware.CurrentClaims(r.Context())

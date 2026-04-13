@@ -146,6 +146,19 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
 
+  function addLocalNotification(title: string, body: string, type: 'info' | 'error' | 'success' = 'success') {
+    const id = Date.now()
+    items.value.unshift({
+       id,
+       title,
+       body,
+       status: 1,
+       audience: 1,
+       created_at: new Date().toISOString(),
+       is_read: false
+    })
+  }
+
   return {
     items,
     loading,
@@ -157,6 +170,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     connectStream,
     disconnectStream,
     markRead,
+    addLocalNotification,
     reset,
   }
 })

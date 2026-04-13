@@ -184,3 +184,43 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 
 	return requestID, nil
 }
+
+func (r *WithdrawalRepository) ListWithdrawalRequests(ctx context.Context, userID int64, limit, offset int) ([]withdrawal.WithdrawalRequest, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		select r.id, r.unit, r.amount::text, r.fee::text, r.net_amount::text, r.status, coalesce(r.reason_rejected, ''), 
+		       r.account_withdrawal_info_id, a.account_name, a.account_number, coalesce(a.provider_code, ''), r.created_at
+		from withdrawal_requests r
+		join account_withdrawal_infos a on r.account_withdrawal_info_id = a.id
+		where r.user_id = $1
+		order by r.created_at desc
+		limit $2 offset $3
+	`, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var records []withdrawal.WithdrawalRequest
+	for rows.Next() {
+		var record withdrawal.WithdrawalRequest
+		if err := rows.Scan(
+			&record.ID,
+			&record.Unit,
+			&record.Amount,
+			&record.Fee,
+			&record.NetAmount,
+			&record.Status,
+			&record.ReasonRejected,
+			&record.AccountWithdrawalInfoID,
+			&record.AccountName,
+			&record.AccountNumber,
+			&record.ProviderCode,
+			&record.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+
+	return records, rows.Err()
+}

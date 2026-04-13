@@ -74,6 +74,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'main', title: 'Rút tiền', requiresAuth: true },
   },
   {
+    path: '/exchange',
+    name: 'exchange',
+    component: () => import('../pages/ExchangeView.vue'),
+    meta: { layout: 'main', title: 'Chuyển đổi ví', requiresAuth: true },
+  },
+  {
     path: '/account',
     name: 'account',
     component: () => import('../pages/AccountView.vue'),

@@ -29,7 +29,7 @@ type WithdrawalRequest struct {
 
 type SetupAccountRequest struct {
 	Unit          int    `json:"unit" binding:"required,oneof=1 2"`
-	ProviderCode  string `json:"provider_code" binding:"required,max=50"`
+	ProviderCode  string `json:"provider_code" binding:"max=50"`
 	AccountName   string `json:"account_name" binding:"required,max=255"`
 	AccountNumber string `json:"account_number" binding:"required,max=255"`
 	IsDefault     bool   `json:"is_default"`

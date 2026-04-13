@@ -85,8 +85,9 @@ func New() (*App, error) {
 		RegisterLimitIP:       config.RegisterLimitIP,
 		RegisterLimitEmail:    config.RegisterLimitEmail,
 		RegisterLimitPhone:    config.RegisterLimitPhone,
+		RefreshTokenTTL:       config.AuthRefreshTTL,
 	})
-	walletService := service.NewWalletService(walletRepository, broker)
+	walletService := service.NewWalletService(walletRepository, broker, redisClient)
 	notificationService := service.NewNotificationService(notificationRepository)
 	sessionService := service.NewGameSessionService(hub, walletRepository)
 	betService := service.NewBetService(publisher, sessionService, gameRepository, walletRepository)

@@ -25,7 +25,7 @@ class SSOController extends Controller
         $redis = Redis::connection('shared'); 
         $redis->setex("sso:token:{$token}", 60, $user->id);
 
-        $vueUrl = env('VUE_ADMIN_CONTROL_URL', 'http://localhost:5173/auth/sso');
+        $vueUrl = env('VUE_ADMIN_CONTROL_URL', 'http://localhost:5173/auth/sso'); 
         
         return redirect("{$vueUrl}?token={$token}");
     }

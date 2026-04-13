@@ -142,14 +142,19 @@ onMounted(() => {
       {{ wallet.error }}
     </p>
 
-    <section class="grid gap-2 md:grid-cols-[1.25fr_0.75fr]">
+    <section class="grid gap-2 md:grid-cols-2">
       <div class="grid gap-2.5">
         <RouterLink to="/deposit" class="grid min-h-14 place-items-center rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-extrabold text-white transition-transform active:scale-95">
           Nạp tiền
         </RouterLink>
-        <RouterLink to="/withdraw" class="grid min-h-14 place-items-center rounded-[18px] bg-white font-extrabold text-on-surface shadow-[0_8px_20px_rgba(255,109,102,0.05)] transition-transform active:scale-95">
-          Rút tiền
-        </RouterLink>
+        <div class="grid grid-cols-2 gap-2.5">
+          <RouterLink to="/withdraw" class="grid min-h-14 place-items-center rounded-[18px] bg-white font-extrabold text-on-surface shadow-[0_8px_20px_rgba(255,109,102,0.05)] transition-transform active:scale-95">
+            Rút tiền
+          </RouterLink>
+          <RouterLink to="/exchange" class="grid min-h-14 place-items-center rounded-[18px] bg-white font-extrabold text-on-surface shadow-[0_8px_20px_rgba(255,109,102,0.05)] transition-transform active:scale-95">
+            Chuyển tiền
+          </RouterLink>
+        </div>
       </div>
 
       <article class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(255,109,102,0.05)] md:p-5">

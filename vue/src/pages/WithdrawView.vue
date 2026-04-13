@@ -16,6 +16,7 @@ const withdraw = useWithdrawStore()
 const method = ref<'vnd' | 'usdt'>('vnd')
 const amount = ref('')
 const isAddingForm = ref(false)
+const isSuccess = ref(false)
 
 // Form for adding method
 const addProvider = ref('')
@@ -57,7 +58,7 @@ const canSubmit = computed(() => {
 
 onMounted(async () => {
   if (!auth.isAuthenticated) return router.replace('/auth')
-  await Promise.all([wallet.fetchSummary(), withdraw.fetchAccounts()])
+  await Promise.all([wallet.fetchSummary(), withdraw.fetchAccounts(), withdraw.fetchHistory()])
 })
 
 // Methods limit helpers
@@ -67,7 +68,7 @@ const presets = computed(() => {
 })
 
 async function submitSaveMethod() {
-  if (!addProvider.value || !addHolder.value || !addNumber.value) return
+  if (!addHolder.value || !addNumber.value) return
   await withdraw.addAccount({
     unit: method.value === 'vnd' ? 1 : 2,
     provider_code: addProvider.value.toUpperCase().trim(),
@@ -88,7 +89,8 @@ async function handleWithdraw() {
   })
   if (success) {
     amount.value = ''
-    await wallet.fetchSummary() // update locked balance visualization
+    isSuccess.value = true
+    await Promise.all([wallet.fetchSummary(), withdraw.fetchHistory()])
   }
 }
 
@@ -150,7 +152,7 @@ async function handleRemoveMethod() {
         <form class="mt-4 space-y-3" @submit.prevent="submitSaveMethod">
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Tên Ngân hàng (VD: MBBank, VCB)' : 'Mạng lưới (VD: TRC20, ERC20)' }}</span>
-            <input v-model="addProvider" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none" required />
+            <input v-model="addProvider" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none" :required="method === 'usdt'" />
           </label>
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Chủ tài khoản (Không dấu)' : 'Nhãn ghi nhớ' }}</span>
@@ -171,10 +173,19 @@ async function handleRemoveMethod() {
       </section>
 
       <!-- ĐÃ CÓ VÍ, CHO PHÉP NHẬP SỐ TIỀN RÚT -->
-      <section v-else class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
+      <section v-else class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)] relative overflow-hidden">
+        <div v-if="isSuccess" class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
+           <div class="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center text-green-500 mb-4 animate-bounce">
+              <span class="material-symbols-outlined text-4xl">check_circle</span>
+           </div>
+           <h3 class="text-lg font-black text-slate-800">Gửi lệnh thành công</h3>
+           <p class="text-xs font-bold text-slate-400 mt-1">Hệ thống đang xét duyệt phiếu rút</p>
+           <button @click="isSuccess = false; amount = ''" class="mt-6 px-8 py-2 rounded-full bg-slate-100 text-sm font-black text-slate-600">Đóng</button>
+        </div>
+
         <div class="flex items-start justify-between rounded-[16px] bg-[rgba(65,82,143,0.06)] p-3.5 mb-4">
           <div class="overflow-hidden">
-            <p class="m-0 text-[0.7rem] font-bold text-on-surface-variant uppercase">{{ currentAccount?.provider_code }}</p>
+            <p class="m-0 text-[0.7rem] font-bold text-on-surface-variant uppercase">{{ currentAccount?.provider_code || 'Ngân hàng' }}</p>
             <p class="m-0 mt-0.5 truncate font-black text-on-surface">{{ currentAccount?.account_name }}</p>
             <p class="m-0 font-mono text-[0.85rem] font-bold text-primary">{{ currentAccount?.account_number }}</p>
           </div>
@@ -210,6 +221,44 @@ async function handleRemoveMethod() {
         </form>
       </section>
     </transition>
+
+    <!-- LỊCH SỬ RÚT TIỀN -->
+    <section class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
+      <div class="flex items-center justify-between mb-4">
+         <h2 class="m-0 text-base font-black text-primary">Lịch sử rút tiền</h2>
+         <button @click="() => withdraw.fetchHistory()" class="text-xs font-bold text-blue-500 uppercase tracking-tighter">Làm mới</button>
+      </div>
+
+      <div class="space-y-3">
+         <div v-if="withdraw.history.length === 0" class="py-10 text-center">
+            <p class="text-xs font-bold text-slate-300">Chưa có giao dịch rút tiền nào</p>
+         </div>
+         <div v-for="item in withdraw.history" :key="item.id" 
+              class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100/50">
+            <div class="flex gap-3 items-center">
+               <div class="h-10 w-10 rounded-xl flex items-center justify-center font-black text-xs"
+                    :class="item.unit === 1 ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'">
+                  {{ item.unit === 1 ? 'VND' : 'USDT' }}
+               </div>
+               <div>
+                  <p class="m-0 text-xs font-black text-slate-700">Rút {{ formatViMoney(item.amount, item.unit === 1 ? 0 : 2) }}</p>
+                  <p class="m-0 text-[10px] font-bold text-slate-400 mt-0.5">{{ item.created_at.split('T')[0] }} {{ item.created_at.split('T')[1]?.substring(0, 5) || '' }}</p>
+               </div>
+            </div>
+            <div class="text-right">
+               <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase"
+                     :class="[
+                        item.status === 0 ? 'bg-amber-100 text-amber-600' : '',
+                        item.status === 1 ? 'bg-green-100 text-green-600' : '',
+                        item.status === 2 ? 'bg-rose-100 text-rose-600' : ''
+                     ]">
+                  {{ item.status === 0 ? 'Đang chờ' : (item.status === 1 ? 'Thành công' : 'Từ chối') }}
+               </span>
+               <p v-if="item.reason_rejected" class="m-0 mt-1 text-[9px] font-medium text-rose-400 italic font-mono">{{ item.reason_rejected }}</p>
+            </div>
+         </div>
+      </div>
+    </section>
   </div>
 </template>
 

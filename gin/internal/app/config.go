@@ -43,6 +43,7 @@ type Config struct {
 	RegisterLimitIP                  int
 	RegisterLimitEmail               int
 	RegisterLimitPhone               int
+	AuthRefreshTTL                   time.Duration
 }
 
 func LoadConfig() Config {
@@ -83,6 +84,7 @@ func LoadConfig() Config {
 		RegisterLimitIP:                  getEnvInt("AUTH_REGISTER_LIMIT_IP", 5),
 		RegisterLimitEmail:               getEnvInt("AUTH_REGISTER_LIMIT_EMAIL", 3),
 		RegisterLimitPhone:               getEnvInt("AUTH_REGISTER_LIMIT_PHONE", 3),
+		AuthRefreshTTL:                   getEnvDuration("AUTH_REFRESH_TOKEN_TTL", 30*24*time.Hour),
 	}
 }
 

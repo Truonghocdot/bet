@@ -223,9 +223,9 @@ function calculateLotteryPL(room: RoomStats, digits: number[]) {
     
     const result = digits.join('')
     const sum = digits.reduce((a, b) => a + b, 0)
-    const last = digits[4]
+    const last = digits?.[4] ?? 0
     const bigSmall = last >= 5 ? 'big' : 'small'
-    const oddEven = last % 2 === 0 ? 'even' : 'odd'
+    const oddEven = (last ?? 0) % 2 === 0 ? 'even' : 'odd'
 
     const winTags = new Set([
         'pick5_' + result,
@@ -253,9 +253,9 @@ async function setLotteryResult(room: RoomStats) {
     const digits = getLotteryDice(room.code)
     const result = digits.join('')
     const sum = digits.reduce((a, b) => a + b, 0)
-    const last = digits[4]
+    const last = digits?.[4] ?? 0
     const bigSmall = last >= 5 ? 'big' : 'small'
-    const oddEven = last % 2 === 0 ? 'even' : 'odd'
+    const oddEven = (last ?? 0) % 2 === 0 ? 'even' : 'odd'
 
     const payload = {
         game_type: 'lottery',
@@ -502,11 +502,11 @@ const filteredRooms = computed(() => {
           <div v-else-if="room.period && room.game_type === 2" class="border-t border-slate-700/50 pt-5">
              <div class="flex justify-between items-end mb-4">
                 <h3 class="text-[10px] font-black text-amber-400 uppercase tracking-[0.2em]">Can thiệp K3 Xúc Xắc</h3>
-                <div v-for="dice in [getK3Dice(room.code)]" :key="room.code" 
-                     class="text-[10px] font-bold"
-                     :class="calculateK3PL(room, dice[0]+dice[1]+dice[2]) >= 0 ? 'text-green-400' : 'text-rose-400'">
-                    P/L: {{ formatViMoney(calculateK3PL(room, dice[0]+dice[1]+dice[2]).toString()) }}
-                </div>
+                     <div v-if="getK3Dice(room.code) as any" 
+                          class="mt-1 text-[0.65rem] font-black" 
+                          :class="calculateK3PL(room, (getK3Dice(room.code)?.[0] ?? 0) + (getK3Dice(room.code)?.[1] ?? 0) + (getK3Dice(room.code)?.[2] ?? 0)) >= 0 ? 'text-green-400' : 'text-rose-400'">
+                         P/L: {{ formatViMoney(calculateK3PL(room, (getK3Dice(room.code)?.[0] ?? 0) + (getK3Dice(room.code)?.[1] ?? 0) + (getK3Dice(room.code)?.[2] ?? 0)).toString()) }}
+                     </div>
              </div>
              
              <div class="flex flex-col gap-4">

@@ -37,6 +37,14 @@ type RegisterUserParams struct {
 	RegisterURL  string
 }
 
+type CreateRefreshTokenParams struct {
+	UserID    int64
+	Token     string
+	ExpiresAt time.Time
+	IP        string
+	UserAgent string
+}
+
 type userRecord struct {
 	auth.User
 	PasswordHash string
@@ -160,6 +168,42 @@ func (r *UserRepository) FindProfileByUserID(ctx context.Context, userID int64) 
 		User:             record.User,
 		AffiliateProfile: profile,
 	}, nil
+}
+
+func (r *UserRepository) CreateRefreshToken(ctx context.Context, params CreateRefreshTokenParams) error {
+	_, err := r.db.ExecContext(ctx, `
+		insert into auth_refresh_tokens (user_id, token, expires_at, ip, user_agent, created_at, updated_at)
+		values ($1, $2, $3, $4, $5, now(), now())
+	`, params.UserID, params.Token, params.ExpiresAt, params.IP, params.UserAgent)
+	return err
+}
+
+func (r *UserRepository) FindRefreshToken(ctx context.Context, token string) (int64, time.Time, error) {
+	var userID int64
+	var expiresAt time.Time
+	err := r.db.QueryRowContext(ctx, `
+		select user_id, expires_at
+		from auth_refresh_tokens
+		where token = $1
+		limit 1
+	`, token).Scan(&userID, &expiresAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, time.Time{}, errors.New(message.Unauthorized)
+		}
+		return 0, time.Time{}, err
+	}
+	return userID, expiresAt, nil
+}
+
+func (r *UserRepository) DeleteRefreshToken(ctx context.Context, token string) error {
+	_, err := r.db.ExecContext(ctx, `delete from auth_refresh_tokens where token = $1`, token)
+	return err
+}
+
+func (r *UserRepository) DeleteRefreshTokensByUserID(ctx context.Context, userID int64) error {
+	_, err := r.db.ExecContext(ctx, `delete from auth_refresh_tokens where user_id = $1`, userID)
+	return err
 }
 
 func (r *UserRepository) findUserRecordByAccount(ctx context.Context, account string) (userRecord, error) {

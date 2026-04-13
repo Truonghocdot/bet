@@ -15,6 +15,22 @@ type WalletBalance struct {
 }
 
 type WalletSummaryResponse struct {
-	Message string          `json:"message"`
-	Wallets []WalletBalance `json:"wallets"`
+	Message      string          `json:"message"`
+	ExchangeRate string          `json:"exchange_rate"`
+	Wallets      []WalletBalance `json:"wallets"`
+}
+
+type ExchangeRequest struct {
+	FromUnit int    `json:"from_unit" binding:"required,oneof=1 2"`
+	ToUnit   int    `json:"to_unit" binding:"required,oneof=1 2"`
+	Amount   string `json:"amount" binding:"required"`
+}
+
+type ExchangeResponse struct {
+	Message      string `json:"message"`
+	FromUnit     int    `json:"from_unit"`
+	ToUnit       int    `json:"to_unit"`
+	FromAmount   string `json:"from_amount"`
+	ToAmount     string `json:"to_amount"`
+	ExchangeRate string `json:"exchange_rate"`
 }

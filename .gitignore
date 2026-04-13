@@ -2,8 +2,9 @@
 .env
 .env.backup
 .env.production
-# /ff789-vue-temp
+/ff789-vue-temp
 
 *.log.gz
 /storage
 /bin
+main

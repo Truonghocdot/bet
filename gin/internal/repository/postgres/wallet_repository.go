@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"time"
 )
 
@@ -82,4 +84,77 @@ func (r *WalletRepository) ListByUserID(ctx context.Context, userID int64) ([]Wa
 	}
 
 	return records, rows.Err()
+}
+
+func (r *WalletRepository) Exchange(ctx context.Context, userID int64, fromUnit, toUnit int, fromAmount, toAmount string) error {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Lock From Wallet
+	var fromWalletID int64
+	var fromBalanceBefore string
+	err = tx.QueryRowContext(ctx, `
+		select id, balance::text from wallets 
+		where user_id = $1 and unit = $2 and status = 1 
+		for update
+	`, userID, fromUnit).Scan(&fromWalletID, &fromBalanceBefore)
+	if err != nil {
+		return fmt.Errorf("không tìm thấy ví nguồn: %w", err)
+	}
+
+	// Check balance
+	if compareNumeric(fromBalanceBefore, fromAmount) < 0 {
+		return errors.New("số dư không đủ để chuyển đổi")
+	}
+
+	// 2. Lock To Wallet
+	var toWalletID int64
+	var toBalanceBefore string
+	err = tx.QueryRowContext(ctx, `
+		select id, balance::text from wallets 
+		where user_id = $1 and unit = $2 and status = 1 
+		for update
+	`, userID, toUnit).Scan(&toWalletID, &toBalanceBefore)
+	if err != nil {
+		return fmt.Errorf("không tìm thấy ví đích: %w", err)
+	}
+
+	fromBalanceAfter, _ := subtractNumeric(fromBalanceBefore, fromAmount)
+	toBalanceAfter, _ := addNumeric(toBalanceBefore, toAmount)
+
+	// 3. Update From Wallet
+	if _, err := tx.ExecContext(ctx, `
+		update wallets set balance = balance - $1::numeric(20,8), updated_at = now()
+		where id = $2
+	`, fromAmount, fromWalletID); err != nil {
+		return err
+	}
+
+	// 4. Update To Wallet
+	if _, err := tx.ExecContext(ctx, `
+		update wallets set balance = balance + $1::numeric(20,8), updated_at = now()
+		where id = $2
+	`, toAmount, toWalletID); err != nil {
+		return err
+	}
+
+	// 5. Ledger entries
+	if _, err := tx.ExecContext(ctx, `
+		insert into wallet_ledger_entries (wallet_id, user_id, direction, amount, balance_before, balance_after, reference_type, note, created_at)
+		values ($1, $2, 2, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8), 'exchange', $6, now())
+	`, fromWalletID, userID, fromAmount, fromBalanceBefore, fromBalanceAfter, fmt.Sprintf("Chuyển đổi sang %d", toUnit)); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		insert into wallet_ledger_entries (wallet_id, user_id, direction, amount, balance_before, balance_after, reference_type, note, created_at)
+		values ($1, $2, 1, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8), 'exchange', $6, now())
+	`, toWalletID, userID, toAmount, toBalanceBefore, toBalanceAfter, fmt.Sprintf("Nhận từ chuyển đổi ví %d", fromUnit)); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }

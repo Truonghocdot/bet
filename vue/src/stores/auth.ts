@@ -20,6 +20,8 @@ const STORAGE_KEY = 'ff789:auth:v1'
 type PersistedAuth = {
   accessToken: string
   expiresAt: number
+  refreshToken: string
+  refreshExpiresAt: number
   user: AuthUser | null
   affiliateProfile: AffiliateProfile | null
 }
@@ -27,6 +29,8 @@ type PersistedAuth = {
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string>('')
   const expiresAt = ref<number>(0)
+  const refreshToken = ref<string>('')
+  const refreshExpiresAt = ref<number>(0)
   const user = ref<AuthUser | null>(null)
   const affiliateProfile = ref<AffiliateProfile | null>(null)
 
@@ -43,6 +47,8 @@ export const useAuthStore = defineStore('auth', () => {
     const payload: PersistedAuth = {
       accessToken: accessToken.value,
       expiresAt: expiresAt.value,
+      refreshToken: refreshToken.value,
+      refreshExpiresAt: refreshExpiresAt.value,
       user: user.value,
       affiliateProfile: affiliateProfile.value,
     }
@@ -52,6 +58,8 @@ export const useAuthStore = defineStore('auth', () => {
   function clear() {
     accessToken.value = ''
     expiresAt.value = 0
+    refreshToken.value = ''
+    refreshExpiresAt.value = 0
     user.value = null
     affiliateProfile.value = null
     error.value = ''
@@ -62,12 +70,15 @@ export const useAuthStore = defineStore('auth', () => {
   function hydrate() {
     const saved = readJSON<PersistedAuth>(STORAGE_KEY)
     if (!saved) return
-    if (saved.expiresAt && Date.now() >= saved.expiresAt) {
+    // Check if even refresh token is expired
+    if (saved.refreshExpiresAt && Date.now() >= saved.refreshExpiresAt) {
       clear()
       return
     }
     accessToken.value = saved.accessToken ?? ''
     expiresAt.value = saved.expiresAt ?? 0
+    refreshToken.value = saved.refreshToken ?? ''
+    refreshExpiresAt.value = saved.refreshExpiresAt ?? 0
     user.value = saved.user ?? null
     affiliateProfile.value = saved.affiliateProfile ?? null
   }
@@ -75,6 +86,8 @@ export const useAuthStore = defineStore('auth', () => {
   function applyAuthResponse(res: AuthResponse) {
     accessToken.value = res.access_token
     expiresAt.value = Date.now() + Number(res.expires_in ?? 0) * 1000
+    refreshToken.value = res.refresh_token ?? ''
+    refreshExpiresAt.value = res.refresh_expires_in ? (Date.now() + Number(res.refresh_expires_in) * 1000) : 0
     user.value = res.user
     affiliateProfile.value = res.affiliate_profile ?? null
     persist()
@@ -125,11 +138,44 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (e: any) {
       const err = e as ApiError
       if (err?.status === 401) {
+        // Try refresh if possible
+        if (refreshToken.value) {
+           try {
+              await refresh()
+              return await fetchMe()
+           } catch {
+              clear()
+              return null
+           }
+        }
         clear()
         return null
       }
       throw e
     }
+  }
+
+  let refreshPromise: Promise<AuthResponse> | null = null
+  async function refresh() {
+    if (refreshPromise) return refreshPromise
+    if (!refreshToken.value) throw new Error('No refresh token')
+
+    refreshPromise = (async () => {
+      try {
+        const res = await request<AuthResponse>('POST', '/v1/auth/refresh', {
+          body: { refresh_token: refreshToken.value },
+        })
+        applyAuthResponse(res)
+        return res
+      } catch (e) {
+        clear()
+        throw e
+      } finally {
+        refreshPromise = null
+      }
+    })()
+
+    return refreshPromise
   }
 
   function logout() {
@@ -181,6 +227,8 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     accessToken,
     expiresAt,
+    refreshToken,
+    refreshExpiresAt,
     user,
     affiliateProfile,
     loading,
@@ -190,6 +238,7 @@ export const useAuthStore = defineStore('auth', () => {
     applyAuthResponse,
     login,
     register,
+    refresh,
     fetchMe,
     logout,
     forgotPassword,

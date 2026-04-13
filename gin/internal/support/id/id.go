@@ -14,3 +14,12 @@ func New() string {
 
 	return hex.EncodeToString(buffer)
 }
+func Long() string {
+	buffer := make([]byte, 32)
+	_, err := rand.Read(buffer)
+	if err != nil {
+		return New() + New()
+	}
+
+	return hex.EncodeToString(buffer)
+}

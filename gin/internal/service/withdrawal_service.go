@@ -76,3 +76,7 @@ func (s *WithdrawalService) SubmitWithdrawalRequest(ctx context.Context, userID 
 
 	return s.repo.CreateWithdrawalRequest(ctx, userID, wallet.ID, account.ID, account.Unit, amountStr, fee, netAmount)
 }
+
+func (s *WithdrawalService) ListHistory(ctx context.Context, userID int64, limit, offset int) ([]withdrawal.WithdrawalRequest, error) {
+	return s.repo.ListWithdrawalRequests(ctx, userID, limit, offset)
+}
