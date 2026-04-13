@@ -23,10 +23,6 @@ const filteredNotifications = computed(() => {
 
 const unreadItems = computed(() => store.items.filter((item) => !item.is_read).slice(0, 2))
 
-function audienceLabel(audience: number) {
-  return audience === 1 ? 'Toàn bộ người dùng' : 'Nhắm theo tài khoản'
-}
-
 function toneByReadState(isRead: boolean) {
   return isRead ? 'info' : 'warning'
 }
@@ -166,7 +162,6 @@ onBeforeUnmount(() => {
             </div>
             <p class="mt-1.5 text-[0.76rem] leading-6 text-on-surface-variant">{{ item.body }}</p>
             <div class="mt-3 flex flex-wrap items-center gap-2 text-[0.68rem] text-on-surface-variant">
-              <span class="rounded-full bg-surface-container-low px-3 py-1 font-bold">{{ audienceLabel(item.audience) }}</span>
               <span>{{ formatViDateTime(item.publish_at || item.created_at) }}</span>
             </div>
             <button
