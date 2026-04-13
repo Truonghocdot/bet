@@ -6,6 +6,7 @@ use App\Enum\Transaction\WithdrawalStatus;
 use App\Enum\Wallet\UnitTransaction;
 use App\Models\User;
 use App\Models\Wallet\Wallet;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -40,10 +41,19 @@ class WithdrawalRequest extends Model
             'amount' => 'decimal:8',
             'fee' => 'decimal:8',
             'net_amount' => 'decimal:8',
-            'status' => WithdrawalStatus::class,
             'reviewed_at' => 'datetime',
             'paid_at' => 'datetime',
         ];
+    }
+
+    protected function status(): Attribute
+    {
+        return Attribute::make(
+            get: static fn (mixed $value): WithdrawalStatus => WithdrawalStatus::tryFrom((int) $value) ?? WithdrawalStatus::PENDING,
+            set: static fn (mixed $value): int => $value instanceof WithdrawalStatus
+                ? $value->value
+                : (WithdrawalStatus::tryFrom((int) $value)?->value ?? WithdrawalStatus::PENDING->value),
+        );
     }
 
     public function user(): BelongsTo

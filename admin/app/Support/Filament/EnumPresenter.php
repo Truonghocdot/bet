@@ -14,6 +14,8 @@ use App\Enum\Bet\DrawSource;
 use App\Enum\Bet\GameType;
 use App\Enum\Bet\PeriodStatus;
 use App\Enum\Bet\SettlementType;
+use App\Enum\Notification\NotificationAudience;
+use App\Enum\Notification\NotificationStatus;
 use App\Enum\Payment\PaymentReceivingAccountStatus;
 use App\Enum\Payment\PaymentReceivingAccountType;
 use App\Enum\Transaction\TransactionStatus;
@@ -127,6 +129,15 @@ class EnumPresenter
                 'REJECTED' => 'Từ chối',
                 'CANCELED' => 'Đã hủy',
                 'PAID' => 'Đã chi trả',
+            ],
+            NotificationStatus::class => [
+                'DRAFT' => 'Nháp',
+                'PUBLISHED' => 'Đã phát hành',
+                'ARCHIVED' => 'Lưu trữ',
+            ],
+            NotificationAudience::class => [
+                'ALL' => 'Toàn bộ người dùng',
+                'USERS' => 'Người dùng chỉ định',
             ],
             PaymentReceivingAccountType::class => [
                 'BANK' => 'Ngân hàng',
@@ -255,6 +266,15 @@ class EnumPresenter
                 'REJECTED' => 'danger',
                 'CANCELED' => 'gray',
                 'PAID' => 'success',
+            ],
+            NotificationStatus::class => [
+                'DRAFT' => 'gray',
+                'PUBLISHED' => 'success',
+                'ARCHIVED' => 'warning',
+            ],
+            NotificationAudience::class => [
+                'ALL' => 'info',
+                'USERS' => 'warning',
             ],
             PaymentReceivingAccountType::class => [
                 'BANK' => 'info',
