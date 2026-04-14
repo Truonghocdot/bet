@@ -79,7 +79,7 @@ onBeforeUnmount(() => {
         <img
           :src="banner.image_url"
           :alt="banner.title || `Banner ${i + 1}`"
-          class="h-full w-full object-cover block"
+          class="h-full w-full object-fill block"
           loading="lazy"
           decoding="async"
           @error="onImgError"
