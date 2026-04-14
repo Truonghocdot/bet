@@ -300,6 +300,7 @@ func (r *GameRepository) FindRoomByCode(ctx context.Context, roomCode string) (G
 
 func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode string) (GamePeriodRecord, error) {
 	now := clock.Now()
+	roomDurationSeconds := 60
 	if err := r.db.QueryRowContext(ctx, `
 		select duration_seconds
 		from game_rooms
