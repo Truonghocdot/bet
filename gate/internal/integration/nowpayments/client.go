@@ -158,7 +158,14 @@ func (c *Client) CreatePaymentWithAPIKey(ctx context.Context, apiKey string, req
 func firstNonEmptyString(payload map[string]any, keys []string) string {
 	for _, key := range keys {
 		if value, ok := payload[key]; ok {
-			trimmed := strings.TrimSpace(fmt.Sprint(value))
+			var trimmed string
+			switch v := value.(type) {
+			case float64:
+				trimmed = fmt.Sprintf("%.0f", v)
+			default:
+				trimmed = strings.TrimSpace(fmt.Sprint(value))
+			}
+
 			if trimmed != "" && trimmed != "<nil>" {
 				return trimmed
 			}
