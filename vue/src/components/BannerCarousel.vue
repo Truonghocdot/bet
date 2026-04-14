@@ -65,21 +65,21 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative mx-3 mt-3 overflow-hidden rounded-[20px] shadow-sm bg-slate-100 aspect-[2.1/1]">
+  <div class="relative mx-3 mt-3 overflow-hidden rounded-[20px] shadow-sm bg-slate-100">
     <!-- Slides -->
     <div
-      class="flex h-full transition-transform duration-600 ease-[cubic-bezier(0.25,1,0.5,1)]"
+      class="flex transition-transform duration-600 ease-[cubic-bezier(0.25,1,0.5,1)]"
       :style="{ transform: `translateX(-${current * 100}%)` }"
     >
       <div
         v-for="(banner, i) in banners"
         :key="banner.id ?? i"
-        class="h-full w-full min-w-full relative"
+        class="w-full min-w-full relative"
       >
         <img
           :src="banner.image_url"
           :alt="banner.title || `Banner ${i + 1}`"
-          class="h-full w-full object-fill block"
+          class="h-auto w-full object-fill block"
           loading="lazy"
           decoding="async"
           @error="onImgError"
