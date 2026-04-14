@@ -71,13 +71,13 @@ const presetAmounts = computed(() => {
   if (method.value === 'vietqr') {
     return [50000, 100000, 200000, 500000, 1000000, 5000000]
   }
-  return [11, 20, 50, 100, 500, 1000]
+  return [20, 50, 100, 200, 500, 1000]
 })
 
 const isAmountValid = computed(() => {
   const numericAmount = Number(amount.value) || 0
   if (method.value === 'vietqr') return numericAmount >= 50000
-  if (method.value === 'usdt') return numericAmount >= 11
+  if (method.value === 'usdt') return numericAmount >= 20
   return false
 })
 
@@ -86,8 +86,8 @@ const validationMessage = computed(() => {
   if (method.value === 'vietqr' && Number(amount.value) < 50000) {
     return 'Nạp tối thiểu 50.000 VND'
   }
-  if (method.value === 'usdt' && Number(amount.value) < 11) {
-    return 'Nạp tối thiểu 11 USDT'
+  if (method.value === 'usdt' && Number(amount.value) < 20) {
+    return 'Nạp tối thiểu 20 USDT'
   }
   return ''
 })

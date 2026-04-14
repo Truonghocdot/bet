@@ -25,7 +25,7 @@ import (
 var ErrDepositUSDTNotAvailable = errors.New(message.DepositUSDTNotAvailable)
 var ErrDepositUSDTTemporarilyClosed = errors.New(message.DepositUSDTTemporarilyClosed)
 
-const localUSDTMinAmount = "11"
+const localUSDTMinAmount = "20"
 
 type DepositConfig struct {
 	ReceivingAccountsRedisKey string
@@ -33,7 +33,7 @@ type DepositConfig struct {
 
 type DepositService struct {
 	repository *repopg.DepositRepository
-	redis      *goredis.Client
+	redis      *goredis.Client 
 	config     DepositConfig
 	wallets    *WalletService
 	gate       *gateclient.DepositClient
