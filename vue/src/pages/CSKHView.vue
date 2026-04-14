@@ -6,17 +6,15 @@ import { useWalletStore } from '@/stores/wallet'
 const router = useRouter()
 const walletStore = useWalletStore()
 
-const telegramLink = computed(() => walletStore.summary?.telegram_cskh_link || 'https://t.me/ff789_official')
+const telegramLink = computed(() => walletStore.summary?.telegram_cskh_link || 'https://t.me/CSKH_FF789')
 
 function openTelegram() {
   window.open(telegramLink.value, '_blank')
 }
 
 const channels = [
-  { icon: 'chat', label: 'LiveChat 24/7', desc: 'Trò chuyện nhanh với tư vấn viên', color: '#f59e0b', action: () => window.alert('Tính năng LiveChat đang được bảo trì. Vui lòng liên hệ Telegram.') },
   { icon: 'send', label: 'Telegram Hỗ Trợ', desc: 'Gặp trực tiếp kỹ thuật viên', color: '#2AABEE', action: openTelegram },
   { icon: 'forum', label: 'Kênh Khiếu Nại', desc: 'Phản ánh chất lượng dịch vụ', color: '#ef4444', action: openTelegram },
-  { icon: 'help_center', label: 'Trung tâm hướng dẫn', desc: 'Xem cách chơi và luật chơi', color: '#8b5cf6', action: () => router.push('/news') },
 ]
 
 const faqs = [

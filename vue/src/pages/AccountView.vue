@@ -195,17 +195,6 @@ onMounted(() => {
       </RouterLink>
     </section>
 
-    <section class="grid grid-cols-2 gap-2.5">
-      <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
-        <span class="material-symbols-outlined text-primary">chat_bubble</span>
-        <span>Góp ý</span>
-      </button>
-      <button class="grid min-h-[88px] place-items-center gap-1.5 rounded-[18px] bg-[rgba(126,156,255,0.16)] font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
-        <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">support_agent</span>
-        <span>Hỗ trợ 24/7</span>
-      </button>
-    </section>
-
     <button class="min-h-14 p-2 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#e64545] transition-transform active:scale-95" @click="logout">
       Đăng xuất tài khoản
     </button>

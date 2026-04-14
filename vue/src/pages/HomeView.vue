@@ -27,6 +27,12 @@ function displayBalance(value: string | number | null | undefined) {
   return formatViMoney(value ?? 0, 0)
 }
 
+const telegramLink = computed(() => wallet.summary?.telegram_cskh_link || 'https://t.me/CSKH_FF789')
+
+function openTelegram() {
+  window.open(telegramLink.value, '_blank')
+}
+
 const gameCards = [
   {
     name: 'Win Go',
@@ -264,13 +270,13 @@ onMounted(() => {
       <p class="text-[0.82rem] text-white/90 leading-6">
         Nếu không truy cập được, hãy thử các domain dự phòng hoặc liên hệ CSKH để được hỗ trợ.
       </p>
-      <RouterLink
-        to="/cskh"
+      <a
+        @click="openTelegram()"
         class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[0.78rem] font-black text-white active:scale-95 transition-transform"
       >
         <span class="material-symbols-outlined text-[0.9rem]">headphones</span>
         Liên hệ CSKH
-      </RouterLink>
+      </a>
     </div>
 
   </div>
