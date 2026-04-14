@@ -140,7 +140,6 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 		}
 		log.Printf("[engine] chuyển OPEN->LOCKED lỗi: %v", err)
 	} else {
-		log.Printf("[engine][period.transition] from=OPEN to=LOCKED count=%d", len(lockedRooms))
 		for _, roomCode := range lockedRooms {
 			if err := s.refreshRoomState(ctx, roomCode, "period.locked"); err != nil && !errors.Is(err, context.Canceled) {
 				log.Printf("[engine][room.refresh.error] room_code=%s source=period.locked err=%v", roomCode, err)
@@ -155,7 +154,6 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 		}
 		return err
 	}
-	log.Printf("[engine][period.draw.queue] count=%d", len(lockedPeriods))
 	for _, period := range lockedPeriods {
 		lockKey := fmt.Sprintf("engine:period:draw:%d", period.ID)
 		acquired, err := s.acquireLock(ctx, lockKey, 5*time.Second)
@@ -175,7 +173,6 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 			s.releaseLock(ctx, lockKey)
 			continue
 		}
-		log.Printf("[engine][period.draw.generated] period_id=%d room_code=%s period_no=%s result=%s", period.ID, period.RoomCode, period.PeriodNo, draw.Result)
 
 		if err := s.gameRepository.MarkPeriodDrawn(ctx, period, draw); err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -195,7 +192,6 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 		}
 		return err
 	}
-	log.Printf("[engine][period.settle.queue] count=%d", len(drawnPeriods))
 	for _, period := range drawnPeriods {
 		lockKey := fmt.Sprintf("engine:period:settle:%d", period.ID)
 		acquired, err := s.acquireLock(ctx, lockKey, 5*time.Second)
@@ -222,7 +218,6 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 			}
 		}
 		s.releaseLock(ctx, lockKey)
-		log.Printf("[engine][period.settle.lock.released] period_id=%d room_code=%s", period.ID, period.RoomCode)
 	}
 
 	return nil
@@ -276,10 +271,8 @@ func (s *RoomEngineService) generateDraw(period repopg.GamePeriodRecord) (repopg
 	if len(period.ManualResultJSON) > 0 {
 		var manualResult repopg.DrawResult
 		if err := json.Unmarshal(period.ManualResultJSON, &manualResult); err == nil && manualResult.Result != "" {
-			log.Printf("[engine][period.draw.manual] period_id=%d using_manual_result=%s", period.ID, manualResult.Result)
 			return manualResult, nil
 		}
-		log.Printf("[engine][period.draw.manual.error] period_id=%d logic=fallback_to_random err=unmarshal_failed", period.ID)
 	}
 
 	switch period.GameType {
