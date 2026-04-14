@@ -44,7 +44,6 @@ type ticketSettleItemOutcome struct {
 
 func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRecord, now time.Time) ([]GamePeriodRecord, error) {
 	nowVN := now.In(clock.Location())
-	log.Printf("[engine][period.ensure.start] room_code=%s game_type=%d duration_seconds=%d now_vn=%s", room.Code, room.GameType, room.DurationSeconds, nowVN.Format(time.RFC3339Nano))
 
 	duration := time.Duration(room.DurationSeconds) * time.Second
 	if duration <= 0 {
@@ -80,26 +79,12 @@ func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRec
 	nextDrawAt := alignNextDrawAt(nowVN, duration)
 	nextOpenAt := nextDrawAt.Add(-duration)
 
-	if latestDrawAt.Valid {
-		latestVN := latestDrawAt.Time.In(clock.Location())
-		log.Printf(
-			"[engine][period.ensure.state] room_code=%s latest_draw_at_vn=%s target_draw_at_vn=%s policy=ignore_future_rows",
-			room.Code,
-			latestVN.Format(time.RFC3339Nano),
-			nextDrawAt.Format(time.RFC3339Nano),
-		)
-	} else {
-		log.Printf("[engine][period.ensure.state] room_code=%s latest_draw_at=nil action=bootstrap_initial_period", room.Code)
+	if !latestDrawAt.Valid {
+		// Log bootstrap only
+		log.Printf("[engine][period.ensure.state] room_code=%s action=bootstrap_initial_period", room.Code)
 	}
 
 	candidateNo := buildPeriodNo(room.Code, nextDrawAt)
-	log.Printf(
-		"[engine][period.ensure.compare] room_code=%s next_open_at=%s next_draw_at=%s period_no=%s",
-		room.Code,
-		nextOpenAt.Format(time.RFC3339Nano),
-		nextDrawAt.Format(time.RFC3339Nano),
-		candidateNo,
-	)
 
 	var existingID int64
 	err = tx.QueryRowContext(ctx, `
@@ -113,7 +98,6 @@ func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRec
 			log.Printf("[engine][period.ensure.error] room_code=%s stage=commit_duplicate_skip err=%v", room.Code, err)
 			return nil, err
 		}
-		log.Printf("[engine][period.ensure.skip] room_code=%s period_no=%s reason=duplicate_exists existing_id=%d", room.Code, candidateNo, existingID)
 		return nil, nil
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -138,8 +122,6 @@ func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRec
 		log.Printf("[engine][period.ensure.error] room_code=%s stage=commit err=%v", room.Code, err)
 		return nil, err
 	}
-
-	log.Printf("[engine][period.ensure.done] room_code=%s created_count=%d", room.Code, len(created))
 	return created, nil
 }
 

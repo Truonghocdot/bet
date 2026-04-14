@@ -253,7 +253,6 @@ func (r *GameRepository) GetNearestUpcomingPeriodByRoom(ctx context.Context, roo
 		return GamePeriodRecord{}, err
 	}
 
-	log.Printf("[engine][period.current.lookup.fallback] room_code=%s period_id=%d period_no=%s status=%d source=nearest_upcoming", roomCode, period.ID, period.PeriodNo, period.Status)
 	return period, nil
 }
 
@@ -301,9 +300,6 @@ func (r *GameRepository) FindRoomByCode(ctx context.Context, roomCode string) (G
 
 func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode string) (GamePeriodRecord, error) {
 	now := clock.Now()
-	log.Printf("[engine][period.current.lookup.start] room_code=%s now_vn=%s", roomCode, now.Format(time.RFC3339Nano))
-
-	roomDurationSeconds := 60
 	if err := r.db.QueryRowContext(ctx, `
 		select duration_seconds
 		from game_rooms
@@ -317,7 +313,6 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 		roomDurationSeconds = 60
 	}
 	maxFuture := now.Add(time.Duration(roomDurationSeconds*3) * time.Second)
-	log.Printf("[engine][period.current.lookup.window] room_code=%s duration_seconds=%d max_future_vn=%s", roomCode, roomDurationSeconds, maxFuture.Format(time.RFC3339Nano))
 
 	scanPeriod := func(query string, args ...any) (GamePeriodRecord, error) {
 		var period GamePeriodRecord
@@ -350,7 +345,6 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 		limit 1
 	`, roomCode, periodStatusOpen, periodStatusLocked, periodStatusScheduled, now, maxFuture)
 	if err == nil {
-		log.Printf("[engine][period.current.lookup.done] room_code=%s period_id=%d period_no=%s status=%d source=current", roomCode, current.ID, current.PeriodNo, current.Status)
 		return current, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -358,7 +352,6 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 		return GamePeriodRecord{}, err
 	}
 
-	log.Printf("[engine][period.current.lookup.miss] room_code=%s reason=no_open_period_in_window_future_periods_ignored", roomCode)
 	return GamePeriodRecord{}, ErrPeriodNotFound
 }
 

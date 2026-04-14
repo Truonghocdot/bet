@@ -68,26 +68,22 @@ func (s *RoomEngineService) Run(ctx context.Context) error {
 			log.Printf("[engine][stop] reason=context_canceled")
 			return nil
 		case <-ticker.C:
-			log.Printf("[engine][tick.start] at_vn=%s", clock.Now().Format(time.RFC3339Nano))
 			if err := s.runTick(ctx); err != nil {
 				if !errors.Is(err, context.Canceled) {
 					log.Printf("[engine] tick lỗi: %v", err)
 				}
 			}
-			log.Printf("[engine][tick.done] at_vn=%s", clock.Now().Format(time.RFC3339Nano))
 		}
 	}
 }
 
 func (s *RoomEngineService) runTick(ctx context.Context) error {
 	now := clock.Now()
-	log.Printf("[engine][tick.exec] now_vn=%s", now.Format(time.RFC3339Nano))
 	rooms, err := s.gameRepository.ListRooms(ctx)
 	if err != nil {
 		log.Printf("[engine][room.list.error] err=%v", err)
 		return err
 	}
-	log.Printf("[engine][room.list.done] count=%d", len(rooms))
 	if len(rooms) == 0 {
 		rooms = defaultEngineRooms()
 		log.Printf("[engine] game_rooms trống, dùng catalog mặc định để bootstrap period")
@@ -103,9 +99,7 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 			log.Printf("[engine] không lock được room %s: %v", room.Code, err)
 			continue
 		}
-		log.Printf("[engine][room.lock.acquired] room_code=%s key=%s", room.Code, lockKey)
 		if !acquired {
-			log.Printf("[engine][room.lock.skip] room_code=%s reason=already_locked", room.Code)
 			continue
 		}
 
@@ -122,11 +116,8 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 					return err
 				}
 			}
-		} else {
-			log.Printf("[engine][period.ensure.none] room_code=%s", room.Code)
 		}
 		s.releaseLock(ctx, lockKey)
-		log.Printf("[engine][room.lock.released] room_code=%s key=%s", room.Code, lockKey)
 	}
 
 	openedRooms, err := s.gameRepository.MoveScheduledToOpen(ctx, now)
@@ -136,7 +127,6 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 		}
 		log.Printf("[engine] chuyển SCHEDULED->OPEN lỗi: %v", err)
 	} else {
-		log.Printf("[engine][period.transition] from=SCHEDULED to=OPEN count=%d", len(openedRooms))
 		for _, roomCode := range openedRooms {
 			if err := s.refreshRoomState(ctx, roomCode, "period.opened"); err != nil && !errors.Is(err, context.Canceled) {
 				log.Printf("[engine][room.refresh.error] room_code=%s source=period.opened err=%v", roomCode, err)
