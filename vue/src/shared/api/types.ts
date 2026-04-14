@@ -3,7 +3,7 @@ export type ApiMessage = { message: string }
 export type AuthUser = {
   id: number
   name: string
-  email: string
+  email?: string | null
   phone?: string | null
   role: number
   status: number
@@ -37,7 +37,7 @@ export type RefreshTokenRequest = {
 
 export type RegisterRequest = {
   name: string
-  email: string
+  email?: string
   phone?: string
   password: string
   ref_code?: string
