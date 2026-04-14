@@ -65,7 +65,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative mx-3 mt-3 overflow-hidden rounded-[16px]" style="height: 160px;">
+  <div class="relative mx-3 mt-3 overflow-hidden rounded-[16px]" style="height: 180px;">
     <!-- Slides -->
     <div
       class="flex h-full transition-transform duration-500 ease-in-out"

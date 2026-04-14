@@ -325,6 +325,15 @@ async function refreshStatus() {
   await deposit.getStatus(intent.value.client_ref)
 }
 
+async function handleCancel() {
+  if (!window.confirm('Bạn có chắc chắn muốn hủy yêu cầu nạp tiền này không?')) return
+  try {
+    await deposit.cancelDeposit()
+  } catch {
+    // error is handled in store
+  }
+}
+
 async function logout() {
   deposit.reset()
   auth.logout()
@@ -366,10 +375,16 @@ async function logout() {
             {{ isUsdtIntent ? 'Vui lòng quét mã QR hoặc chuyển USDT đúng địa chỉ/memo bên dưới:' : 'Vui lòng quét mã QR hoặc chuyển khoản theo thông tin:' }}
           </p>
         </div>
-        <button class="rounded-full bg-primary/10 px-3 py-1.5 text-sm font-black text-primary flex items-center gap-1" type="button" :disabled="deposit.loading" @click="refreshStatus">
-          <span class="material-symbols-outlined text-[1rem]">sync</span>
-          Cập nhật
-        </button>
+        <div class="flex items-center gap-2">
+          <button class="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-black text-on-surface-variant flex items-center gap-1 transition-transform active:scale-95" type="button" :disabled="deposit.loading" @click="handleCancel">
+            <span class="material-symbols-outlined text-[1rem]">close</span>
+            Hủy lệnh
+          </button>
+          <button class="rounded-full bg-primary/10 px-3 py-1.5 text-sm font-black text-primary flex items-center gap-1 transition-transform active:scale-95" type="button" :disabled="deposit.loading" @click="refreshStatus">
+            <span class="material-symbols-outlined text-[1rem]">sync</span>
+            Cập nhật
+          </button>
+        </div>
       </div>
 
       <div class="mt-4 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">

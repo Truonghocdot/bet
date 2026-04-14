@@ -47,6 +47,11 @@ func (h *DepositHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(parts) == 2 && parts[1] == "cancel" && r.Method == http.MethodPost {
+		h.handleCancel(w, r, parts[0])
+		return
+	}
+
 	if len(parts) != 2 || parts[1] != "init" || r.Method != http.MethodPost {
 		writeJSON(w, http.StatusNotFound, map[string]string{"message": message.RouteNotFound})
 		return
@@ -165,6 +170,28 @@ func (h *DepositHandler) handleStatus(w http.ResponseWriter, r *http.Request, cl
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h *DepositHandler) handleCancel(w http.ResponseWriter, r *http.Request, idStr string) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	var txnID int64
+	if _, err := fmt.Sscanf(idStr, "%d", &txnID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "ID giao dịch không hợp lệ"})
+		return
+	}
+
+	response, err := h.depositService.CancelDeposit(r.Context(), claims.UserID, txnID)
+	if err != nil {
+		h.writeError(r, w, err, "cancel")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (h *DepositHandler) handleStatusStream(w http.ResponseWriter, r *http.Request, clientRef string) {
 	claims, ok := authmiddleware.CurrentClaims(r.Context())
 	if !ok {
@@ -268,6 +295,9 @@ func (h *DepositHandler) writeError(r *http.Request, w http.ResponseWriter, err 
 	case errors.Is(err, service.ErrDepositUSDTTemporarilyClosed):
 		statusCode = http.StatusUnprocessableEntity
 		messageText = message.DepositUSDTTemporarilyClosed
+	case errors.Is(err, repopg.ErrDepositCancelForbidden):
+		statusCode = http.StatusUnprocessableEntity
+		messageText = err.Error()
 	}
 
 	log.Printf(

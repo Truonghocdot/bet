@@ -60,6 +60,7 @@ const (
 	BetAccepted                    = "Lệnh cược đã được tiếp nhận"
 	DepositAccepted                = "Yêu cầu nạp tiền đã được tiếp nhận"
 	DepositCreated                 = "Yêu cầu nạp tiền đã được tạo"
+	DepositCanceled                = "Yêu cầu nạp tiền đã được hủy"
 	WalletSummarySuccess           = "Lấy thông tin ví thành công"
 	NotificationsListSuccess       = "Lấy danh sách thông báo thành công"
 	NotificationReadSuccess        = "Đã đánh dấu thông báo đã đọc"

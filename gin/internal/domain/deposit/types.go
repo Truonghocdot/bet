@@ -20,6 +20,7 @@ type DepositProvider string
 const (
 	DepositProviderSepayVietQR DepositProvider = "sepay_vietqr"
 	DepositProviderNowPayments DepositProvider = "nowpayments_usdt"
+	DepositProviderManualUSDT  DepositProvider = "manual_usdt"
 )
 
 type ReceivingAccount struct {

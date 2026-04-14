@@ -93,6 +93,51 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 	}
 
 	clientRef := "DEP-" + id.New()
+
+	// Ưu tiên nạp USDT qua ví thủ công nếu có cấu hình trong snapshot
+	manualAddress := s.getManualUSDTAddress(ctx)
+	if manualAddress != "" {
+		log.Printf("[deposit][usdt.init.manual] trace_id=%s user_id=%d client_ref=%s address=%s", traceID, userID, clientRef, manualAddress)
+		record, err := s.repository.CreateDepositIntent(ctx, repopg.CreateDepositIntentParams{
+			UserID:             userID,
+			WalletID:           walletID,
+			ClientRef:          clientRef,
+			Unit:               user.WalletUnitUSDT,
+			Type:               1,
+			Amount:             amount,
+			Status:             1,
+			Provider:           string(deposit.DepositProviderManualUSDT),
+			ProviderTxnID:      nil,
+			ReceivingAccountID: nil,
+			Meta: map[string]any{
+				"method":      deposit.DepositMethodUSDT,
+				"provider":    deposit.DepositProviderManualUSDT,
+				"pay_address": manualAddress,
+				"pay_amount":  amount,
+			},
+		})
+		if err != nil {
+			return deposit.DepositInitResponse{}, err
+		}
+
+		expiresAt := clock.Now().Add(60 * 24 * time.Hour) // Thủ công cho phép thời gian dài hơn (ví dụ 60 ngày)
+		return deposit.DepositInitResponse{
+			Message:     message.DepositCreated,
+			Provider:    string(deposit.DepositProviderManualUSDT),
+			Method:      deposit.DepositMethodUSDT,
+			ClientRef:   clientRef,
+			Amount:      amount,
+			Transaction: s.toDomainTransaction(record),
+			ExpiresAt:   expiresAt,
+			ReceivingAccount: &deposit.ReceivingAccount{
+				Unit:          user.WalletUnitUSDT,
+				AccountNumber: &manualAddress,
+				AccountName:   stringPtr("Ví USDT TRC20"),
+				ProviderCode:  stringPtr("USDT"),
+			},
+		}, nil
+	}
+
 	log.Printf("[deposit][usdt.init.gate.start] trace_id=%s user_id=%d client_ref=%s amount=%s", traceID, userID, clientRef, amount)
 	created, err := s.gate.CreateNowPaymentsDeposit(ctx, gateclient.CreateNowPaymentsDepositRequest{
 		ClientRef: clientRef,
@@ -220,6 +265,22 @@ func (s *DepositService) GetDepositStatus(ctx context.Context, userID int64, cli
 	}
 
 	return response, nil
+}
+
+func (s *DepositService) CancelDeposit(ctx context.Context, userID, txnID int64) (deposit.DepositStatusResponse, error) {
+	record, err := s.repository.CancelDeposit(ctx, userID, txnID)
+	if err != nil {
+		return deposit.DepositStatusResponse{}, err
+	}
+
+	// Invalidate cache since status changed
+	_ = s.clearPendingDepositCache(ctx, userID, depositProviderToMethod(record.Provider))
+
+	return deposit.DepositStatusResponse{
+		Message:          message.DepositCanceled,
+		Transaction:      s.toDomainTransaction(record),
+		ReceivingAccount: s.toDomainReceivingAccount(record.ReceivingAccount),
+	}, nil
 }
 
 func (s *DepositService) ListVietQrBanks(ctx context.Context) (deposit.DepositBankListResponse, error) {
@@ -639,6 +700,22 @@ func (s *DepositService) clearPendingDepositCache(ctx context.Context, userID in
 	return s.redis.Del(ctx, pendingDepositCacheKey(userID, method)).Err()
 }
 
+func (s *DepositService) getManualUSDTAddress(ctx context.Context) string {
+	val, err := s.redis.Get(ctx, "shared:exchange-rate:usdt-vnd").Result()
+	if err != nil {
+		return ""
+	}
+
+	var snapshot struct {
+		NowpaymentsPayoutWallet string `json:"nowpayments_payout_wallet"`
+	}
+	if err := json.Unmarshal([]byte(val), &snapshot); err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(snapshot.NowpaymentsPayoutWallet)
+}
+
 func pendingDepositCacheKey(userID int64, method deposit.DepositMethod) string {
 	return fmt.Sprintf("deposit:pending:user:%d:method:%s", userID, method)
 }
@@ -682,4 +759,8 @@ func stringPtrOrNil(value string) *string {
 	}
 
 	return &trimmed
+}
+
+func stringPtr(value string) *string {
+	return &value
 }

@@ -258,6 +258,54 @@ func (r *DepositRepository) FindDepositIntentByProviderTxnID(ctx context.Context
 	return record, nil
 }
 
+var ErrDepositCancelForbidden = errors.New("giao dịch không thể hủy ở trạng thái hiện tại")
+
+// CancelDeposit hủy một lệnh nạp tiền đang chờ xử lý (PENDING/CONFIRMED) do người dùng yêu cầu.
+func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int64) (DepositTransactionRecord, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return DepositTransactionRecord{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	row := tx.QueryRowContext(ctx, `
+		select id, user_id, wallet_id, client_ref, unit, type, amount::text, net_amount::text,
+		       status, provider, provider_txn_id, receiving_account_id, meta, reason_failed,
+		       approved_by, approved_at, created_at, updated_at
+		from transactions
+		where id = $1 and user_id = $2 and type = 1 and deleted_at is null
+		limit 1
+		for update
+	`, txnID, userID)
+
+	var record DepositTransactionRecord
+	if err := scanDepositTransaction(row, &record); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return DepositTransactionRecord{}, ErrDepositNotFound
+		}
+		return DepositTransactionRecord{}, err
+	}
+
+	// Chỉ hủy khi đang PENDING (1) hoặc CONFIRMED (2)
+	if record.Status != 1 && record.Status != 2 {
+		return DepositTransactionRecord{}, ErrDepositCancelForbidden
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		update transactions set status = 5, reason_failed = 'Người dùng tự hủy', updated_at = now()
+		where id = $1
+	`, record.ID); err != nil {
+		return DepositTransactionRecord{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return DepositTransactionRecord{}, err
+	}
+
+	record.Status = 5
+	return record, nil
+}
+
 func (r *DepositRepository) ApplyDeposit(ctx context.Context, params ApplyDepositParams) (DepositApplyResult, error) {
 	if strings.TrimSpace(params.ClientRef) == "" && strings.TrimSpace(params.ProviderTxnID) == "" {
 		return DepositApplyResult{}, ErrDepositNotFound

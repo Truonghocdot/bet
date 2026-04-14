@@ -180,6 +180,26 @@ export const useDepositStore = defineStore('deposit', () => {
     clearPending()
   }
 
+  async function cancelDeposit() {
+    if (!currentIntent.value?.transaction?.id) return
+    const auth = useAuthStore()
+    loading.value = true
+    error.value = ''
+    try {
+      const res = await request<DepositStatusResponse>('POST', `/v1/deposits/${currentIntent.value.transaction.id}/cancel`, {
+        token: auth.accessToken,
+      })
+      reset()
+      return res
+    } catch (e: any) {
+      const err = e as ApiError
+      error.value = err?.message ?? 'Không thể hủy giao dịch'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function loadVietQrBanks() {
     const auth = useAuthStore()
     if (!auth.accessToken) {
@@ -219,6 +239,7 @@ export const useDepositStore = defineStore('deposit', () => {
     loadVietQrBanks,
     restorePending,
     clearPending,
+    cancelDeposit,
     reset,
   }
 })

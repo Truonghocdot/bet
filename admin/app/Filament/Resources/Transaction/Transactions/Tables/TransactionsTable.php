@@ -5,6 +5,8 @@ namespace App\Filament\Resources\Transaction\Transactions\Tables;
 use App\Enum\Transaction\TransactionStatus;
 use App\Enum\Transaction\TypeTransaction;
 use App\Support\Filament\EnumPresenter;
+use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
@@ -45,6 +47,53 @@ class TransactionsTable
             ->poll(2000)
             ->filters([
                 TrashedFilter::make(),
+            ])
+            ->groupActions([
+                Action::make('approve_deposit')
+                    ->label('Duyệt nạp')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Duyệt nạp tiền')
+                    ->modalDescription('Bạn có chắc chắn đã nhận được tiền và muốn cộng vào ví người dùng?')
+                    ->modalSubmitActionLabel('Xác nhận duyệt')
+                    ->visible(fn ($record) => $record->type === TypeTransaction::DEPOSIT && $record->status === TransactionStatus::PENDING)
+                    ->action(function ($record, \App\Services\Admin\DepositWorkflowService $service) {
+                        if ($service->approve($record)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Đã duyệt nạp tiền thành công')
+                                ->success()
+                                ->send();
+                        } else {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Có lỗi xảy ra khi duyệt')
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+
+                Action::make('reject_deposit')
+                    ->label('Từ chối')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Từ chối nạp tiền')
+                    ->modalDescription('Bạn có chắc chắn muốn từ chối yêu cầu nạp tiền này?')
+                    ->modalSubmitActionLabel('Xác nhận từ chối')
+                    ->visible(fn ($record) => $record->type === TypeTransaction::DEPOSIT && $record->status === TransactionStatus::PENDING)
+                    ->schema([
+                        TextInput::make('reason_failed')
+                            ->label('Lý do từ chối')
+                            ->placeholder('Nhập lý do (tùy chọn)'),
+                    ])
+                    ->action(function ($record, array $data, \App\Services\Admin\DepositWorkflowService $service) {
+                        if ($service->reject($record, $data['reason_failed'] ?? null)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Đã từ chối yêu cầu nạp tiền')
+                                ->warning()
+                                ->send();
+                        }
+                    }),
             ]);
     }
 }
