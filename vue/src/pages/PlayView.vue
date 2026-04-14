@@ -252,44 +252,6 @@ function resetTransientRoomUiState() {
   seenSettlementPeriods.clear()
 }
 
-function countdownCacheKey(roomCode: string) {
-  return `${countdownCachePrefix}${roomCode}`
-}
-
-function readCountdownCache(roomCode: string) {
-  if (typeof window === 'undefined' || !roomCode) return null
-  try {
-    const raw = window.sessionStorage.getItem(countdownCacheKey(roomCode))
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as { period_no?: string; target_ms?: number }
-    if (!parsed?.period_no || !Number.isFinite(parsed.target_ms)) return null
-    return { periodNo: String(parsed.period_no), targetMs: Number(parsed.target_ms) }
-  } catch {
-    return null
-  }
-}
-
-function writeCountdownCache(roomCode: string, periodNo: string, targetMs: number) {
-  if (typeof window === 'undefined' || !roomCode || !periodNo || !Number.isFinite(targetMs)) return
-  try {
-    window.sessionStorage.setItem(
-      countdownCacheKey(roomCode),
-      JSON.stringify({ period_no: periodNo, target_ms: targetMs }),
-    )
-  } catch {
-    // ignore storage errors
-  }
-}
-
-function clearCountdownCache(roomCode: string) {
-  if (typeof window === 'undefined' || !roomCode) return
-  try {
-    window.sessionStorage.removeItem(countdownCacheKey(roomCode))
-  } catch {
-    // ignore storage errors
-  }
-}
-
 function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | null, nowMs = Date.now(), force = false) {
   if (!period) {
     countdownTargetMs.value = 0
@@ -305,7 +267,6 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
   const expectedSeconds = Math.max(1, expectedPeriodSeconds.value || 30)
   const fallbackTargetMs = nowMs + expectedSeconds * 1000
   const maxReasonableMs = nowMs + Math.max(expectedSeconds * 3, 30) * 1000
-  const cached = readCountdownCache(selectedRoomCode.value)
 
   // Chọn mốc thời gian: ưu tiên bet_lock_at; fallback sang draw_at nếu không có
   const preferredTargetMs = Number.isFinite(rawBetLockAtMs) && rawBetLockAtMs > 0
@@ -322,23 +283,12 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
     return
   }
 
-  if (cached?.periodNo === periodNo && cached.targetMs > nowMs) {
-    countdownTargetMs.value = cached.targetMs
-    countdownTargetPeriodNo.value = periodNo
-    return
-  }
-
   if (Number.isFinite(preferredTargetMs) && preferredTargetMs > 0 && preferredTargetMs <= maxReasonableMs) {
     countdownTargetMs.value = preferredTargetMs
-  } else if (cached?.periodNo === periodNo && cached.targetMs > nowMs) {
-    countdownTargetMs.value = cached.targetMs
   } else {
     countdownTargetMs.value = fallbackTargetMs
   }
   countdownTargetPeriodNo.value = periodNo
-  if (Number.isFinite(countdownTargetMs.value)) {
-    writeCountdownCache(selectedRoomCode.value, periodNo, countdownTargetMs.value)
-  }
 }
 const isBetLocked = computed(() => {
   if (!currentPeriod.value) return true
@@ -634,7 +584,16 @@ async function loadWallet() {
 function applyServerClock(serverTime: string, requestMidpoint = Date.now()) {
   const serverTimeMs = new Date(serverTime).getTime()
   if (!Number.isFinite(serverTimeMs) || serverTimeMs <= 0) return
-  serverTimeOffsetMs.value = serverTimeMs - requestMidpoint
+  
+  const newOffset = serverTimeMs - requestMidpoint
+  const drift = Math.abs(newOffset - serverTimeOffsetMs.value)
+  
+  // Log drift for debugging (can be removed in production)
+  if (drift > 100) {
+    console.log(`[Clock Sync] Drift detected: ${drift}ms. Adjusting offset to: ${newOffset}ms`)
+  }
+  
+  serverTimeOffsetMs.value = newOffset
   clockTick.value = Date.now()
 }
 
@@ -871,8 +830,15 @@ async function maybeShowSettlementModal(
   const settledRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
 
   if (!settledRow) {
-    // If no bet found, we just mark it as seen so we don't keep checking history for nothing
-    seenSettlementPeriods.add(targetPeriodNo)
+    // If no bet found AND it was a transition, it might just take time for the API to update.
+    // We only mark as seen if it's a manual settlement OR if we've retried enough and still nothing.
+    if (isManualSettled || retryCount >= 5) {
+      seenSettlementPeriods.add(targetPeriodNo)
+    } else {
+      setTimeout(() => {
+        void maybeShowSettlementModal(previousPeriod, nextPeriod, retryCount + 1)
+      }, 2000)
+    }
     return
   }
 
@@ -1026,13 +992,25 @@ async function confirmBet() {
         }],
       },
     })
-    betMessage.value = res.message || 'Lệnh đã được tiếp nhận'
+    
+    // Explicit success feedback
+    betMessage.value = res.message || 'Lệnh cược đã được hệ thống tiếp nhận thành công!'
     betMessageRoomCode.value = selectedRoomCode.value
-    await wallet.fetchSummary()
-    await loadActiveHistory()
+    
+    // Refresh state immediately
+    void wallet.fetchSummary()
+    void loadMineHistory(1)
+    
+    // Auto clear success message after a few seconds
+    setTimeout(() => {
+      if (betMessage.value.includes('tiếp nhận') || betMessage.value.includes('thành công')) {
+        betMessage.value = ''
+      }
+    }, 4500)
+    
   } catch (error: unknown) {
     const err = error as ApiError
-    betMessage.value = err?.message ?? 'Không thể gửi lệnh cược'
+    betMessage.value = err?.message ?? 'Không thể gửi lệnh cược. Vui lòng thử lại.'
     betMessageRoomCode.value = selectedRoomCode.value
   } finally {
     betLoading.value = false
