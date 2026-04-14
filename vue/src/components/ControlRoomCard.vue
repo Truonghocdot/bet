@@ -76,7 +76,8 @@ const totalStake = computed(() =>
 function secondsLeft(): number {
   const drawAt = props.room.period?.draw_at
   if (!drawAt) return 0
-  const drawMs = new Date(drawAt.includes('T') ? drawAt : drawAt.replace(' ', 'T')).getTime()
+  const cleanDrawAt = drawAt.substring(0, 19).replace(' ', 'T')
+  const drawMs = new Date(cleanDrawAt).getTime()
   if (!Number.isFinite(drawMs)) return 0
   return Math.max(0, Math.floor((drawMs - props.nowMs) / 1000))
 }

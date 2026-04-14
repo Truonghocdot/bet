@@ -77,7 +77,8 @@ function applySnapshot(response: { server_time: string; rooms: RoomStats[] }) {
   const now = Date.now()
 
   rooms.value = response.rooms
-  const serverTime = new Date(response.server_time).getTime()
+  const cleanServerTime = response.server_time.substring(0, 19).replace(' ', 'T')
+  const serverTime = new Date(cleanServerTime).getTime()
   serverTimeOffsetMs.value = serverTime - now
 
   for (const room of response.rooms) {
