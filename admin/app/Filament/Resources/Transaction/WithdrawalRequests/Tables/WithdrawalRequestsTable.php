@@ -151,6 +151,21 @@ class WithdrawalRequestsTable
         $netAmount = number_format((float) $record->net_amount, 0, ',', '.').' đ';
 
         if ($unitValue === UnitTransaction::USDT->value) {
+            $qrUrl = $accountNumber !== '' 
+                ? 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='.rawurlencode($accountNumber)
+                : null;
+
+            if ($qrUrl) {
+                return sprintf(
+                    '<div style="display:flex;gap:14px;align-items:flex-start"><img src="%s" alt="qr" style="width:200px;height:200px;border-radius:10px;border:1px solid #e5e7eb;object-fit:cover"><div style="line-height:1.45"><strong>Ví USDT:</strong> %s<br><strong>Mạng:</strong> %s<br><strong>Số tiền rút:</strong> %s %s</div></div>',
+                    e($qrUrl),
+                    e($accountNumber),
+                    e($provider !== '' ? $provider : '—'),
+                    e((string) $record->net_amount),
+                    e(EnumPresenter::label(UnitTransaction::class, $record->unit))
+                );
+            }
+
             return sprintf(
                 '<div style="line-height:1.35"><strong>Ví:</strong> %s<br><strong>Mạng:</strong> %s<br><strong>Số tiền:</strong> %s %s</div>',
                 e($accountNumber !== '' ? $accountNumber : '—'),
