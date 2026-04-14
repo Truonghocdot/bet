@@ -37,6 +37,14 @@ func (m *Authentication) Require(next http.Handler) http.Handler {
 			return
 		}
 
+		if !m.authService.VerifySession(r.Context(), claims.UserID, claims.SessionID) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{
+				"message": "Tài khoản của bạn đã được đăng nhập từ một thiết bị khác. Vui lòng đăng nhập lại.",
+				"code":    "SESSION_INVALIDATED",
+			})
+			return
+		}
+
 		ctx := context.WithValue(r.Context(), claimsContextKey, claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

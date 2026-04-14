@@ -5,6 +5,13 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 export type ApiError = {
   status: number
   message: string
+  code?: string
+}
+
+// Global callback for session invalidation (set by auth store)
+export let onSessionInvalidated: (() => void) | null = null
+export function setSessionInvalidatedCallback(fn: () => void) {
+  onSessionInvalidated = fn
 }
 
 type RequestOptions = {
@@ -21,14 +28,17 @@ function joinUrl(base: string, path: string): string {
   return `${base}${path}`
 }
 
-async function readErrorMessage(res: Response): Promise<string> {
+async function readErrorBody(res: Response): Promise<{ message: string; code?: string }> {
   try {
     const data = (await res.json()) as any
-    if (data && typeof data.message === 'string' && data.message.trim()) return data.message
+    const message = (data && typeof data.message === 'string' && data.message.trim())
+      ? data.message
+      : (res.statusText || 'Lỗi không xác định')
+    const code = (data && typeof data.code === 'string') ? data.code : undefined
+    return { message, code }
   } catch {
-    // ignore
+    return { message: res.statusText || 'Lỗi không xác định' }
   }
-  return res.statusText || 'Lỗi không xác định'
 }
 
 export async function request<T>(
@@ -59,8 +69,12 @@ export async function request<T>(
     })
 
     if (!res.ok) {
-      const message = await readErrorMessage(res)
-      const err: ApiError = { status: res.status, message }
+      const { message, code } = await readErrorBody(res)
+      const err: ApiError = { status: res.status, message, code }
+      // Handle session invalidation globally
+      if (res.status === 401 && code === 'SESSION_INVALIDATED') {
+        onSessionInvalidated?.()
+      }
       throw err
     }
 

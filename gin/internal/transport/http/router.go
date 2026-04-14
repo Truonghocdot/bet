@@ -91,6 +91,9 @@ func NewRouter(
 	mux.Handle("GET /v1/admin/rooms/stats/stream", requireAdmin(http.HandlerFunc(adminHandler.StreamRoomStats)))
 	mux.HandleFunc("GET /v1/admin/rooms/stats/ws", adminHandler.StreamRoomStatsWS)
 	mux.Handle("POST /v1/admin/periods/{id}/result", requireAdmin(http.HandlerFunc(adminHandler.SetManualResult)))
+	mux.Handle("POST /v1/admin/lock", requireAdmin(http.HandlerFunc(adminHandler.AcquireLock)))
+	mux.Handle("PUT /v1/admin/lock", requireAdmin(http.HandlerFunc(adminHandler.HeartbeatLock)))
+	mux.Handle("DELETE /v1/admin/lock", requireAdmin(http.HandlerFunc(adminHandler.ReleaseLock)))
 
 	mux.HandleFunc("POST /v1/auth/sso/exchange", authSSOHandler.Exchange)
 

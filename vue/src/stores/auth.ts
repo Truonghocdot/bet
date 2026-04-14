@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { request, type ApiError } from '@/shared/api/http'
+import { request, type ApiError, setSessionInvalidatedCallback } from '@/shared/api/http'
 import type {
   AffiliateProfile,
   AuthResponse,
@@ -181,6 +181,19 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     clear()
   }
+
+  function forcedLogout(reason: string) {
+    clear()
+    error.value = reason
+    // Use window.location to ensure a full reload and redirect to login, wiping out app memory
+    window.location.href = '/login'
+  }
+
+  // Hook up global session invalidate
+  setSessionInvalidatedCallback(() => {
+    forcedLogout('Tài khoản của bạn đã được đăng nhập từ một thiết bị khác. Vui lòng đăng nhập lại.')
+  })
+
 
   async function forgotPassword(payload: ForgotPasswordRequest) {
     loading.value = true

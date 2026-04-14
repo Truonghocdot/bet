@@ -69,7 +69,7 @@ func New() (*App, error) {
 	limiter := ratelimit.New(redisClient)
 	notifier := gate.NewNotifier(config.GateBaseURL)
 	depositGateway := gate.NewDepositClient(config.GateBaseURL, config.GateInternalToken)
-	authService := service.NewAuthService(userRepository, tokenSigner, limiter, notifier, service.AuthConfig{
+	authService := service.NewAuthService(userRepository, tokenSigner, limiter, notifier, redisClient, service.AuthConfig{
 		RegisterURL:           config.RegisterURL,
 		OTPSecret:             config.AuthSecret,
 		ForgotOTPTTL:          config.ForgotOTPTTL,

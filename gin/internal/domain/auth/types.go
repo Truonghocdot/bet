@@ -107,9 +107,10 @@ type AuthResponse struct {
 }
 
 type TokenClaims struct {
-	UserID int64     `json:"user_id"`
-	Role   int       `json:"role"`
-	Status int       `json:"status"`
-	ExpAt  time.Time `json:"exp_at"`
-	Issued time.Time `json:"issued_at"`
+	UserID    int64     `json:"user_id"`
+	SessionID string    `json:"session_id,omitempty"`
+	Role      int       `json:"role"`
+	Status    int       `json:"status"`
+	ExpAt     time.Time `json:"exp_at"`
+	Issued    time.Time `json:"issued_at"`
 }

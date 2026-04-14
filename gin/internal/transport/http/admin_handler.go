@@ -13,6 +13,7 @@ import (
 	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
+	authmiddleware "gin/internal/auth/middleware"
 	"gin/internal/support/clock"
 	"gin/internal/support/message"
 	"github.com/gorilla/websocket"
@@ -381,4 +382,72 @@ func (h *AdminHandler) SetManualResult(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "Đã lưu kết quả dự kiến"})
+}
+
+const adminControlLockKey = "admin:lock:control_center"
+
+func (h *AdminHandler) AcquireLock(w http.ResponseWriter, r *http.Request) {
+	claims, _ := authmiddleware.CurrentClaims(r.Context())
+	userID := claims.UserID
+
+	ctx := r.Context()
+	lockValue := strconv.FormatInt(userID, 10)
+
+	// NX: Set if not exists, GET: Return old value if exists
+	success, err := h.redis.SetNX(ctx, adminControlLockKey, lockValue, 45*time.Second).Result()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "Lỗi hệ thống khi kiểm tra khóa"})
+		return
+	}
+
+	if !success {
+		current, _ := h.redis.Get(ctx, adminControlLockKey).Result()
+		if current != lockValue {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"message": "Trang này đang được quản lý bởi một Admin khác",
+				"holder":  "Admin #" + current,
+			})
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Đã giữ quyền kiểm soát"})
+}
+
+func (h *AdminHandler) HeartbeatLock(w http.ResponseWriter, r *http.Request) {
+	claims, _ := authmiddleware.CurrentClaims(r.Context())
+	userID := claims.UserID
+	lockValue := strconv.FormatInt(userID, 10)
+
+	ctx := r.Context()
+	current, err := h.redis.Get(ctx, adminControlLockKey).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			writeJSON(w, http.StatusGone, map[string]string{"message": "Mất phiên quản lý"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "Lỗi hệ thống"})
+		return
+	}
+
+	if current != lockValue {
+		writeJSON(w, http.StatusForbidden, map[string]string{"message": "Quyền quản lý đã bị chiếm bởi người khác"})
+		return
+	}
+
+	h.redis.Expire(ctx, adminControlLockKey, 45*time.Second)
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Duy trì thành công"})
+}
+
+func (h *AdminHandler) ReleaseLock(w http.ResponseWriter, r *http.Request) {
+	claims, _ := authmiddleware.CurrentClaims(r.Context())
+	userID := claims.UserID
+	lockValue := strconv.FormatInt(userID, 10)
+
+	ctx := r.Context()
+	current, err := h.redis.Get(ctx, adminControlLockKey).Result()
+	if err == nil && current == lockValue {
+		h.redis.Del(ctx, adminControlLockKey)
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Đã thoát chế độ quản lý"})
 }

@@ -18,6 +18,7 @@ import (
 	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
+	"github.com/redis/go-redis/v9"
 )
 
 var (
@@ -56,6 +57,7 @@ type AuthService struct {
 	tokenSigner *token.Signer
 	limiter     *ratelimit.Limiter
 	notifier    *gate.Notifier
+	redis       *redis.Client
 	config      AuthConfig
 }
 
@@ -64,6 +66,7 @@ func NewAuthService(
 	tokenSigner *token.Signer,
 	limiter *ratelimit.Limiter,
 	notifier *gate.Notifier,
+	redis *redis.Client,
 	config AuthConfig,
 ) *AuthService {
 	return &AuthService{
@@ -71,6 +74,7 @@ func NewAuthService(
 		tokenSigner: tokenSigner,
 		limiter:     limiter,
 		notifier:    notifier,
+		redis:       redis,
 		config:      config,
 	}
 }
@@ -346,6 +350,28 @@ func (s *AuthService) VerifyAccessToken(tokenValue string) (auth.TokenClaims, er
 	return s.tokenSigner.Verify(tokenValue)
 }
 
+func (s *AuthService) VerifySession(ctx context.Context, userID int64, sessionID string) bool {
+	if s.redis == nil {
+		return true
+	}
+	// If sessionID is empty, we allow it for backward compatibility or if not enabled
+	if sessionID == "" {
+		return true
+	}
+	key := fmt.Sprintf("user:session:%d", userID)
+	latest, err := s.redis.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			// Session expired in redis but token still valid?
+			// To be strict: return false. To be lax: return true.
+			// Let's be strict.
+			return false
+		}
+		return true // Fallback to allow if Redis is down
+	}
+	return latest == sessionID
+}
+
 func (s *AuthService) Refresh(ctx context.Context, request auth.RefreshTokenRequest, meta auth.RequestMeta) (auth.AuthResponse, error) {
 	userID, expiresAt, err := s.repository.FindRefreshToken(ctx, request.RefreshToken)
 	if err != nil {
@@ -518,12 +544,21 @@ func (s *AuthService) newAuthResponse(ctx context.Context, profile auth.UserProf
 	issuedAt := clock.Now()
 	expiresAt := issuedAt.Add(s.tokenSigner.TTL())
 
+	// Single device login: Generate and store session ID
+	sessionID := id.New() // Using a short unique ID for session
+	if s.redis != nil {
+		sessionKey := fmt.Sprintf("user:session:%d", profile.User.ID)
+		// Store with a TTL slightly longer than the Access Token
+		_ = s.redis.Set(ctx, sessionKey, sessionID, s.tokenSigner.TTL()+1*time.Hour).Err()
+	}
+
 	accessToken, err := s.tokenSigner.Sign(auth.TokenClaims{
-		UserID: profile.User.ID,
-		Role:   profile.User.Role,
-		Status: profile.User.Status,
-		ExpAt:  expiresAt,
-		Issued: issuedAt,
+		UserID:    profile.User.ID,
+		SessionID: sessionID,
+		Role:      profile.User.Role,
+		Status:    profile.User.Status,
+		ExpAt:     expiresAt,
+		Issued:    issuedAt,
 	})
 	if err != nil {
 		return auth.AuthResponse{}, err

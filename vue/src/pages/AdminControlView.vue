@@ -53,11 +53,57 @@ const submittingPeriodId = ref<number | null>(null)
 const toast = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 const pulseUntil = ref<Record<string, number>>({})
 
+const lockState = ref<'checking' | 'acquired' | 'denied'>('checking')
+const lockMessage = ref('')
+const lockHolder = ref('')
+
 let clockTimer: number | undefined
 let toastTimer: number | undefined
 let fallbackPollTimer: number | undefined
 let wsConnection: WebSocket | null = null
 let wsReconnectTimer: number | undefined
+let heartbeatTimer: number | undefined
+
+async function acquireLock() {
+  try {
+    const res = await request<{ message: string; holder?: string }>('POST', '/v1/admin/lock', {
+      token: auth.accessToken,
+    })
+    lockState.value = 'acquired'
+    return true
+  } catch (err: any) {
+    const apiError = err as ApiError
+    lockState.value = 'denied'
+    lockMessage.value = apiError?.message || 'Không thể giành quyền kiểm soát trang quản lý'
+    lockHolder.value = (apiError as any)?.holder || 'Admin khác'
+    return false
+  }
+}
+
+async function sendHeartbeat() {
+  try {
+    await request('PUT', '/v1/admin/lock', {
+      token: auth.accessToken,
+    })
+  } catch (err: any) {
+    const apiError = err as ApiError
+    if (apiError.status === 403 || apiError.status === 410) {
+      lockState.value = 'denied'
+      lockMessage.value = apiError.message
+      stopAdminEngine()
+    }
+  }
+}
+
+async function releaseLock() {
+  try {
+    await request('DELETE', '/v1/admin/lock', {
+      token: auth.accessToken,
+    })
+  } catch {
+    // ignore
+  }
+}
 
 function parseStake(value: string): number {
   const num = Number.parseFloat(value ?? '0')
@@ -205,6 +251,17 @@ function stopFallbackPolling() {
   fallbackPollTimer = undefined
 }
 
+function startAdminEngine() {
+  void fetchStats()
+  startStatsStream()
+  startFallbackPolling()
+}
+
+function stopAdminEngine() {
+  stopStatsStream()
+  stopFallbackPolling()
+}
+
 function showToast(type: 'success' | 'error', text: string) {
   toast.value = { type, text }
   if (toastTimer) window.clearTimeout(toastTimer)
@@ -285,43 +342,49 @@ const optionVolumeRows = computed(() => {
     .slice(0, 12)
 })
 
-onMounted(() => {
-  void fetchStats()
-  startStatsStream()
-  startFallbackPolling()
+onMounted(async () => {
+  const success = await acquireLock()
+  if (!success) return
+
+  startAdminEngine()
   clockTimer = window.setInterval(() => {
     clockTick.value = Date.now()
   }, 1000)
+
+  heartbeatTimer = window.setInterval(() => {
+    void sendHeartbeat()
+  }, 20000)
 })
 
 onBeforeUnmount(() => {
-  stopStatsStream()
-  stopFallbackPolling()
+  stopAdminEngine()
+  void releaseLock()
   if (clockTimer) window.clearInterval(clockTimer)
   if (toastTimer) window.clearTimeout(toastTimer)
+  if (heartbeatTimer) window.clearInterval(heartbeatTimer)
 })
 
 watch(autoRefresh, (enabled) => {
+  if (lockState.value !== 'acquired') return
   if (enabled) {
-    void fetchStats()
-    startStatsStream()
-    startFallbackPolling()
+    startAdminEngine()
   } else {
-    stopStatsStream()
-    stopFallbackPolling()
+    stopAdminEngine()
   }
 })
 
 watch(
   () => auth.accessToken,
-  (token) => {
-    if (token && autoRefresh.value) {
-      void fetchStats()
-      startStatsStream()
-      startFallbackPolling()
+  async (token) => {
+    if (token) {
+      const success = await acquireLock()
+      if (success && autoRefresh.value) {
+        startAdminEngine()
+      }
       return
     }
-    stopStatsStream()
+    stopAdminEngine()
+    void releaseLock()
   },
 )
 </script>
@@ -409,6 +472,27 @@ watch(
     <Teleport to="body">
       <div v-if="toast" class="toast" :class="toast.type === 'success' ? 'toast--success' : 'toast--error'">
         {{ toast.text }}
+      </div>
+    </Teleport>
+
+    <!-- Lock Overlay -->
+    <Teleport to="body">
+      <div v-if="lockState === 'denied'" class="lock-overlay">
+        <div class="lock-card glass-card">
+          <div class="lock-icon">
+            <span class="material-symbols-outlined">lock</span>
+          </div>
+          <h2>Truy cập bị chặn</h2>
+          <p>{{ lockMessage }}</p>
+          <div class="lock-meta">
+            Người đang giữ: <strong>{{ lockHolder }}</strong>
+          </div>
+          <button class="btn-primary" @click="() => $router.back()">Quay lại</button>
+        </div>
+      </div>
+      <div v-if="lockState === 'checking'" class="lock-overlay">
+        <div class="spinner"></div>
+        <p class="mt-4 text-white font-bold">Đang kiểm tra quyền truy cập...</p>
       </div>
     </Teleport>
   </div>
@@ -726,6 +810,67 @@ watch(
   background: rgba(127, 29, 29, 0.92);
   border-color: rgba(251, 113, 133, 0.6);
   color: #ffe4e6;
+}
+
+.lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(2, 6, 23, 0.85);
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.lock-card {
+  width: min(90vw, 400px);
+  text-align: center;
+  padding: 30px 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.lock-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  background: rgba(244, 63, 94, 0.15);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #f43f5e;
+}
+
+.lock-icon span {
+  font-size: 32px;
+}
+
+.lock-card h2 {
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.lock-card p {
+  color: #94a3b8;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.lock-meta {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 24px;
+  font-size: 0.82rem;
+  color: #cbd5e1;
+}
+
+.lock-meta strong {
+  color: #38bdf8;
 }
 
 @keyframes spin {
