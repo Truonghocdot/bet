@@ -1032,16 +1032,16 @@ function chartValue(row: PlayRoomHistoryResponse['items'][number]) {
 }
 
 function chartSummaryLabel(row: PlayRoomHistoryResponse['items'][number]) {
-  if (row.big_small) return row.big_small
-  if (row.color) return row.color
+  if (row.big_small) return normalizeBetLabel(row.big_small)
+  if (row.color) return normalizeBetLabel(row.color)
   return row.result || '—'
 }
 
 function chartBarClass(row: PlayRoomHistoryResponse['items'][number]) {
   const label = String(row.big_small || row.color || row.result || '').toLowerCase()
-  if (label.includes('xanh')) return 'bg-[#24b561]'
-  if (label.includes('đỏ')) return 'bg-[#e64545]'
-  if (label.includes('tím')) return 'bg-[#8b5cf6]'
+  if (label.includes('xanh') || label.includes('green')) return 'bg-[#24b561]'
+  if (label.includes('đỏ') || label.includes('red')) return 'bg-[#e64545]'
+  if (label.includes('tím') || label.includes('violet')) return 'bg-[#8b5cf6]'
   if (label.includes('lớn') || label.includes('big')) return 'bg-primary'
   if (label.includes('nhỏ') || label.includes('small')) return 'bg-[#3b82f6]'
   return 'bg-slate-400'
@@ -1066,33 +1066,33 @@ function closeTicketDetail() {
 }
 
 function resultDotClass(label: string) {
-  if (label.toLowerCase().includes('green_violet')) return 'bg-[#24b561]'
-  if (label.toLowerCase().includes('red_violet')) return 'bg-[#e64545]'
-  if (label.toLowerCase().includes('xanh')) return 'bg-[#24b561]'
-  if (label.toLowerCase().includes('đỏ')) return 'bg-[#e64545]'
-  if (label.toLowerCase().includes('tím')) return 'bg-[#8b5cf6]'
+  const lower = label.toLowerCase()
+  if (lower.includes('green_violet')) return 'bg-gradient-to-br from-[#24b561] to-[#8b5cf6]'
+  if (lower.includes('red_violet')) return 'bg-gradient-to-br from-[#e64545] to-[#8b5cf6]'
+  if (lower.includes('xanh') || lower.includes('green')) return 'bg-[#24b561]'
+  if (lower.includes('đỏ') || lower.includes('red')) return 'bg-[#e64545]'
+  if (lower.includes('tím') || lower.includes('violet')) return 'bg-[#8b5cf6]'
   return 'bg-primary'
 }
 
 function resultBadgeClass(label: string) {
-  if (label.toLowerCase().includes('green_violet') || label.toLowerCase().includes('red_violet')) {
+  const lower = label.toLowerCase()
+  if (lower.includes('green_violet') || lower.includes('red_violet')) {
     return 'border-transparent text-white'
   }
-  if (label.toLowerCase().includes('xanh')) return 'border-[#24b561] bg-[#24b561] text-white'
-  if (label.toLowerCase().includes('đỏ')) return 'border-[#e64545] bg-[#e64545] text-white'
-  if (label.toLowerCase().includes('tím')) return 'border-[#8b5cf6] text-white'
+  if (lower.includes('xanh') || lower.includes('green')) return 'border-[#24b561] bg-[#24b561] text-white'
+  if (lower.includes('đỏ') || lower.includes('red')) return 'border-[#e64545] bg-[#e64545] text-white'
+  if (lower.includes('tím') || lower.includes('violet')) return 'border-[#8b5cf6] bg-[#8b5cf6] text-white'
   return 'border-primary bg-primary text-white'
 }
 
 function resultBadgeStyle(label: string) {
-  if (label.toLowerCase().includes('red_violet')) {
+  const lower = label.toLowerCase()
+  if (lower.includes('red_violet')) {
     return { background: 'linear-gradient(135deg, #e64545, #8b5cf6)' }
   }
-  if (label.toLowerCase().includes('green_violet')) {
+  if (lower.includes('green_violet')) {
     return { background: 'linear-gradient(135deg, #24b561, #8b5cf6)' }
-  }
-  if (label.toLowerCase().includes('tím')) {
-    return { background: 'linear-gradient(135deg, #8b5cf6, #e8404a)' }
   }
   return {}
 }
@@ -1708,7 +1708,9 @@ onBeforeUnmount(() => {
               :class="resultBadgeClass(row.color)"
               :style="resultBadgeStyle(row.color)"
             >{{ row.result ? row.result.slice(0, 1) : '—' }}</span>
-            <span class="font-semibold" :class="row.big_small?.includes('Lớn') ? 'text-[#e8404a]' : 'text-[#3b82f6]'">{{ row.big_small || '—' }}</span>
+            <span class="font-semibold" :class="(row.big_small?.toLowerCase().includes('lớn') || row.big_small?.toLowerCase().includes('big')) ? 'text-[#e8404a]' : 'text-[#3b82f6]'">
+              {{ normalizeBetLabel(row.big_small) }}
+            </span>
             <span class="flex justify-end">
               <span class="h-3.5 w-3.5 rounded-full" :class="resultDotClass(row.color)" />
             </span>
