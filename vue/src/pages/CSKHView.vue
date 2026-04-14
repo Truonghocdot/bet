@@ -8,10 +8,14 @@ const walletStore = useWalletStore()
 
 const telegramLink = computed(() => walletStore.summary?.telegram_cskh_link || 'https://t.me/ff789_official')
 
+function openTelegram() {
+  window.open(telegramLink.value, '_blank')
+}
+
 const channels = [
   { icon: 'chat', label: 'LiveChat 24/7', desc: 'Trò chuyện nhanh với tư vấn viên', color: '#f59e0b', action: () => window.alert('Tính năng LiveChat đang được bảo trì. Vui lòng liên hệ Telegram.') },
-  { icon: 'send', label: 'Telegram Hỗ Trợ', desc: 'Gặp trực tiếp kỹ thuật viên', color: '#2AABEE', action: () => window.open(telegramLink.value, '_blank') },
-  { icon: 'forum', label: 'Kênh Khiếu Nại', desc: 'Phản ánh chất lượng dịch vụ', color: '#ef4444', action: () => window.open(telegramLink.value, '_blank') },
+  { icon: 'send', label: 'Telegram Hỗ Trợ', desc: 'Gặp trực tiếp kỹ thuật viên', color: '#2AABEE', action: openTelegram },
+  { icon: 'forum', label: 'Kênh Khiếu Nại', desc: 'Phản ánh chất lượng dịch vụ', color: '#ef4444', action: openTelegram },
   { icon: 'help_center', label: 'Trung tâm hướng dẫn', desc: 'Xem cách chơi và luật chơi', color: '#8b5cf6', action: () => router.push('/news') },
 ]
 
@@ -111,7 +115,7 @@ onMounted(() => {
       <p class="text-[0.7rem] font-medium text-slate-400">Bạn vẫn chưa tìm thấy câu trả lời?</p>
       <button 
         class="mt-3 w-full rounded-full bg-slate-900 py-3.5 text-[0.85rem] font-black text-white shadow-lg active:scale-95 transition-transform"
-        @click="window.open(telegramLink, '_blank')"
+        @click="openTelegram"
       >
         Liên hệ hỗ trợ trực tiếp
       </button>
