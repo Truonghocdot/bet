@@ -120,7 +120,7 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 			return deposit.DepositInitResponse{}, err
 		}
 
-		expiresAt := clock.Now().Add(60 * 24 * time.Hour) // Thủ công cho phép thời gian dài hơn (ví dụ 60 ngày)
+		expiresAt := clock.Now().Add(10 * time.Minute) // Thống nhất 10 phút
 		return deposit.DepositInitResponse{
 			Message:     message.DepositCreated,
 			Provider:    string(deposit.DepositProviderManualUSDT),
