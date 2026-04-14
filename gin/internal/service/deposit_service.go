@@ -25,6 +25,8 @@ import (
 var ErrDepositUSDTNotAvailable = errors.New(message.DepositUSDTNotAvailable)
 var ErrDepositUSDTTemporarilyClosed = errors.New(message.DepositUSDTTemporarilyClosed)
 
+const localUSDTMinAmount = "11"
+
 type DepositConfig struct {
 	ReceivingAccountsRedisKey string
 }
@@ -58,41 +60,46 @@ func (s *DepositService) InitVietQRDeposit(ctx context.Context, userID int64, re
 }
 
 func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, request deposit.DepositInitRequest) (deposit.DepositInitResponse, error) {
+	traceID := strings.TrimSpace(id.New())
 	if s.gate == nil {
-		log.Printf("[deposit][usdt.init.error] user_id=%d reason=gate_client_nil", userID)
+		log.Printf("[deposit][usdt.init.error] trace_id=%s user_id=%d reason=gate_client_nil", traceID, userID)
 		return deposit.DepositInitResponse{}, ErrDepositUSDTNotAvailable
 	}
 
 	if cached, err := s.loadPendingDepositCache(ctx, userID, deposit.DepositMethodUSDT); err == nil && cached.ClientRef != "" {
+		log.Printf("[deposit][usdt.init.cache_hit] trace_id=%s user_id=%d client_ref=%s status=%d", traceID, userID, cached.ClientRef, cached.Transaction.Status)
 		return cached, nil
 	}
 
 	amount := normalizeDepositAmount(request.Amount)
+	log.Printf("[deposit][usdt.init.input] trace_id=%s user_id=%d raw_amount=%q normalized_amount=%q", traceID, userID, request.Amount, amount)
 	if amount == "" {
-		log.Printf("[deposit][usdt.init.error] user_id=%d reason=amount_required raw_amount=%q", userID, request.Amount)
+		log.Printf("[deposit][usdt.init.error] trace_id=%s user_id=%d reason=amount_required raw_amount=%q", traceID, userID, request.Amount)
 		return deposit.DepositInitResponse{}, fmt.Errorf(message.DepositAmountRequired)
 	}
 
 	amountRat, _ := new(big.Rat).SetString(amount)
-	minUSDT := big.NewRat(15, 1)
+	minUSDT, _ := new(big.Rat).SetString(localUSDTMinAmount)
+	log.Printf("[deposit][usdt.init.validate] trace_id=%s user_id=%d amount=%s local_min=%s", traceID, userID, amount, localUSDTMinAmount)
 	if amountRat == nil || amountRat.Cmp(minUSDT) < 0 {
-		log.Printf("[deposit][usdt.init.error] user_id=%d reason=amount_invalid amount=%s", userID, amount)
+		log.Printf("[deposit][usdt.init.error] trace_id=%s user_id=%d reason=amount_invalid amount=%s local_min=%s", traceID, userID, amount, localUSDTMinAmount)
 		return deposit.DepositInitResponse{}, fmt.Errorf(message.DepositAmountInvalid)
 	}
 
 	walletID, _, err := s.repository.FindWalletByUserAndUnit(ctx, userID, user.WalletUnitUSDT)
 	if err != nil {
-		log.Printf("[deposit][usdt.init.error] user_id=%d reason=find_wallet_failed err=%v", userID, err)
+		log.Printf("[deposit][usdt.init.error] trace_id=%s user_id=%d reason=find_wallet_failed err=%v", traceID, userID, err)
 		return deposit.DepositInitResponse{}, err
 	}
 
 	clientRef := "DEP-" + id.New()
+	log.Printf("[deposit][usdt.init.gate.start] trace_id=%s user_id=%d client_ref=%s amount=%s", traceID, userID, clientRef, amount)
 	created, err := s.gate.CreateNowPaymentsDeposit(ctx, gateclient.CreateNowPaymentsDepositRequest{
 		ClientRef: clientRef,
 		Amount:    amount,
 	})
 	if err != nil {
-		log.Printf("[deposit][usdt.init.error] user_id=%d client_ref=%s reason=gate_create_nowpayments_failed err=%v", userID, clientRef, err)
+		log.Printf("[deposit][usdt.init.error] trace_id=%s user_id=%d client_ref=%s reason=gate_create_nowpayments_failed err=%v", traceID, userID, clientRef, err)
 		errText := strings.ToUpper(strings.TrimSpace(err.Error()))
 		if strings.Contains(errText, "CURRENCY_UNAVAILABLE") {
 			return deposit.DepositInitResponse{}, fmt.Errorf("%w: %v", ErrDepositUSDTTemporarilyClosed, err)
@@ -132,7 +139,7 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 		Meta:               meta,
 	})
 	if err != nil {
-		log.Printf("[deposit][usdt.init.error] user_id=%d client_ref=%s reason=create_deposit_intent_failed err=%v", userID, clientRef, err)
+		log.Printf("[deposit][usdt.init.error] trace_id=%s user_id=%d client_ref=%s reason=create_deposit_intent_failed err=%v", traceID, userID, clientRef, err)
 		return deposit.DepositInitResponse{}, err
 	}
 
@@ -176,15 +183,17 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 	}
 
 	if err := s.savePendingDepositCache(ctx, userID, deposit.DepositMethodUSDT, response); err != nil {
-		log.Printf("[deposit][cache.save.error] user_id=%d method=%s client_ref=%s err=%v", userID, deposit.DepositMethodUSDT, clientRef, err)
+		log.Printf("[deposit][cache.save.error] trace_id=%s user_id=%d method=%s client_ref=%s err=%v", traceID, userID, deposit.DepositMethodUSDT, clientRef, err)
 	}
 	log.Printf(
-		"[deposit][usdt.init.ok] user_id=%d client_ref=%s payment_id=%s pay_currency=%s pay_amount=%s",
+		"[deposit][usdt.init.ok] trace_id=%s user_id=%d client_ref=%s payment_id=%s pay_currency=%s pay_amount=%s pay_address=%s",
+		traceID,
 		userID,
 		clientRef,
 		strings.TrimSpace(created.PaymentID),
 		strings.TrimSpace(created.PayCurrency),
 		strings.TrimSpace(created.PayAmount),
+		strings.TrimSpace(created.PayAddress),
 	)
 
 	return response, nil
