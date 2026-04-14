@@ -21,7 +21,7 @@ class BannerResource extends BaseResource
     protected static UnitEnum|string|null $navigationGroup = 'Thiết lập';
     protected static ?string $navigationLabel = 'Banner trang chủ';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedPhoto;
-    protected static ?string $recordTitleAttribute = 'title';
+    protected static ?string $recordTitleAttribute = 'id';
 
     public static function shouldRegisterNavigation(): bool
     {

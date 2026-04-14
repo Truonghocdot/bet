@@ -10,21 +10,19 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const name = ref('')
-const email = ref('')
 const phone = ref('')
 const password = ref('')
 const refCode = ref(typeof route.query.ref_code === 'string' ? route.query.ref_code : '')
 const submitError = ref('')
 const showPassword = ref(false)
 
-const canSubmit = computed(() => Boolean(name.value && email.value && phone.value && password.value))
+const canSubmit = computed(() => Boolean(name.value && phone.value && password.value))
 
 async function handleRegister() {
   submitError.value = ''
   try {
     await auth.register({
       name: name.value.trim(),
-      email: email.value.trim().toLowerCase(),
       phone: normalizeVNPhone(phone.value),
       password: password.value,
       ref_code: refCode.value.trim() || undefined,
@@ -62,10 +60,6 @@ async function handleRegister() {
     <form class="space-y-3" @submit.prevent="handleRegister">
       <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <input v-model="name" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="text" autocomplete="name" placeholder="Họ và tên" />
-      </label>
-
-      <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
-        <input v-model="email" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="email" autocomplete="email" placeholder="Email" />
       </label>
 
       <label class="grid min-h-[58px] grid-cols-[auto_1fr] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">

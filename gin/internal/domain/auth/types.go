@@ -24,7 +24,7 @@ const (
 
 type RegisterRequest struct {
 	Name     string `json:"name"`
-	Email    string `json:"email"`
+	Email    string `json:"email,omitempty"`
 	Phone    string `json:"phone"`
 	Password string `json:"password"`
 	RefCode  string `json:"ref_code"`

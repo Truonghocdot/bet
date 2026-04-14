@@ -231,17 +231,24 @@ func (r *UserRepository) findUserRecordByID(ctx context.Context, userID int64) (
 }
 
 func (r *UserRepository) insertUser(ctx context.Context, tx *sql.Tx, params RegisterUserParams) (auth.User, error) {
+	var emailVal *string
+	if strings.TrimSpace(params.Email) != "" {
+		trimmed := strings.ToLower(strings.TrimSpace(params.Email))
+		emailVal = &trimmed
+	}
+
 	row := tx.QueryRowContext(ctx, `
 		insert into users (name, email, phone, password, role, status, created_at, updated_at)
 		values ($1, $2, $3, $4, $5, $6, now(), now())
 		returning id, name, email, phone, role, status, email_verified_at, phone_verified_at, last_login_at, created_at, updated_at
-	`, params.Name, params.Email, params.Phone, params.PasswordHash, user.RoleClient, user.StatusActive)
+	`, params.Name, emailVal, params.Phone, params.PasswordHash, user.RoleClient, user.StatusActive)
 
 	var result auth.User
+	var email sql.NullString
 	err := row.Scan(
 		&result.ID,
 		&result.Name,
-		&result.Email,
+		&email,
 		&result.Phone,
 		&result.Role,
 		&result.Status,
@@ -251,6 +258,9 @@ func (r *UserRepository) insertUser(ctx context.Context, tx *sql.Tx, params Regi
 		&result.CreatedAt,
 		&result.UpdatedAt,
 	)
+	if email.Valid {
+		result.Email = email.String
+	}
 	if err != nil {
 		return auth.User{}, err
 	}
@@ -384,10 +394,11 @@ func (r *UserRepository) exists(ctx context.Context, query string, arg string) (
 
 func scanUserRecord(row *sql.Row) (userRecord, error) {
 	var result userRecord
+	var email sql.NullString
 	err := row.Scan(
 		&result.ID,
 		&result.Name,
-		&result.Email,
+		&email,
 		&result.Phone,
 		&result.PasswordHash,
 		&result.Role,
@@ -405,6 +416,10 @@ func scanUserRecord(row *sql.Row) (userRecord, error) {
 		}
 
 		return userRecord{}, err
+	}
+
+	if email.Valid {
+		result.Email = email.String
 	}
 
 	return result, nil

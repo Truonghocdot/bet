@@ -30,6 +30,7 @@ const (
 	NameInvalid                    = "Họ tên phải từ 2 đến 100 ký tự"
 	EmailInvalid                   = "Email không hợp lệ"
 	PhoneInvalid                   = "Số điện thoại không hợp lệ"
+	PhoneRequired                  = "Vui lòng nhập số điện thoại"
 	PasswordInvalid                = "Mật khẩu phải từ 6 đến 72 ký tự"
 	AccountRequired                = "Thiếu email hoặc số điện thoại đăng nhập"
 	PasswordRequired               = "Thiếu mật khẩu"

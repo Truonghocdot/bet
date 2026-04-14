@@ -24,15 +24,11 @@ class BannersTable
                     ->disk('public')
                     ->square(false)
                     ->height(70),
-                TextColumn::make('title')->label('Tiêu đề')->searchable()->limit(60),
                 TextColumn::make('sort_order')->label('Thứ tự')->sortable(),
-                IconColumn::make('is_active')->label('Hoạt động')->boolean(),
-                TextColumn::make('start_at')->label('Bắt đầu')->dateTime()->toggleable(),
-                TextColumn::make('end_at')->label('Kết thúc')->dateTime()->toggleable(),
-                TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
+                TextColumn::make('created_at')->label('Ngày tạo')->dateTime('d/m/Y H:i')->sortable(),
             ])
             ->filters([
-                TernaryFilter::make('is_active')->label('Đang hoạt động'),
+                //
             ])
             ->recordActions([
                 EditAction::make(),
@@ -40,7 +36,7 @@ class BannersTable
             ->headerActions([
                 CreateAction::make()->label('Tạo banner'),
             ])
-            ->defaultSort('sort_order')
+            ->defaultSort('sort_order', 'asc')
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),

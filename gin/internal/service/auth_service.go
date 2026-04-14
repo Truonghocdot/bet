@@ -84,7 +84,8 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 		return auth.AuthResponse{}, fmt.Errorf(message.NameInvalid)
 	}
 
-	if !strings.Contains(email, "@") {
+	// Email bây giờ là nullable hoàn toàn, không cần tự sinh.
+	if email != "" && !strings.Contains(email, "@") {
 		return auth.AuthResponse{}, fmt.Errorf(message.EmailInvalid)
 	}
 
@@ -94,6 +95,10 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 			return auth.AuthResponse{}, fmt.Errorf(message.PhoneInvalid)
 		}
 		phone = &trimmedPhone
+	} else {
+		// Số điện thoại là bắt buộc nếu không có Email (hoặc bắt buộc luôn tùy spec)
+		// Ở đây tôi coi phone là bắt buộc theo yêu cầu của bạn.
+		return auth.AuthResponse{}, fmt.Errorf(message.PhoneRequired)
 	}
 
 	if len(passwordRaw) < 6 || len(passwordRaw) > 72 {
