@@ -375,8 +375,12 @@ func (r *DepositRepository) ApplyDeposit(ctx context.Context, params ApplyDeposi
 		return DepositApplyResult{}, err
 	}
 
-	bAmount, _ := new(big.Float).SetString(params.Amount)
-	bBefore, _ := new(big.Float).SetString(balanceBefore)
+	bAmount, ok1 := new(big.Float).SetString(params.Amount)
+	bBefore, ok2 := new(big.Float).SetString(balanceBefore)
+	if !ok1 || !ok2 {
+		return DepositApplyResult{}, fmt.Errorf("failed to parse balance or amount as numeric: amount=%q balance=%q", params.Amount, balanceBefore)
+	}
+
 	bAfter := new(big.Float).Add(bBefore, bAmount)
 	balanceAfter := bAfter.Text('f', 8)
 

@@ -155,13 +155,13 @@ onMounted(() => {
             Chuyển tiền
           </RouterLink>
         </div>
+        <p class="mt-2.5 px-1 text-[0.72rem] leading-relaxed text-on-surface-variant/80 italic">
+          * Tính năng <strong>Chuyển tiền</strong> giúp bạn quy đổi tài sản qua lại giữa ví VND và USDT nhanh chóng.
+        </p>
       </div>
 
       <article class="rounded-[20px] bg-white p-[18px] shadow-[0_8px_20px_rgba(255,109,102,0.05)] md:p-5">
         <span class="block text-[0.72rem] font-extrabold uppercase text-on-surface-variant">Thông tin ví</span>
-        <p class="mt-3 text-[0.82rem] leading-6 text-on-surface-variant">
-          Hệ thống đang lấy dữ liệu từ bảng <strong>wallets</strong>. Khi backend trả về số dư thật, màn này sẽ luôn đồng bộ theo token đăng nhập hiện tại.
-        </p>
         <div class="mt-4 grid gap-2 rounded-[16px] bg-slate-50 px-4 py-3 text-[0.8rem] text-on-surface-variant">
           <div class="flex items-center justify-between gap-3">
             <span>Ví hiển thị</span>

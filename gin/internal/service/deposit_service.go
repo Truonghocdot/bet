@@ -249,6 +249,8 @@ func (s *DepositService) ListVietQrBanks(ctx context.Context) (deposit.DepositBa
 
 func (s *DepositService) ApplyDeposit(ctx context.Context, request deposit.ApplyDepositRequest) (deposit.ApplyDepositResponse, error) {
 	amount := normalizeDepositAmount(request.Amount)
+	// Trạng thái 'waiting' có thể đi kèm amount = 0, ta vẫn cho phép đi tiếp 
+	// để cập nhật trạng thái đơn hàng trong DB.
 	if amount == "" {
 		return deposit.ApplyDepositResponse{}, fmt.Errorf(message.DepositAmountInvalid)
 	}
