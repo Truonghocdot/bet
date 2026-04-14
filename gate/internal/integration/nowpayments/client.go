@@ -69,8 +69,8 @@ func (c *Client) CreatePaymentWithAPIKey(ctx context.Context, apiKey string, req
 
 	bodyMap := map[string]any{
 		"price_amount":      priceAmount,
-		"price_currency":    strings.ToLower(strings.TrimSpace(request.PriceCurrency)),
-		"pay_currency":      strings.ToLower(strings.TrimSpace(request.PayCurrency)),
+		"price_currency":    strings.ToUpper(strings.TrimSpace(request.PriceCurrency)),
+		"pay_currency":      strings.ToUpper(strings.TrimSpace(request.PayCurrency)),
 		"order_id":          strings.TrimSpace(request.OrderID),
 		"order_description": strings.TrimSpace(request.OrderDescription),
 		"ipn_callback_url":  strings.TrimSpace(request.IPNCallbackURL),

@@ -50,7 +50,8 @@ class GamePeriodForm
                         ->label('Hash kết quả')
                         ->maxLength(255),
                 ])
-                ->columns(2),
+                ->columns(2)
+                ->columnSpanFull(),
         ]);
     }
 }

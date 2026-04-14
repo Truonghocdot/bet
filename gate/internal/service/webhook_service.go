@@ -113,16 +113,20 @@ func (s *WebhookService) CreateNowPaymentsDeposit(ctx context.Context, request C
 	if payCurrency == "" {
 		payCurrency = s.payCurrency
 	}
-	if payCurrency == "" {
-		payCurrency = "usdttrc20"
+	payCurrency = strings.ToUpper(strings.TrimSpace(payCurrency))
+	// Normalize generic "usdt" to a concrete network as default.
+	if payCurrency == "" || payCurrency == "USDT" {
+		payCurrency = "USDTTRC20"
 	}
 
 	priceCurrency := credentials.PriceCurrency
 	if priceCurrency == "" {
 		priceCurrency = s.priceCurrency
 	}
-	if priceCurrency == "" {
-		priceCurrency = "usd"
+	priceCurrency = strings.ToUpper(strings.TrimSpace(priceCurrency))
+	// NOWPayments price currency should be fiat/base quote, avoid using plain usdt.
+	if priceCurrency == "" || priceCurrency == "USDT" {
+		priceCurrency = "USD"
 	}
 
 	callbackURL := s.publicBaseURL + depositWebhookPathNowPayment

@@ -26,6 +26,10 @@ const amount = computed({
 const selectedBankCode = ref('')
 const now = ref(Date.now())
 let countdownTicker: number | undefined
+const usdtQrDataUri = ref('')
+const usdtPaymentUri = ref('')
+const usdtQrLoading = ref(false)
+let usdtQrAbortController: AbortController | null = null
 
 const intent = computed(() => {
   const current = deposit.currentIntent
@@ -35,6 +39,12 @@ const intent = computed(() => {
 const status = computed(() => {
   if (!intent.value) return null
   return deposit.currentStatus
+})
+const isUsdtIntent = computed(() => intent.value?.method === 'usdt')
+const activeNetworkLabel = computed(() => {
+  const provider = intent.value?.receiving_account?.provider_code?.trim()
+  if (!provider) return 'USDTTRC20'
+  return provider.toUpperCase()
 })
 const bankOptions = computed(() => deposit.bankOptions)
 const selectedBank = computed(
@@ -61,13 +71,13 @@ const presetAmounts = computed(() => {
   if (method.value === 'vietqr') {
     return [50000, 100000, 200000, 500000, 1000000, 5000000]
   }
-  return [5, 10, 20, 50, 100, 500]
+  return [11, 20, 50, 100, 500, 1000]
 })
 
 const isAmountValid = computed(() => {
   const numericAmount = Number(amount.value) || 0
   if (method.value === 'vietqr') return numericAmount >= 50000
-  if (method.value === 'usdt') return numericAmount >= 15
+  if (method.value === 'usdt') return numericAmount >= 11
   return false
 })
 
@@ -76,8 +86,8 @@ const validationMessage = computed(() => {
   if (method.value === 'vietqr' && Number(amount.value) < 50000) {
     return 'Nạp tối thiểu 50.000 VND'
   }
-  if (method.value === 'usdt' && Number(amount.value) < 15) {
-    return 'Nạp tối thiểu 15 USDT'
+  if (method.value === 'usdt' && Number(amount.value) < 11) {
+    return 'Nạp tối thiểu 11 USDT'
   }
   return ''
 })
@@ -117,7 +127,13 @@ const qrImageUrl = computed(() => {
   return `https://img.vietqr.io/image/${encodeURIComponent(bankCode)}-${encodeURIComponent(accountNumber)}-compact.jpg${query ? `?${query}` : ''}`
 })
 
+const cryptoQrImageUrl = computed(() => {
+  if (!intent.value || !isUsdtIntent.value) return ''
+  return usdtQrDataUri.value
+})
+
 const transferContent = computed(() => {
+  if (isUsdtIntent.value && usdtPaymentUri.value) return usdtPaymentUri.value
   if (!intent.value) return ''
   const clientRef = intent.value.client_ref?.trim()
   if (clientRef) {
@@ -126,6 +142,66 @@ const transferContent = computed(() => {
   const qrContent = (intent.value.qr_content || '').trim()
   return qrContent.startsWith('DEP-') ? qrContent.slice(4) : qrContent
 })
+
+async function loadUsdtQrCode() {
+  if (!intent.value || !isUsdtIntent.value) {
+    usdtQrDataUri.value = ''
+    usdtPaymentUri.value = ''
+    return
+  }
+
+  const address = (intent.value.receiving_account?.account_number || '').trim()
+  const rawAmount = Number(intent.value.amount || 0)
+  if (!address || !Number.isFinite(rawAmount) || rawAmount <= 0) {
+    usdtQrDataUri.value = ''
+    usdtPaymentUri.value = ''
+    return
+  }
+
+  usdtQrAbortController?.abort()
+  const controller = new AbortController()
+  usdtQrAbortController = controller
+  usdtQrLoading.value = true
+
+  try {
+    const params = new URLSearchParams({
+      address,
+      value: String(rawAmount),
+      size: '400',
+    })
+    const response = await fetch(`https://api.cryptapi.io/trc20/usdt/qrcode/?${params.toString()}`, {
+      method: 'GET',
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`fetch_failed_${response.status}`)
+    }
+
+    const payload = (await response.json()) as {
+      status?: string
+      qr_code?: string
+      payment_uri?: string
+    }
+
+    if (payload.status !== 'success' || !payload.qr_code) {
+      throw new Error('invalid_qr_payload')
+    }
+
+    usdtQrDataUri.value = `data:image/png;base64,${payload.qr_code}`
+    usdtPaymentUri.value = (payload.payment_uri || '').trim()
+  } catch {
+    if (!controller.signal.aborted) {
+      usdtQrDataUri.value = ''
+      usdtPaymentUri.value = ''
+    }
+  } finally {
+    if (usdtQrAbortController === controller) {
+      usdtQrAbortController = null
+    }
+    usdtQrLoading.value = false
+  }
+}
 
 watch(
   () => bankOptions.value,
@@ -176,6 +252,22 @@ watch(
 )
 
 watch(
+  () => [isUsdtIntent.value, intent.value?.receiving_account?.account_number, intent.value?.amount] as const,
+  async ([isUsdt]) => {
+    if (!isUsdt) {
+      usdtQrAbortController?.abort()
+      usdtQrAbortController = null
+      usdtQrDataUri.value = ''
+      usdtPaymentUri.value = ''
+      usdtQrLoading.value = false
+      return
+    }
+    await loadUsdtQrCode()
+  },
+  { immediate: true },
+)
+
+watch(
   () => status.value?.transaction?.status,
   async (nextStatus, previousStatus) => {
     if (nextStatus === previousStatus) return
@@ -210,6 +302,8 @@ onBeforeUnmount(() => {
   if (countdownTicker) {
     window.clearInterval(countdownTicker)
   }
+  usdtQrAbortController?.abort()
+  usdtQrAbortController = null
   deposit.disconnectStatusStream()
 })
 
@@ -268,7 +362,9 @@ async function logout() {
       <div class="flex items-start justify-between gap-3">
         <div>
           <h2 class="m-0 text-base font-black text-primary">Lệnh nạp đang chờ xử lý</h2>
-          <p class="m-0 mt-1 text-xs text-on-surface-variant italic">Vui lòng quét mã QR hoặc chuyển khoản theo thông tin:</p>
+          <p class="m-0 mt-1 text-xs text-on-surface-variant italic">
+            {{ isUsdtIntent ? 'Vui lòng quét mã QR hoặc chuyển USDT đúng địa chỉ/memo bên dưới:' : 'Vui lòng quét mã QR hoặc chuyển khoản theo thông tin:' }}
+          </p>
         </div>
         <button class="rounded-full bg-primary/10 px-3 py-1.5 text-sm font-black text-primary flex items-center gap-1" type="button" :disabled="deposit.loading" @click="refreshStatus">
           <span class="material-symbols-outlined text-[1rem]">sync</span>
@@ -281,35 +377,43 @@ async function logout() {
           <div class="flex items-center gap-3">
             <div class="flex h-12 w-12 items-center justify-center rounded-[16px] bg-white shadow-sm border border-slate-100">
               <img
-                v-if="selectedBank?.logo"
+                v-if="!isUsdtIntent && selectedBank?.logo"
                 :src="selectedBank.logo"
                 :alt="selectedBank?.short_name"
                 class="h-full w-full object-contain p-1.5"
               />
-              <span v-else class="text-sm font-black text-primary">{{ (selectedBank?.short_name || 'QR').slice(0, 2) }}</span>
+              <span v-else class="text-sm font-black text-primary">
+                {{ isUsdtIntent ? 'USDT' : (selectedBank?.short_name || 'QR').slice(0, 2) }}
+              </span>
             </div>
             <div class="min-w-0">
-              <p class="m-0 truncate text-sm font-black text-on-surface">{{ selectedBank?.short_name || intent.receiving_account?.provider_code || 'Ngân hàng' }}</p>
-              <p class="m-0 truncate text-[0.72rem] text-on-surface-variant lowercase">{{ intent.receiving_account?.account_name || 'Tài khoản nhận' }}</p>
+              <p class="m-0 truncate text-sm font-black text-on-surface">
+                {{ isUsdtIntent ? activeNetworkLabel : (selectedBank?.short_name || intent.receiving_account?.provider_code || 'Ngân hàng') }}
+              </p>
+              <p class="m-0 truncate text-[0.72rem] text-on-surface-variant lowercase">
+                {{ isUsdtIntent ? 'CryptAPI - USDT Deposit' : (intent.receiving_account?.account_name || 'Tài khoản nhận') }}
+              </p>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-2 text-sm">
             <div class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">Tên người nhận</p>
+              <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'Đơn vị nhận' : 'Tên người nhận' }}</p>
               <p class="m-0 mt-1 font-black text-on-surface text-[0.8rem] uppercase">{{ intent.receiving_account?.account_name || '---' }}</p>
             </div>
             <div class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">Số tài khoản</p>
-              <p class="m-0 mt-1 font-black text-primary text-[0.9rem]">{{ intent.receiving_account?.account_number || '---' }}</p>
+              <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'Địa chỉ ví' : 'Số tài khoản' }}</p>
+              <p class="m-0 mt-1 break-all font-black text-primary text-[0.9rem]">{{ intent.receiving_account?.account_number || '---' }}</p>
             </div>
             <div class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">Nội dung (Quan trọng)</p>
-              <p class="m-0 mt-1 break-all font-black text-[#e64545] text-[1.1rem]">{{ transferContent }}</p>
+              <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'URI chuyển (Quan trọng)' : 'Nội dung (Quan trọng)' }}</p>
+              <p class="m-0 mt-1 break-all font-black text-[#e64545] text-[1.1rem]">{{ transferContent || 'Không có' }}</p>
             </div>
             <div class="rounded-[16px] bg-white p-3 border border-slate-50">
               <p class="m-0 text-[0.72rem] text-on-surface-variant">Số tiền nạp</p>
-              <p class="m-0 mt-1 font-black text-on-surface text-[0.9rem]">{{ formatViMoney(intent.amount, 0) }}</p>
+              <p class="m-0 mt-1 font-black text-on-surface text-[0.9rem]">
+                {{ isUsdtIntent ? `${intent.amount} USDT` : formatViMoney(intent.amount, 0) }}
+              </p>
             </div>
             <div class="rounded-[16px] bg-white p-3 border border-slate-50">
               <p class="m-0 text-[0.72rem] text-on-surface-variant">Hết hạn sau</p>
@@ -323,11 +427,14 @@ async function logout() {
         </div>
 
         <div class="rounded-[20px] bg-gradient-to-br from-[#fff2f1] to-white p-4">
-          <div v-if="qrImageUrl" class="overflow-hidden rounded-[18px] border-4 border-white bg-white p-3 shadow-xl mb-3">
-            <img :src="qrImageUrl" :alt="selectedBank?.short_name || 'VietQR'" class="block w-full rounded-[14px] object-contain" />
+          <div v-if="(isUsdtIntent ? cryptoQrImageUrl : qrImageUrl)" class="overflow-hidden rounded-[18px] border-4 border-white bg-white p-3 shadow-xl mb-3">
+            <img :src="isUsdtIntent ? cryptoQrImageUrl : qrImageUrl" :alt="isUsdtIntent ? 'USDT QR' : (selectedBank?.short_name || 'VietQR')" class="block w-full rounded-[14px] object-contain" />
           </div>
+          <p v-else-if="isUsdtIntent && usdtQrLoading" class="m-0 mb-3 rounded-[14px] bg-white px-3 py-4 text-center text-xs font-bold text-on-surface-variant">
+            Đang tạo mã QR USDT...
+          </p>
           <p class="m-0 text-center text-[0.7rem] font-bold text-on-surface-variant px-2 leading-relaxed italic">
-            Mở App ngân hàng, chọn Quét mã QR để tự động điền thông tin và nội dung.
+            {{ isUsdtIntent ? 'Mở ví crypto, quét QR để chuyển USDTTRC20 nhanh và chính xác địa chỉ/memo.' : 'Mở App ngân hàng, chọn Quét mã QR để tự động điền thông tin và nội dung.' }}
           </p>
         </div>
       </div>
@@ -429,7 +536,7 @@ async function logout() {
           type="submit"
           :disabled="isIntentActive || deposit.loading || !isAmountValid || (method === 'vietqr' && !selectedBankCode)"
         >
-          {{ isIntentActive ? 'Đang có lệnh mở - vui lòng chờ' : (deposit.loading ? 'Đang tạo giao dịch...' : 'Tạo mã QR Nạp tiền') }}
+          {{ isIntentActive ? 'Đang có lệnh mở - vui lòng chờ' : (deposit.loading ? 'Đang tạo giao dịch...' : (method === 'usdt' ? 'Tạo địa chỉ nạp USDT' : 'Tạo mã QR Nạp tiền')) }}
         </button>
       </form>
     </section>

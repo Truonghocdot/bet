@@ -88,18 +88,18 @@ func (p *RedisNowPaymentsCredentialsProvider) Get(ctx context.Context) (NowPayme
 		payCurrency = strings.TrimSpace(payload.BaseCurrency)
 	}
 	if payCurrency != "" {
-		creds.PayCurrency = strings.ToLower(payCurrency)
+		creds.PayCurrency = strings.ToUpper(payCurrency)
 	}
 
 	priceCurrency := strings.TrimSpace(payload.NowPaymentsPriceCurrency)
 	if priceCurrency == "" {
 		// If base is USDT, price should probably be USDT too to avoid conversion drift
 		if strings.ToUpper(payload.BaseCurrency) == "USDT" {
-			priceCurrency = "usdt"
+			priceCurrency = "USD"
 		}
 	}
 	if priceCurrency != "" {
-		creds.PriceCurrency = strings.ToLower(priceCurrency)
+		creds.PriceCurrency = strings.ToUpper(priceCurrency)
 	}
 
 	log.Printf("[gate][nowpayments.credentials] source=%s api_key_present=%v ipn_secret_present=%v", creds.Source, creds.APIKey != "", creds.IPNSecret != "")

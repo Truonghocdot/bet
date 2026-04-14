@@ -46,7 +46,8 @@ class BannerForm
                         ->label('Hiệu lực đến')
                         ->seconds(false),
                 ])
-                ->columns(2),
+                ->columns(2)
+                ->columnSpanFull(),
         ]);
     }
 }

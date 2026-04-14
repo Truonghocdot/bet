@@ -23,6 +23,7 @@ import (
 )
 
 var ErrDepositUSDTNotAvailable = errors.New(message.DepositUSDTNotAvailable)
+var ErrDepositUSDTTemporarilyClosed = errors.New(message.DepositUSDTTemporarilyClosed)
 
 type DepositConfig struct {
 	ReceivingAccountsRedisKey string
@@ -92,7 +93,11 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 	})
 	if err != nil {
 		log.Printf("[deposit][usdt.init.error] user_id=%d client_ref=%s reason=gate_create_nowpayments_failed err=%v", userID, clientRef, err)
-		return deposit.DepositInitResponse{}, err
+		errText := strings.ToUpper(strings.TrimSpace(err.Error()))
+		if strings.Contains(errText, "CURRENCY_UNAVAILABLE") {
+			return deposit.DepositInitResponse{}, fmt.Errorf("%w: %v", ErrDepositUSDTTemporarilyClosed, err)
+		}
+		return deposit.DepositInitResponse{}, fmt.Errorf("%w: %v", ErrDepositUSDTNotAvailable, err)
 	}
 
 	meta := map[string]any{

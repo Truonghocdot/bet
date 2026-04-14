@@ -264,6 +264,9 @@ func (h *DepositHandler) writeError(r *http.Request, w http.ResponseWriter, err 
 	case errors.Is(err, service.ErrDepositUSDTNotAvailable):
 		statusCode = http.StatusUnprocessableEntity
 		messageText = message.DepositUSDTNotAvailable
+	case errors.Is(err, service.ErrDepositUSDTTemporarilyClosed):
+		statusCode = http.StatusUnprocessableEntity
+		messageText = message.DepositUSDTTemporarilyClosed
 	}
 
 	log.Printf(
