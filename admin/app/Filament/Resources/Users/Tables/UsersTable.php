@@ -27,11 +27,6 @@ class UsersTable
                     ->label('Họ và tên')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('email')
-                    ->label('Email')
-                    ->searchable()
-                    ->copyable()
-                    ->toggleable(),
                 TextColumn::make('phone')
                     ->label('Số điện thoại')
                     ->searchable()
@@ -47,10 +42,6 @@ class UsersTable
                     ->badge()
                     ->formatStateUsing(fn ($state): string => EnumPresenter::label(UserStatus::class, $state))
                     ->color(fn ($state): string => EnumPresenter::color(UserStatus::class, $state)),
-                TextColumn::make('email_verified_at')
-                    ->label('Email xác minh')
-                    ->dateTime()
-                    ->toggleable(),
                 TextColumn::make('phone_verified_at')
                     ->label('SĐT xác minh')
                     ->dateTime()

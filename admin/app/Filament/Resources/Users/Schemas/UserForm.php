@@ -27,12 +27,6 @@ class UserForm
                             ->label('Họ và tên')
                             ->required()
                             ->maxLength(100),
-                        TextInput::make('email')
-                            ->label('Email')
-                            ->email()
-                            ->required()
-                            ->unique(ignoreRecord: true)
-                            ->maxLength(255),
                         TextInput::make('phone')
                             ->label('Số điện thoại')
                             ->tel()
@@ -63,9 +57,6 @@ class UserForm
                     ->columns(2),
                 Section::make('Xác minh và audit')
                     ->schema([
-                        DateTimePicker::make('email_verified_at')
-                            ->label('Xác minh email')
-                            ->disabled(),
                         DateTimePicker::make('phone_verified_at')
                             ->label('Xác minh số điện thoại')
                             ->disabled(),

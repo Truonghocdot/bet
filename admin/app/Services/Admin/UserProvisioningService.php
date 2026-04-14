@@ -36,7 +36,6 @@ class UserProvisioningService
     {
         return Arr::only($data, [
             'name',
-            'email',
             'phone',
             'password',
             'role',
@@ -47,7 +46,6 @@ class UserProvisioningService
     private function applyBackfillFields(User $user, array $data): void
     {
         $backfill = Arr::only($data, [
-            'email_verified_at',
             'phone_verified_at',
             'last_login_at',
         ]);
