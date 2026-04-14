@@ -56,10 +56,13 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 		})
 	}
 
+	snapshot := s.getSnapshot(ctx)
+	
 	return wallet.WalletSummaryResponse{
-		Message:      message.WalletSummarySuccess,
-		ExchangeRate: s.GetExchangeRate(ctx),
-		Wallets:      items,
+		Message:          message.WalletSummarySuccess,
+		ExchangeRate:     snapshot.Rate,
+		TelegramCskhLink: snapshot.TelegramCskhLink,
+		Wallets:          items,
 	}, nil
 }
 
@@ -131,23 +134,34 @@ func (s *WalletService) Exchange(ctx context.Context, userID int64, req wallet.E
 }
 
 func (s *WalletService) GetExchangeRate(ctx context.Context) string {
-	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
-	if err != nil {
-		return fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault)
+	return s.getSnapshot(ctx).Rate
+}
+
+type systemSnapshot struct {
+	Rate             string `json:"rate"`
+	TelegramCskhLink string `json:"telegram_cskh_link"`
+}
+
+func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
+	defaultSnap := systemSnapshot{
+		Rate: fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault),
 	}
 
-	var snapshot struct {
-		Rate string `json:"rate"`
+	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
+	if err != nil {
+		return defaultSnap
 	}
+
+	var snapshot systemSnapshot
 	if err := json.Unmarshal([]byte(val), &snapshot); err != nil {
-		return fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault)
+		return defaultSnap
 	}
 
 	if snapshot.Rate == "" {
-		return fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault)
+		snapshot.Rate = defaultSnap.Rate
 	}
 
-	return snapshot.Rate
+	return snapshot
 }
 
 func walletUnitLabel(unit int) (string, string) {

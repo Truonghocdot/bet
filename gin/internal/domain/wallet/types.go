@@ -15,9 +15,10 @@ type WalletBalance struct {
 }
 
 type WalletSummaryResponse struct {
-	Message      string          `json:"message"`
-	ExchangeRate string          `json:"exchange_rate"`
-	Wallets      []WalletBalance `json:"wallets"`
+	Message           string          `json:"message"`
+	ExchangeRate      string          `json:"exchange_rate"`
+	TelegramCskhLink  string          `json:"telegram_cskh_link,omitempty"`
+	Wallets           []WalletBalance `json:"wallets"`
 }
 
 type ExchangeRequest struct {

@@ -30,6 +30,7 @@ class ExchangeRateSetting extends Model
         'nowpayments_ipn_secret',
         'nowpayments_payout_wallet',
         'nowpayments_sandbox',
+        'telegram_cskh_link',
     ];
 
     protected $casts = [

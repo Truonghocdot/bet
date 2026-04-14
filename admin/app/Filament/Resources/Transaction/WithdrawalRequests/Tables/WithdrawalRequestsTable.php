@@ -8,7 +8,6 @@ use App\Support\Filament\EnumPresenter;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Forms\Components\FileUpload;
@@ -20,6 +19,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use App\Enum\Wallet\UnitTransaction;
+use Filament\Tables\Enums\RecordActionsPosition;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
@@ -130,7 +130,7 @@ class WithdrawalRequestsTable
                             $data['proof_path'] ?? null,
                         );
                     }),
-            ])
+            ], position: RecordActionsPosition::BeforeColumns)
             ->defaultSort('id', 'desc')
             ->poll(2000)
             ->toolbarActions([

@@ -8,6 +8,7 @@ use App\Support\Filament\EnumPresenter;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
@@ -48,7 +49,7 @@ class TransactionsTable
             ->filters([
                 TrashedFilter::make(),
             ])
-            ->groupActions([
+            ->recordActions([
                 Action::make('approve_deposit')
                     ->label('Duyệt nạp')
                     ->icon('heroicon-o-check-circle')
@@ -94,6 +95,6 @@ class TransactionsTable
                                 ->send();
                         }
                     }),
-            ]);
+            ], position: RecordActionsPosition::BeforeColumns);
     }
 }

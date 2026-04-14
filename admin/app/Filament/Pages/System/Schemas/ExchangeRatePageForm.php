@@ -85,6 +85,17 @@ class ExchangeRatePageForm
                         ->helperText('Bật nếu đang dùng môi trường thử nghiệm.'),
                 ])
                 ->columns(2),
+
+            Section::make('Cấu hình Hỗ trợ & Mạng xã hội')
+                ->description('Thông tin liên hệ CSKH hiển thị trên ứng dụng.')
+                ->schema([
+                    TextInput::make('telegram_cskh_link')
+                        ->label('Link Telegram CSKH')
+                        ->url()
+                        ->placeholder('https://t.me/your_cskh')
+                        ->helperText('Đường dẫn trực tiếp đến tài khoản hoặc group Telegram hỗ trợ.'),
+                ])
+                ->columns(2),
         ]);
     }
 }

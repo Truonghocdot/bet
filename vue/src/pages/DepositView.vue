@@ -420,8 +420,8 @@ async function logout() {
               <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'Địa chỉ ví' : 'Số tài khoản' }}</p>
               <p class="m-0 mt-1 break-all font-black text-primary text-[0.9rem]">{{ intent.receiving_account?.account_number || '---' }}</p>
             </div>
-            <div class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'URI chuyển (Quan trọng)' : 'Nội dung (Quan trọng)' }}</p>
+            <div v-if="!isUsdtIntent" class="rounded-[16px] bg-white p-3 border border-slate-50">
+              <p class="m-0 text-[0.72rem] text-on-surface-variant">Nội dung (Quan trọng)</p>
               <p class="m-0 mt-1 break-all font-black text-[#e64545] text-[1.1rem]">{{ transferContent || 'Không có' }}</p>
             </div>
             <div class="rounded-[16px] bg-white p-3 border border-slate-50">

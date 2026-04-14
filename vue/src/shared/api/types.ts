@@ -342,6 +342,7 @@ export type WalletSummaryItem = {
 export type WalletSummaryResponse = {
   message: string
   exchange_rate: string
+  telegram_cskh_link?: string | null
   wallets: WalletSummaryItem[]
 }
 
