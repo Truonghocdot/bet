@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -270,12 +271,20 @@ func (h *DepositHandler) writeError(r *http.Request, w http.ResponseWriter, err 
 	}
 
 	log.Printf(
-		"[deposit][handler.error] op=%s method=%s path=%s status=%d err=%v",
+		"[deposit][handler.error] op=%s method=%s path=%s status=%d err=%+v",
 		operation,
 		r.Method,
 		r.URL.Path,
 		statusCode,
 		err,
 	)
-	writeJSON(w, statusCode, map[string]string{"message": messageText})
+
+	// Trả về message lỗi chi tiết hơn nếu là môi trường local/dev 
+	// hoặc giúp admin debug nhanh hơn lúc này.
+	finalMessage := messageText
+	if statusCode == http.StatusInternalServerError {
+		finalMessage = fmt.Sprintf("%s: %v", message.InternalServerError, err)
+	}
+
+	writeJSON(w, statusCode, map[string]any{"message": finalMessage, "error_detail": err.Error()})
 }

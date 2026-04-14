@@ -248,6 +248,9 @@ func (s *DepositService) ListVietQrBanks(ctx context.Context) (deposit.DepositBa
 }
 
 func (s *DepositService) ApplyDeposit(ctx context.Context, request deposit.ApplyDepositRequest) (deposit.ApplyDepositResponse, error) {
+	log.Printf("[deposit][apply.input] client_ref=%s provider=%s status=%s amount=%s txn_id=%s", 
+		request.ClientRef, request.Provider, request.ProviderStatus, request.Amount, request.ProviderTxnID)
+	
 	amount := normalizeDepositAmount(request.Amount)
 	// Trạng thái 'waiting' có thể đi kèm amount = 0, ta vẫn cho phép đi tiếp 
 	// để cập nhật trạng thái đơn hàng trong DB.
