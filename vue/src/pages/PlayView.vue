@@ -298,11 +298,19 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
   }
 
   const periodNo = String(period.period_no ?? '')
+  // Dùng bet_lock_at thay vì draw_at để countdown phản ánh đúng
+  // thời điểm user thực sự cần đặt lệnh trước đó.
+  const rawBetLockAtMs = Number(new Date(period.bet_lock_at).getTime())
   const rawDrawAtMs = Number(new Date(period.draw_at).getTime())
   const expectedSeconds = Math.max(1, expectedPeriodSeconds.value || 30)
   const fallbackTargetMs = nowMs + expectedSeconds * 1000
   const maxReasonableMs = nowMs + Math.max(expectedSeconds * 3, 30) * 1000
   const cached = readCountdownCache(selectedRoomCode.value)
+
+  // Chọn mốc thời gian: ưu tiên bet_lock_at; fallback sang draw_at nếu không có
+  const preferredTargetMs = Number.isFinite(rawBetLockAtMs) && rawBetLockAtMs > 0
+    ? rawBetLockAtMs
+    : rawDrawAtMs
 
   if (!periodNo) {
     countdownTargetMs.value = fallbackTargetMs
@@ -320,8 +328,8 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
     return
   }
 
-  if (Number.isFinite(rawDrawAtMs) && rawDrawAtMs > 0 && rawDrawAtMs <= maxReasonableMs) {
-    countdownTargetMs.value = rawDrawAtMs
+  if (Number.isFinite(preferredTargetMs) && preferredTargetMs > 0 && preferredTargetMs <= maxReasonableMs) {
+    countdownTargetMs.value = preferredTargetMs
   } else if (cached?.periodNo === periodNo && cached.targetMs > nowMs) {
     countdownTargetMs.value = cached.targetMs
   } else {
@@ -645,15 +653,26 @@ async function applyRoomStateResponse(
 
   roomState.value = response
 
+  // Luôn tính midpoint chính xác dù có rebase hay không
+  const midpoint =
+    options.requestStartedAt !== undefined && options.requestFinishedAt !== undefined
+      ? options.requestStartedAt + Math.max(0, Math.floor((options.requestFinishedAt - options.requestStartedAt) / 2))
+      : Date.now()
+
   if (shouldRebaseClock) {
-    const midpoint =
-      options.requestStartedAt !== undefined && options.requestFinishedAt !== undefined
-        ? options.requestStartedAt + Math.max(0, Math.floor((options.requestFinishedAt - options.requestStartedAt) / 2))
-        : Date.now()
     applyServerClock(response.server_time, midpoint)
+  } else {
+    // Kể cả khi không rebase (WS update), vẫn resync nếu lệch > 1s
+    const serverMs = new Date(response.server_time).getTime()
+    if (Number.isFinite(serverMs) && serverMs > 0) {
+      const drift = Math.abs((serverMs - midpoint) - serverTimeOffsetMs.value)
+      if (drift > 1000) {
+        applyServerClock(response.server_time, midpoint)
+      }
+    }
   }
 
-  syncCountdownTarget(response.current_period, shouldRebaseClock ? clockTick.value : Date.now(), shouldRebaseClock)
+  syncCountdownTarget(response.current_period, clockTick.value, shouldRebaseClock)
   await maybeShowSettlementModal(previousPeriod, response.current_period)
 
   if (previousPeriodNo && previousPeriodNo !== nextPeriodNo) {
@@ -1234,7 +1253,8 @@ watch(currentDice, (newDice) => {
 onMounted(() => {
   void loadWallet()
   rollingDice.value = [...currentDice.value]
-  timer = window.setInterval(() => { clockTick.value = Date.now() }, 1000)
+  // Cập nhật clockTick mỗi 500ms thay vì 1s để giảm sai lệch hiển thị
+  timer = window.setInterval(() => { clockTick.value = Date.now() }, 500)
 })
 
 onBeforeUnmount(() => {
