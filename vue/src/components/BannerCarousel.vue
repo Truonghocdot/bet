@@ -17,7 +17,7 @@ const props = withDefaults(
   },
 )
 
-const fallback = 'https://images.unsplash.com/photo-1642790551116-18e150f248e3?w=800&q=80'
+const fallback = '/banner.png'
 const fallbackList = [
   {
     id: 0,
