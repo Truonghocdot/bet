@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,7 +21,11 @@ func NewContentHandler(contentService *service.ContentService) *ContentHandler {
 func (h *ContentHandler) Home(w http.ResponseWriter, r *http.Request) {
 	response, err := h.contentService.Home(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		fmt.Printf("[api][content] home error: %v\n", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
+			"message":      message.InternalServerError,
+			"error_detail": err.Error(),
+		})
 		return
 	}
 	writeJSON(w, http.StatusOK, response)

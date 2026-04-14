@@ -37,7 +37,7 @@ func (s *ContentService) Home(ctx context.Context) (content.HomeResponse, error)
 	for _, item := range bannerRecords {
 		banners = append(banners, content.BannerItem{
 			ID:       item.ID,
-			Title:    item.Title,
+			Title:    firstNonEmptyStringPtr(item.Title),
 			ImageURL: s.buildAssetURL(item.ImagePath),
 			LinkURL:  firstNonEmptyStringPtr(item.LinkURL),
 		})

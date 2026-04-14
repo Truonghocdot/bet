@@ -16,7 +16,7 @@ var ErrContentNewsNotFound = errors.New("content.news.not_found")
 
 type BannerRecord struct {
 	ID        int64
-	Title     string
+	Title     *string
 	ImagePath string
 	LinkURL   *string
 	SortOrder int
