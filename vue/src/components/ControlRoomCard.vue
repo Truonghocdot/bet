@@ -138,6 +138,54 @@ function ratio(a: number, b: number): number {
   return a / total
 }
 
+function oddsForBetOption(optionKey: string): number {
+  const key = optionKey.toLowerCase()
+  if (key.startsWith('number_')) return 9
+  if (key.startsWith('digit_')) return 9
+  if (key.startsWith('last_')) return 9
+  if (key === 'violet') return 4.5
+  if (key === 'green' || key === 'red' || key === 'big' || key === 'small' || key === 'odd' || key === 'even') {
+    return 2
+  }
+  if (key.startsWith('pair_')) return 13.83
+  if (key.startsWith('sspair_')) return 69.12
+  if (key.startsWith('triple_')) return 207.36
+  if (key === 'serial_any') return 8.64
+  if (key.startsWith('diff_')) return 34.56
+  if (key.startsWith('sum_')) {
+    switch (key) {
+      case 'sum_3':
+      case 'sum_18':
+        return 207.36
+      case 'sum_4':
+      case 'sum_17':
+        return 69.12
+      case 'sum_5':
+      case 'sum_16':
+        return 34.56
+      case 'sum_6':
+      case 'sum_15':
+      case 'sum_30':
+        return 20.74
+      case 'sum_7':
+      case 'sum_14':
+        return 13.83
+      case 'sum_8':
+      case 'sum_13':
+        return 9.88
+      case 'sum_9':
+      case 'sum_12':
+        return 8.3
+      case 'sum_10':
+      case 'sum_11':
+        return 7.68
+      default:
+        return 2
+    }
+  }
+  return 2
+}
+
 const bigSmallRatio = computed(() => ratio(bigStake.value, smallStake.value))
 const oddEvenRatio = computed(() => ratio(oddStake.value, evenStake.value))
 
@@ -157,10 +205,11 @@ function calculateWinGoPL(outcome: number): number {
 
   const winTags = new Set<string>([`number_${outcome}`, bigSmall, oddEven, ...colorTags])
   let payout = 0
+  const taxRate = 0.02
 
   for (const stat of stats.value) {
     if (winTags.has(stat.option_key.toLowerCase())) {
-      payout += parseStake(stat.total_stake) * 1.98
+      payout += parseStake(stat.total_stake) * (oddsForBetOption(stat.option_key) - taxRate)
     }
   }
 
@@ -230,9 +279,10 @@ function calculateK3PL(sum: number): number {
   const oddEven = sum % 2 === 0 ? 'even' : 'odd'
   const winTags = new Set<string>([`sum_${sum}`, bigSmall, oddEven])
   let payout = 0
+  const taxRate = 0.02
   for (const stat of stats.value) {
     if (winTags.has(stat.option_key.toLowerCase())) {
-      payout += parseStake(stat.total_stake) * 1.98
+      payout += parseStake(stat.total_stake) * (oddsForBetOption(stat.option_key) - taxRate)
     }
   }
   return totalStake.value - payout
@@ -339,9 +389,10 @@ function calculateLotteryPL(digits: number[]): number {
   const winTags = new Set<string>([`pick5_${result}`, `sum_${sum}`, `last_${last}`, bigSmall, oddEven])
 
   let payout = 0
+  const taxRate = 0.02
   for (const stat of stats.value) {
     if (winTags.has(stat.option_key.toLowerCase())) {
-      payout += parseStake(stat.total_stake) * 1.98
+      payout += parseStake(stat.total_stake) * (oddsForBetOption(stat.option_key) - taxRate)
     }
   }
   return totalStake.value - payout

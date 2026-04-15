@@ -362,8 +362,6 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
   }
 
   const periodNo = String(period.period_no ?? '')
-  // Dùng bet_lock_at thay vì draw_at để countdown phản ánh đúng
-  // thời điểm user thực sự cần đặt lệnh trước đó.
   const rawBetLockAtMs = Number(new Date(period.bet_lock_at).getTime())
   const rawDrawAtMs = Number(new Date(period.draw_at).getTime())
   const expectedSeconds = Math.max(1, expectedPeriodSeconds.value || 30)
@@ -371,10 +369,11 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
   const fallbackTargetMs = nowMs + expectedSeconds * 1000
   const maxReasonableMs = nowMs + Math.max(expectedSeconds * 3, 30) * 1000
 
-  // Chọn mốc thời gian: ưu tiên bet_lock_at; fallback sang draw_at nếu không có
-  const preferredTargetMs = Number.isFinite(rawBetLockAtMs) && rawBetLockAtMs > 0
-    ? rawBetLockAtMs
-    : rawDrawAtMs
+  // Play view must match admin timing:
+  // countdown runs to draw_at, while bet lock is enforced separately.
+  const preferredTargetMs = Number.isFinite(rawDrawAtMs) && rawDrawAtMs > 0
+    ? rawDrawAtMs
+    : rawBetLockAtMs
 
   if (!periodNo) {
     countdownTargetMs.value = fallbackTargetMs
@@ -422,7 +421,7 @@ const remainingSeconds = computed(() => {
 })
 
 const closingCountdownSeconds = computed(() => {
-  if (currentPeriod.value?.status?.toUpperCase() === 'OPEN' && remainingSeconds.value > 0 && remainingSeconds.value <= 5) {
+  if (currentPeriod.value?.status?.toUpperCase() === 'OPEN' && remainingSeconds.value >= 0 && remainingSeconds.value <= 5) {
     return remainingSeconds.value
   }
   if (closingCountdownPeriodNo.value && closingCountdownTargetMs.value > 0) {
@@ -432,7 +431,10 @@ const closingCountdownSeconds = computed(() => {
   return 0
 })
 
-const showClosingCountdownOverlay = computed(() => closingCountdownSeconds.value > 0 && closingCountdownSeconds.value <= 5)
+const showClosingCountdownOverlay = computed(() => {
+  const status = currentPeriod.value?.status?.toUpperCase()
+  return status === 'OPEN' && remainingSeconds.value >= 0 && remainingSeconds.value <= 5
+})
 
 const countdownParts = computed(() => {
   const total = remainingSeconds.value
@@ -607,13 +609,13 @@ function rowNetAmountValue(row: PlayRoomBetHistoryResponse['items'][number]) {
 }
 
 function rowWinCreditValue(row: PlayRoomBetHistoryResponse['items'][number]) {
-  const expected = Math.max(0, (rowOriginalAmountValue(row) * 2) - rowTaxAmountValue(row))
   const actual = toFiniteNumber(row.actual_payout)
-  if (rowStatusValue(row) === 'WON') {
-    if (expected > 0) return expected
-    return actual
+  if (actual > 0) return actual
+  const profitLoss = toFiniteNumber(row.profit_loss)
+  if (rowStatusValue(row) === 'WON' && profitLoss > 0) {
+    return profitLoss + rowOriginalAmountValue(row)
   }
-  return actual
+  return 0
 }
 
 function rowProfitLossValue(row: PlayRoomBetHistoryResponse['items'][number]) {
@@ -1691,11 +1693,14 @@ onBeforeUnmount(() => {
             v-for="(option, oIdx) in colorGroup.options"
             :key="'color-' + (option.key || oIdx)"
             type="button"
-            class="min-h-[48px] rounded-[10px] text-[0.9rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            class="min-h-[48px] rounded-[10px] px-2 py-2 text-[0.9rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             :style="{ background: option.accent }"
             :disabled="!canBet"
             @click="selectOption(colorGroup.title, option.key, option.label)"
-          >{{ option.label }}</button>
+          >
+            <span class="block leading-none">{{ option.label }}</span>
+            <span v-if="option.odds" class="mt-0.5 block text-[0.58rem] font-semibold opacity-85">{{ option.odds }}</span>
+          </button>
         </div>
 
         <!-- Number balls 0-9 -->
@@ -1704,11 +1709,14 @@ onBeforeUnmount(() => {
             v-for="option in numberGroup.options"
             :key="option.key"
             type="button"
-            class="aspect-square rounded-full text-[1rem] font-black text-white transition-transform active:scale-95 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex aspect-square flex-col items-center justify-center rounded-full text-white transition-transform active:scale-95 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
             :style="{ background: option.accent }"
             :disabled="!canBet"
             @click="selectOption(numberGroup.title, option.key, option.label)"
-          >{{ option.label }}</button>
+          >
+            <span class="text-[1rem] font-black leading-none">{{ option.label }}</span>
+            <span v-if="option.odds" class="mt-0.5 text-[0.55rem] font-semibold opacity-85">{{ option.odds }}</span>
+          </button>
         </div>
 
         <!-- Multiplier / Stake row -->
@@ -1729,11 +1737,14 @@ onBeforeUnmount(() => {
             v-for="option in bigSmallGroup.options"
             :key="option.key"
             type="button"
-            class="min-h-[52px] rounded-[10px] text-[1rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            class="min-h-[52px] rounded-[10px] px-2 py-2 text-[1rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             :style="{ background: option.accent }"
             :disabled="!canBet"
             @click="selectOption(bigSmallGroup.title, option.key, option.label)"
-          >{{ option.label }}</button>
+          >
+            <span class="block leading-none">{{ option.label }}</span>
+            <span v-if="option.odds" class="mt-0.5 block text-[0.6rem] font-semibold opacity-85">{{ option.odds }}</span>
+          </button>
         </div>
       </template>
 

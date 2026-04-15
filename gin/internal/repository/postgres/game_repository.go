@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -475,7 +476,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 	if compareNumeric(netAmountDB, "0") <= 0 {
 		return BetTicketRecord{}, fmt.Errorf("số tiền cược sau thuế không hợp lệ")
 	}
-	potentialPayoutDB, err := multiplyNumeric(netAmountDB, "2")
+	potentialPayoutDB, err := estimateBetPotentialPayout(params.Items, taxAmountDB)
 	if err != nil {
 		return BetTicketRecord{}, err
 	}
@@ -675,19 +676,12 @@ func (r *GameRepository) ListRoomBetTickets(ctx context.Context, userID int64, r
 		       coalesce(t.original_amount, t.total_stake, t.stake)::text,
 		       coalesce(t.tax_amount, 0)::text,
 		       coalesce(t.net_amount, t.total_stake, t.stake)::text,
+		       coalesce(t.actual_payout, 0)::text,
 		       (
 		           case
-		               when t.status = 2 then ((coalesce(t.original_amount, t.total_stake, t.stake) * 2) - coalesce(t.tax_amount, 0))
-		               else coalesce(t.actual_payout, 0)
+		               when t.status = 2 then coalesce(t.actual_payout, 0) - coalesce(t.original_amount, t.total_stake, t.stake)
+		               else 0
 		           end
-		       )::text,
-		       (
-		           (
-		               case
-		                   when t.status = 2 then ((coalesce(t.original_amount, t.total_stake, t.stake) * 2) - coalesce(t.tax_amount, 0))
-		                   else coalesce(t.actual_payout, 0)
-		               end
-		           ) - coalesce(t.original_amount, t.total_stake, t.stake)
 		       )::text,
 		       t.status, t.items, t.created_at, t.settled_at, t.updated_at
 		from bet_tickets t
@@ -797,19 +791,12 @@ func (r *GameRepository) findTicketByRequestIDTx(ctx context.Context, tx *sql.Tx
 		       coalesce(t.original_amount, t.total_stake, t.stake)::text,
 		       coalesce(t.tax_amount, 0)::text,
 		       coalesce(t.net_amount, t.total_stake, t.stake)::text,
+		       coalesce(t.actual_payout, 0)::text,
 		       (
 		           case
-		               when t.status = 2 then ((coalesce(t.original_amount, t.total_stake, t.stake) * 2) - coalesce(t.tax_amount, 0))
-		               else coalesce(t.actual_payout, 0)
+		               when t.status = 2 then coalesce(t.actual_payout, 0) - coalesce(t.original_amount, t.total_stake, t.stake)
+		               else 0
 		           end
-		       )::text,
-		       (
-		           (
-		               case
-		                   when t.status = 2 then ((coalesce(t.original_amount, t.total_stake, t.stake) * 2) - coalesce(t.tax_amount, 0))
-		                   else coalesce(t.actual_payout, 0)
-		               end
-		           ) - coalesce(t.original_amount, t.total_stake, t.stake)
 		       )::text,
 		       t.status, t.items, t.created_at, t.settled_at, t.updated_at
 		from bet_tickets t
@@ -866,6 +853,124 @@ func mapOptionType(optionType string) int {
 	default:
 		return 1
 	}
+}
+
+func settlementOddsForItem(optionType, optionKey string) *big.Rat {
+	key := strings.ToLower(strings.TrimSpace(optionKey))
+	typ := strings.ToUpper(strings.TrimSpace(optionType))
+
+	switch {
+	case strings.HasPrefix(key, "number_"), strings.HasPrefix(key, "digit_"), strings.HasPrefix(key, "last_"):
+		return big.NewRat(9, 1)
+	case key == "violet":
+		return big.NewRat(9, 2)
+	case key == "green", key == "red", key == "big", key == "small", key == "odd", key == "even":
+		return big.NewRat(2, 1)
+	case strings.HasPrefix(key, "pair_"):
+		return big.NewRat(1383, 100)
+	case strings.HasPrefix(key, "sspair_"):
+		return big.NewRat(1728, 25)
+	case strings.HasPrefix(key, "triple_"):
+		return big.NewRat(5184, 25)
+	case key == "serial_any":
+		return big.NewRat(216, 25)
+	case strings.HasPrefix(key, "diff_"):
+		return big.NewRat(864, 25)
+	case strings.HasPrefix(key, "sum_"):
+		if odds := sumOddsForKey(key); odds != nil {
+			return odds
+		}
+	}
+
+	switch typ {
+	case "BIG_SMALL", "ODD_EVEN":
+		return big.NewRat(2, 1)
+	case "COLOR":
+		if key == "violet" {
+			return big.NewRat(9, 2)
+		}
+		return big.NewRat(2, 1)
+	case "NUMBER":
+		return big.NewRat(9, 1)
+	case "SUM":
+		if odds := sumOddsForKey(key); odds != nil {
+			return odds
+		}
+		return big.NewRat(2, 1)
+	case "COMBINATION":
+		if strings.HasPrefix(key, "pair_") {
+			return big.NewRat(1383, 100)
+		}
+		if strings.HasPrefix(key, "sspair_") {
+			return big.NewRat(1728, 25)
+		}
+		if strings.HasPrefix(key, "triple_") {
+			return big.NewRat(5184, 25)
+		}
+		if key == "serial_any" {
+			return big.NewRat(216, 25)
+		}
+		if strings.HasPrefix(key, "diff_") {
+			return big.NewRat(864, 25)
+		}
+	}
+
+	return big.NewRat(2, 1)
+}
+
+func sumOddsForKey(key string) *big.Rat {
+	switch key {
+	case "sum_3", "sum_18":
+		return big.NewRat(5184, 25)
+	case "sum_4", "sum_17":
+		return big.NewRat(1728, 25)
+	case "sum_5", "sum_16":
+		return big.NewRat(864, 25)
+	case "sum_6", "sum_15", "sum_30":
+		return big.NewRat(1037, 50)
+	case "sum_7", "sum_14":
+		return big.NewRat(1383, 100)
+	case "sum_8", "sum_13":
+		return big.NewRat(247, 25)
+	case "sum_9", "sum_12":
+		return big.NewRat(83, 10)
+	case "sum_10", "sum_11":
+		return big.NewRat(192, 25)
+	default:
+		return nil
+	}
+}
+
+func estimateBetPotentialPayout(items []BetTicketItemRecord, taxAmount string) (string, error) {
+	total := new(big.Rat)
+	for _, item := range items {
+		stake, err := parseNumeric(item.Stake)
+		if err != nil {
+			return "", err
+		}
+		odds := settlementOddsForItem(item.OptionType, item.OptionKey)
+		if odds.Sign() <= 0 {
+			continue
+		}
+		itemPayout := new(big.Rat).Mul(stake, odds)
+		total.Add(total, itemPayout)
+	}
+
+	if strings.TrimSpace(taxAmount) != "" {
+		taxRat, err := parseNumeric(taxAmount)
+		if err != nil {
+			return "", err
+		}
+		if taxRat.Sign() > 0 {
+			total.Sub(total, taxRat)
+		}
+	}
+
+	if total.Sign() < 0 {
+		total.SetInt64(0)
+	}
+
+	return total.FloatString(8), nil
 }
 
 func buildTicketNo() string {

@@ -119,13 +119,13 @@ function rowNetAmountValue(row: PlayRoomBetHistoryResponse['items'][number]) {
 }
 
 function rowWinCreditValue(row: PlayRoomBetHistoryResponse['items'][number]) {
-  const expected = Math.max(0, (rowOriginalAmountValue(row) * 2) - rowTaxAmountValue(row))
   const actual = toFiniteNumber(row.actual_payout)
-  if (rowStatusValue(row) === 'WON') {
-    if (expected > 0) return expected
-    return actual
+  if (actual > 0) return actual
+  const profitLoss = toFiniteNumber(row.profit_loss)
+  if (rowStatusValue(row) === 'WON' && profitLoss > 0) {
+    return profitLoss + rowOriginalAmountValue(row)
   }
-  return actual
+  return 0
 }
 
 function rowProfitLossValue(row: PlayRoomBetHistoryResponse['items'][number]) {

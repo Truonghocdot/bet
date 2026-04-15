@@ -151,9 +151,9 @@ function buildWingoVariant(code: string, label: string, durationLabel: string, c
         description: 'Chọn Xanh, Đỏ hoặc Tím theo rule Win Go.',
         mode: 'chips',
         options: [
-          { key: 'green', label: 'Xanh', accent: '#24b561' },
-          { key: 'red', label: 'Đỏ', accent: '#e64545' },
-          { key: 'violet', label: 'Tím', accent: 'linear-gradient(135deg, #8b5cf6, #e8404a)' },
+          { key: 'green', label: 'Xanh', accent: '#24b561', odds: '1:2' },
+          { key: 'red', label: 'Đỏ', accent: '#e64545', odds: '1:2' },
+          { key: 'violet', label: 'Tím', accent: 'linear-gradient(135deg, #8b5cf6, #e8404a)', odds: '1:4.5' },
         ],
       },
       {
@@ -163,6 +163,7 @@ function buildWingoVariant(code: string, label: string, durationLabel: string, c
         options: Array.from({ length: 10 }, (_, number) => ({
           key: `number_${number}`,
           label: String(number),
+          odds: '1:9',
           accent:
             number === 0
               ? zeroBallAccent
@@ -178,8 +179,8 @@ function buildWingoVariant(code: string, label: string, durationLabel: string, c
         description: 'Cửa cược đơn giản cho Win Go.',
         mode: 'chips',
         options: [
-          { key: 'big', label: 'LỚN', accent: '#f6c32d' },
-          { key: 'small', label: 'NHỎ', accent: '#24b561' },
+          { key: 'big', label: 'LỚN', accent: '#f6c32d', odds: '1:2' },
+          { key: 'small', label: 'NHỎ', accent: '#24b561', odds: '1:2' },
         ],
       },
     ],
@@ -335,6 +336,7 @@ function buildLotteryVariant(code: string, label: string, durationLabel: string,
           key: `digit_${number}`,
           label: String(number),
           accent: number >= 5 ? '#f6c32d' : '#24b561',
+          odds: '1:9',
         })),
       },
       {
@@ -342,10 +344,10 @@ function buildLotteryVariant(code: string, label: string, durationLabel: string,
         description: 'Đặt theo tổng lớn/nhỏ hoặc chẵn/lẻ.',
         mode: 'chips',
         options: [
-          { key: 'big', label: 'LỚN', accent: '#f6c32d' },
-          { key: 'small', label: 'NHỎ', accent: '#24b561' },
-          { key: 'odd', label: 'LẺ', accent: '#8b5cf6' },
-          { key: 'even', label: 'CHẴN', accent: '#e64545' },
+          { key: 'big', label: 'LỚN', accent: '#f6c32d', odds: '2X' },
+          { key: 'small', label: 'NHỎ', accent: '#24b561', odds: '2X' },
+          { key: 'odd', label: 'LẺ', accent: '#8b5cf6', odds: '2X' },
+          { key: 'even', label: 'CHẴN', accent: '#e64545', odds: '2X' },
         ],
       },
       {
@@ -353,10 +355,10 @@ function buildLotteryVariant(code: string, label: string, durationLabel: string,
         description: 'Cược theo số cuối hoặc tổng chữ số.',
         mode: 'chips',
         options: [
-          { key: 'last_0', label: 'Đuôi 0', accent: '#e64545' },
-          { key: 'last_5', label: 'Đuôi 5', accent: '#e64545' },
-          { key: 'sum_15', label: 'Tổng 15', accent: '#f6c32d' },
-          { key: 'sum_30', label: 'Tổng 30', accent: '#f6c32d' },
+          { key: 'last_0', label: 'Đuôi 0', accent: '#e64545', odds: '1:9' },
+          { key: 'last_5', label: 'Đuôi 5', accent: '#e64545', odds: '1:9' },
+          { key: 'sum_15', label: 'Tổng 15', accent: '#f6c32d', odds: '20.74X' },
+          { key: 'sum_30', label: 'Tổng 30', accent: '#f6c32d', odds: '20.74X' },
         ],
       },
     ],

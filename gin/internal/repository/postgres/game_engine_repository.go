@@ -679,23 +679,18 @@ func settleTicketItems(rawItems []byte, tags map[string]struct{}, originalAmount
 		return nil, "", fmt.Errorf("invalid bet amount for settlement")
 	}
 
-	// Business rule: tax is deducted upfront, winning payout is original stake * (2 - tax_rate).
-	// With 2% tax this becomes 1.98x of original stake.
-	taxRate := big.NewRat(2, 100)
+	taxRat := new(big.Rat)
 	if strings.TrimSpace(taxAmount) != "" {
-		taxRat, taxErr := parseNumeric(taxAmount)
-		if taxErr == nil && taxRat.Sign() >= 0 {
-			computedRate := new(big.Rat).Quo(taxRat, originalRat)
-			if computedRate.Sign() >= 0 && computedRate.Cmp(big.NewRat(1, 1)) < 0 {
-				taxRate = computedRate
-			}
+		parsedTax, taxErr := parseNumeric(taxAmount)
+		if taxErr != nil {
+			return nil, "", taxErr
+		}
+		if parsedTax.Sign() > 0 {
+			taxRat = parsedTax
 		}
 	}
-	payoutFactor := new(big.Rat).Sub(big.NewRat(2, 1), taxRate)
-	if payoutFactor.Sign() <= 0 {
-		return nil, "", fmt.Errorf("invalid payout factor")
-	}
 
+	grossPayoutTotal := new(big.Rat)
 	for _, item := range items {
 		normalized := strings.ToLower(strings.TrimSpace(item.OptionKey))
 		_, isWin := tags[normalized]
@@ -706,14 +701,15 @@ func settleTicketItems(rawItems []byte, tags map[string]struct{}, originalAmount
 			if err != nil {
 				return nil, "", err
 			}
-			payout = new(big.Rat).Mul(itemStake, payoutFactor).FloatString(8)
+			odds := settlementOddsForItem(item.OptionType, item.OptionKey)
+			if odds.Sign() <= 0 {
+				odds = big.NewRat(2, 1)
+			}
+			grossPayout := new(big.Rat).Mul(itemStake, odds)
+			payout = grossPayout.FloatString(8)
+			grossPayoutTotal.Add(grossPayoutTotal, grossPayout)
 		}
 
-		newTotal, err := addNumeric(payoutTotal, payout)
-		if err != nil {
-			return nil, "", err
-		}
-		payoutTotal = newTotal
 		outcomes = append(outcomes, ticketSettleItemOutcome{
 			OptionType: item.OptionType,
 			OptionKey:  item.OptionKey,
@@ -722,6 +718,14 @@ func settleTicketItems(rawItems []byte, tags map[string]struct{}, originalAmount
 			Payout:     payout,
 		})
 	}
+
+	if grossPayoutTotal.Sign() > 0 && taxRat.Sign() > 0 {
+		grossPayoutTotal.Sub(grossPayoutTotal, taxRat)
+	}
+	if grossPayoutTotal.Sign() < 0 {
+		grossPayoutTotal.SetInt64(0)
+	}
+	payoutTotal = grossPayoutTotal.FloatString(8)
 
 	return outcomes, payoutTotal, nil
 }
