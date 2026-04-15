@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
@@ -18,9 +18,34 @@ const password = ref('')
 const remember = ref(true)
 
 const submitError = ref('')
+const toastMessage = ref('')
+let toastTimer: number | null = null
+
+function showToast(message: string) {
+  toastMessage.value = message
+  if (toastTimer) window.clearTimeout(toastTimer)
+  toastTimer = window.setTimeout(() => {
+    toastMessage.value = ''
+    toastTimer = null
+  }, 5000)
+}
 
 const account = computed(() => {
   return normalizeVNPhone(phoneInput.value)
+})
+
+onMounted(async () => {
+  const sessionInvalidated = route.query.session_invalidated === '1'
+  const storedReason = window.sessionStorage.getItem('ff789:forced-logout-reason') || ''
+  if (sessionInvalidated || storedReason) {
+    showToast(storedReason || 'Tài khoản của bạn đã đăng nhập ở thiết bị khác. Vui lòng đăng nhập lại.')
+    if (storedReason) {
+      window.sessionStorage.removeItem('ff789:forced-logout-reason')
+    }
+    const nextQuery = { ...route.query }
+    delete nextQuery.session_invalidated
+    await router.replace({ path: route.path, query: nextQuery })
+  }
 })
 
 async function handleLogin() {
@@ -45,6 +70,15 @@ async function handleLogin() {
 
 <template>
   <div class="space-y-5">
+    <transition name="fade-slide">
+      <div
+        v-if="toastMessage"
+        class="fixed left-1/2 top-4 z-[9999] w-[min(92vw,520px)] -translate-x-1/2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-extrabold text-amber-800 shadow-[0_12px_30px_rgba(0,0,0,0.14)]"
+      >
+        {{ toastMessage }}
+      </div>
+    </transition>
+
     <header class="grid min-h-12 grid-cols-[36px_1fr_60px] items-center md:min-h-[52px]">
       <button class="grid h-9 w-9 place-items-center text-primary transition-transform active:scale-95" type="button" @click="router.back()">
         <span class="material-symbols-outlined">arrow_back</span>
@@ -131,3 +165,14 @@ async function handleLogin() {
   </div>
 </template>
 
+<style scoped>
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.24s ease;
+}
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -12px);
+}
+</style>

@@ -352,11 +352,13 @@ func (s *AuthService) VerifyAccessToken(tokenValue string) (auth.TokenClaims, er
 
 func (s *AuthService) VerifySession(ctx context.Context, userID int64, sessionID string) bool {
 	if s.redis == nil {
+		log.Printf("[auth][session.verify.skip] user_id=%d reason=redis_nil", userID)
 		return true
 	}
-	// If sessionID is empty, we allow it for backward compatibility or if not enabled
+	// Strict mode: token không có session_id sẽ bị từ chối để đảm bảo single-device login.
 	if sessionID == "" {
-		return true
+		log.Printf("[auth][session.verify.invalid] user_id=%d reason=session_id_empty", userID)
+		return false
 	}
 	key := fmt.Sprintf("user:session:%d", userID)
 	latest, err := s.redis.Get(ctx, key).Result()
@@ -365,10 +367,17 @@ func (s *AuthService) VerifySession(ctx context.Context, userID int64, sessionID
 			// Session expired in redis but token still valid?
 			// To be strict: return false. To be lax: return true.
 			// Let's be strict.
+			log.Printf("[auth][session.verify.miss] user_id=%d redis_key=%s", userID, key)
 			return false
 		}
+		log.Printf("[auth][session.verify.warn] user_id=%d redis_key=%s err=%v", userID, key, err)
 		return true // Fallback to allow if Redis is down
 	}
+	if latest != sessionID {
+		log.Printf("[auth][session.verify.mismatch] user_id=%d redis_key=%s token_session=%s latest_session=%s", userID, key, sessionID, latest)
+		return false
+	}
+	log.Printf("[auth][session.verify.ok] user_id=%d redis_key=%s", userID, key)
 	return latest == sessionID
 }
 
@@ -550,6 +559,11 @@ func (s *AuthService) newAuthResponse(ctx context.Context, profile auth.UserProf
 		sessionKey := fmt.Sprintf("user:session:%d", profile.User.ID)
 		// Store with a TTL slightly longer than the Access Token
 		_ = s.redis.Set(ctx, sessionKey, sessionID, s.tokenSigner.TTL()+1*time.Hour).Err()
+	}
+
+	// Single device login: thu hồi toàn bộ refresh token cũ trước khi cấp token mới.
+	if err := s.repository.DeleteRefreshTokensByUserID(ctx, profile.User.ID); err != nil {
+		log.Printf("[auth][refresh_token.revoke.warn] user_id=%d err=%v", profile.User.ID, err)
 	}
 
 	accessToken, err := s.tokenSigner.Sign(auth.TokenClaims{

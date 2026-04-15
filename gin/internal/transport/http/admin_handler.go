@@ -396,6 +396,7 @@ func (h *AdminHandler) AcquireLock(w http.ResponseWriter, r *http.Request) {
 	// NX: Set if not exists, GET: Return old value if exists
 	success, err := h.redis.SetNX(ctx, adminControlLockKey, lockValue, 45*time.Second).Result()
 	if err != nil {
+		log.Printf("[admin][lock.acquire.error] user_id=%d err=%v", userID, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "Lỗi hệ thống khi kiểm tra khóa"})
 		return
 	}
@@ -403,6 +404,7 @@ func (h *AdminHandler) AcquireLock(w http.ResponseWriter, r *http.Request) {
 	if !success {
 		current, _ := h.redis.Get(ctx, adminControlLockKey).Result()
 		if current != lockValue {
+			log.Printf("[admin][lock.acquire.denied] user_id=%d holder=%s", userID, current)
 			writeJSON(w, http.StatusConflict, map[string]string{
 				"message": "Trang này đang được quản lý bởi một Admin khác",
 				"holder":  "Admin #" + current,
@@ -411,6 +413,7 @@ func (h *AdminHandler) AcquireLock(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	log.Printf("[admin][lock.acquire.ok] user_id=%d ttl_seconds=45", userID)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "Đã giữ quyền kiểm soát"})
 }
 
@@ -423,19 +426,23 @@ func (h *AdminHandler) HeartbeatLock(w http.ResponseWriter, r *http.Request) {
 	current, err := h.redis.Get(ctx, adminControlLockKey).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
+			log.Printf("[admin][lock.heartbeat.gone] user_id=%d", userID)
 			writeJSON(w, http.StatusGone, map[string]string{"message": "Mất phiên quản lý"})
 			return
 		}
+		log.Printf("[admin][lock.heartbeat.error] user_id=%d err=%v", userID, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "Lỗi hệ thống"})
 		return
 	}
 
 	if current != lockValue {
+		log.Printf("[admin][lock.heartbeat.denied] user_id=%d holder=%s", userID, current)
 		writeJSON(w, http.StatusForbidden, map[string]string{"message": "Quyền quản lý đã bị chiếm bởi người khác"})
 		return
 	}
 
 	h.redis.Expire(ctx, adminControlLockKey, 45*time.Second)
+	log.Printf("[admin][lock.heartbeat.ok] user_id=%d ttl_seconds=45", userID)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "Duy trì thành công"})
 }
 
@@ -448,6 +455,9 @@ func (h *AdminHandler) ReleaseLock(w http.ResponseWriter, r *http.Request) {
 	current, err := h.redis.Get(ctx, adminControlLockKey).Result()
 	if err == nil && current == lockValue {
 		h.redis.Del(ctx, adminControlLockKey)
+		log.Printf("[admin][lock.release.ok] user_id=%d", userID)
+	} else {
+		log.Printf("[admin][lock.release.skip] user_id=%d holder=%s err=%v", userID, current, err)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"message": "Đã thoát chế độ quản lý"})
 }

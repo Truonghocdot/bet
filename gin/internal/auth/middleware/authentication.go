@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -38,6 +39,7 @@ func (m *Authentication) Require(next http.Handler) http.Handler {
 		}
 
 		if !m.authService.VerifySession(r.Context(), claims.UserID, claims.SessionID) {
+			log.Printf("[auth][session.invalidated] user_id=%d path=%s method=%s", claims.UserID, r.URL.Path, r.Method)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{
 				"message": "Tài khoản của bạn đã được đăng nhập từ một thiết bị khác. Vui lòng đăng nhập lại.",
 				"code":    "SESSION_INVALIDATED",

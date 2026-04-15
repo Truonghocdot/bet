@@ -185,8 +185,13 @@ export const useAuthStore = defineStore('auth', () => {
   function forcedLogout(reason: string) {
     clear()
     error.value = reason
-    // Use window.location to ensure a full reload and redirect to login, wiping out app memory
-    window.location.href = '/login'
+    try {
+      window.sessionStorage.setItem('ff789:forced-logout-reason', reason)
+    } catch {
+      // no-op
+    }
+    // Full reload để clear state memory và hiện thông báo ở màn login.
+    window.location.href = `/login?session_invalidated=1`
   }
 
   // Hook up global session invalidate
