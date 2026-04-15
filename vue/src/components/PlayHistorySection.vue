@@ -46,25 +46,25 @@ const visibleMineRows = ref<PlayRoomBetHistoryResponse['items']>([])
 const visibleChartSeries = ref<ChartSeriesItem[]>([])
 
 watch(
-  () => props.historyRows,
-  (rows) => {
-    if (!props.historyLoading) visibleHistoryRows.value = [...rows]
+  () => [props.historyRows, props.historyLoading] as const,
+  ([rows, loading]) => {
+    if (!loading) visibleHistoryRows.value = [...rows]
   },
   { immediate: true, deep: true },
 )
 
 watch(
-  () => props.mineRows,
-  (rows) => {
-    if (!props.mineLoading) visibleMineRows.value = [...rows]
+  () => [props.mineRows, props.mineLoading] as const,
+  ([rows, loading]) => {
+    if (!loading) visibleMineRows.value = [...rows]
   },
   { immediate: true, deep: true },
 )
 
 watch(
-  () => props.chartSeries,
-  (rows) => {
-    if (!props.chartLoading) visibleChartSeries.value = [...rows]
+  () => [props.chartSeries, props.chartLoading] as const,
+  ([rows, loading]) => {
+    if (!loading) visibleChartSeries.value = [...rows]
   },
   { immediate: true, deep: true },
 )

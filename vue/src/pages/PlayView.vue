@@ -54,13 +54,17 @@ const roomStateError = ref('')
 const serverTimeOffsetMs = ref(0)
 const clockTick = ref(Date.now())
 const seenSettlementPeriods = new Set<string>()
+const settlementTargets = new Map<string, string>()
 const pendingSettlementChecks = new Map<string, number>()
+const settlementRetryAttempts = new Map<string, number>()
+const settlementChecksInFlight = new Set<string>()
 const countdownTargetMs = ref(0)
 const countdownTargetPeriodNo = ref('')
 const closingCountdownTargetMs = ref(0)
 const closingCountdownPeriodNo = ref('')
 const countdownCachePrefix = 'ff789:play-countdown:'
 const roomStateCachePrefix = 'ff789:play-room-state:'
+let roomStateGeneration = 0
 
 // Bet modal state
 const showBetModal = ref(false)
@@ -68,7 +72,9 @@ const modalBetLabel = ref('')
 const modalBetKey = ref('')
 const modalBetGroupTitle = ref('')
 const initialBetAmount = 10000
+const minimumBetAmount = 1000
 const modalBetAmount = ref(initialBetAmount)
+const modalBetStepAmount = ref(minimumBetAmount)
 const betAmountPresets = [1000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000]
 
 // Countdown beep for the last seconds before bet lock.
@@ -191,8 +197,9 @@ let betsStreamConnection: WebSocket | null = null
 let roomStreamReconnectTimer: number | undefined
 let transitionRefreshTimer: number | undefined
 let transitionRefreshPeriodNo = ''
+let roomStateReconcileTimer: number | undefined
 const transitionRefreshAttempts = ref(0)
-const mineHistoryRequestPromises = new Map<number, Promise<void>>()
+const mineHistoryRequestPromises = new Map<number, Promise<PlayRoomBetHistoryResponse | null>>()
 let mineHistoryPendingRequests = 0
 
 const room = computed<PlayRoom | null>(() => getPlayRoom(String(route.params.game ?? 'wingo')) ?? null)
@@ -265,8 +272,11 @@ function resetRoomStateSession() {
   closingCountdownTargetMs.value = 0
   closingCountdownPeriodNo.value = ''
   seenSettlementPeriods.clear()
+  settlementTargets.clear()
   pendingSettlementChecks.forEach((timerId) => window.clearTimeout(timerId))
   pendingSettlementChecks.clear()
+  settlementRetryAttempts.clear()
+  settlementChecksInFlight.clear()
   transitionRefreshAttempts.value = 0
   transitionRefreshPeriodNo = ''
 }
@@ -336,6 +346,17 @@ function saveRoomStateCache(roomCode: string, response: PlayRoomStateResponse) {
   }
 }
 
+function scheduleRoomStateReconcile(roomCode: string, delayMs = 800) {
+  if (!roomCode) return
+  if (roomStateReconcileTimer) {
+    window.clearTimeout(roomStateReconcileTimer)
+  }
+  roomStateReconcileTimer = window.setTimeout(() => {
+    roomStateReconcileTimer = undefined
+    void loadRoomState(roomCode)
+  }, delayMs)
+}
+
 function hydrateRoomStateFromCache(roomCode: string) {
   const cached = loadRoomStateCache(roomCode)
   if (!cached) return false
@@ -362,6 +383,15 @@ function resetRoomViewData() {
   minePage.value = 1
   historyTotalPages.value = 1
   mineTotalPages.value = 1
+}
+
+function bumpRoomStateGeneration() {
+  roomStateGeneration += 1
+  return roomStateGeneration
+}
+
+function isCurrentRoomStateGeneration(generation: number, roomCode: string) {
+  return generation === roomStateGeneration && roomCode === selectedRoomCode.value
 }
 
 function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | null, nowMs = Date.now(), force = false, roomCode = selectedRoomCode.value) {
@@ -760,8 +790,18 @@ async function applyRoomStateResponse(
     requestStartedAt?: number
     requestFinishedAt?: number
     forceRebaseClock?: boolean
+    roomCode?: string
+    generation?: number
   } = {},
 ) {
+  const responseRoomCode = String(options.roomCode ?? selectedRoomCode.value)
+  const responseGeneration = Number.isFinite(Number(options.generation ?? roomStateGeneration))
+    ? Number(options.generation ?? roomStateGeneration)
+    : roomStateGeneration
+  if (!responseRoomCode || !isCurrentRoomStateGeneration(responseGeneration, responseRoomCode)) {
+    return
+  }
+
   const previousPeriod = roomState.value?.current_period ?? null
   const previousPeriodNo = previousPeriod?.period_no ?? ''
   const nextPeriodNo = response.current_period?.period_no ?? ''
@@ -795,6 +835,9 @@ async function applyRoomStateResponse(
   await maybeShowSettlementModal(previousPeriod, response.current_period)
 
   const nextStatus = String(response.current_period?.status ?? '').toUpperCase()
+  if (previousPeriodNo && previousPeriodNo !== nextPeriodNo && ['OPEN', 'LOCKED', 'DRAWN', 'SETTLED'].includes(nextStatus)) {
+    scheduleRoomStateReconcile(selectedRoomCode.value, 650)
+  }
   if (previousPeriodNo && previousPeriodNo !== nextPeriodNo && nextStatus === 'SETTLED') {
     if (activeHistoryTab.value === 'chart') {
       void loadChartHistory()
@@ -855,6 +898,7 @@ function connectBetsStream(roomCode: string): void {
             mineRows.value = payload.data.items
             minePage.value = payload.data.page ?? 1
             mineTotalPages.value = payload.data.total_pages ?? 1
+            void resolvePendingSettlementModalFromMineRows()
           }
         } else if (payload.event === 'bets.updated') {
           // Bets were updated (settled), reload them
@@ -901,6 +945,7 @@ function scheduleRoomWSReconnect(roomCode: string) {
 
 function connectRoomStateStream(roomCode: string) {
   if (!roomCode) return
+  const generation = roomStateGeneration
 
   disconnectRoomStateStream()
   try {
@@ -914,12 +959,14 @@ function connectRoomStateStream(roomCode: string) {
       try {
         const payload = JSON.parse(String(event.data)) as { event?: string; data?: any }
         if (payload.event === 'room.clock') {
+          if (!isCurrentRoomStateGeneration(generation, roomCode)) return
           applyServerClock(String(payload.data?.server_time ?? ''))
           return
         }
         if (payload.event === 'room.state') {
+          if (!isCurrentRoomStateGeneration(generation, roomCode)) return
           roomStateError.value = ''
-          void applyRoomStateResponse(payload.data as PlayRoomStateResponse)
+          void applyRoomStateResponse(payload.data as PlayRoomStateResponse, { roomCode, generation })
         }
       } catch {
         // ignore malformed ws payload
@@ -942,17 +989,22 @@ function connectRoomStateStream(roomCode: string) {
 
 async function loadRoomState(roomCode = selectedRoomCode.value) {
   if (!roomCode) return
+  const generation = roomStateGeneration
   roomStateLoading.value = true
   roomStateError.value = ''
   try {
     const startedAt = Date.now()
     const response = await request<PlayRoomStateResponse>('GET', `/v1/play/rooms/${roomCode}/state`)
     const finishedAt = Date.now()
+    if (!isCurrentRoomStateGeneration(generation, roomCode)) return
     await applyRoomStateResponse(response, {
       requestStartedAt: startedAt,
       requestFinishedAt: finishedAt,
+      roomCode,
+      generation,
     })
   } catch (error: unknown) {
+    if (!isCurrentRoomStateGeneration(generation, roomCode)) return
     const err = error as ApiError
     const hasCache = !!loadRoomStateCache(roomCode)
     roomStateError.value = hasCache ? '' : (err?.message ?? 'Không thể tải trạng thái phòng chơi')
@@ -1009,36 +1061,46 @@ async function loadChartHistory() {
 }
 
 async function loadMineHistory(page = minePage.value) {
-  if (!selectedRoomCode.value || !auth.accessToken) return
-  const existingPromise = mineHistoryRequestPromises.get(page)
-  if (existingPromise) return existingPromise
+  const response = await fetchMineHistoryPage(page)
+  if (!response) return
+  mineRows.value = response.items
+  minePage.value = response.page
+  mineTotalPages.value = response.total_pages
+  void resolvePendingSettlementModalFromMineRows()
+}
+
+async function fetchMineHistoryPage(page: number): Promise<PlayRoomBetHistoryResponse | null> {
+  if (!selectedRoomCode.value || !auth.accessToken) return null
+  const normalizedPage = Math.max(1, Math.floor(page))
+  const existingPromise = mineHistoryRequestPromises.get(normalizedPage)
+  if (existingPromise) {
+    await existingPromise
+    return null
+  }
 
   mineHistoryPendingRequests += 1
   mineLoading.value = true
   mineError.value = ''
 
-  const promise = (async () => {
+  const promise: Promise<PlayRoomBetHistoryResponse | null> = (async () => {
     try {
-      const response = await request<PlayRoomBetHistoryResponse>(
+      return await request<PlayRoomBetHistoryResponse>(
         'GET',
-        `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${page}&page_size=${tablePageSize}`,
+        `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${normalizedPage}&page_size=${tablePageSize}`,
         { token: auth.accessToken },
       )
-      mineRows.value = response.items
-      minePage.value = response.page
-      mineTotalPages.value = response.total_pages
     } catch (error: unknown) {
       const err = error as ApiError
       mineError.value = err?.message ?? 'Không thể tải lịch sử cược'
-      mineRows.value = []
+      return null
     } finally {
-      mineHistoryRequestPromises.delete(page)
+      mineHistoryRequestPromises.delete(normalizedPage)
       mineHistoryPendingRequests = Math.max(0, mineHistoryPendingRequests - 1)
       mineLoading.value = mineHistoryPendingRequests > 0
     }
   })()
 
-  mineHistoryRequestPromises.set(page, promise)
+  mineHistoryRequestPromises.set(normalizedPage, promise)
   return promise
 }
 
@@ -1053,39 +1115,123 @@ async function maybeShowSettlementModal(
   const isManualSettled = String(nextPeriod.status ?? '').toUpperCase() === 'SETTLED'
 
   const targetPeriodNo = isTransition ? previousPeriod.period_no : isManualSettled ? nextPeriodNo : ''
+  const settlementKey = `${selectedRoomCode.value}:${targetPeriodNo}`
 
-  if (!targetPeriodNo || seenSettlementPeriods.has(targetPeriodNo)) {
+  if (!targetPeriodNo || seenSettlementPeriods.has(settlementKey) || pendingSettlementChecks.has(settlementKey) || settlementChecksInFlight.has(settlementKey)) {
     return
   }
 
-  const settlementKey = `${selectedRoomCode.value}:${targetPeriodNo}`
-  const runningTimer = pendingSettlementChecks.get(settlementKey)
-  if (runningTimer) return
+  settlementTargets.set(settlementKey, targetPeriodNo)
+  await runSettlementModalCheck(targetPeriodNo, settlementKey)
+}
 
-  // Set a pending check to prevent duplicate settlement checks
-  // We'll mark as seen only AFTER modal is successfully shown
+function clearSettlementRetry(settlementKey: string) {
+  const timerId = pendingSettlementChecks.get(settlementKey)
+  if (timerId) {
+    window.clearTimeout(timerId)
+  }
   pendingSettlementChecks.delete(settlementKey)
+  settlementRetryAttempts.delete(settlementKey)
+}
 
-  // Always load fresh mine history to ensure we have latest bet data
-  await loadMineHistory(1)
+async function runSettlementModalCheck(targetPeriodNo: string, settlementKey: string) {
+  if (!targetPeriodNo || seenSettlementPeriods.has(settlementKey)) return
 
-  // Check if bet exists for this period
-  const settledRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
-  
-  // Only mark as seen if we found and displayed the modal
-  if (settledRow) {
-    if (checkAndShowSettlementForPeriod(targetPeriodNo)) {
-      // Modal shown successfully, mark period as seen
-      seenSettlementPeriods.add(targetPeriodNo)
+  if (settlementChecksInFlight.has(settlementKey)) return
+  settlementChecksInFlight.add(settlementKey)
+  clearSettlementRetry(settlementKey)
+
+  try {
+    const foundRow = await findSettledBetRowByPeriod(targetPeriodNo)
+    if (!foundRow) {
+      scheduleSettlementModalRetry(targetPeriodNo, settlementKey)
+      return
     }
-  } else {
-    // No bet for this period, mark as seen to avoid retrying
-    seenSettlementPeriods.add(targetPeriodNo)
+
+    if (checkAndShowSettlementForRow(foundRow)) {
+      seenSettlementPeriods.add(settlementKey)
+      clearSettlementRetry(settlementKey)
+      return
+    }
+
+    scheduleSettlementModalRetry(targetPeriodNo, settlementKey)
+  } finally {
+    settlementChecksInFlight.delete(settlementKey)
   }
 }
 
-function checkAndShowSettlementForPeriod(targetPeriodNo: string): boolean {
-  const settledRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
+function scheduleSettlementModalRetry(targetPeriodNo: string, settlementKey: string) {
+  const attempts = (settlementRetryAttempts.get(settlementKey) ?? 0) + 1
+  if (attempts > 6) {
+    settlementRetryAttempts.delete(settlementKey)
+    return
+  }
+  settlementRetryAttempts.set(settlementKey, attempts)
+
+  const existingTimer = pendingSettlementChecks.get(settlementKey)
+  if (existingTimer) {
+    window.clearTimeout(existingTimer)
+  }
+
+  const timerId = window.setTimeout(() => {
+    if (seenSettlementPeriods.has(settlementKey)) {
+      clearSettlementRetry(settlementKey)
+      return
+    }
+    void runSettlementModalCheck(targetPeriodNo, settlementKey)
+  }, 700)
+  pendingSettlementChecks.set(settlementKey, timerId)
+}
+
+async function findSettledBetRowByPeriod(targetPeriodNo: string) {
+  const target = String(targetPeriodNo)
+  const maxPagesToScan = 10
+
+  for (let page = 1; page <= maxPagesToScan; page += 1) {
+    const response = await fetchMineHistoryPage(page)
+    if (!response) continue
+
+    const found = response.items.find((row) => String(row.period_no) === target)
+    if (found) {
+      mineRows.value = response.items
+      minePage.value = response.page
+      mineTotalPages.value = response.total_pages
+      return found
+    }
+
+    if (page >= response.total_pages) break
+  }
+
+  return null
+}
+
+function resolvePendingSettlementModalFromMineRows() {
+  if (!settlementTargets.size || !mineRows.value.length) return
+
+  for (const [settlementKey, targetPeriodNo] of settlementTargets.entries()) {
+    if (!targetPeriodNo) {
+      settlementTargets.delete(settlementKey)
+      continue
+    }
+
+    if (seenSettlementPeriods.has(settlementKey)) {
+      clearSettlementRetry(settlementKey)
+      settlementTargets.delete(settlementKey)
+      continue
+    }
+
+    const foundRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
+    if (!foundRow) continue
+
+    if (checkAndShowSettlementForRow(foundRow)) {
+      clearSettlementRetry(settlementKey)
+      settlementTargets.delete(settlementKey)
+      continue
+    }
+  }
+}
+
+function checkAndShowSettlementForRow(settledRow: PlayRoomBetHistoryResponse['items'][number]): boolean {
   if (!settledRow) return false
 
   const status = String(settledRow.status ?? '').toUpperCase()
@@ -1094,10 +1240,12 @@ function checkAndShowSettlementForPeriod(targetPeriodNo: string): boolean {
   if (!isFinalStatus) return false // Still pending
 
   // Show result modal
+  const settlementKey = `${selectedRoomCode.value}:${settledRow.period_no}`
+  seenSettlementPeriods.add(settlementKey)
   void wallet.fetchSummary().catch(() => {
     // ignore wallet refresh error
   })
-  pendingSettlementChecks.delete(`${selectedRoomCode.value}:${targetPeriodNo}`)
+  clearSettlementRetry(settlementKey)
   resultModalPeriodNo.value = settledRow.period_no
   resultModalTitle.value = status === 'WON' ? 'Chúc mừng! Bạn đã thắng' : 'Kết quả kỳ xổ'
   resultModalDescription.value = status === 'WON'
@@ -1120,6 +1268,7 @@ function checkAndShowSettlementForPeriod(targetPeriodNo: string): boolean {
 
   resultModalSettledAt.value = settledRow.settled_at ?? settledRow.created_at
   showResultModal.value = true
+  settlementTargets.delete(settlementKey)
   return true
 }
 
@@ -1164,18 +1313,41 @@ function openBetModal(groupTitle: string, optionKey: string, optionLabel: string
   modalBetKey.value = optionKey
   modalBetLabel.value = optionLabel
   modalBetAmount.value = initialBetAmount
+  modalBetStepAmount.value = minimumBetAmount
   showBetModal.value = true
 }
 
+function setBetStepAmount(amount: number) {
+  if (!Number.isFinite(amount) || amount <= 0) return
+  modalBetStepAmount.value = Math.max(minimumBetAmount, Math.floor(amount))
+}
+
 function addBetAmount(amount: number) {
+  setBetStepAmount(Math.abs(amount))
   const newAmount = modalBetAmount.value + amount
-  if (newAmount > 0 && newAmount <= availableVndBalance.value) {
+  // Keep amount within the allowed bet range.
+  if (newAmount >= minimumBetAmount && newAmount <= availableVndBalance.value) {
     modalBetAmount.value = newAmount
   }
 }
 
 function canAddAmount(amount: number): boolean {
-  return amount > 0 && modalBetAmount.value + amount <= availableVndBalance.value
+  const newAmount = modalBetAmount.value + amount
+  return newAmount >= minimumBetAmount && newAmount <= availableVndBalance.value
+}
+
+function adjustBetAmount(direction: -1 | 1) {
+  const delta = modalBetStepAmount.value * direction
+  const newAmount = modalBetAmount.value + delta
+  if (newAmount >= minimumBetAmount && newAmount <= availableVndBalance.value) {
+    modalBetAmount.value = newAmount
+  }
+}
+
+function canAdjustBetAmount(direction: -1 | 1) {
+  const delta = modalBetStepAmount.value * direction
+  const newAmount = modalBetAmount.value + delta
+  return newAmount >= minimumBetAmount && newAmount <= availableVndBalance.value
 }
 
 function selectOption(groupTitle: string, key: string, label: string) {
@@ -1406,6 +1578,7 @@ watch(
       disconnectBetsStream()
       return
     }
+    const generation = bumpRoomStateGeneration()
     resetTransientRoomUiState()
     resetRoomViewData()
     seenSettlementPeriods.clear()
@@ -1415,10 +1588,12 @@ watch(
     setLoading(true)
     try {
       await loadRoomState(roomCode)
+      if (!isCurrentRoomStateGeneration(generation, roomCode)) return
       connectRoomStateStream(roomCode)
       connectBetsStream(roomCode)
       await loadActiveHistory(1)
     } finally {
+      if (!isCurrentRoomStateGeneration(generation, roomCode)) return
       // Small delay to ensure smooth transition
       setTimeout(() => setLoading(false), 300)
     }
@@ -1493,6 +1668,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
   if (transitionRefreshTimer) window.clearTimeout(transitionRefreshTimer)
+  if (roomStateReconcileTimer) window.clearTimeout(roomStateReconcileTimer)
   disconnectRoomStateStream()
   disconnectBetsStream()
 })
@@ -1909,8 +2085,8 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-[1.2rem] font-bold text-slate-500 transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="!canAddAmount(-1000)"
-              @click="addBetAmount(-1000)"
+              :disabled="!canAdjustBetAmount(-1)"
+              @click="adjustBetAmount(-1)"
             >−</button>
             <div class="flex flex-col items-center">
               <input
@@ -1925,8 +2101,8 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-[1.2rem] font-bold text-slate-500 transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="!canAddAmount(1000)"
-              @click="addBetAmount(1000)"
+              :disabled="!canAdjustBetAmount(1)"
+              @click="adjustBetAmount(1)"
             >+</button>
           </div>
         </div>
