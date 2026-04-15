@@ -31,6 +31,11 @@ class ExchangeRateSetting extends Model
         'nowpayments_payout_wallet',
         'nowpayments_sandbox',
         'telegram_cskh_link',
+        'withdraw_fee_percent',
+        'withdraw_required_bet_volume',
+        'withdraw_max_times_per_day',
+        'withdraw_min_amount',
+        'withdraw_max_amount',
     ];
 
     protected $casts = [
@@ -39,6 +44,11 @@ class ExchangeRateSetting extends Model
         'auto_sync' => 'boolean',
         'last_synced_at' => 'datetime',
         'nowpayments_sandbox' => 'boolean',
+        'withdraw_fee_percent' => 'decimal:4',
+        'withdraw_required_bet_volume' => 'decimal:8',
+        'withdraw_max_times_per_day' => 'integer',
+        'withdraw_min_amount' => 'decimal:8',
+        'withdraw_max_amount' => 'decimal:8',
     ];
 
     public function updatedBy(): BelongsTo

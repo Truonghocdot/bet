@@ -41,6 +41,7 @@ export type RegisterRequest = {
   phone?: string
   password: string
   ref_code?: string
+  register_url?: string
 }
 
 export type LoginRequest = {

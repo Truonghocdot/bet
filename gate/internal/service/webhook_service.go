@@ -103,11 +103,9 @@ func (s *WebhookService) CreateNowPaymentsDeposit(ctx context.Context, request C
 	if clientRef == "" || amount == "" {
 		return CreateNowPaymentsDepositResponse{}, fmt.Errorf("client_ref and amount are required")
 	}
-	log.Printf("[gate][nowpayments.create.start] client_ref=%s raw_amount=%q", clientRef, request.Amount)
 
 	credentials, err := s.resolveNowPaymentsCredentials(ctx)
 	if err != nil {
-		log.Printf("[gate][nowpayments.credentials.warn] source=fallback err=%v", err)
 	}
 
 	payCurrency := credentials.PayCurrency
@@ -134,15 +132,6 @@ func (s *WebhookService) CreateNowPaymentsDeposit(ctx context.Context, request C
 	if strings.TrimSpace(s.publicBaseURL) == "" {
 		callbackURL = ""
 	}
-	log.Printf(
-		"[gate][nowpayments.create.request] client_ref=%s amount=%s price_currency=%s pay_currency=%s callback_url=%s source=%s",
-		clientRef,
-		amount,
-		priceCurrency,
-		payCurrency,
-		callbackURL,
-		credentials.Source,
-	)
 
 	created, err := s.nowPayments.CreatePaymentWithAPIKey(ctx, credentials.APIKey, nowpayments.CreatePaymentRequest{
 		PriceAmount:      amount,
@@ -154,26 +143,8 @@ func (s *WebhookService) CreateNowPaymentsDeposit(ctx context.Context, request C
 		IPNCallbackURL:   callbackURL,
 	})
 	if err != nil {
-		log.Printf(
-			"[gate][nowpayments.create.error] client_ref=%s amount=%s price_currency=%s pay_currency=%s source=%s err=%v",
-			clientRef,
-			amount,
-			priceCurrency,
-			payCurrency,
-			credentials.Source,
-			err,
-		)
 		return CreateNowPaymentsDepositResponse{}, err
 	}
-	log.Printf(
-		"[gate][nowpayments.create.ok] client_ref=%s payment_id=%s payment_status=%s pay_currency=%s pay_amount=%s pay_address=%s",
-		clientRef,
-		created.PaymentID,
-		created.PaymentStatus,
-		created.PayCurrency,
-		created.PayAmount,
-		created.PayAddress,
-	)
 
 	return CreateNowPaymentsDepositResponse{
 		Provider:      providerNowPaymentsForGin,
@@ -213,7 +184,6 @@ func (s *WebhookService) HandleDepositWebhook(
 		Payload:    payload,
 	}
 
-	log.Printf("[gate] webhook provider=%s payload=%v", normalizedProvider, payload)
 	fmt.Printf("[gate][debug] RECEIVED WEBHOOK provider=%s payload_keys=%d\n", normalizedProvider, len(payload))
 
 	if s.ginClient != nil {
@@ -232,7 +202,6 @@ func (s *WebhookService) HandleDepositWebhook(
 func (s *WebhookService) verifyNowPaymentsSignature(ctx context.Context, rawBody []byte, headers http.Header) error {
 	credentials, err := s.resolveNowPaymentsCredentials(ctx)
 	if err != nil {
-		log.Printf("[gate][nowpayments.credentials.warn] source=fallback err=%v", err)
 	}
 
 	secret := strings.TrimSpace(credentials.IPNSecret)

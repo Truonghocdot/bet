@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"gin/internal/domain/withdrawal"
 	"gin/internal/support/clock"
@@ -160,7 +161,7 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 		insert into withdrawal_requests (
 			user_id, wallet_id, account_withdrawal_info_id, unit, amount, fee, net_amount, status, created_at, updated_at
 		) values (
-			$1, $2, $3, $4, $5::numeric(20,8), $6::numeric(20,8), $7::numeric(20,8), 0, $8, $8
+			$1, $2, $3, $4, $5::numeric(20,8), $6::numeric(20,8), $7::numeric(20,8), 1, $8, $8
 		) returning id
 	`, userID, walletID, accountID, unit, amount, fee, netAmount, now).Scan(&requestID); err != nil {
 		return 0, err
@@ -223,4 +224,33 @@ func (r *WithdrawalRepository) ListWithdrawalRequests(ctx context.Context, userI
 	}
 
 	return records, rows.Err()
+}
+
+func (r *WithdrawalRepository) CountUserWithdrawalRequestsInRange(ctx context.Context, userID int64, from, to time.Time) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, `
+		select count(1)
+		from withdrawal_requests
+		where user_id = $1
+		  and created_at >= $2
+		  and created_at < $3
+	`, userID, from, to).Scan(&count)
+	return count, err
+}
+
+func (r *WithdrawalRepository) SumUserBetVolume(ctx context.Context, userID int64) (string, error) {
+	var total string
+	err := r.db.QueryRowContext(ctx, `
+		select coalesce(sum(coalesce(original_amount, total_stake, stake)), 0)::text
+		from bet_tickets
+		where user_id = $1
+		  and status in (1, 2, 3)
+	`, userID).Scan(&total)
+	if err != nil {
+		return "", err
+	}
+	if total == "" {
+		return "0", nil
+	}
+	return total, nil
 }

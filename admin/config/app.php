@@ -123,4 +123,5 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'host_mobile' => env('HOST_MOBILE', 'https://m.example.com'),
 ];

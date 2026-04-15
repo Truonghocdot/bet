@@ -221,6 +221,20 @@ function resultBadgeStyle(label: string) {
   return {}
 }
 
+function periodTail(value: string | null | undefined, size = 6) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '—'
+  if (raw.length <= size) return raw
+  return `…${raw.slice(-size)}`
+}
+
+function formatDrawClock(value: string | null | undefined) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+}
+
 function diceColor(n: number): string {
   return n <= 3 ? '#e8404a' : '#10b981'
 }
@@ -354,29 +368,36 @@ function wingoTicketBallText(row: PlayRoomBetHistoryResponse['items'][number]) {
     <div v-if="props.activeHistoryTab === 'history'" class="overflow-hidden">
       <div v-if="props.historyError" class="px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">{{ props.historyError }}</div>
       <div v-else class="relative overflow-hidden">
-        <div class="grid grid-cols-[2fr_0.8fr_1.2fr_0.8fr] bg-[#f9f9f9] border-b border-[#f0e0e0] px-3 py-2 text-[0.62rem] font-black uppercase tracking-wide text-slate-400">
-          <span>Kỳ xổ</span>
-          <span class="text-center">Số</span>
-          <span>Lớn nhỏ</span>
-          <span class="text-right">Màu sắc</span>
+        <div class="grid grid-cols-[1.35fr_0.7fr_1fr_0.7fr_0.8fr] bg-[#f8fafc] border-b border-slate-200 px-3 py-2 text-[0.62rem] font-black uppercase tracking-[0.06em] text-slate-500">
+          <span>Kỳ</span>
+          <span class="text-center">KQ</span>
+          <span>Lớn/Nhỏ</span>
+          <span class="text-center">Màu</span>
+          <span class="text-right">Giờ quay</span>
         </div>
         <div
           v-for="row in visibleHistoryRows"
           :key="row.period_no"
-          class="grid grid-cols-[2fr_0.8fr_1.2fr_0.8fr] items-center border-b border-[#f8f0f0] px-3 py-2.5 text-[0.78rem] hover:bg-[#fff9f9]"
+          class="grid grid-cols-[1.35fr_0.7fr_1fr_0.7fr_0.8fr] items-center border-b border-slate-100 px-3 py-2.5 text-[0.78rem] hover:bg-slate-50"
         >
-          <span class="text-slate-400 text-[0.62rem]">…{{ row.period_no ? row.period_no.slice(-6) : '—' }}</span>
+          <div class="min-w-0">
+            <p class="truncate text-[0.66rem] font-bold text-slate-700">{{ periodTail(row.period_no, 10) }}</p>
+            <p class="mt-0.5 text-[0.6rem] text-slate-400">{{ row.period_no ? row.period_no.split('_')[0] : '—' }}</p>
+          </div>
           <span
-            class="flex h-7 w-7 mx-auto items-center justify-center rounded-full text-[0.75rem] font-black text-white"
+            class="flex h-7 w-7 mx-auto items-center justify-center rounded-full text-[0.75rem] font-black text-white shadow-sm"
             :class="resultBadgeClass(row.color)"
             :style="resultBadgeStyle(row.color)"
           >{{ row.result ? row.result.slice(0, 1) : '—' }}</span>
-          <span class="font-semibold" :class="(row.big_small?.toLowerCase().includes('lớn') || row.big_small?.toLowerCase().includes('big')) ? 'text-[#e8404a]' : 'text-[#3b82f6]'">
+          <span class="font-semibold" :class="(row.big_small?.toLowerCase().includes('lớn') || row.big_small?.toLowerCase().includes('big')) ? 'text-[#e8404a]' : 'text-[#2563eb]'">
             {{ normalizeBetLabel(row.big_small) }}
           </span>
-          <span class="flex justify-end">
-            <span class="h-3.5 w-3.5 rounded-full" :class="resultDotClass(row.color)" />
+          <span class="mx-auto flex h-5 min-w-[44px] items-center justify-center rounded-full px-2 text-[0.62rem] font-black text-white"
+                :class="resultBadgeClass(row.color)"
+                :style="resultBadgeStyle(row.color)">
+            {{ normalizeBetLabel(row.color) }}
           </span>
+          <span class="text-right text-[0.66rem] font-semibold text-slate-500">{{ formatDrawClock(row.draw_at) }}</span>
         </div>
         <div v-if="!visibleHistoryRows.length" class="flex flex-col items-center gap-2 py-8 text-slate-300">
           <span class="material-symbols-outlined text-[2rem]">history</span>

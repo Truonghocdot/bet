@@ -220,21 +220,29 @@ func (h *WithdrawalHandler) handleSubmitWithdrawal(w http.ResponseWriter, r *htt
 
 	var req withdrawal.SubmitWithdrawalRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Dữ liệu yêu cầu rút tiền không hợp lệ"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
+		return
+	}
+	if req.AccountWithdrawalInfoID <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
+		return
+	}
+	if strings.TrimSpace(req.Amount) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
 		return
 	}
 
 	requestID, err := h.withdrawalService.SubmitWithdrawalRequest(r.Context(), claims.UserID, req)
 	if err != nil {
-		if errors.Is(err, repopg.ErrInsufficientBalance) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Số dư không đủ để rút số tiền này"})
-			return
-		}
 		if errors.Is(err, repopg.ErrWithdrawalAccountNotFound) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"message": "Tài khoản nhận tiền không tồn tại"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
 			return
 		}
-		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Không thể tạo lệnh rút tiền, vui lòng kiểm tra lại dữ liệu"})
+		if errors.Is(err, repopg.ErrInsufficientBalance) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
 		return
 	}
 

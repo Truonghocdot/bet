@@ -86,6 +86,44 @@ class ExchangeRatePageForm
                 ])
                 ->columns(2),
 
+            Section::make('Chính sách rút tiền (Hiển thị)')
+                ->description('Cấu hình chính sách rút tiền áp dụng ở backend Gin.')
+                ->schema([
+                    TextInput::make('withdraw_fee_percent')
+                        ->label('Lệ phí (%)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step('0.01')
+                        ->required()
+                        ->helperText('Ví dụ nhập 0, 1.5, 2 ...'),
+                    TextInput::make('withdraw_required_bet_volume')
+                        ->label('Tổng tiền cược tối thiểu')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step('0.000001')
+                        ->required()
+                        ->helperText('Khối lượng cược tối thiểu để được phép rút.'),
+                    TextInput::make('withdraw_max_times_per_day')
+                        ->label('Số lần rút tối đa / ngày')
+                        ->numeric()
+                        ->minValue(1)
+                        ->step('1')
+                        ->required(),
+                    TextInput::make('withdraw_min_amount')
+                        ->label('Rút tối thiểu')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step('0.000001')
+                        ->required(),
+                    TextInput::make('withdraw_max_amount')
+                        ->label('Rút tối đa')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step('0.000001')
+                        ->required(),
+                ])
+                ->columns(2),
+
             Section::make('Cấu hình Hỗ trợ & Mạng xã hội')
                 ->description('Thông tin liên hệ CSKH hiển thị trên ứng dụng.')
                 ->schema([

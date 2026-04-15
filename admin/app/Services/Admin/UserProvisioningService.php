@@ -155,7 +155,7 @@ class UserProvisioningService
 
     private function affiliateStatus(array $data): int
     {
-        $status = $data['affiliate_status'] ?? AffiliateProfileStatus::PENDING->value;
+        $status = $data['affiliate_status'] ?? AffiliateProfileStatus::ACTIVE->value;
 
         if ($status instanceof AffiliateProfileStatus) {
             return $status->value;

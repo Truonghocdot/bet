@@ -373,7 +373,6 @@ func (s *AuthService) VerifySession(ctx context.Context, userID int64, sessionID
 	}
 	// Strict mode: token không có session_id sẽ bị từ chối để đảm bảo single-device login.
 	if sessionID == "" {
-		log.Printf("[auth][session.verify.invalid] user_id=%d reason=session_id_empty", userID)
 		return false
 	}
 	key := fmt.Sprintf("user:session:%d", userID)
@@ -383,17 +382,13 @@ func (s *AuthService) VerifySession(ctx context.Context, userID int64, sessionID
 			// Session expired in redis but token still valid?
 			// To be strict: return false. To be lax: return true.
 			// Let's be strict.
-			log.Printf("[auth][session.verify.miss] user_id=%d redis_key=%s", userID, key)
 			return false
 		}
-		log.Printf("[auth][session.verify.warn] user_id=%d redis_key=%s err=%v", userID, key, err)
 		return true // Fallback to allow if Redis is down
 	}
 	if latest != sessionID {
-		log.Printf("[auth][session.verify.mismatch] user_id=%d redis_key=%s token_session=%s latest_session=%s", userID, key, sessionID, latest)
 		return false
 	}
-	log.Printf("[auth][session.verify.ok] user_id=%d redis_key=%s", userID, key)
 	return latest == sessionID
 }
 

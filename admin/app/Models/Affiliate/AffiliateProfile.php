@@ -3,6 +3,7 @@
 namespace App\Models\Affiliate;
 
 use App\Enum\Affiliate\AffiliateProfileStatus;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -59,7 +60,7 @@ class AffiliateProfile extends Model
         $resolvedCode = filled($refCode) ? trim((string) $refCode) : static::generateUniqueRefCode();
         $resolvedLink = filled($refLink)
             ? trim((string) $refLink)
-            : rtrim((string) config('app.url'), '/').'/register?ref='.$resolvedCode;
+            : rtrim((string) config('app.host_mobile'), '/').'/register?ref_code='.$resolvedCode;
 
         return [
             'ref_code' => $resolvedCode,

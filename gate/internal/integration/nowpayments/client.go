@@ -95,20 +95,16 @@ func (c *Client) CreatePaymentWithAPIKey(ctx context.Context, apiKey string, req
 
 	httpRequest.Header.Set("Content-Type", "application/json")
 	httpRequest.Header.Set("x-api-key", resolvedAPIKey)
-	log.Printf("[gate][nowpayments.http.request] method=%s url=%s payload=%s", http.MethodPost, c.baseURL+"/v1/payment", string(body))
 
 	httpResponse, err := c.client.Do(httpRequest)
 	if err != nil {
-		log.Printf("[gate][nowpayments.http.error] stage=request err=%v", err)
 		return CreatePaymentResponse{}, err
 	}
 	defer httpResponse.Body.Close()
-	log.Printf("[gate][nowpayments.http.response] status=%d", httpResponse.StatusCode)
 
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
 		rawBody, _ := io.ReadAll(httpResponse.Body)
 		bodyText := strings.TrimSpace(string(rawBody))
-		log.Printf("[gate][nowpayments.http.response.error] status=%d body=%s", httpResponse.StatusCode, bodyText)
 		if bodyText == "" {
 			return CreatePaymentResponse{}, fmt.Errorf("nowpayments create payment returned status %d", httpResponse.StatusCode)
 		}

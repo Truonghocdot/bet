@@ -26,6 +26,7 @@ async function handleRegister() {
       phone: normalizeVNPhone(phone.value),
       password: password.value,
       ref_code: refCode.value.trim() || undefined,
+      register_url: window.location.href,
     })
 
     await router.replace('/account')

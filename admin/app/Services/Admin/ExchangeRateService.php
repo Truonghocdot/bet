@@ -35,6 +35,11 @@ class ExchangeRateService
                 'source_rate' => 25000,
                 'auto_sync' => true,
                 'source_name' => 'seed',
+                'withdraw_fee_percent' => 0,
+                'withdraw_required_bet_volume' => 0,
+                'withdraw_max_times_per_day' => 3,
+                'withdraw_min_amount' => 200000,
+                'withdraw_max_amount' => 20000000,
             ],
         );
     }
@@ -56,6 +61,11 @@ class ExchangeRateService
                 'nowpayments_payout_wallet' => $data['nowpayments_payout_wallet'] ?? null,
                 'nowpayments_sandbox' => (bool) ($data['nowpayments_sandbox'] ?? false),
                 'telegram_cskh_link' => $data['telegram_cskh_link'] ?? null,
+                'withdraw_fee_percent' => $data['withdraw_fee_percent'] ?? 0,
+                'withdraw_required_bet_volume' => $data['withdraw_required_bet_volume'] ?? 0,
+                'withdraw_max_times_per_day' => $data['withdraw_max_times_per_day'] ?? 3,
+                'withdraw_min_amount' => $data['withdraw_min_amount'] ?? 200000,
+                'withdraw_max_amount' => $data['withdraw_max_amount'] ?? 20000000,
                 'updated_by' => $actor?->id,
             ]);
 
@@ -197,6 +207,11 @@ class ExchangeRateService
             'nowpayments_payout_wallet' => $setting->nowpayments_payout_wallet,
             'nowpayments_sandbox' => (bool) $setting->nowpayments_sandbox,
             'telegram_cskh_link' => $setting->telegram_cskh_link,
+            'withdraw_fee_percent' => (string) ($setting->withdraw_fee_percent ?? '0'),
+            'withdraw_required_bet_volume' => (string) ($setting->withdraw_required_bet_volume ?? '0'),
+            'withdraw_max_times_per_day' => (int) ($setting->withdraw_max_times_per_day ?? 3),
+            'withdraw_min_amount' => (string) ($setting->withdraw_min_amount ?? '200000'),
+            'withdraw_max_amount' => (string) ($setting->withdraw_max_amount ?? '20000000'),
             'cache_store' => $this->cacheStore(),
             'cache_key' => $this->cacheKey(),
             'redis_connection' => $this->redisConnection(),
