@@ -14,6 +14,7 @@ import (
 	"gin/internal/service"
 	"gin/internal/support/clock"
 	"gin/internal/support/message"
+
 	"github.com/gorilla/websocket"
 )
 
@@ -194,6 +195,91 @@ func (h *PlayRoomHandler) RoomStateWS(w http.ResponseWriter, r *http.Request) {
 				Event: "room.clock",
 				Data: map[string]any{
 					"server_time": clock.Now(),
+				},
+			}); err != nil {
+				return
+			}
+		case <-pingTicker.C:
+			if err := conn.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(10*time.Second)); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func (h *PlayRoomHandler) MyBetsWS(w http.ResponseWriter, r *http.Request) {
+	roomCode := strings.TrimSpace(r.PathValue("room_code"))
+	if roomCode == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Room code required"})
+		return
+	}
+
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": "Unauthorized"})
+		return
+	}
+
+	conn, err := playWSUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	_ = conn.SetReadDeadline(time.Now().Add(75 * time.Second))
+	conn.SetPongHandler(func(_ string) error {
+		return conn.SetReadDeadline(time.Now().Add(75 * time.Second))
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, readErr := conn.ReadMessage(); readErr != nil {
+				return
+			}
+		}
+	}()
+
+	updates, unsubscribe, err := h.broker.Subscribe(r.Context(), realtime.PlayRoomBetsTopic(roomCode, claims.UserID))
+	if err != nil {
+		_ = conn.WriteJSON(wsRoomEventPayload{Event: "error", Data: map[string]string{"message": "Failed to subscribe"}})
+		return
+	}
+	defer unsubscribe()
+
+	clockTicker := time.NewTicker(time.Second)
+	pingTicker := time.NewTicker(20 * time.Second)
+	defer clockTicker.Stop()
+	defer pingTicker.Stop()
+
+	// Send initial state (list of latest bets)
+	initialBets, err := h.playRoomService.ListMyRoomBets(r.Context(), claims.UserID, roomCode, 1, 4)
+	if err == nil {
+		_ = conn.WriteJSON(wsRoomEventPayload{Event: "bets.init", Data: initialBets})
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-done:
+			return
+		case update, ok := <-updates:
+			if !ok {
+				return
+			}
+			if update.Event != "bets.updated" {
+				continue
+			}
+			if err := conn.WriteJSON(wsRoomEventPayload{Event: update.Event, Data: json.RawMessage(update.Data)}); err != nil {
+				return
+			}
+		case <-clockTicker.C:
+			if err := conn.WriteJSON(wsRoomEventPayload{
+				Event: "ping",
+				Data: map[string]any{
+					"server_time": time.Now().UTC().Format(time.RFC3339),
 				},
 			}); err != nil {
 				return

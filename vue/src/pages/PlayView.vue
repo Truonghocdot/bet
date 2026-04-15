@@ -34,7 +34,6 @@ const joinError = ref('')
 const betMessage = ref('')
 const betMessageRoomCode = ref('')
 const betLoading = ref(false)
-const selectedMultiplier = ref(10)
 const selectedOptions = reactive<Record<string, string>>({})
 const roomState = ref<PlayRoomStateResponse | null>(null)
 const historyRows = ref<PlayRoomHistoryResponse['items']>([])
@@ -55,6 +54,7 @@ const roomStateError = ref('')
 const serverTimeOffsetMs = ref(0)
 const clockTick = ref(Date.now())
 const seenSettlementPeriods = new Set<string>()
+const pendingSettlementChecks = new Map<string, number>()
 const countdownTargetMs = ref(0)
 const countdownTargetPeriodNo = ref('')
 const closingCountdownTargetMs = ref(0)
@@ -67,9 +67,9 @@ const showBetModal = ref(false)
 const modalBetLabel = ref('')
 const modalBetKey = ref('')
 const modalBetGroupTitle = ref('')
-const baseChipAmount = 1000
-const modalBetAmount = ref(baseChipAmount * 10)
-const betPresets = [1000, 5000, 10000, 50000, 100000]
+const initialBetAmount = 10000
+const modalBetAmount = ref(initialBetAmount)
+const betAmountPresets = [1000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000]
 
 // Countdown beep for the last seconds before bet lock.
 let tickAudioContext: AudioContext | null = null
@@ -187,7 +187,13 @@ function formatMultiplierLabel(m: number) {
 const tablePageSize = 4
 let timer: number | undefined
 let roomStreamConnection: WebSocket | null = null
+let betsStreamConnection: WebSocket | null = null
 let roomStreamReconnectTimer: number | undefined
+let transitionRefreshTimer: number | undefined
+let transitionRefreshPeriodNo = ''
+const transitionRefreshAttempts = ref(0)
+const mineHistoryRequestPromises = new Map<number, Promise<void>>()
+let mineHistoryPendingRequests = 0
 
 const room = computed<PlayRoom | null>(() => getPlayRoom(String(route.params.game ?? 'wingo')) ?? null)
 const isK3 = computed(() => room.value?.code === 'k3')
@@ -259,6 +265,10 @@ function resetRoomStateSession() {
   closingCountdownTargetMs.value = 0
   closingCountdownPeriodNo.value = ''
   seenSettlementPeriods.clear()
+  pendingSettlementChecks.forEach((timerId) => window.clearTimeout(timerId))
+  pendingSettlementChecks.clear()
+  transitionRefreshAttempts.value = 0
+  transitionRefreshPeriodNo = ''
 }
 
 function countdownCacheKey(roomCode: string) {
@@ -394,12 +404,7 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
     const remainder = ((delta % periodMs) + periodMs) % periodMs
     countdownTargetMs.value = nowMs + (remainder === 0 ? periodMs : remainder)
   } else {
-    const cached = loadCountdownCache(roomCode)
-    if (cached && cached.periodNo === periodNo && cached.targetMs > nowMs && cached.targetMs <= maxReasonableMs) {
-      countdownTargetMs.value = cached.targetMs
-    } else {
-      countdownTargetMs.value = fallbackTargetMs
-    }
+    countdownTargetMs.value = fallbackTargetMs
   }
   countdownTargetPeriodNo.value = periodNo
   if (remainingSeconds.value > 0 && remainingSeconds.value <= 5) {
@@ -416,24 +421,31 @@ const isBetLocked = computed(() => {
 const canBet = computed(() => canPlay.value && !isBetLocked.value)
 
 const remainingSeconds = computed(() => {
-  if (!currentPeriod.value || countdownTargetMs.value <= 0) return 0
-  return Math.max(0, Math.ceil((countdownTargetMs.value - syncedNow.value) / 1000))
+  const drawAt = currentPeriod.value?.draw_at
+  if (!drawAt) return 0
+  const drawMs = new Date(String(drawAt).substring(0, 19).replace(' ', 'T')).getTime()
+  if (!Number.isFinite(drawMs) || drawMs <= 0) return 0
+  return Math.max(0, Math.floor((drawMs - syncedNow.value) / 1000))
 })
 
 const closingCountdownSeconds = computed(() => {
-  if (currentPeriod.value?.status?.toUpperCase() === 'OPEN' && remainingSeconds.value >= 0 && remainingSeconds.value <= 5) {
-    return remainingSeconds.value
-  }
-  if (closingCountdownPeriodNo.value && closingCountdownTargetMs.value > 0) {
-    const remaining = Math.max(0, Math.ceil((closingCountdownTargetMs.value - syncedNow.value) / 1000))
+  if (closingCountdownTargetMs.value > 0) {
+    const remaining = Math.max(0, Math.floor((closingCountdownTargetMs.value - syncedNow.value) / 1000))
     if (remaining <= 5) return remaining
+  }
+  if (currentPeriod.value?.status?.toUpperCase() === 'OPEN' && remainingSeconds.value <= 5) {
+    return remainingSeconds.value
   }
   return 0
 })
 
 const showClosingCountdownOverlay = computed(() => {
+  if (closingCountdownTargetMs.value > 0) {
+    const remaining = Math.max(0, Math.floor((closingCountdownTargetMs.value - syncedNow.value) / 1000))
+    return remaining > 0 && remaining <= 5
+  }
   const status = currentPeriod.value?.status?.toUpperCase()
-  return status === 'OPEN' && remainingSeconds.value >= 0 && remainingSeconds.value <= 5
+  return status === 'OPEN' && remainingSeconds.value > 0 && remainingSeconds.value <= 5
 })
 
 const countdownParts = computed(() => {
@@ -460,8 +472,8 @@ const roomStatusLabel = computed(() => {
   return 'Chưa cập nhật'
 })
 
-const stakeAmount = computed(() => String(1000 * selectedMultiplier.value))
-const stakeLabel = computed(() => formatMoney(Number(stakeAmount.value)))
+const stakeAmount = computed(() => String(modalBetAmount.value))
+const stakeLabel = computed(() => formatMoney(modalBetAmount.value))
 const currentBalanceLabel = computed(() => formatMoney(walletVnd.value?.balance ?? 0))
 const lockedBalanceLabel = computed(() => formatMoney(walletVnd.value?.locked_balance ?? 0))
 
@@ -714,8 +726,7 @@ function ensureDefaultSelections(variant: PlayVariant | null) {
       selectedOptions[group.title] = group.options[0].key
     }
   })
-  selectedMultiplier.value = 10
-  modalBetAmount.value = baseChipAmount * selectedMultiplier.value
+  modalBetAmount.value = initialBetAmount
 }
 
 async function loadWallet() {
@@ -800,6 +811,68 @@ function disconnectRoomStateStream() {
   }
   roomStreamConnection?.close()
   roomStreamConnection = null
+}
+
+function disconnectBetsStream() {
+  betsStreamConnection?.close()
+  betsStreamConnection = null
+}
+
+function buildBetsWSUrl(roomCode: string): string {
+  const endpoint = `/v1/play/rooms/${roomCode}/bets/ws`
+  const fallbackProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const fallback = `${fallbackProtocol}//${window.location.host}${endpoint}`
+  try {
+    const rawBase = (env.apiBaseUrl || '').trim()
+    const baseUrl = new URL(rawBase || window.location.origin, window.location.origin)
+    const wsProtocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${wsProtocol}//${baseUrl.host}${endpoint}`
+  } catch {
+    return fallback
+  }
+}
+
+function connectBetsStream(roomCode: string): void {
+  if (!roomCode || !auth.accessToken) return
+  
+  disconnectBetsStream()
+  try {
+    const socket = new WebSocket(buildBetsWSUrl(roomCode))
+    betsStreamConnection = socket
+    
+    socket.onopen = () => {
+      // connection established
+    }
+    
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(String(event.data)) as { event?: string; data?: any }
+        if (payload.event === 'bets.init') {
+          // Initial bets load
+          if (payload.data?.items) {
+            mineRows.value = payload.data.items
+            minePage.value = payload.data.page ?? 1
+            mineTotalPages.value = payload.data.total_pages ?? 1
+          }
+        } else if (payload.event === 'bets.updated') {
+          // Bets were updated (settled), reload them
+          void loadMineHistory(1)
+        }
+      } catch {
+        // ignore malformed ws payload
+      }
+    }
+    
+    socket.onerror = () => {
+      // error on websocket
+    }
+    
+    socket.onclose = () => {
+      betsStreamConnection = null
+    }
+  } catch {
+    // ignore connection errors
+  }
 }
 
 function buildRoomWSUrl(roomCode: string): string {
@@ -935,24 +1008,36 @@ async function loadChartHistory() {
 
 async function loadMineHistory(page = minePage.value) {
   if (!selectedRoomCode.value || !auth.accessToken) return
+  const existingPromise = mineHistoryRequestPromises.get(page)
+  if (existingPromise) return existingPromise
+
+  mineHistoryPendingRequests += 1
   mineLoading.value = true
   mineError.value = ''
-  try {
-    const response = await request<PlayRoomBetHistoryResponse>(
-      'GET',
-      `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${page}&page_size=${tablePageSize}`,
-      { token: auth.accessToken },
-    )
-    mineRows.value = response.items
-    minePage.value = response.page
-    mineTotalPages.value = response.total_pages
-  } catch (error: unknown) {
-    const err = error as ApiError
-    mineError.value = err?.message ?? 'Không thể tải lịch sử cược'
-    mineRows.value = []
-  } finally {
-    mineLoading.value = false
-  }
+
+  const promise = (async () => {
+    try {
+      const response = await request<PlayRoomBetHistoryResponse>(
+        'GET',
+        `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${page}&page_size=${tablePageSize}`,
+        { token: auth.accessToken },
+      )
+      mineRows.value = response.items
+      minePage.value = response.page
+      mineTotalPages.value = response.total_pages
+    } catch (error: unknown) {
+      const err = error as ApiError
+      mineError.value = err?.message ?? 'Không thể tải lịch sử cược'
+      mineRows.value = []
+    } finally {
+      mineHistoryRequestPromises.delete(page)
+      mineHistoryPendingRequests = Math.max(0, mineHistoryPendingRequests - 1)
+      mineLoading.value = mineHistoryPendingRequests > 0
+    }
+  })()
+
+  mineHistoryRequestPromises.set(page, promise)
+  return promise
 }
 
 async function maybeShowSettlementModal(
@@ -963,61 +1048,61 @@ async function maybeShowSettlementModal(
   if (!nextPeriod || !auth.accessToken) return
 
   const nextPeriodNo = nextPeriod.period_no
-  // Check if period just transitioned OR if the current period is newly marked as SETTLED
   const isTransition = nextPeriodNo && previousPeriod && previousPeriod.period_no !== nextPeriodNo
   const isManualSettled = String(nextPeriod.status ?? '').toUpperCase() === 'SETTLED'
 
-  const targetPeriodNo = isTransition
-    ? previousPeriod.period_no
-    : isManualSettled
-      ? nextPeriodNo
-      : ''
+  const targetPeriodNo = isTransition ? previousPeriod.period_no : isManualSettled ? nextPeriodNo : ''
 
   if (!targetPeriodNo || seenSettlementPeriods.has(targetPeriodNo)) {
     return
   }
 
-  // Load latest personal history to check for results
-  await loadMineHistory(1)
+  const settlementKey = `${selectedRoomCode.value}:${targetPeriodNo}`
+  const runningTimer = pendingSettlementChecks.get(settlementKey)
+  if (runningTimer) return
 
-  // Find the bet for this period.
-  // If multiple bets exist, we just take the first one to determine WON/LOST for the period summary.
+  seenSettlementPeriods.add(targetPeriodNo)
+  pendingSettlementChecks.delete(settlementKey)
+
+  // Initial load - WebSocket will provide updates if available
+  if (mineRows.value.length === 0) {
+    await loadMineHistory(1)
+  }
+
+  // Check if bet exists for this period
   const settledRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
-
-  if (!settledRow) {
-    // If no bet found AND it was a transition, it might just take time for the API to update.
-    // We only mark as seen if it's a manual settlement OR if we've retried enough and still nothing.
-    if (isManualSettled || retryCount >= 5) {
-      seenSettlementPeriods.add(targetPeriodNo)
-    } else {
-      setTimeout(() => {
-        void maybeShowSettlementModal(previousPeriod, nextPeriod, retryCount + 1)
-      }, 2000)
-    }
+  if (!settledRow && retryCount < 2) {
+    // Bet not yet in WebSocket update, retry once
+    const timerId = window.setTimeout(() => {
+      pendingSettlementChecks.delete(settlementKey)
+      void loadMineHistory(1).then(() => {
+        checkAndShowSettlementForPeriod(targetPeriodNo)
+      })
+    }, 1500)
+    pendingSettlementChecks.set(settlementKey, timerId)
     return
   }
+
+  if (!settledRow) return
+
+  // Check bet status
+  checkAndShowSettlementForPeriod(targetPeriodNo)
+}
+
+function checkAndShowSettlementForPeriod(targetPeriodNo: string) {
+  const settledRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
+  if (!settledRow) return
 
   const status = String(settledRow.status ?? '').toUpperCase()
   const isFinalStatus = ['WON', 'LOST', 'VOID', 'HALF_WON', 'HALF_LOST', 'CANCELED', 'CASHED_OUT'].includes(status)
 
-  if (!isFinalStatus) {
-    // If status is still PENDING/OPEN, retry after 2 seconds (up to 3 times)
-    if (retryCount < 3) {
-      setTimeout(() => {
-        void maybeShowSettlementModal(previousPeriod, nextPeriod, retryCount + 1)
-      }, 2500)
-    }
-    return
-  }
+  if (!isFinalStatus) return // Still pending
 
-  // Final settlement logic
-  try {
-    await wallet.fetchSummary()
-  } catch {
+  // Show result modal
+  void wallet.fetchSummary().catch(() => {
     // ignore wallet refresh error
-  }
-
-  seenSettlementPeriods.add(targetPeriodNo)
+  })
+  pendingSettlementChecks.delete(`${selectedRoomCode.value}:${targetPeriodNo}`)
   resultModalPeriodNo.value = settledRow.period_no
   resultModalTitle.value = status === 'WON' ? 'Chúc mừng! Bạn đã thắng' : 'Kết quả kỳ xổ'
   resultModalDescription.value = status === 'WON'
@@ -1082,13 +1167,19 @@ function openBetModal(groupTitle: string, optionKey: string, optionLabel: string
   modalBetGroupTitle.value = groupTitle
   modalBetKey.value = optionKey
   modalBetLabel.value = optionLabel
-  modalBetAmount.value = baseChipAmount * selectedMultiplier.value
+  modalBetAmount.value = initialBetAmount
   showBetModal.value = true
 }
 
-function applyChipMultiplier(multiplier: number) {
-  selectedMultiplier.value = multiplier
-  modalBetAmount.value = baseChipAmount * multiplier
+function addBetAmount(amount: number) {
+  const newAmount = modalBetAmount.value + amount
+  if (newAmount > 0 && newAmount <= availableVndBalance.value) {
+    modalBetAmount.value = newAmount
+  }
+}
+
+function canAddAmount(amount: number): boolean {
+  return amount > 0 && modalBetAmount.value + amount <= availableVndBalance.value
 }
 
 function selectOption(groupTitle: string, key: string, label: string) {
@@ -1316,6 +1407,7 @@ watch(
   async (roomCode) => {
     if (!roomCode) {
       disconnectRoomStateStream()
+      disconnectBetsStream()
       return
     }
     resetTransientRoomUiState()
@@ -1328,6 +1420,7 @@ watch(
     try {
       await loadRoomState(roomCode)
       connectRoomStateStream(roomCode)
+      connectBetsStream(roomCode)
       await loadActiveHistory(1)
     } finally {
       // Small delay to ensure smooth transition
@@ -1350,10 +1443,6 @@ watch(
   () => currentPeriod.value?.period_no,
   () => {
     syncCountdownTarget(currentPeriod.value, syncedNow.value, false, selectedRoomCode.value)
-    if (currentPeriod.value?.status?.toUpperCase() === 'OPEN' && remainingSeconds.value > 0 && remainingSeconds.value <= 5) {
-      closingCountdownPeriodNo.value = String(currentPeriod.value.period_no ?? '')
-      closingCountdownTargetMs.value = countdownTargetMs.value
-    }
   },
   { immediate: true },
 )
@@ -1366,14 +1455,29 @@ watch(
 )
 
 watch(remainingSeconds, (newVal, oldVal) => {
-  if (newVal !== oldVal && newVal > 0 && newVal <= 5) {
-    if (currentPeriod.value?.period_no) {
-      closingCountdownPeriodNo.value = String(currentPeriod.value.period_no)
-      closingCountdownTargetMs.value = countdownTargetMs.value
+  if (currentPeriod.value?.period_no && newVal <= 5) {
+    closingCountdownPeriodNo.value = String(currentPeriod.value.period_no)
+    const drawAt = currentPeriod.value.draw_at
+    const drawMs = new Date(String(drawAt).substring(0, 19).replace(' ', 'T')).getTime()
+    if (Number.isFinite(drawMs) && drawMs > 0) {
+      closingCountdownTargetMs.value = drawMs
     }
+  }
+  if (newVal !== oldVal && newVal > 0 && newVal <= 5) {
     playTickSound()
   }
 })
+
+// Watch for bets updates (from WebSocket) and check for settlements
+watch(mineRows, () => {
+  // Check pending settlements that might now have data
+  for (const periodNo of seenSettlementPeriods) {
+    const settledRow = mineRows.value.find((row) => String(row.period_no) === String(periodNo))
+    if (settledRow) {
+      checkAndShowSettlementForPeriod(periodNo)
+    }
+  }
+}, { deep: false })
 
 // Watch for dice result changes to trigger animation
 watch(currentDice, (newDice) => {
@@ -1397,13 +1501,15 @@ watch(currentDice, (newDice) => {
 onMounted(() => {
   void loadWallet()
   rollingDice.value = [...currentDice.value]
-  // Cập nhật clockTick mỗi 500ms thay vì 1s để giảm sai lệch hiển thị
-  timer = window.setInterval(() => { clockTick.value = Date.now() }, 500)
+  // Cập nhật clockTick thường xuyên hơn để countdown mượt và bám server hơn
+  timer = window.setInterval(() => { clockTick.value = Date.now() }, 250)
 })
 
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
+  if (transitionRefreshTimer) window.clearTimeout(transitionRefreshTimer)
   disconnectRoomStateStream()
+  disconnectBetsStream()
 })
 </script>
 
@@ -1719,18 +1825,6 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <!-- Multiplier / Stake row -->
-        <div class="flex gap-1.5 mb-3 overflow-x-auto no-scrollbar">
-          <button
-            v-for="multiplier in stakeOptions"
-            :key="multiplier"
-            type="button"
-            class="flex-shrink-0 rounded-[8px] border-[1.5px] px-3.5 py-1.5 text-[0.78rem] font-black transition-all"
-            :class="multiplier === selectedMultiplier ? 'border-primary bg-[#fff5f5] text-primary' : 'border-slate-200 bg-slate-50 text-slate-500'"
-            @click="applyChipMultiplier(multiplier)"
-          >{{ formatMultiplierLabel(multiplier) }}</button>
-        </div>
-
         <!-- Big / Small buttons -->
         <div v-if="bigSmallGroup" class="grid grid-cols-2 gap-2 mb-3">
           <button
@@ -1829,50 +1923,45 @@ onBeforeUnmount(() => {
           <div class="flex items-center gap-3">
             <button
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-[1.2rem] font-bold text-slate-500 transition-all active:scale-90"
-              @click="modalBetAmount = Math.max(1000, modalBetAmount - 1000)"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-[1.2rem] font-bold text-slate-500 transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!canAddAmount(-1000)"
+              @click="addBetAmount(-1000)"
             >−</button>
             <div class="flex flex-col items-center">
               <input
                 type="number"
                 v-model.number="modalBetAmount"
+                :min="1000"
+                :max="availableVndBalance"
                 class="w-[120px] text-center text-[1.1rem] font-black text-on-surface bg-transparent border-none focus:ring-0"
               />
               <span class="text-[0.6rem] text-slate-400">VNĐ</span>
             </div>
             <button
               type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-[1.2rem] font-bold text-slate-500 transition-all active:scale-90"
-              @click="modalBetAmount += 1000"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-[1.2rem] font-bold text-slate-500 transition-all active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!canAddAmount(1000)"
+              @click="addBetAmount(1000)"
             >+</button>
           </div>
         </div>
 
         <div class="mb-5">
           <div class="flex items-center justify-between mb-2 px-1">
-            <span class="text-[0.72rem] font-bold text-slate-400 uppercase tracking-widest">Chọn nhanh mức tiền</span>
+            <span class="text-[0.72rem] font-bold text-slate-400 uppercase tracking-widest">Chọn nhanh mức cộng</span>
             <span class="text-[0.75rem] font-black text-primary">{{ formatMoney(modalBetAmount) }}đ</span>
           </div>
-          <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          <div class="grid grid-cols-4 gap-2">
             <button
-              v-for="(multiplier, idx) in stakeOptions"
-              :key="'stake-' + idx"
+              v-for="amount in betAmountPresets"
+              :key="'amount-' + amount"
               type="button"
-              class="flex-shrink-0 min-w-[52px] rounded-[10px] border-[1.5px] px-3 py-2 text-[0.8rem] font-black transition-all"
-              :class="modalBetAmount === (baseChipAmount * multiplier) ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-500'"
-              @click="modalBetAmount = baseChipAmount * multiplier"
-            >{{ formatMultiplierLabel(multiplier) }}</button>
+              class="rounded-[10px] border-[1.5px] px-2 py-2 text-[0.75rem] font-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              :class="canAddAmount(amount) ? 'border-slate-200 bg-white text-slate-500 active:scale-95' : 'border-slate-200 bg-slate-50 text-slate-300'"
+              :disabled="!canAddAmount(amount)"
+              @click="addBetAmount(amount)"
+            >+{{ formatMoney(amount) }}</button>
           </div>
-        </div>
-
-        <!-- Preset amounts -->
-        <div class="mb-5 flex flex-wrap gap-2">
-          <button
-            v-for="preset in betPresets"
-            :key="preset"
-            class="rounded-full border-[1.5px] border-primary bg-[#fff5f5] px-3 py-1.5 text-[0.72rem] font-black text-primary transition-all hover:bg-primary hover:text-white"
-            @click="modalBetAmount = preset"
-          >{{ formatMoney(preset) }}</button>
         </div>
 
         <!-- Confirm / Cancel -->

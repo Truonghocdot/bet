@@ -7,6 +7,7 @@ import (
 	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -63,6 +64,7 @@ func NewRouter(
 	mux.HandleFunc("GET /v1/play/rooms/{room_code}/state", playRoomHandler.RoomState)
 	mux.HandleFunc("GET /v1/play/rooms/{room_code}/stream", playRoomHandler.RoomStateStream)
 	mux.HandleFunc("GET /v1/play/rooms/{room_code}/ws", playRoomHandler.RoomStateWS)
+	mux.Handle("GET /v1/play/rooms/{room_code}/bets/ws", authn.Require(http.HandlerFunc(playRoomHandler.MyBetsWS)))
 	mux.HandleFunc("GET /v1/play/rooms/{room_code}/history", playRoomHandler.RoomHistory)
 	mux.Handle("GET /v1/play/rooms/{room_code}/bets", authn.Require(http.HandlerFunc(playRoomHandler.MyRoomBets)))
 	mux.Handle("POST /v1/play/rooms/{room_code}/bets", authn.Require(http.HandlerFunc(playRoomHandler.PlaceRoomBet)))

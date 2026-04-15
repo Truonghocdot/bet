@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/support/clock"
 
@@ -24,6 +25,7 @@ type RoomEngineService struct {
 	tickInterval    time.Duration
 	playRoomService *PlayRoomService
 	walletService   *WalletService
+	broker          *realtime.Broker
 }
 
 func NewRoomEngineService(
@@ -31,6 +33,7 @@ func NewRoomEngineService(
 	redisClient *goredis.Client,
 	playRoomService *PlayRoomService,
 	walletService *WalletService,
+	broker *realtime.Broker,
 	tickInterval time.Duration,
 ) *RoomEngineService {
 	if tickInterval <= 0 {
@@ -42,6 +45,7 @@ func NewRoomEngineService(
 		tickInterval:    tickInterval,
 		playRoomService: playRoomService,
 		walletService:   walletService,
+		broker:          broker,
 	}
 }
 
@@ -215,6 +219,10 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 				if err := s.publishWalletSummary(ctx, userID, "period.settled"); err != nil && !errors.Is(err, context.Canceled) {
 					log.Printf("[engine][wallet.refresh.error] user_id=%d source=period.settled err=%v", userID, err)
 				}
+				// Publish bets update event
+				if err := s.publishBetsUpdate(ctx, period.RoomCode, userID); err != nil && !errors.Is(err, context.Canceled) {
+					log.Printf("[engine][bets.update.error] room_code=%s user_id=%d err=%v", period.RoomCode, userID, err)
+				}
 			}
 		}
 		s.releaseLock(ctx, lockKey)
@@ -258,6 +266,26 @@ func (s *RoomEngineService) publishWalletSummary(ctx context.Context, userID int
 	}
 	return nil
 }
+
+func (s *RoomEngineService) publishBetsUpdate(ctx context.Context, roomCode string, userID int64) error {
+	if s.broker == nil || roomCode == "" || userID == 0 {
+		return nil
+	}
+	
+	// Publish event để notify client bets được updated
+	topic := realtime.PlayRoomBetsTopic(roomCode, userID)
+	payload := map[string]any{
+		"type":    "settlement",
+		"message": "Bets have been updated",
+	}
+	
+	if err := s.broker.Publish(ctx, topic, "bets.updated", payload); err != nil {
+		log.Printf("[realtime][bets.update.error] room_code=%s user_id=%d err=%v", roomCode, userID, err)
+		return err
+	}
+	return nil
+}
+
 
 func (s *RoomEngineService) acquireLock(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	return s.redis.SetNX(ctx, key, "1", ttl).Result()
