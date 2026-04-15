@@ -47,7 +47,7 @@ const routes: RouteRecordRaw[] = [
     path: '/promotion',
     name: 'promotion',
     component: () => import('../pages/PromotionView.vue'),
-    meta: { layout: 'main', title: 'Hoạt động' },
+    meta: { layout: 'main', title: 'Hoạt động', requiresAuth: true },
   },
   {
     path: '/notifications',

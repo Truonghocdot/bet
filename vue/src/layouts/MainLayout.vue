@@ -53,6 +53,22 @@ const vndBalance = computed(() => {
 
 const userName = computed(() => auth.user?.name ?? 'Khách')
 
+const referralLink = computed(() => {
+  if (!auth.isAuthenticated || !auth.user?.id) return ''
+  const refCode = String(auth.user.id).toUpperCase().slice(0, 10).padEnd(10, '0')
+  return `${window.location.origin}/register?ref_code=${refCode}`
+})
+
+function copyReferralLink() {
+  if (!referralLink.value) return
+  navigator.clipboard.writeText(referralLink.value).then(() => {
+    // Optional: show toast notification
+    console.log('Referral link copied to clipboard')
+  }).catch((err) => {
+    console.error('Failed to copy:', err)
+  })
+}
+
 function openDrawer() { isDrawerOpen.value = true }
 function closeDrawer() { isDrawerOpen.value = false }
 
@@ -165,10 +181,26 @@ onBeforeUnmount(() => {
           <span class="material-symbols-outlined sidebar__icon">logout</span>
           <span>Đăng xuất</span>
         </button>
-        <RouterLink v-else to="/auth" class="sidebar__item">
-          <span class="material-symbols-outlined sidebar__icon">login</span>
-          <span>Đăng nhập</span>
-        </RouterLink>
+        <template v-else>
+          <RouterLink to="/auth" class="sidebar__item">
+            <span class="material-symbols-outlined sidebar__icon">login</span>
+            <span>Đăng nhập</span>
+          </RouterLink>
+          <RouterLink to="/register" class="sidebar__item">
+            <span class="material-symbols-outlined sidebar__icon">person_add</span>
+            <span>Đăng ký</span>
+          </RouterLink>
+          <a
+            :href="referralLink || '#'"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="sidebar__item"
+            :class="{ 'cursor-not-allowed opacity-50': !referralLink }"
+          >
+            <span class="material-symbols-outlined sidebar__icon">share</span>
+            <span>Link giới thiệu</span>
+          </a>
+        </template>
       </div>
     </aside>
 
@@ -344,14 +376,34 @@ onBeforeUnmount(() => {
               <span class="material-symbols-outlined text-[1.2rem] text-[#e64545]">logout</span>
               <span>Đăng xuất</span>
             </button>
-            <button
-              v-else
-              class="drawer__item text-primary"
-              @click="navigateDrawer('/auth')"
-            >
-              <span class="material-symbols-outlined text-[1.2rem] text-primary">login</span>
-              <span>Đăng nhập</span>
-            </button>
+            <template v-else>
+              <button
+                class="drawer__item text-primary"
+                @click="navigateDrawer('/auth')"
+              >
+                <span class="material-symbols-outlined text-[1.2rem] text-primary">login</span>
+                <span>Đăng nhập</span>
+              </button>
+              <button
+                class="drawer__item text-primary"
+                @click="navigateDrawer('/register')"
+              >
+                <span class="material-symbols-outlined text-[1.2rem] text-primary">person_add</span>
+                <span>Đăng ký</span>
+              </button>
+              <a
+                :href="referralLink || '#'"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="drawer__item text-primary"
+                :class="{ 'cursor-not-allowed opacity-50': !referralLink }"
+                @click="closeDrawer"
+              >
+                <span class="material-symbols-outlined text-[1.2rem] text-primary">share</span>
+                <span class="flex-1 text-left">Link giới thiệu</span>
+                <span class="material-symbols-outlined  text-[1rem] text-slate-300">open_in_new</span>
+              </a>
+            </template>
           </div>
         </div>
       </Transition>
