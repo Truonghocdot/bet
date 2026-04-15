@@ -800,6 +800,8 @@ async function applyRoomStateResponse(
       void loadChartHistory()
     } else if (activeHistoryTab.value === 'history') {
       void loadRoomHistory(1)
+    } else if (activeHistoryTab.value === 'mine') {
+      void loadMineHistory(1)
     }
   }
 }
@@ -1064,21 +1066,21 @@ async function maybeShowSettlementModal(
   seenSettlementPeriods.add(targetPeriodNo)
   pendingSettlementChecks.delete(settlementKey)
 
-  // Initial load - WebSocket will provide updates if available
-  if (mineRows.value.length === 0) {
+  // Ensure mine history is loaded/refreshed to get latest bet status
+  if (mineRows.value.length === 0 || retryCount === 0) {
     await loadMineHistory(1)
   }
 
   // Check if bet exists for this period
   const settledRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
-  if (!settledRow && retryCount < 2) {
-    // Bet not yet in WebSocket update, retry once
+  if (!settledRow && retryCount < 1) {
+    // Bet not yet in history, retry once after delay
     const timerId = window.setTimeout(() => {
       pendingSettlementChecks.delete(settlementKey)
       void loadMineHistory(1).then(() => {
         checkAndShowSettlementForPeriod(targetPeriodNo)
       })
-    }, 1500)
+    }, 1000)
     pendingSettlementChecks.set(settlementKey, timerId)
     return
   }
