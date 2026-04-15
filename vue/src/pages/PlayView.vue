@@ -1045,7 +1045,6 @@ async function loadMineHistory(page = minePage.value) {
 async function maybeShowSettlementModal(
   previousPeriod: PlayRoomStateResponse['current_period'] | null,
   nextPeriod: PlayRoomStateResponse['current_period'] | null,
-  retryCount = 0,
 ) {
   if (!nextPeriod || !auth.accessToken) return
 
@@ -1063,42 +1062,36 @@ async function maybeShowSettlementModal(
   const runningTimer = pendingSettlementChecks.get(settlementKey)
   if (runningTimer) return
 
-  seenSettlementPeriods.add(targetPeriodNo)
+  // Set a pending check to prevent duplicate settlement checks
+  // We'll mark as seen only AFTER modal is successfully shown
   pendingSettlementChecks.delete(settlementKey)
 
-  // Ensure mine history is loaded/refreshed to get latest bet status
-  if (mineRows.value.length === 0 || retryCount === 0) {
-    await loadMineHistory(1)
-  }
+  // Always load fresh mine history to ensure we have latest bet data
+  await loadMineHistory(1)
 
   // Check if bet exists for this period
   const settledRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
-  if (!settledRow && retryCount < 1) {
-    // Bet not yet in history, retry once after delay
-    const timerId = window.setTimeout(() => {
-      pendingSettlementChecks.delete(settlementKey)
-      void loadMineHistory(1).then(() => {
-        checkAndShowSettlementForPeriod(targetPeriodNo)
-      })
-    }, 1000)
-    pendingSettlementChecks.set(settlementKey, timerId)
-    return
+  
+  // Only mark as seen if we found and displayed the modal
+  if (settledRow) {
+    if (checkAndShowSettlementForPeriod(targetPeriodNo)) {
+      // Modal shown successfully, mark period as seen
+      seenSettlementPeriods.add(targetPeriodNo)
+    }
+  } else {
+    // No bet for this period, mark as seen to avoid retrying
+    seenSettlementPeriods.add(targetPeriodNo)
   }
-
-  if (!settledRow) return
-
-  // Check bet status
-  checkAndShowSettlementForPeriod(targetPeriodNo)
 }
 
-function checkAndShowSettlementForPeriod(targetPeriodNo: string) {
+function checkAndShowSettlementForPeriod(targetPeriodNo: string): boolean {
   const settledRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
-  if (!settledRow) return
+  if (!settledRow) return false
 
   const status = String(settledRow.status ?? '').toUpperCase()
   const isFinalStatus = ['WON', 'LOST', 'VOID', 'HALF_WON', 'HALF_LOST', 'CANCELED', 'CASHED_OUT'].includes(status)
 
-  if (!isFinalStatus) return // Still pending
+  if (!isFinalStatus) return false // Still pending
 
   // Show result modal
   void wallet.fetchSummary().catch(() => {
@@ -1127,6 +1120,7 @@ function checkAndShowSettlementForPeriod(targetPeriodNo: string) {
 
   resultModalSettledAt.value = settledRow.settled_at ?? settledRow.created_at
   showResultModal.value = true
+  return true
 }
 
 async function loadActiveHistory(page = currentPage()) {
@@ -1469,17 +1463,6 @@ watch(remainingSeconds, (newVal, oldVal) => {
     playTickSound()
   }
 })
-
-// Watch for bets updates (from WebSocket) and check for settlements
-watch(mineRows, () => {
-  // Check pending settlements that might now have data
-  for (const periodNo of seenSettlementPeriods) {
-    const settledRow = mineRows.value.find((row) => String(row.period_no) === String(periodNo))
-    if (settledRow) {
-      checkAndShowSettlementForPeriod(periodNo)
-    }
-  }
-}, { deep: false })
 
 // Watch for dice result changes to trigger animation
 watch(currentDice, (newDice) => {
