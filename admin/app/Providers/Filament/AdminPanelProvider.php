@@ -71,7 +71,7 @@ class AdminPanelProvider extends PanelProvider
         FilamentView::registerRenderHook(
             PanelsRenderHook::TOPBAR_END,
             fn () => view('filament.admin.staff-invite-code'),
-            scopes: 'admin',
+            scopes: 'staff',
         );
     }
 }
