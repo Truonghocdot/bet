@@ -252,7 +252,35 @@ function resetTransientRoomUiState() {
   seenSettlementPeriods.clear()
 }
 
-function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | null, nowMs = Date.now(), force = false) {
+function countdownCacheKey(roomCode: string) {
+  return `${countdownCachePrefix}${roomCode}`
+}
+
+function loadCountdownCache(roomCode: string): { periodNo: string; targetMs: number } | null {
+  if (!roomCode) return null
+  try {
+    const raw = sessionStorage.getItem(countdownCacheKey(roomCode))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { periodNo?: string; targetMs?: number }
+    const periodNo = String(parsed?.periodNo ?? '')
+    const targetMs = Number(parsed?.targetMs ?? 0)
+    if (!periodNo || !Number.isFinite(targetMs) || targetMs <= 0) return null
+    return { periodNo, targetMs }
+  } catch {
+    return null
+  }
+}
+
+function saveCountdownCache(roomCode: string, periodNo: string, targetMs: number) {
+  if (!roomCode || !periodNo || !Number.isFinite(targetMs) || targetMs <= 0) return
+  try {
+    sessionStorage.setItem(countdownCacheKey(roomCode), JSON.stringify({ periodNo, targetMs }))
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | null, nowMs = Date.now(), force = false, roomCode = selectedRoomCode.value) {
   if (!period) {
     countdownTargetMs.value = 0
     countdownTargetPeriodNo.value = ''
@@ -265,6 +293,7 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
   const rawBetLockAtMs = Number(new Date(period.bet_lock_at).getTime())
   const rawDrawAtMs = Number(new Date(period.draw_at).getTime())
   const expectedSeconds = Math.max(1, expectedPeriodSeconds.value || 30)
+  const periodMs = expectedSeconds * 1000
   const fallbackTargetMs = nowMs + expectedSeconds * 1000
   const maxReasonableMs = nowMs + Math.max(expectedSeconds * 3, 30) * 1000
 
@@ -285,10 +314,22 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
 
   if (Number.isFinite(preferredTargetMs) && preferredTargetMs > 0 && preferredTargetMs <= maxReasonableMs) {
     countdownTargetMs.value = preferredTargetMs
+  } else if (Number.isFinite(preferredTargetMs) && preferredTargetMs > maxReasonableMs) {
+    // Nếu backend trả mốc quá xa tương lai (cache/period drift), chuẩn hoá theo chu kỳ room
+    // để giữ đồng hồ mượt và không reset cứng về 28/58.
+    const delta = preferredTargetMs - nowMs
+    const remainder = ((delta % periodMs) + periodMs) % periodMs
+    countdownTargetMs.value = nowMs + (remainder === 0 ? periodMs : remainder)
   } else {
-    countdownTargetMs.value = fallbackTargetMs
+    const cached = loadCountdownCache(roomCode)
+    if (cached && cached.periodNo === periodNo && cached.targetMs > nowMs && cached.targetMs <= maxReasonableMs) {
+      countdownTargetMs.value = cached.targetMs
+    } else {
+      countdownTargetMs.value = fallbackTargetMs
+    }
   }
   countdownTargetPeriodNo.value = periodNo
+  saveCountdownCache(roomCode, periodNo, countdownTargetMs.value)
 }
 const isBetLocked = computed(() => {
   if (!currentPeriod.value) return true
@@ -631,7 +672,9 @@ async function applyRoomStateResponse(
     }
   }
 
-  syncCountdownTarget(response.current_period, clockTick.value, shouldRebaseClock)
+  const serverNowMs = Number(new Date(response.server_time).getTime())
+  const stableNowMs = Number.isFinite(serverNowMs) && serverNowMs > 0 ? serverNowMs : syncedNow.value
+  syncCountdownTarget(response.current_period, stableNowMs, shouldRebaseClock, selectedRoomCode.value)
   await maybeShowSettlementModal(previousPeriod, response.current_period)
 
   if (previousPeriodNo && previousPeriodNo !== nextPeriodNo) {
@@ -1191,7 +1234,7 @@ watch(
 watch(
   () => currentPeriod.value?.period_no,
   () => {
-    syncCountdownTarget(currentPeriod.value, clockTick.value)
+    syncCountdownTarget(currentPeriod.value, syncedNow.value, false, selectedRoomCode.value)
   },
   { immediate: true },
 )
