@@ -18,6 +18,7 @@ import (
 	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -343,7 +344,21 @@ func (s *AuthService) Me(ctx context.Context, userID int64) (auth.UserProfile, e
 		return auth.UserProfile{}, ErrUnauthorized
 	}
 
-	return s.repository.FindProfileByUserID(ctx, userID)
+	profile, err := s.repository.FindProfileByUserID(ctx, userID)
+	if err != nil {
+		return auth.UserProfile{}, err
+	}
+
+	// Regenerate the RefLink dynamically based on current config
+	if profile.AffiliateProfile != nil {
+		baseURL := strings.TrimSpace(s.config.RegisterURL)
+		if baseURL == "" {
+			baseURL = "https://ff789.biz/register"
+		}
+		profile.AffiliateProfile.RefLink = fmt.Sprintf("%s?ref_code=%s", strings.TrimRight(baseURL, "/"), profile.AffiliateProfile.RefCode)
+	}
+
+	return profile, nil
 }
 
 func (s *AuthService) VerifyAccessToken(tokenValue string) (auth.TokenClaims, error) {
@@ -596,9 +611,21 @@ func (s *AuthService) newAuthResponse(ctx context.Context, profile auth.UserProf
 		return auth.AuthResponse{}, err
 	}
 
+	// Regenerate the RefLink dynamically based on current config
+	var affiliateProfile *auth.AffiliateProfile
+	if profile.AffiliateProfile != nil {
+		affiliate := *profile.AffiliateProfile
+		baseURL := strings.TrimSpace(s.config.RegisterURL)
+		if baseURL == "" {
+			baseURL = "https://ff789.biz/register"
+		}
+		affiliate.RefLink = fmt.Sprintf("%s?ref_code=%s", strings.TrimRight(baseURL, "/"), affiliate.RefCode)
+		affiliateProfile = &affiliate
+	}
+
 	return auth.AuthResponse{
 		User:             profile.User,
-		Affiliate:        profile.AffiliateProfile,
+		Affiliate:        affiliateProfile,
 		AccessToken:      accessToken,
 		RefreshToken:     refreshTokenValue,
 		TokenType:        "Bearer",

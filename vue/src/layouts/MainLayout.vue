@@ -53,16 +53,11 @@ const vndBalance = computed(() => {
 
 const userName = computed(() => auth.user?.name ?? 'Khách')
 
-const referralLink = computed(() => {
-  if (!auth.isAuthenticated || !auth.user?.id) return ''
-  const refCode = String(auth.user.id).toUpperCase().slice(0, 10).padEnd(10, '0')
-  return `${window.location.origin}/register?ref_code=${refCode}`
-})
+const referralLink = computed(() => auth.affiliateProfile?.ref_link || '')
 
 function copyReferralLink() {
   if (!referralLink.value) return
   navigator.clipboard.writeText(referralLink.value).then(() => {
-    // Optional: show toast notification
     console.log('Referral link copied to clipboard')
   }).catch((err) => {
     console.error('Failed to copy:', err)
