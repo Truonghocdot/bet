@@ -34,13 +34,19 @@ class UserProvisioningService
 
     private function userPayload(array $data): array
     {
-        return Arr::only($data, [
+        $payload = Arr::only($data, [
             'name',
             'phone',
             'password',
             'role',
             'status',
         ]);
+
+        if (array_key_exists('phone', $payload)) {
+            $payload['phone'] = $this->normalizePhone($payload['phone']);
+        }
+
+        return $payload;
     }
 
     private function applyBackfillFields(User $user, array $data): void
@@ -160,5 +166,42 @@ class UserProvisioningService
         }
 
         return filter_var($data[$key], FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? $default;
+    }
+
+    private function normalizePhone(mixed $value): ?string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        $raw = preg_replace('/[\s-]+/', '', $raw) ?? $raw;
+
+        if (str_starts_with($raw, '+')) {
+            $digits = preg_replace('/\D+/', '', substr($raw, 1)) ?: '';
+            if ($digits === '') {
+                return null;
+            }
+            if (str_starts_with($digits, '84')) {
+                return '+84' . ltrim(substr($digits, 2), '0');
+            }
+
+            return '+' . $digits;
+        }
+
+        $digits = preg_replace('/\D+/', '', $raw) ?: '';
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '84')) {
+            return '+84' . ltrim(substr($digits, 2), '0');
+        }
+
+        if (str_starts_with($digits, '0')) {
+            return '+84' . ltrim(substr($digits, 1), '0');
+        }
+
+        return '+84' . ltrim($digits, '0');
     }
 }

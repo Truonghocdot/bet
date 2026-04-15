@@ -18,6 +18,7 @@ import (
 	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
+	"gin/internal/support/phone"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -94,12 +95,12 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 		return auth.AuthResponse{}, fmt.Errorf(message.EmailInvalid)
 	}
 
-	var phone *string
-	if trimmedPhone := strings.TrimSpace(request.Phone); trimmedPhone != "" {
-		if len(trimmedPhone) < 8 || len(trimmedPhone) > 20 {
+	var phoneNumber *string
+	if normalizedPhone := phone.NormalizeVNPhone(request.Phone); normalizedPhone != "" {
+		if len(normalizedPhone) < 8 || len(normalizedPhone) > 20 {
 			return auth.AuthResponse{}, fmt.Errorf(message.PhoneInvalid)
 		}
-		phone = &trimmedPhone
+		phoneNumber = &normalizedPhone
 	} else {
 		// Số điện thoại là bắt buộc nếu không có Email (hoặc bắt buộc luôn tùy spec)
 		// Ở đây tôi coi phone là bắt buộc theo yêu cầu của bạn.
@@ -110,7 +111,7 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 		return auth.AuthResponse{}, fmt.Errorf(message.PasswordInvalid)
 	}
 
-	if err := s.enforceRegisterRateLimit(ctx, meta, email, phone); err != nil {
+	if err := s.enforceRegisterRateLimit(ctx, meta, email, phoneNumber); err != nil {
 		return auth.AuthResponse{}, err
 	}
 
@@ -122,7 +123,7 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 	profile, err := s.repository.CreateRegisteredUser(ctx, repopg.RegisterUserParams{
 		Name:         name,
 		Email:        email,
-		Phone:        phone,
+		Phone:        phoneNumber,
 		PasswordHash: hash,
 		RefCode:      strings.TrimSpace(request.RefCode),
 		RegisterURL:  s.config.RegisterURL,
@@ -135,7 +136,7 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 }
 
 func (s *AuthService) Login(ctx context.Context, request auth.LoginRequest, meta auth.RequestMeta) (auth.AuthResponse, error) {
-	account := strings.TrimSpace(request.Account)
+	account := normalizeLoginAccount(request.Account)
 	if account == "" {
 		return auth.AuthResponse{}, fmt.Errorf(message.AccountRequired)
 	}
@@ -558,10 +559,23 @@ func normalizeAccount(channel auth.OTPChannel, account string) string {
 	case auth.OTPChannelEmail:
 		return strings.ToLower(trimmed)
 	case auth.OTPChannelPhone:
-		return trimmed
+		return phone.NormalizeVNPhone(trimmed)
 	default:
 		return trimmed
 	}
+}
+
+func normalizeLoginAccount(account string) string {
+	trimmed := strings.TrimSpace(account)
+	if trimmed == "" {
+		return ""
+	}
+
+	if strings.Contains(trimmed, "@") {
+		return strings.ToLower(trimmed)
+	}
+
+	return phone.NormalizeVNPhone(trimmed)
 }
 
 func (s *AuthService) newAuthResponse(ctx context.Context, profile auth.UserProfile, meta auth.RequestMeta) (auth.AuthResponse, error) {

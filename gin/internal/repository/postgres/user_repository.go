@@ -13,6 +13,7 @@ import (
 	"gin/internal/support/clock"
 	"gin/internal/support/id"
 	"gin/internal/support/message"
+	"gin/internal/support/phone"
 )
 
 var (
@@ -56,6 +57,13 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 }
 
 func (r *UserRepository) CreateRegisteredUser(ctx context.Context, params RegisterUserParams) (auth.UserProfile, error) {
+	if params.Phone != nil {
+		normalized := phone.NormalizeVNPhone(*params.Phone)
+		if normalized != "" {
+			params.Phone = &normalized
+		}
+	}
+
 	if exists, err := r.emailExists(ctx, params.Email); err != nil {
 		return auth.UserProfile{}, err
 	} else if exists {
@@ -208,13 +216,43 @@ func (r *UserRepository) DeleteRefreshTokensByUserID(ctx context.Context, userID
 
 func (r *UserRepository) findUserRecordByAccount(ctx context.Context, account string) (userRecord, error) {
 	normalized := strings.TrimSpace(account)
+	if normalized == "" {
+		return userRecord{}, ErrAccountNotFound
+	}
 
-	row := r.db.QueryRowContext(ctx, `
+	if strings.Contains(normalized, "@") {
+		row := r.db.QueryRowContext(ctx, `
+			select id, name, email, phone, password, role, status, email_verified_at, phone_verified_at, last_login_at, created_at, updated_at, deleted_at
+			from users
+			where lower(email) = $1
+			limit 1
+		`, strings.ToLower(normalized))
+
+		return scanUserRecord(row)
+	}
+
+	variants := phone.VNPhoneVariants(normalized)
+	if len(variants) == 0 {
+		return userRecord{}, ErrAccountNotFound
+	}
+
+	placeholders := make([]string, 0, len(variants))
+	args := make([]any, 0, len(variants)+1)
+	args = append(args, strings.ToLower(normalized))
+	for idx, variant := range variants {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", idx+2))
+		args = append(args, variant)
+	}
+
+	query := `
 		select id, name, email, phone, password, role, status, email_verified_at, phone_verified_at, last_login_at, created_at, updated_at, deleted_at
 		from users
-		where lower(email) = $1 or phone = $2
+		where lower(email) = $1 or phone in (` + strings.Join(placeholders, ", ") + `
+		)
 		limit 1
-	`, strings.ToLower(normalized), normalized)
+	`
+
+	row := r.db.QueryRowContext(ctx, query, args...)
 
 	return scanUserRecord(row)
 }
@@ -379,8 +417,12 @@ func (r *UserRepository) emailExists(ctx context.Context, email string) (bool, e
 	return r.exists(ctx, `select exists(select 1 from users where lower(email) = $1)`, strings.ToLower(strings.TrimSpace(email)))
 }
 
-func (r *UserRepository) phoneExists(ctx context.Context, phone string) (bool, error) {
-	return r.exists(ctx, `select exists(select 1 from users where phone = $1)`, strings.TrimSpace(phone))
+func (r *UserRepository) phoneExists(ctx context.Context, phoneValue string) (bool, error) {
+	normalized := phone.NormalizeVNPhone(phoneValue)
+	if normalized == "" {
+		return false, nil
+	}
+	return r.exists(ctx, `select exists(select 1 from users where phone = $1)`, normalized)
 }
 
 func (r *UserRepository) exists(ctx context.Context, query string, arg string) (bool, error) {

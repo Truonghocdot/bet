@@ -50,7 +50,8 @@ class GamePeriodsTable
                     ->icon('heroicon-m-computer-desktop')
                     ->color('warning')
                     ->url(route('auth.sso.redirect'))
-                    ->openUrlInNewTab(),
+                    ->openUrlInNewTab()
+                    ->hidden(fn (): bool => !Gate::allows('control_panel_access')),
             ]);
     }
 }

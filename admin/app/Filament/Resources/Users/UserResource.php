@@ -2,33 +2,19 @@
 
 namespace App\Filament\Resources\Users;
 
-use App\Filament\Resources\Users\Pages\CreateUser;
-use App\Filament\Resources\Users\Pages\EditUser;
-use App\Filament\Resources\Users\Pages\ListUsers;
 use App\Filament\Resources\Users\Schemas\UserForm;
 use App\Filament\Resources\Users\Tables\UsersTable;
+use App\Enum\User\RoleUser;
 use App\Models\User;
-use BackedEnum;
-use UnitEnum;
 use App\Filament\Resources\BaseResource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class UserResource extends BaseResource
+abstract class UserResource extends BaseResource
 {
     protected static ?string $model = User::class;
-    protected static UnitEnum|string|null $navigationGroup = 'Hệ thống';
-    protected static ?string $navigationLabel = 'Người dùng';
-    public static function shouldRegisterNavigation(): bool
-    {
-        return true;
-    }
-
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
     protected static ?string $recordTitleAttribute = 'name';
 
     protected static function abilityPrefix(): string
@@ -36,14 +22,24 @@ class UserResource extends BaseResource
         return 'system.users';
     }
 
+    protected static function resourceRole(): ?RoleUser
+    {
+        return null;
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function form(Schema $schema): Schema
     {
-        return UserForm::configure($schema);
+        return UserForm::configure($schema, static::resourceRole());
     }
 
     public static function table(Table $table): Table
     {
-        return UsersTable::configure($table);
+        return UsersTable::configure($table, static::resourceRole());
     }
 
     public static function getRelations(): array
@@ -60,18 +56,23 @@ class UserResource extends BaseResource
         ];
     }
 
-    public static function getPages(): array
+    protected static function applyRoleConstraint(Builder $query): Builder
     {
-        return [
-            'index' => ListUsers::route('/'),
-            'create' => CreateUser::route('/create'),
-            'edit' => EditUser::route('/{record}/edit'),
-        ];
+        if ($role = static::resourceRole()) {
+            $query->where('role', $role->value);
+        }
+
+        return $query;
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return static::applyRoleConstraint(parent::getEloquentQuery());
     }
 
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
-        return parent::getRecordRouteBindingEloquentQuery()
+        return static::applyRoleConstraint(parent::getRecordRouteBindingEloquentQuery())
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);

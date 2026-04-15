@@ -16,7 +16,7 @@ use Filament\Tables\Table;
 
 class UsersTable
 {
-    public static function configure(Table $table): Table
+    public static function configure(Table $table, ?RoleUser $fixedRole = null): Table
     {
         return $table
             ->columns([
@@ -36,7 +36,8 @@ class UsersTable
                     ->label('Vai trò')
                     ->badge()
                     ->formatStateUsing(fn ($state): string => EnumPresenter::label(RoleUser::class, $state))
-                    ->color(fn ($state): string => EnumPresenter::color(RoleUser::class, $state)),
+                    ->color(fn ($state): string => EnumPresenter::color(RoleUser::class, $state))
+                    ->visible($fixedRole === null),
                 TextColumn::make('status')
                     ->label('Trạng thái')
                     ->badge()

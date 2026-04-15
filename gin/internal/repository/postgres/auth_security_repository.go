@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"gin/internal/domain/auth"
 	"gin/internal/support/clock"
 	"gin/internal/support/message"
+	"gin/internal/support/phone"
 )
 
 var (
@@ -54,12 +56,43 @@ func (r *UserRepository) FindUserByChannel(ctx context.Context, channel auth.OTP
 			limit 1
 		`
 	case auth.OTPChannelPhone:
+		variants := phone.VNPhoneVariants(normalized)
+		if len(variants) == 0 {
+			return auth.UserProfile{}, ErrAccountNotFound
+		}
+
+		placeholders := make([]string, 0, len(variants))
+		args := make([]any, 0, len(variants))
+		for idx, variant := range variants {
+			placeholders = append(placeholders, fmt.Sprintf("$%d", idx+1))
+			args = append(args, variant)
+		}
+
 		query = `
 			select id, name, email, phone, password, role, status, email_verified_at, phone_verified_at, last_login_at, created_at, updated_at, deleted_at
 			from users
-			where phone = $1
+			where phone in (` + strings.Join(placeholders, ", ") + `)
 			limit 1
 		`
+
+		record, err := scanUserRecord(r.db.QueryRowContext(ctx, query, args...))
+		if err != nil {
+			return auth.UserProfile{}, err
+		}
+
+		if record.DeletedAt != nil {
+			return auth.UserProfile{}, ErrAccountNotFound
+		}
+
+		profile, err := r.findAffiliateProfileByUserID(ctx, record.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return auth.UserProfile{}, err
+		}
+
+		return auth.UserProfile{
+			User:             record.User,
+			AffiliateProfile: profile,
+		}, nil
 	default:
 		return auth.UserProfile{}, ErrAccountNotFound
 	}
@@ -282,7 +315,7 @@ func normalizeAccount(channel auth.OTPChannel, account string) string {
 	case auth.OTPChannelEmail:
 		return strings.ToLower(trimmed)
 	case auth.OTPChannelPhone:
-		return trimmed
+		return phone.NormalizeVNPhone(trimmed)
 	default:
 		return ""
 	}

@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Auth\Pages\Login;
 use App\Filament\Pages\Dashboard as PagesDashboard;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -9,6 +10,8 @@ use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Facades\FilamentView;
+use Filament\View\PanelsRenderHook;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Width;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -26,7 +29,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('')
-            ->login()
+            ->login(Login::class)
             ->brandLogo(asset('logo.png'))
             ->favicon(asset('favicon.png'))
             ->colors([
@@ -61,5 +64,14 @@ class AdminPanelProvider extends PanelProvider
             ->databaseTransactions()
             ->spa(true)
             ->maxContentWidth(Width::Full);;
+    }
+
+    public function boot(): void
+    {
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::TOPBAR_END,
+            fn () => view('filament.admin.staff-invite-code'),
+            scopes: 'admin',
+        );
     }
 }

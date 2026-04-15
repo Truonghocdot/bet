@@ -22,7 +22,9 @@ class AuthServiceProvider extends ServiceProvider
     private function registerResourceAbilities(): void
     {
         $resourceAbilityMap = [
-            'system.users' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'system.users.clients' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'system.users.staffs' => [RoleUser::ADMIN],
+            'system.users.agencies' => [RoleUser::ADMIN, RoleUser::STAFF],
             'finance.wallets' => [RoleUser::ADMIN, RoleUser::STAFF],
             'finance.wallet-ledger-entries' => [RoleUser::ADMIN, RoleUser::STAFF],
             'finance.transactions' => [RoleUser::ADMIN, RoleUser::STAFF],
@@ -31,7 +33,7 @@ class AuthServiceProvider extends ServiceProvider
             'system.notifications' => [RoleUser::ADMIN, RoleUser::STAFF],
             'system.banners' => [RoleUser::ADMIN, RoleUser::STAFF],
             'system.news-articles' => [RoleUser::ADMIN, RoleUser::STAFF],
-            'payment.payment-receiving-accounts' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'payment.payment-receiving-accounts' => [RoleUser::ADMIN],
             'bet.game-periods' => [RoleUser::ADMIN, RoleUser::STAFF],
             'bet.bet-tickets' => [RoleUser::ADMIN, RoleUser::STAFF],
             'bet.bet-items' => [RoleUser::ADMIN, RoleUser::STAFF],
