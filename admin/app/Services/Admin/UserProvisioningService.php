@@ -11,13 +11,28 @@ use App\Models\User;
 use App\Models\Wallet\Wallet;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Validation\ValidationException;
 
 class UserProvisioningService
 {
     public function createFromErp(array $data, ?User $actor = null): User
     {
+        $normalizedPhone = $this->normalizePhone($data['phone'] ?? null);
+        if ($normalizedPhone !== null && User::query()->where('phone', $normalizedPhone)->exists()) {
+            throw ValidationException::withMessages([
+                'phone' => 'Số điện thoại này đã được sử dụng.',
+            ]);
+        }
+
         return DB::transaction(function () use ($data): User {
-            $user = User::query()->create($this->userPayload($data));
+            try {
+                $user = User::query()->create($this->userPayload($data));
+            } catch (UniqueConstraintViolationException) {
+                throw ValidationException::withMessages([
+                    'phone' => 'Số điện thoại này đã được sử dụng.',
+                ]);
+            }
 
             $this->applyBackfillFields($user, $data);
             $this->provisionWallets($user, $data);
