@@ -13,6 +13,14 @@ const newsItems = ref<ContentNewsItem[]>([])
 const invitedUsersCount = ref(0)
 const copied = ref(false)
 
+const isBecomeAgencyOpen = ref(false)
+const staffInviteCode = ref('')
+const becomeAgencyLoading = ref(false)
+const becomeAgencyError = ref('')
+
+const isClient = computed(() => auth.user?.role === 2)
+const isAgency = computed(() => auth.user?.role === 4)
+
 const affiliateStatusLabel = computed(() => {
   const status = auth.affiliateProfile?.status
   if (status === 2) return 'Đang hoạt động'
@@ -54,6 +62,18 @@ async function loadContent() {
   }
 }
 
+async function loadAffiliateStats() {
+  if (!auth.isAuthenticated) return
+  try {
+    const res = await request<{ invited_users_count: number }>('GET', '/v1/affiliate/summary', {
+      token: auth.accessToken,
+    })
+    invitedUsersCount.value = Number(res.invited_users_count ?? 0)
+  } catch {
+    invitedUsersCount.value = 0
+  }
+}
+
 async function copyReferralLink() {
   const link = auth.affiliateProfile?.ref_link
   if (!link) return
@@ -68,6 +88,32 @@ async function copyReferralLink() {
   }
 }
 
+function openBecomeAgency() {
+  becomeAgencyError.value = ''
+  staffInviteCode.value = ''
+  isBecomeAgencyOpen.value = true
+}
+
+async function submitBecomeAgency() {
+  if (!auth.accessToken) return
+  becomeAgencyError.value = ''
+  becomeAgencyLoading.value = true
+  try {
+    const res = await request<any>('POST', '/v1/affiliate/become-agency', {
+      token: auth.accessToken,
+      body: { staff_ref_code: staffInviteCode.value.trim() },
+    })
+    auth.applyAuthResponse(res)
+    await loadAffiliateStats()
+    isBecomeAgencyOpen.value = false
+  } catch (e: any) {
+    const err = e as ApiError
+    becomeAgencyError.value = err?.message ?? 'Không thể nâng cấp tài khoản'
+  } finally {
+    becomeAgencyLoading.value = false
+  }
+}
+
 onMounted(async () => {
   if (auth.isAuthenticated && !auth.affiliateProfile) {
     try {
@@ -76,6 +122,7 @@ onMounted(async () => {
       // handled by auth store
     }
   }
+  await loadAffiliateStats()
   await loadContent()
 })
 </script>
@@ -115,10 +162,14 @@ onMounted(async () => {
 
     <section v-if="activeTab === 'affiliate'" class="flex flex-col gap-3 px-3">
       <div class="rounded-[18px] bg-gradient-to-br from-[#ff6d66] to-[#ff9f98] p-4 text-white">
-        <p class="m-0 text-[0.7rem] uppercase tracking-[0.08em] text-white/80">Chương trình Affiliate</p>
-        <h2 class="mt-2 text-[1.15rem] font-black">Mời bạn bè, nhận hoa hồng theo doanh thu</h2>
+        <p class="m-0 text-[0.7rem] uppercase tracking-[0.08em] text-white/80">
+          {{ isAgency ? 'Khu vực Đại lý' : 'Chương trình Affiliate' }}
+        </p>
+        <h2 class="mt-2 text-[1.15rem] font-black">
+          {{ isAgency ? 'Thống kê đại lý' : 'Mời bạn bè, nhận hoa hồng theo doanh thu' }}
+        </h2>
         <p class="mt-2 text-[0.78rem] leading-5 text-white/90">
-          Chia sẻ mã giới thiệu, theo dõi người đăng ký và nhận thưởng theo chính sách đại lý.
+          {{ isAgency ? 'Theo dõi người đã mời và hiệu quả giới thiệu của bạn.' : 'Chia sẻ mã giới thiệu, theo dõi người đăng ký và nhận thưởng theo chính sách đại lý.' }}
         </p>
       </div>
 
@@ -129,14 +180,65 @@ onMounted(async () => {
         </article>
       </div>
 
-      <button
-        type="button"
-        class="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-4 py-2 text-[0.75rem] font-black text-white"
-        @click="copyReferralLink"
-      >
-        <span class="material-symbols-outlined text-[1rem]">content_copy</span>
-        {{ copied ? 'Đã copy link' : 'Copy link giới thiệu' }}
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-4 py-2 text-[0.75rem] font-black text-white"
+          @click="copyReferralLink"
+        >
+          <span class="material-symbols-outlined text-[1rem]">content_copy</span>
+          {{ copied ? 'Đã copy link' : 'Copy link giới thiệu' }}
+        </button>
+
+        <button
+          v-if="isClient"
+          type="button"
+          class="inline-flex w-fit items-center gap-2 rounded-full bg-white px-4 py-2 text-[0.75rem] font-black text-primary border border-rose-200"
+          @click="openBecomeAgency"
+        >
+          <span class="material-symbols-outlined text-[1rem]">workspace_premium</span>
+          Trở thành đại lý
+        </button>
+      </div>
+
+      <div v-if="isBecomeAgencyOpen" class="fixed inset-0 z-[9999] grid place-items-center bg-black/40 px-4">
+        <div class="w-full max-w-[520px] rounded-[22px] bg-white p-5 shadow-xl">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h3 class="m-0 text-[1rem] font-black text-on-surface">Trở thành đại lý</h3>
+              <p class="m-0 mt-1 text-xs font-bold text-slate-500">
+                Nhập mã mời của nhân viên để kích hoạt tài khoản đại lý.
+              </p>
+            </div>
+            <button class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600" type="button" @click="isBecomeAgencyOpen = false">
+              <span class="material-symbols-outlined text-[1.1rem]">close</span>
+            </button>
+          </div>
+
+          <div v-if="becomeAgencyError" class="mt-3 rounded-[14px] bg-red-50 px-4 py-3 text-xs font-bold text-red-600">
+            {{ becomeAgencyError }}
+          </div>
+
+          <form class="mt-4 space-y-3" @submit.prevent="submitBecomeAgency">
+            <label class="grid min-h-[56px] items-center overflow-hidden rounded-[18px] bg-surface-container-low border border-slate-100">
+              <input
+                v-model="staffInviteCode"
+                class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-extrabold tracking-wide"
+                type="text"
+                autocomplete="off"
+                placeholder="Mã mời nhân viên"
+              />
+            </label>
+            <button
+              class="min-h-12 w-full rounded-[16px] bg-primary font-black text-white disabled:opacity-60"
+              type="submit"
+              :disabled="becomeAgencyLoading || staffInviteCode.trim().length < 6"
+            >
+              {{ becomeAgencyLoading ? 'Đang xử lý...' : 'Xác nhận' }}
+            </button>
+          </form>
+        </div>
+      </div>
     </section>
 
     <section v-if="error" class="mx-3 rounded-[14px] bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">

@@ -8,8 +8,6 @@ import { computed, ref } from 'vue'
 export interface WithdrawalAccount {
   id: number
   unit: number
-  provider_code: string
-  account_name: string
   account_number: string
   is_default: boolean
   created_at: string

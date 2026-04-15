@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	authmiddleware "gin/internal/auth/middleware"
 	"gin/internal/domain/withdrawal"
@@ -92,7 +93,32 @@ func (h *WithdrawalHandler) handleListHistory(w http.ResponseWriter, r *http.Req
 		requests = []withdrawal.WithdrawalRequest{}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": requests})
+	type withdrawalPublic struct {
+		ID        int64     `json:"id"`
+		Unit      int       `json:"unit"`
+		Amount    string    `json:"amount"`
+		Fee       string    `json:"fee"`
+		NetAmount string    `json:"net_amount"`
+		Status    int       `json:"status"`
+		Reason    string    `json:"reason_rejected,omitempty"`
+		CreatedAt time.Time `json:"created_at"`
+	}
+
+	out := make([]withdrawalPublic, 0, len(requests))
+	for _, it := range requests {
+		out = append(out, withdrawalPublic{
+			ID:        it.ID,
+			Unit:      it.Unit,
+			Amount:    it.Amount,
+			Fee:       it.Fee,
+			NetAmount: it.NetAmount,
+			Status:    it.Status,
+			Reason:    it.ReasonRejected,
+			CreatedAt: it.CreatedAt,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": out})
 }
 
 func (h *WithdrawalHandler) handleListAccounts(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +139,27 @@ func (h *WithdrawalHandler) handleListAccounts(w http.ResponseWriter, r *http.Re
 		accounts = []withdrawal.AccountWithdrawalInfo{}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": accounts})
+	// Client không được thấy tên ngân hàng/tên chủ tài khoản để tránh tự chỉnh sửa qua F12.
+	type accountPublic struct {
+		ID            int64     `json:"id"`
+		Unit          int       `json:"unit"`
+		AccountNumber string    `json:"account_number"`
+		IsDefault     bool      `json:"is_default"`
+		CreatedAt     time.Time `json:"created_at"`
+	}
+
+	out := make([]accountPublic, 0, len(accounts))
+	for _, a := range accounts {
+		out = append(out, accountPublic{
+			ID:            a.ID,
+			Unit:          a.Unit,
+			AccountNumber: a.AccountNumber,
+			IsDefault:     a.IsDefault,
+			CreatedAt:     a.CreatedAt,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": out})
 }
 
 func (h *WithdrawalHandler) handleAddAccount(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +185,17 @@ func (h *WithdrawalHandler) handleAddAccount(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Không cho phép khách tự sửa thông tin: nếu đã liên kết 1 tài khoản cho unit này thì chặn tạo mới.
+	existing, err := h.withdrawalService.ListUserAccounts(r.Context(), claims.UserID)
+	if err == nil {
+		for _, a := range existing {
+			if a.Unit == req.Unit {
+				writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": "Bạn đã liên kết tài khoản nhận tiền, không thể thay đổi."})
+				return
+			}
+		}
+	}
+
 	id, err := h.withdrawalService.AddAccount(r.Context(), claims.UserID, req)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
@@ -149,23 +206,9 @@ func (h *WithdrawalHandler) handleAddAccount(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *WithdrawalHandler) handleDeleteAccount(w http.ResponseWriter, r *http.Request, id int64) {
-	claims, ok := authmiddleware.CurrentClaims(r.Context())
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
-		return
-	}
-
-	err := h.withdrawalService.DeleteAccount(r.Context(), claims.UserID, id)
-	if err != nil {
-		if errors.Is(err, repopg.ErrWithdrawalAccountNotFound) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"message": "Tài khoản không tồn tại"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"message": "Xoá phương thức thành công"})
+	_ = id
+	// Không cho phép khách tự xoá/sửa thông tin nhận tiền sau khi đã liên kết.
+	writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không được phép thay đổi tài khoản nhận tiền."})
 }
 
 func (h *WithdrawalHandler) handleSubmitWithdrawal(w http.ResponseWriter, r *http.Request) {

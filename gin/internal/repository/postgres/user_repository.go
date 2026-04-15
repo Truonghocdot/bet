@@ -14,6 +14,8 @@ import (
 	"gin/internal/support/id"
 	"gin/internal/support/message"
 	"gin/internal/support/phone"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -21,12 +23,22 @@ var (
 	ErrPhoneExists         = errors.New(message.PhoneExists)
 	ErrAccountNotFound     = errors.New(message.AccountNotFound)
 	ErrRefCodeNotFound     = errors.New(message.ReferralCodeNotFound)
+	ErrStaffInviteInvalid  = errors.New(message.StaffInviteCodeInvalid)
+	ErrReferralAlreadyUsed = errors.New(message.ReferralAlreadyUsed)
 	ErrUserDisabled        = errors.New(message.UserNotActive)
 	ErrInvalidSelfReferral = errors.New(message.InvalidSelfReferral)
 )
 
 type UserRepository struct {
 	db *sql.DB
+}
+
+func isUniqueViolationUser(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return false
 }
 
 type RegisterUserParams struct {
@@ -151,6 +163,86 @@ func (r *UserRepository) FindByAccount(ctx context.Context, account string) (aut
 func (r *UserRepository) MarkLoggedIn(ctx context.Context, userID int64, at time.Time) error {
 	_, err := r.db.ExecContext(ctx, `update users set last_login_at = $1, updated_at = $1 where id = $2`, at, userID)
 	return err
+}
+
+// PromoteToAgencyByStaffRefCode links current user to a staff invite code and promotes role to Agency.
+// This is used by the client "Trở thành đại lý" flow.
+func (r *UserRepository) PromoteToAgencyByStaffRefCode(ctx context.Context, userID int64, staffRefCode string) error {
+	refCode := strings.ToUpper(strings.TrimSpace(staffRefCode))
+	if refCode == "" {
+		return ErrStaffInviteInvalid
+	}
+
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var currentRole int
+	if err := tx.QueryRowContext(ctx, `select role from users where id = $1 limit 1`, userID).Scan(&currentRole); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrAccountNotFound
+		}
+		return err
+	}
+	_ = currentRole
+
+	var affiliateProfileID int64
+	var referrerUserID int64
+	err = tx.QueryRowContext(ctx, `
+		select ap.id, ap.user_id
+		from affiliate_profiles ap
+		join users u on u.id = ap.user_id
+		where ap.ref_code = $1
+		  and u.role = $2
+		  and u.status = $3
+		limit 1
+	`, refCode, user.RoleStaff, user.StatusActive).Scan(&affiliateProfileID, &referrerUserID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrStaffInviteInvalid
+		}
+		return err
+	}
+
+	if referrerUserID == userID {
+		return ErrInvalidSelfReferral
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		insert into affiliate_referrals (
+			affiliate_profile_id,
+			referrer_user_id,
+			referred_user_id,
+			status,
+			created_at,
+			updated_at
+		)
+		values ($1, $2, $3, $4, now(), now())
+	`, affiliateProfileID, referrerUserID, userID, user.AffiliateReferralStatusPending)
+	if err != nil {
+		if isUniqueViolationUser(err) {
+			return ErrReferralAlreadyUsed
+		}
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `update users set role = $1, updated_at = now() where id = $2`, user.RoleAgency, userID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *UserRepository) CountInvitedUsers(ctx context.Context, referrerUserID int64) (int64, error) {
+	var count int64
+	err := r.db.QueryRowContext(ctx, `
+		select count(1)
+		from affiliate_referrals
+		where referrer_user_id = $1
+	`, referrerUserID).Scan(&count)
+	return count, err
 }
 
 func (r *UserRepository) FindProfileByUserID(ctx context.Context, userID int64) (auth.UserProfile, error) {

@@ -15,8 +15,6 @@ const withdraw = useWithdrawStore()
 
 const method = ref<'vnd' | 'usdt'>('vnd')
 const amount = ref('')
-const isAddingForm = ref(false)
-const isSuccess = ref(false)
 
 // Form for adding method
 const addProvider = ref('')
@@ -63,7 +61,7 @@ onMounted(async () => {
 
 // Methods limit helpers
 const presets = computed(() => {
-  if (method.value === 'vnd') return [50000, 100000, 200000, 500000, 1000000]
+  if (method.value === 'vnd') return [100000, 200000, 300000, 500000, 1500000, 15000000]
   return [5, 10, 50, 100, 500]
 })
 
@@ -75,7 +73,6 @@ async function submitSaveMethod() {
     account_name: addHolder.value.toUpperCase().trim(),
     account_number: addNumber.value.toUpperCase().trim(),
   })
-  isAddingForm.value = false
   addProvider.value = ''
   addHolder.value = ''
   addNumber.value = ''
@@ -89,19 +86,9 @@ async function handleWithdraw() {
   })
   if (success) {
     amount.value = ''
-    isSuccess.value = true
-    await Promise.all([wallet.fetchSummary(), withdraw.fetchHistory()])
+    await wallet.fetchSummary()
+    router.replace('/home')
   }
-}
-
-function promptAddForm() {
-  isAddingForm.value = true
-}
-
-async function handleRemoveMethod() {
-  if (!currentAccount.value) return
-  if (!confirm('Bạn có chắc xoá hồ sơ nhận tiền này không?')) return
-  await withdraw.deleteAccount(currentAccount.value.id)
 }
 </script>
 
@@ -121,7 +108,7 @@ async function handleRemoveMethod() {
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
           :class="method === 'vnd' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
           type="button"
-          @click="method = 'vnd'; isAddingForm = false; amount = ''; addProvider = ''; addHolder = ''; addNumber = '';"
+          @click="method = 'vnd'; amount = ''; addProvider = ''; addHolder = ''; addNumber = '';"
         >
           Ngân hàng (VND)
         </button>
@@ -129,7 +116,7 @@ async function handleRemoveMethod() {
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
           :class="method === 'usdt' ? 'bg-white text-primary shadow-[0_4px_12px_rgba(255,109,102,0.1)]' : 'text-on-surface-variant'"
           type="button"
-          @click="method = 'usdt'; isAddingForm = false; amount = ''; addProvider = ''; addHolder = ''; addNumber = '';"
+          @click="method = 'usdt'; amount = ''; addProvider = ''; addHolder = ''; addNumber = '';"
         >
           Ví USDT Crypto
         </button>
@@ -145,7 +132,7 @@ async function handleRemoveMethod() {
 
     <!-- TRẠNG THÁI CẦN THÊM VÍ -->
     <transition name="page" mode="out-in">
-      <section v-if="needsSetup || isAddingForm" class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
+      <section v-if="needsSetup" class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
         <h2 class="m-0 text-base font-black text-primary">Liên kết {{ method === 'vnd' ? 'Ngân hàng' : 'Ví Crypto' }}</h2>
         <p class="m-0 mt-1 text-xs font-bold text-[#e64545] opacity-80">Bạn cần khai báo thông tin nơi nhận tiền để tạo lệnh rút.</p>
         
@@ -164,7 +151,6 @@ async function handleRemoveMethod() {
           </label>
 
           <div class="pt-2 flex gap-2">
-            <button v-if="!needsSetup && isAddingForm" type="button" @click="isAddingForm = false" class="min-h-12 flex-1 rounded-[14px] bg-slate-100 font-bold text-on-surface">Huỷ</button>
             <button class="min-h-12 flex-1 rounded-[14px] bg-primary font-black text-white disabled:opacity-60" type="submit" :disabled="withdraw.loading">
               Lưu cấu hình
             </button>
@@ -174,24 +160,15 @@ async function handleRemoveMethod() {
 
       <!-- ĐÃ CÓ VÍ, CHO PHÉP NHẬP SỐ TIỀN RÚT -->
       <section v-else class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)] relative overflow-hidden">
-        <div v-if="isSuccess" class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
-           <div class="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center text-green-500 mb-4 animate-bounce">
-              <span class="material-symbols-outlined text-4xl">check_circle</span>
-           </div>
-           <h3 class="text-lg font-black text-slate-800">Gửi lệnh thành công</h3>
-           <p class="text-xs font-bold text-slate-400 mt-1">Hệ thống đang xét duyệt phiếu rút</p>
-           <button @click="isSuccess = false; amount = ''" class="mt-6 px-8 py-2 rounded-full bg-slate-100 text-sm font-black text-slate-600">Đóng</button>
-        </div>
-
         <div class="flex items-start justify-between rounded-[16px] bg-[rgba(65,82,143,0.06)] p-3.5 mb-4">
           <div class="overflow-hidden">
-            <p class="m-0 text-[0.7rem] font-bold text-on-surface-variant uppercase">{{ currentAccount?.provider_code || 'Ngân hàng' }}</p>
-            <p class="m-0 mt-0.5 truncate font-black text-on-surface">{{ currentAccount?.account_name }}</p>
-            <p class="m-0 font-mono text-[0.85rem] font-bold text-primary">{{ currentAccount?.account_number }}</p>
+            <p class="m-0 text-[0.7rem] font-bold text-on-surface-variant uppercase">
+              {{ method === 'vnd' ? 'Số tài khoản nhận' : 'Địa chỉ ví nhận' }}
+            </p>
+            <p class="m-0 mt-1 font-mono text-[0.9rem] font-black text-primary break-all">
+              {{ currentAccount?.account_number }}
+            </p>
           </div>
-          <button class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-[#e64545] shadow-sm ml-2" @click="handleRemoveMethod">
-            <span class="material-symbols-outlined text-[1.1rem]">delete</span>
-          </button>
         </div>
 
         <form @submit.prevent="handleWithdraw" class="space-y-4">

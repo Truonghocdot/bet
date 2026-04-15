@@ -14,6 +14,7 @@ import (
 func NewRouter(
 	_ any,
 	authService *service.AuthService,
+	affiliateService *service.AffiliateService,
 	walletService *service.WalletService,
 	notificationService *service.NotificationService,
 	contentService *service.ContentService,
@@ -31,6 +32,7 @@ func NewRouter(
 
 	healthHandler := NewHealthHandler()
 	authHandler := NewAuthHandler(authService)
+	affiliateHandler := NewAffiliateHandler(affiliateService)
 	walletHandler := NewWalletHandler(walletService, broker)
 	notificationHandler := NewNotificationHandler(notificationService)
 	contentHandler := NewContentHandler(contentService)
@@ -50,6 +52,8 @@ func NewRouter(
 	mux.HandleFunc("POST /v1/auth/forgot-password/verify-otp", authHandler.VerifyForgotPasswordOTP)
 	mux.HandleFunc("POST /v1/auth/reset-password", authHandler.ResetPassword)
 	mux.Handle("GET /v1/auth/me", authn.Require(http.HandlerFunc(authHandler.Me)))
+	mux.Handle("GET /v1/affiliate/summary", authn.Require(http.HandlerFunc(affiliateHandler.Summary)))
+	mux.Handle("POST /v1/affiliate/become-agency", authn.Require(http.HandlerFunc(affiliateHandler.BecomeAgency)))
 	mux.Handle("GET /v1/wallets/summary", authn.Require(http.HandlerFunc(walletHandler.ServeHTTP)))
 	mux.Handle("POST /v1/wallets/exchange", authn.Require(http.HandlerFunc(walletHandler.Exchange)))
 	mux.Handle("GET /v1/wallets/stream", authn.Require(http.HandlerFunc(walletHandler.Stream)))

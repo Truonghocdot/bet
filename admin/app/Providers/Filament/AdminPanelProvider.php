@@ -61,17 +61,13 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
+            ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                fn () => view('filament.admin.staff-invite-code'),
+
+            )
             ->databaseTransactions()
             ->spa(true)
             ->maxContentWidth(Width::Full);;
-    }
-
-    public function boot(): void
-    {
-        FilamentView::registerRenderHook(
-            PanelsRenderHook::TOPBAR_END,
-            fn () => view('filament.admin.staff-invite-code'),
-            scopes: 'staff',
-        );
     }
 }
