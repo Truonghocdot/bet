@@ -221,9 +221,9 @@ func (r *GameRepository) ListLockedPeriodsForDraw(ctx context.Context, now time.
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
+		select id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
 		from (
-			select distinct on (room_code) id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
+			select distinct on (room_code) id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
 			from game_periods
 			where status = $1
 			  and draw_at <= $2
@@ -245,6 +245,7 @@ func (r *GameRepository) ListLockedPeriodsForDraw(ctx context.Context, now time.
 			&item.RoomCode,
 			&item.GameType,
 			&item.PeriodNo,
+			&item.PeriodIndex,
 			&item.OpenAt,
 			&item.BetLockAt,
 			&item.DrawAt,
@@ -627,21 +628,23 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room GameRoomRecord, openAt, drawAt time.Time, status int) (GamePeriodRecord, bool, error) {
 	lockAt := drawAt.Add(-time.Duration(room.BetCutoffSeconds) * time.Second)
 	periodNo := buildPeriodNo(room.Code, drawAt)
+	periodIndex := drawAt.Unix()
 	var record GamePeriodRecord
 	err := tx.QueryRowContext(ctx, `
 		insert into game_periods (
-			game_type, period_no, room_code, open_at, close_at, bet_lock_at, draw_at, status, created_at, updated_at
+			game_type, period_no, period_index, room_code, open_at, close_at, bet_lock_at, draw_at, status, created_at, updated_at
 		)
 		values (
-			$1, $2, $3, $4, $5, $5, $6, $7, now(), now()
+			$1, $2, $3, $4, $5, $6, $6, $7, $8, now(), now()
 		)
 		on conflict (room_code, period_no) do nothing
-		returning id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
-	`, room.GameType, periodNo, room.Code, openAt, lockAt, drawAt, status).Scan(
+		returning id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
+	`, room.GameType, periodNo, periodIndex, room.Code, openAt, lockAt, drawAt, status).Scan(
 		&record.ID,
 		&record.RoomCode,
 		&record.GameType,
 		&record.PeriodNo,
+		&record.PeriodIndex,
 		&record.OpenAt,
 		&record.BetLockAt,
 		&record.DrawAt,

@@ -377,11 +377,13 @@ function wingoTicketBallText(row: PlayRoomBetHistoryResponse['items'][number]) {
         </div>
         <div
           v-for="row in visibleHistoryRows"
-          :key="row.period_no"
+          :key="`${row.period_index || 0}-${row.period_no}`"
           class="grid grid-cols-[1.35fr_0.7fr_1fr_0.7fr_0.8fr] items-center border-b border-slate-100 px-3 py-2.5 text-[0.78rem] hover:bg-slate-50"
         >
           <div class="min-w-0">
-            <p class="truncate text-[0.66rem] font-bold text-slate-700">{{ periodTail(row.period_no, 10) }}</p>
+            <p class="truncate text-[0.66rem] font-bold text-slate-700">
+              {{ row.period_index ? `#${row.period_index}` : periodTail(row.period_no, 10) }}
+            </p>
             <p class="mt-0.5 text-[0.6rem] text-slate-400">{{ row.period_no ? row.period_no.split('_')[0] : '—' }}</p>
           </div>
           <span
@@ -436,7 +438,10 @@ function wingoTicketBallText(row: PlayRoomBetHistoryResponse['items'][number]) {
             </div>
 
             <div class="min-w-0 flex-1">
-              <p class="truncate text-[0.72rem] font-semibold text-slate-400">{{ row.period_no || '—' }}</p>
+              <p class="truncate text-[0.72rem] font-semibold text-slate-400">
+                {{ row.period_index ? `#${row.period_index}` : (row.period_no || '—') }}
+              </p>
+              <p class="truncate text-[0.62rem] text-slate-300">{{ row.period_no || '—' }}</p>
               <p class="mt-0.5 text-[0.88rem] font-black text-on-surface">{{ rowMainLabel(row) }}</p>
               <p class="mt-0.5 text-[0.68rem] text-slate-500">{{ rowSubLabel(row) }}</p>
               <div class="mt-2 flex flex-wrap items-center gap-1.5">

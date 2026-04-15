@@ -4,6 +4,7 @@ import "time"
 
 type HistoryListItem struct {
 	PeriodNo   string    `json:"period_no"`
+	PeriodIndex int64    `json:"period_index"`
 	Result     string    `json:"result"`
 	BigSmall   string    `json:"big_small"`
 	Color      string    `json:"color"`
@@ -25,6 +26,7 @@ type HistoryListResponse struct {
 type BetTicketHistoryItem struct {
 	ID             int64      `json:"id"`
 	PeriodNo       string     `json:"period_no"`
+	PeriodIndex    int64      `json:"period_index"`
 	Result         string     `json:"result"`
 	BigSmall       string     `json:"big_small"`
 	Color          string     `json:"color"`

@@ -19,6 +19,7 @@ type RoomListResponse struct {
 type RoomPeriod struct {
 	ID        int64     `json:"id"`
 	PeriodNo  string    `json:"period_no"`
+	PeriodIndex int64   `json:"period_index"`
 	Status    string    `json:"status"`
 	OpenAt    time.Time `json:"open_at"`
 	BetLockAt time.Time `json:"bet_lock_at"`

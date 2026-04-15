@@ -152,14 +152,15 @@ func (s *BetService) ListGameHistory(ctx context.Context, gameType game.GameType
 	items := make([]game.HistoryListItem, 0, len(records))
 	for _, record := range records {
 		items = append(items, game.HistoryListItem{
-			PeriodNo:  record.PeriodNo,
-			Result:    record.Result,
-			BigSmall:  record.BigSmall,
-			Color:     record.Color,
-			DrawAt:    record.DrawAt,
-			Status:    record.Status,
-			CreatedAt: record.CreatedAt,
-			UpdatedAt: record.UpdatedAt,
+			PeriodNo:    record.PeriodNo,
+			PeriodIndex: record.PeriodIndex,
+			Result:      record.Result,
+			BigSmall:    record.BigSmall,
+			Color:       record.Color,
+			DrawAt:      record.DrawAt,
+			Status:      record.Status,
+			CreatedAt:   record.CreatedAt,
+			UpdatedAt:   record.UpdatedAt,
 		})
 	}
 
@@ -189,6 +190,7 @@ func (s *BetService) ListMyBets(ctx context.Context, userID int64, gameType game
 		items = append(items, game.BetTicketHistoryItem{
 			ID:             record.ID,
 			PeriodNo:       record.PeriodNo,
+			PeriodIndex:    record.PeriodIndex,
 			Result:         summary.Result,
 			BigSmall:       summary.BigSmall,
 			Color:          summary.Color,

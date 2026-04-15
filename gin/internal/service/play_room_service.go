@@ -125,14 +125,15 @@ func (s *PlayRoomService) ListRoomHistory(ctx context.Context, roomCode string, 
 	items := make([]game.HistoryListItem, 0, len(records))
 	for _, record := range records {
 		items = append(items, game.HistoryListItem{
-			PeriodNo:  record.PeriodNo,
-			Result:    record.Result,
-			BigSmall:  record.BigSmall,
-			Color:     record.Color,
-			DrawAt:    record.DrawAt,
-			Status:    record.Status,
-			CreatedAt: record.CreatedAt,
-			UpdatedAt: record.UpdatedAt,
+			PeriodNo:    record.PeriodNo,
+			PeriodIndex: record.PeriodIndex,
+			Result:      record.Result,
+			BigSmall:    record.BigSmall,
+			Color:       record.Color,
+			DrawAt:      record.DrawAt,
+			Status:      record.Status,
+			CreatedAt:   record.CreatedAt,
+			UpdatedAt:   record.UpdatedAt,
 		})
 	}
 
@@ -162,6 +163,7 @@ func (s *PlayRoomService) ListMyRoomBets(ctx context.Context, userID int64, room
 		items = append(items, game.BetTicketHistoryItem{
 			ID:             record.ID,
 			PeriodNo:       record.PeriodNo,
+			PeriodIndex:    record.PeriodIndex,
 			Result:         summary.Result,
 			BigSmall:       summary.BigSmall,
 			Color:          summary.Color,
@@ -331,14 +333,15 @@ func (s *PlayRoomService) buildRoomState(ctx context.Context, roomCode string) (
 	recentResults := make([]game.HistoryListItem, 0, len(results))
 	for _, row := range results {
 		recentResults = append(recentResults, game.HistoryListItem{
-			PeriodNo:  row.PeriodNo,
-			Result:    row.Result,
-			BigSmall:  row.BigSmall,
-			Color:     row.Color,
-			DrawAt:    row.DrawAt,
-			Status:    row.Status,
-			CreatedAt: row.CreatedAt,
-			UpdatedAt: row.UpdatedAt,
+			PeriodNo:    row.PeriodNo,
+			PeriodIndex: row.PeriodIndex,
+			Result:      row.Result,
+			BigSmall:    row.BigSmall,
+			Color:       row.Color,
+			DrawAt:      row.DrawAt,
+			Status:      row.Status,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
 		})
 	}
 
@@ -354,12 +357,13 @@ func (s *PlayRoomService) buildRoomState(ctx context.Context, roomCode string) (
 			SortOrder:        room.SortOrder,
 		},
 		CurrentPeriod: game.RoomPeriod{
-			ID:        period.ID,
-			PeriodNo:  period.PeriodNo,
-			Status:    toPeriodStatusLabel(period.Status),
-			OpenAt:    period.OpenAt,
-			BetLockAt: period.BetLockAt,
-			DrawAt:    period.DrawAt,
+			ID:          period.ID,
+			PeriodNo:    period.PeriodNo,
+			PeriodIndex: period.PeriodIndex,
+			Status:      toPeriodStatusLabel(period.Status),
+			OpenAt:      period.OpenAt,
+			BetLockAt:   period.BetLockAt,
+			DrawAt:      period.DrawAt,
 		},
 		RecentResults: recentResults,
 	}, nil

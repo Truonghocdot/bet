@@ -16,6 +16,7 @@ interface RoomStats {
   period: {
     id: number
     period_no: string
+    period_index: number
     draw_at: string
     bet_lock_at: string
     status: number
@@ -455,7 +456,7 @@ function heatHeight(stake: number, maxStake: number): string {
           <span class="room-chip" :class="isLocked ? 'room-chip--lock' : 'room-chip--open'">{{ lockMessage }}</span>
           <span v-if="manualResult?.result" class="room-chip room-chip--manual">Đã cài: {{ manualResult.result }}</span>
         </div>
-        <p class="room-period">Kỳ: {{ room.period?.period_no ?? '---' }}</p>
+        <p class="room-period">Kỳ: {{ room.period?.period_index || room.period?.period_no || '---' }}</p>
       </div>
       <div class="room-timer">
         <p class="room-timer__label">Time Left</p>

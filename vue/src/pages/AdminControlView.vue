@@ -19,6 +19,7 @@ interface RoomStats {
   period: {
     id: number
     period_no: string
+    period_index: number
     draw_at: string
     bet_lock_at: string
     status: number

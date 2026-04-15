@@ -15,6 +15,7 @@ class GamePeriod extends Model
     protected $fillable = [
         'game_type',
         'period_no',
+        'period_index',
         'room_code',
         'open_at',
         'close_at',
@@ -32,6 +33,7 @@ class GamePeriod extends Model
     {
         return [
             'game_type' => GameType::class,
+            'period_index' => 'integer',
             'open_at' => 'datetime',
             'close_at' => 'datetime',
             'bet_lock_at' => 'datetime',

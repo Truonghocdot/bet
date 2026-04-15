@@ -189,6 +189,7 @@ export type PlayRoomItem = {
 export type PlayRoomPeriod = {
   id: number
   period_no: string
+  period_index: number
   status: string
   open_at: string
   bet_lock_at: string
@@ -197,6 +198,7 @@ export type PlayRoomPeriod = {
 
 export type PlayHistoryItem = {
   period_no: string
+  period_index: number
   result: string
   big_small: string
   color: string
@@ -226,6 +228,7 @@ export type PlayRoomHistoryResponse = {
 export type PlayRoomBetHistoryItem = {
   id: number
   period_no: string
+  period_index: number
   result: string
   big_small: string
   color: string
@@ -286,6 +289,7 @@ export type GamePlaceBetResponse = {
 
 export type GameHistoryItem = {
   period_no: string
+  period_index: number
   result: string
   big_small: string
   color: string
@@ -307,6 +311,7 @@ export type GameHistoryResponse = {
 export type GameBetHistoryItem = {
   id: number
   period_no: string
+  period_index: number
   result: string
   big_small: string
   color: string

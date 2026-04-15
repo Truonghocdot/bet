@@ -60,6 +60,7 @@ type GamePeriodRecord struct {
 	RoomCode         string
 	GameType         int
 	PeriodNo         string
+	PeriodIndex      int64
 	OpenAt           time.Time
 	BetLockAt        time.Time
 	DrawAt           time.Time
@@ -72,6 +73,7 @@ type GameRoundRecord struct {
 	GameType  string
 	RoomCode  string
 	PeriodNo  string
+	PeriodIndex int64
 	Result    string
 	BigSmall  string
 	Color     string
@@ -94,6 +96,7 @@ type BetTicketRecord struct {
 	GameType       int
 	PeriodID       int64
 	PeriodNo       string
+	PeriodIndex    int64
 	RequestID      string
 	ConnectionID   string
 	TotalStake     string
@@ -229,7 +232,7 @@ func (r *GameRepository) GetNearestUpcomingPeriodByRoom(ctx context.Context, roo
 	now := clock.Now()
 	var period GamePeriodRecord
 	err := r.db.QueryRowContext(ctx, `
-		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
+		select id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
 		from game_periods
 		where room_code = $1
 		  and status in ($2, $3, $4)
@@ -241,6 +244,7 @@ func (r *GameRepository) GetNearestUpcomingPeriodByRoom(ctx context.Context, roo
 		&period.RoomCode,
 		&period.GameType,
 		&period.PeriodNo,
+		&period.PeriodIndex,
 		&period.OpenAt,
 		&period.BetLockAt,
 		&period.DrawAt,
@@ -323,6 +327,7 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 			&period.RoomCode,
 			&period.GameType,
 			&period.PeriodNo,
+			&period.PeriodIndex,
 			&period.OpenAt,
 			&period.BetLockAt,
 			&period.DrawAt,
@@ -336,7 +341,7 @@ func (r *GameRepository) GetCurrentPeriodByRoom(ctx context.Context, roomCode st
 	}
 
 	current, err := scanPeriod(`
-		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
+		select id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
 		from game_periods
 		where room_code = $1
 		  and status in ($2, $3, $4)
@@ -370,10 +375,14 @@ func (r *GameRepository) ListRoomRounds(ctx context.Context, roomCode string, pa
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		select id, game_type, room_code, period_no, result, big_small, color, draw_at, status, created_at, updated_at
-		from game_round_histories
-		where room_code = $1
-		order by draw_at desc, id desc
+		select h.id, h.game_type, h.room_code, h.period_no, coalesce(p.period_index, 0) as period_index,
+		       h.result, h.big_small, h.color, h.draw_at, h.status, h.created_at, h.updated_at
+		from game_round_histories h
+		left join game_periods p
+			on p.room_code = h.room_code
+		   and p.period_no = h.period_no
+		where h.room_code = $1
+		order by h.draw_at desc, h.id desc
 		limit $2 offset $3
 	`, roomCode, pageSize, (page-1)*pageSize)
 	if err != nil {
@@ -389,6 +398,7 @@ func (r *GameRepository) ListRoomRounds(ctx context.Context, roomCode string, pa
 			&record.GameType,
 			&record.RoomCode,
 			&record.PeriodNo,
+			&record.PeriodIndex,
 			&record.Result,
 			&record.BigSmall,
 			&record.Color,
@@ -411,10 +421,14 @@ func (r *GameRepository) ListRoomRecentRounds(ctx context.Context, roomCode stri
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		select id, game_type, room_code, period_no, result, big_small, color, draw_at, status, created_at, updated_at
-		from game_round_histories
-		where room_code = $1
-		order by draw_at desc, id desc
+		select h.id, h.game_type, h.room_code, h.period_no, coalesce(p.period_index, 0) as period_index,
+		       h.result, h.big_small, h.color, h.draw_at, h.status, h.created_at, h.updated_at
+		from game_round_histories h
+		left join game_periods p
+			on p.room_code = h.room_code
+		   and p.period_no = h.period_no
+		where h.room_code = $1
+		order by h.draw_at desc, h.id desc
 		limit $2
 	`, roomCode, limit)
 	if err != nil {
@@ -430,6 +444,7 @@ func (r *GameRepository) ListRoomRecentRounds(ctx context.Context, roomCode stri
 			&record.GameType,
 			&record.RoomCode,
 			&record.PeriodNo,
+			&record.PeriodIndex,
 			&record.Result,
 			&record.BigSmall,
 			&record.Color,
@@ -594,6 +609,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		return BetTicketRecord{}, err
 	}
 	record.PeriodNo = period.PeriodNo
+	record.PeriodIndex = period.PeriodIndex
 	if record.OriginalAmount == "" {
 		record.OriginalAmount = originalAmountDB
 	}
@@ -671,7 +687,7 @@ func (r *GameRepository) ListRoomBetTickets(ctx context.Context, userID int64, r
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		select t.id, t.user_id, t.wallet_id, t.game_type, t.period_id, p.period_no,
+		select t.id, t.user_id, t.wallet_id, t.game_type, t.period_id, p.period_no, coalesce(p.period_index, 0),
 		       t.request_id, t.connection_id, coalesce(t.total_stake, t.stake)::text,
 		       coalesce(t.original_amount, t.total_stake, t.stake)::text,
 		       coalesce(t.tax_amount, 0)::text,
@@ -705,6 +721,7 @@ func (r *GameRepository) ListRoomBetTickets(ctx context.Context, userID int64, r
 			&record.GameType,
 			&record.PeriodID,
 			&record.PeriodNo,
+			&record.PeriodIndex,
 			&record.RequestID,
 			&record.ConnectionID,
 			&record.TotalStake,
@@ -738,7 +755,7 @@ func (r *GameRepository) ListBetTickets(ctx context.Context, userID int64, gameT
 func (r *GameRepository) lockPeriodForBet(ctx context.Context, tx *sql.Tx, roomCode string, periodID int64) (GamePeriodRecord, error) {
 	var period GamePeriodRecord
 	err := tx.QueryRowContext(ctx, `
-		select id, room_code, game_type, period_no, open_at, bet_lock_at, draw_at, status, manual_result
+		select id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
 		from game_periods
 		where id = $1 and room_code = $2
 		limit 1
@@ -748,6 +765,7 @@ func (r *GameRepository) lockPeriodForBet(ctx context.Context, tx *sql.Tx, roomC
 		&period.RoomCode,
 		&period.GameType,
 		&period.PeriodNo,
+		&period.PeriodIndex,
 		&period.OpenAt,
 		&period.BetLockAt,
 		&period.DrawAt,
@@ -786,7 +804,7 @@ func (r *GameRepository) lockWalletForBet(ctx context.Context, tx *sql.Tx, userI
 
 func (r *GameRepository) findTicketByRequestIDTx(ctx context.Context, tx *sql.Tx, requestID string) (BetTicketRecord, bool, error) {
 	row := tx.QueryRowContext(ctx, `
-		select t.id, t.user_id, t.wallet_id, t.game_type, t.period_id, p.period_no,
+		select t.id, t.user_id, t.wallet_id, t.game_type, t.period_id, p.period_no, coalesce(p.period_index, 0),
 		       t.request_id, t.connection_id, coalesce(t.total_stake, t.stake)::text,
 		       coalesce(t.original_amount, t.total_stake, t.stake)::text,
 		       coalesce(t.tax_amount, 0)::text,
@@ -813,6 +831,7 @@ func (r *GameRepository) findTicketByRequestIDTx(ctx context.Context, tx *sql.Tx
 		&record.GameType,
 		&record.PeriodID,
 		&record.PeriodNo,
+		&record.PeriodIndex,
 		&record.RequestID,
 		&record.ConnectionID,
 		&record.TotalStake,
