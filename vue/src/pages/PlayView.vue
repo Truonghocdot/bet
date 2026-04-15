@@ -57,6 +57,7 @@ const seenSettlementPeriods = new Set<string>()
 const countdownTargetMs = ref(0)
 const countdownTargetPeriodNo = ref('')
 const countdownCachePrefix = 'ff789:play-countdown:'
+const roomStateCachePrefix = 'ff789:play-room-state:'
 
 // Bet modal state
 const showBetModal = ref(false)
@@ -246,6 +247,9 @@ function resetTransientRoomUiState() {
   joinError.value = ''
   betMessage.value = ''
   betMessageRoomCode.value = ''
+}
+
+function resetRoomStateSession() {
   roomState.value = null
   countdownTargetMs.value = 0
   countdownTargetPeriodNo.value = ''
@@ -278,6 +282,71 @@ function saveCountdownCache(roomCode: string, periodNo: string, targetMs: number
   } catch {
     // ignore storage failures
   }
+}
+
+function roomStateCacheKey(roomCode: string) {
+  return `${roomStateCachePrefix}${roomCode}`
+}
+
+type RoomStateCacheSnapshot = {
+  savedAt: number
+  response: PlayRoomStateResponse
+}
+
+function loadRoomStateCache(roomCode: string): RoomStateCacheSnapshot | null {
+  if (!roomCode) return null
+  try {
+    const raw = sessionStorage.getItem(roomStateCacheKey(roomCode))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<RoomStateCacheSnapshot>
+    const savedAt = Number(parsed?.savedAt ?? 0)
+    const response = parsed?.response as PlayRoomStateResponse | undefined
+    if (!response || !response.current_period || !response.server_time || !Number.isFinite(savedAt) || savedAt <= 0) return null
+    return { savedAt, response }
+  } catch {
+    return null
+  }
+}
+
+function saveRoomStateCache(roomCode: string, response: PlayRoomStateResponse) {
+  if (!roomCode) return
+  try {
+    const snapshot: RoomStateCacheSnapshot = {
+      savedAt: Date.now(),
+      response,
+    }
+    sessionStorage.setItem(roomStateCacheKey(roomCode), JSON.stringify(snapshot))
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function hydrateRoomStateFromCache(roomCode: string) {
+  const cached = loadRoomStateCache(roomCode)
+  if (!cached) return false
+
+  roomState.value = cached.response
+
+  const serverTimeMs = Number(new Date(cached.response.server_time).getTime())
+  if (Number.isFinite(serverTimeMs) && serverTimeMs > 0) {
+    applyServerClock(cached.response.server_time, cached.savedAt)
+  }
+
+  syncCountdownTarget(cached.response.current_period, Date.now(), true, roomCode)
+  return true
+}
+
+function resetRoomViewData() {
+  historyRows.value = []
+  mineRows.value = []
+  chartRows.value = []
+  historyError.value = ''
+  mineError.value = ''
+  chartError.value = ''
+  historyPage.value = 1
+  minePage.value = 1
+  historyTotalPages.value = 1
+  mineTotalPages.value = 1
 }
 
 function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | null, nowMs = Date.now(), force = false, roomCode = selectedRoomCode.value) {
@@ -652,6 +721,7 @@ async function applyRoomStateResponse(
   const shouldRebaseClock = options.forceRebaseClock || !roomState.value || previousPeriodNo !== nextPeriodNo
 
   roomState.value = response
+  saveRoomStateCache(selectedRoomCode.value, response)
 
   // Luôn tính midpoint chính xác dù có rebase hay không
   const midpoint =
@@ -772,8 +842,13 @@ async function loadRoomState(roomCode = selectedRoomCode.value) {
     })
   } catch (error: unknown) {
     const err = error as ApiError
-    roomStateError.value = err?.message ?? 'Không thể tải trạng thái phòng chơi'
-    roomState.value = null
+    const hasCache = !!loadRoomStateCache(roomCode)
+    roomStateError.value = hasCache ? '' : (err?.message ?? 'Không thể tải trạng thái phòng chơi')
+    if (!hasCache) {
+      roomState.value = null
+      countdownTargetMs.value = 0
+      countdownTargetPeriodNo.value = ''
+    }
   } finally {
     roomStateLoading.value = false
   }
@@ -1207,8 +1282,11 @@ watch(
       return
     }
     resetTransientRoomUiState()
-    historyPage.value = 1
-    minePage.value = 1
+    resetRoomViewData()
+    seenSettlementPeriods.clear()
+    if (!hydrateRoomStateFromCache(roomCode)) {
+      resetRoomStateSession()
+    }
     setLoading(true)
     try {
       await loadRoomState(roomCode)
