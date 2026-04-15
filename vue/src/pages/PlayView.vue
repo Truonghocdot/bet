@@ -16,6 +16,7 @@ import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
 import { useLoading } from '@/shared/lib/loading'
+import PlayHistorySection from '@/components/PlayHistorySection.vue'
 
 const { setLoading } = useLoading()
 
@@ -56,6 +57,8 @@ const clockTick = ref(Date.now())
 const seenSettlementPeriods = new Set<string>()
 const countdownTargetMs = ref(0)
 const countdownTargetPeriodNo = ref('')
+const closingCountdownTargetMs = ref(0)
+const closingCountdownPeriodNo = ref('')
 const countdownCachePrefix = 'ff789:play-countdown:'
 const roomStateCachePrefix = 'ff789:play-room-state:'
 
@@ -253,6 +256,8 @@ function resetRoomStateSession() {
   roomState.value = null
   countdownTargetMs.value = 0
   countdownTargetPeriodNo.value = ''
+  closingCountdownTargetMs.value = 0
+  closingCountdownPeriodNo.value = ''
   seenSettlementPeriods.clear()
 }
 
@@ -398,6 +403,10 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
     }
   }
   countdownTargetPeriodNo.value = periodNo
+  if (remainingSeconds.value > 0 && remainingSeconds.value <= 5) {
+    closingCountdownPeriodNo.value = periodNo
+    closingCountdownTargetMs.value = countdownTargetMs.value
+  }
   saveCountdownCache(roomCode, periodNo, countdownTargetMs.value)
 }
 const isBetLocked = computed(() => {
@@ -411,6 +420,19 @@ const remainingSeconds = computed(() => {
   if (!currentPeriod.value || countdownTargetMs.value <= 0) return 0
   return Math.max(0, Math.ceil((countdownTargetMs.value - syncedNow.value) / 1000))
 })
+
+const closingCountdownSeconds = computed(() => {
+  if (currentPeriod.value?.status?.toUpperCase() === 'OPEN' && remainingSeconds.value > 0 && remainingSeconds.value <= 5) {
+    return remainingSeconds.value
+  }
+  if (closingCountdownPeriodNo.value && closingCountdownTargetMs.value > 0) {
+    const remaining = Math.max(0, Math.ceil((closingCountdownTargetMs.value - syncedNow.value) / 1000))
+    if (remaining <= 5) return remaining
+  }
+  return 0
+})
+
+const showClosingCountdownOverlay = computed(() => closingCountdownSeconds.value > 0 && closingCountdownSeconds.value <= 5)
 
 const countdownParts = computed(() => {
   const total = remainingSeconds.value
@@ -671,6 +693,18 @@ function setCurrentPage(page: number) {
   historyPage.value = page
 }
 
+async function handleHistoryPageChange(page: number) {
+  if (activeHistoryTab.value === 'mine') {
+    minePage.value = page
+    await loadMineHistory(page)
+    return
+  }
+  if (activeHistoryTab.value === 'history') {
+    historyPage.value = page
+    await loadRoomHistory(page)
+  }
+}
+
 function ensureDefaultSelections(variant: PlayVariant | null) {
   Object.keys(selectedOptions).forEach((key) => delete selectedOptions[key])
   variant?.betGroups.forEach((group) => {
@@ -747,7 +781,8 @@ async function applyRoomStateResponse(
   syncCountdownTarget(response.current_period, stableNowMs, shouldRebaseClock, selectedRoomCode.value)
   await maybeShowSettlementModal(previousPeriod, response.current_period)
 
-  if (previousPeriodNo && previousPeriodNo !== nextPeriodNo) {
+  const nextStatus = String(response.current_period?.status ?? '').toUpperCase()
+  if (previousPeriodNo && previousPeriodNo !== nextPeriodNo && nextStatus === 'SETTLED') {
     if (activeHistoryTab.value === 'chart') {
       void loadChartHistory()
     } else if (activeHistoryTab.value === 'history') {
@@ -1313,6 +1348,10 @@ watch(
   () => currentPeriod.value?.period_no,
   () => {
     syncCountdownTarget(currentPeriod.value, syncedNow.value, false, selectedRoomCode.value)
+    if (currentPeriod.value?.status?.toUpperCase() === 'OPEN' && remainingSeconds.value > 0 && remainingSeconds.value <= 5) {
+      closingCountdownPeriodNo.value = String(currentPeriod.value.period_no ?? '')
+      closingCountdownTargetMs.value = countdownTargetMs.value
+    }
   },
   { immediate: true },
 )
@@ -1326,6 +1365,10 @@ watch(
 
 watch(remainingSeconds, (newVal, oldVal) => {
   if (newVal !== oldVal && newVal > 0 && newVal <= 5) {
+    if (currentPeriod.value?.period_no) {
+      closingCountdownPeriodNo.value = String(currentPeriod.value.period_no)
+      closingCountdownTargetMs.value = countdownTargetMs.value
+    }
     playTickSound()
   }
 })
@@ -1549,7 +1592,7 @@ onBeforeUnmount(() => {
     <div class="mx-3 mt-2 rounded-[16px] bg-white px-3 py-3 shadow-sm border border-slate-100 relative overflow-hidden">
       <!-- 5s Locked Countdown Overlay -->
       <Transition name="fade">
-        <div v-if="isBetLocked && remainingSeconds <= 5" class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[2px]">
+        <div v-if="showClosingCountdownOverlay" class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-[2px]">
           <div class="relative">
             <svg class="h-28 w-28 -rotate-90">
               <circle
@@ -1563,12 +1606,12 @@ onBeforeUnmount(() => {
                 stroke="currentColor" stroke-width="8"
                 fill="transparent"
                 stroke-dasharray="314.159"
-                :stroke-dashoffset="314.159 * (1 - remainingSeconds / 5)"
+                :stroke-dashoffset="314.159 * (1 - closingCountdownSeconds / 5)"
                 class="text-primary transition-all duration-1000 linear"
               />
             </svg>
             <div class="absolute inset-0 flex items-center justify-center">
-              <span class="text-[3.5rem] font-black italic text-primary drop-shadow-md">{{ remainingSeconds }}</span>
+              <span class="text-[3.5rem] font-black italic text-primary drop-shadow-md">{{ closingCountdownSeconds }}</span>
             </div>
           </div>
           <p class="mt-2 text-[0.85rem] font-black uppercase tracking-widest text-[#e8404a] drop-shadow-sm">Đang khóa lệnh</p>
@@ -1723,196 +1766,29 @@ onBeforeUnmount(() => {
       <p v-if="visibleBetMessage" class="mt-2 rounded-[12px] bg-[rgba(255,109,102,0.08)] px-4 py-3 text-[0.78rem] font-semibold text-primary">{{ visibleBetMessage }}</p>
     </div>
 
-    <!-- ===== HISTORY SECTION ===== -->
-    <div class="mx-3 mt-2 rounded-[16px] bg-white shadow-sm border border-slate-100 overflow-hidden">
-      <!-- History tabs -->
-      <div class="flex bg-[#fff5f5] border-b border-[#f0e0e0]">
-        <button
-          type="button"
-          class="flex-1 py-2.5 text-[0.72rem] font-semibold border-b-2 transition-all"
-          :class="activeHistoryTab === 'history' ? 'border-[#e8404a] text-[#e8404a] bg-white' : 'border-transparent text-slate-500'"
-          @click="activeHistoryTab = 'history'"
-        >Lịch sử trò chơi</button>
-        <button
-          type="button"
-          class="flex-1 py-2.5 text-[0.72rem] font-semibold border-b-2 transition-all"
-          :class="activeHistoryTab === 'chart' ? 'border-[#e8404a] text-[#e8404a] bg-white' : 'border-transparent text-slate-500'"
-          @click="activeHistoryTab = 'chart'"
-        >Biểu đồ</button>
-        <button
-          type="button"
-          class="flex-1 py-2.5 text-[0.72rem] font-semibold border-b-2 transition-all"
-          :class="activeHistoryTab === 'mine' ? 'border-[#e8404a] text-[#e8404a] bg-white' : 'border-transparent text-slate-500'"
-          @click="activeHistoryTab = 'mine'"
-        >Lịch sử của tôi</button>
-      </div>
-
-      <!-- Chart -->
-      <div v-if="activeHistoryTab === 'chart'" class="px-3 py-3">
-        <div class="mb-3 flex items-center justify-between">
-          <div>
-            <p class="text-[0.68rem] uppercase tracking-[0.12em] text-slate-400">Biểu đồ kết quả</p>
-            <strong class="text-[0.9rem] font-black text-on-surface">24 kỳ gần nhất</strong>
-          </div>
-          <button
-            type="button"
-            class="rounded-full bg-[#fff5f5] px-3 py-1.5 text-[0.7rem] font-black text-primary"
-            @click="void loadChartHistory()"
-          >
-            Làm mới
-          </button>
-        </div>
-
-        <div v-if="chartLoading" class="flex min-h-40 items-center justify-center text-[0.82rem] text-slate-400">
-          Đang tải dữ liệu biểu đồ...
-        </div>
-        <div v-else-if="chartError" class="rounded-[14px] bg-red-50 px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
-          {{ chartError }}
-        </div>
-        <div v-else class="rounded-[18px] bg-[#fff9f9] p-3">
-          <div class="flex items-end gap-2 overflow-x-auto pb-2 no-scrollbar">
-            <div
-              v-for="(item, idx) in chartSeries"
-              :key="'chart-item-' + (item.periodNo || idx)"
-              class="flex min-w-[52px] flex-col items-center gap-2"
-            >
-              <div class="flex h-28 w-full items-end">
-                <div
-                  class="w-full rounded-t-[12px] transition-all"
-                  :class="item.barClass"
-                  :style="{ height: `${Math.max(20, (item.value / chartMaxValue) * 100)}%` }"
-                />
-              </div>
-              <span class="rounded-full px-2 py-0.5 text-[0.6rem] font-black text-white" :class="item.barClass">{{ item.label }}</span>
-              <span class="text-[0.62rem] font-semibold text-slate-400">{{ item.periodNo ? item.periodNo.slice(-4) : '—' }}</span>
-            </div>
-          </div>
-          <div class="mt-3 grid grid-cols-2 gap-2 text-[0.72rem]">
-            <div class="rounded-[14px] bg-white px-3 py-2">
-              <p class="text-slate-400">Mức cao nhất</p>
-              <strong class="block text-on-surface">{{ chartMaxValue }}</strong>
-            </div>
-            <div class="rounded-[14px] bg-white px-3 py-2">
-              <p class="text-slate-400">Kết quả gần nhất</p>
-              <strong class="block text-on-surface">{{ chartSeries[0]?.label ?? '—' }}</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <template v-else>
-        <div v-if="historyLoading || mineLoading" class="flex min-h-36 items-center justify-center text-[0.82rem] text-slate-400">
-          Đang tải dữ liệu...
-        </div>
-
-        <div v-else-if="activeHistoryTab === 'history' && historyError" class="px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">{{ historyError }}</div>
-        <div v-else-if="activeHistoryTab === 'mine' && mineError" class="px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">{{ mineError }}</div>
-
-        <!-- History table -->
-        <div v-else-if="activeHistoryTab === 'history'" class="overflow-hidden">
-          <div class="grid grid-cols-[2fr_0.8fr_1.2fr_0.8fr] bg-[#f9f9f9] border-b border-[#f0e0e0] px-3 py-2 text-[0.62rem] font-black uppercase tracking-wide text-slate-400">
-            <span>Kỳ xổ</span>
-            <span class="text-center">Số</span>
-            <span>Lớn nhỏ</span>
-            <span class="text-right">Màu sắc</span>
-          </div>
-          <div
-            v-for="row in historyRows"
-            :key="row.period_no"
-            class="grid grid-cols-[2fr_0.8fr_1.2fr_0.8fr] items-center border-b border-[#f8f0f0] px-3 py-2.5 text-[0.78rem] hover:bg-[#fff9f9]"
-          >
-            <span class="text-slate-400 text-[0.62rem]">…{{ row.period_no ? row.period_no.slice(-6) : '—' }}</span>
-            <span
-              class="flex h-7 w-7 mx-auto items-center justify-center rounded-full text-[0.75rem] font-black text-white"
-              :class="resultBadgeClass(row.color)"
-              :style="resultBadgeStyle(row.color)"
-            >{{ row.result ? row.result.slice(0, 1) : '—' }}</span>
-            <span class="font-semibold" :class="(row.big_small?.toLowerCase().includes('lớn') || row.big_small?.toLowerCase().includes('big')) ? 'text-[#e8404a]' : 'text-[#3b82f6]'">
-              {{ normalizeBetLabel(row.big_small) }}
-            </span>
-            <span class="flex justify-end">
-              <span class="h-3.5 w-3.5 rounded-full" :class="resultDotClass(row.color)" />
-            </span>
-          </div>
-          <div v-if="!historyRows.length" class="flex flex-col items-center gap-2 py-8 text-slate-300">
-            <span class="material-symbols-outlined text-[2rem]">history</span>
-            <p class="text-[0.82rem]">Không có dữ liệu</p>
-          </div>
-        </div>
-
-        <!-- Mine history cards -->
-        <div v-else class="divide-y divide-[#f8f0f0]">
-          <button
-            v-for="row in mineRows"
-            :key="row.id"
-            type="button"
-            class="w-full px-3 py-3 text-left transition-colors hover:bg-[#fff9f9]"
-            @click="openTicketDetail(row)"
-          >
-            <div class="flex items-start gap-3">
-              <div class="mt-0.5 flex gap-1 flex-shrink-0">
-                <div
-                  v-if="isK3"
-                  v-for="d in (row.result?.split('-').map(Number) ?? [1,1,1]).slice(0,3)"
-                  :key="d"
-                  class="flex h-7 w-7 items-center justify-center rounded-[6px] text-[0.7rem] font-black text-white"
-                  :style="{ background: diceColor(d) }"
-                >{{ d }}</div>
-                <div
-                  v-else
-                  class="h-7 w-7 rounded-full flex items-center justify-center text-[0.75rem] font-black text-white"
-                  :style="{ background: wingoTicketBallBackground(row) }"
-                >{{ wingoTicketBallText(row) }}</div>
-              </div>
-
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-[0.72rem] font-semibold text-slate-400">{{ row.period_no || '—' }}</p>
-                <p class="mt-0.5 text-[0.88rem] font-black text-on-surface">{{ rowMainLabel(row) }}</p>
-                <p class="mt-0.5 text-[0.68rem] text-slate-500">{{ rowSubLabel(row) }}</p>
-                <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span class="rounded-full bg-[#fff5f5] px-2 py-0.5 text-[0.62rem] font-semibold text-primary">Gốc {{ formatMoney(rowOriginalAmountValue(row)) }}đ</span>
-                  <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[0.62rem] font-semibold text-slate-500">Thuế {{ formatMoney(rowTaxAmountValue(row)) }}đ</span>
-                  <span class="rounded-full bg-[#f0fff6] px-2 py-0.5 text-[0.62rem] font-semibold text-[#10b981]">Nhận {{ formatMoney(rowWinCreditValue(row)) }}đ</span>
-                </div>
-              </div>
-
-              <div class="text-right flex-shrink-0">
-                <p class="text-[0.86rem] font-black text-on-surface">{{ formatMoney(rowOriginalAmountValue(row)) }}đ</p>
-                <p class="mt-0.5 text-[0.7rem] font-semibold" :class="rowStatusClass(row)">
-                  {{ rowStatusText(row) }}
-                </p>
-                <p class="mt-1 text-[0.62rem] text-slate-400 uppercase">{{ row.status }}</p>
-              </div>
-            </div>
-          </button>
-          <div v-if="!mineRows.length" class="flex flex-col items-center gap-2 py-8 text-slate-300">
-            <span class="material-symbols-outlined text-[2rem]">history</span>
-            <p class="text-[0.82rem]">Không có lịch sử cược</p>
-          </div>
-        </div>
-
-        <!-- Pagination -->
-        <div class="flex items-center justify-between px-3 py-3 border-t border-[#f0e0e0]">
-          <button
-            type="button"
-            class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-400 disabled:opacity-30 transition-all"
-            :disabled="currentPage() <= 1"
-            @click="setCurrentPage(Math.max(1, currentPage() - 1)); void loadActiveHistory(currentPage())"
-          >
-            <span class="material-symbols-outlined text-[1.1rem]">chevron_left</span>
-          </button>
-          <span class="text-[0.75rem] text-slate-500 font-semibold">{{ currentPage() }} / {{ currentTotalPages() }}</span>
-          <button
-            type="button"
-            class="flex h-8 w-8 items-center justify-center rounded-full border border-[#e8404a] bg-[#e8404a] text-white disabled:opacity-30 transition-all"
-            :disabled="currentPage() >= currentTotalPages()"
-            @click="setCurrentPage(Math.min(currentTotalPages(), currentPage() + 1)); void loadActiveHistory(currentPage())"
-          >
-            <span class="material-symbols-outlined text-[1.1rem]">chevron_right</span>
-          </button>
-        </div>
-      </template>
-    </div>
+    <PlayHistorySection
+      :active-history-tab="activeHistoryTab"
+      :chart-series="chartSeries"
+      :chart-max-value="chartMaxValue"
+      :history-rows="historyRows"
+      :mine-rows="mineRows"
+      :history-loading="historyLoading"
+      :mine-loading="mineLoading"
+      :chart-loading="chartLoading"
+      :history-error="historyError"
+      :mine-error="mineError"
+      :chart-error="chartError"
+      :history-page="historyPage"
+      :history-total-pages="historyTotalPages"
+      :mine-page="minePage"
+      :mine-total-pages="mineTotalPages"
+      :is-k3="isK3"
+      @change-tab="activeHistoryTab = $event"
+      @refresh-chart="void loadChartHistory()"
+      @refresh-history="void loadRoomHistory(historyPage)"
+      @page-change="handleHistoryPageChange"
+      @open-ticket-detail="openTicketDetail"
+    />
     </div>
 
   <!-- ===== BET MODAL (Slide-up sheet) ===== -->
