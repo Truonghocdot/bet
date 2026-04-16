@@ -112,12 +112,6 @@ function rowTaxAmountValue(row: PlayRoomBetHistoryResponse['items'][number]) {
   return original * 0.02
 }
 
-function rowNetAmountValue(row: PlayRoomBetHistoryResponse['items'][number]) {
-  const net = toFiniteNumber(row.net_amount)
-  if (net > 0) return net
-  return Math.max(0, rowOriginalAmountValue(row) - rowTaxAmountValue(row))
-}
-
 function rowWinCreditValue(row: PlayRoomBetHistoryResponse['items'][number]) {
   const actual = toFiniteNumber(row.actual_payout)
   if (actual > 0) return actual
@@ -189,15 +183,6 @@ function rowStatusClass(row: PlayRoomBetHistoryResponse['items'][number]) {
   return 'text-amber-500'
 }
 
-function resultDotClass(label: string) {
-  const lower = label.toLowerCase()
-  if (lower.includes('green_violet')) return 'bg-gradient-to-br from-[#24b561] to-[#8b5cf6]'
-  if (lower.includes('red_violet')) return 'bg-gradient-to-br from-[#e64545] to-[#8b5cf6]'
-  if (lower.includes('xanh') || lower.includes('green')) return 'bg-[#24b561]'
-  if (lower.includes('đỏ') || lower.includes('red')) return 'bg-[#e64545]'
-  if (lower.includes('tím') || lower.includes('violet')) return 'bg-[#8b5cf6]'
-  return 'bg-primary'
-}
 
 function resultBadgeClass(label: string) {
   const lower = label.toLowerCase()
