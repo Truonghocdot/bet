@@ -67,10 +67,14 @@ export type PlayRoom = {
 
 export const playCategories = ['Tất cả', 'Win Go', 'K3', 'Lô tô', 'Sắp mở']
 
-const redBallAccent = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #ff8a92 0%, #e64545 48%, #c92b38 100%)'
-const greenBallAccent = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #73e7a0 0%, #24b561 48%, #149454 100%)'
-const zeroBallAccent = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #e64545 0%, #ef6b73 38%, #8b5cf6 62%, #6f3de8 100%)'
-const fiveBallAccent = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #24b561 0%, #59d88a 38%, #8b5cf6 62%, #6f3de8 100%)'
+const redBallAccent =
+  'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #ff8a92 0%, #e64545 48%, #c92b38 100%)'
+const greenBallAccent =
+  'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #73e7a0 0%, #24b561 48%, #149454 100%)'
+const zeroBallAccent =
+  'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #e64545 0%, #ef6b73 38%, #8b5cf6 62%, #6f3de8 100%)'
+const fiveBallAccent =
+  'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #24b561 0%, #59d88a 38%, #8b5cf6 62%, #6f3de8 100%)'
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -80,7 +84,10 @@ function addSeconds(seconds: number): string {
   return new Date(Date.now() + seconds * 1000).toISOString()
 }
 
-function buildHistory(prefix: string, rows: Array<[string, string, string, string, 'WON' | 'LOST' | 'PENDING']>): PlayHistoryRow[] {
+function buildHistory(
+  prefix: string,
+  rows: Array<[string, string, string, string, 'WON' | 'LOST' | 'PENDING']>,
+): PlayHistoryRow[] {
   return rows.map(([periodNo, result, stake, payout, status], index) => ({
     periodNo: `${prefix}-${periodNo}`,
     result,
@@ -93,35 +100,124 @@ function buildHistory(prefix: string, rows: Array<[string, string, string, strin
 
 function buildWingoResults(base: string): PlayResult[] {
   return [
-    { periodNo: `${base}-342`, result: '7', bigSmall: 'Lớn', color: 'Xanh', drawAt: addSeconds(-20) },
+    {
+      periodNo: `${base}-342`,
+      result: '7',
+      bigSmall: 'Lớn',
+      color: 'Xanh',
+      drawAt: addSeconds(-20),
+    },
     { periodNo: `${base}-341`, result: '2', bigSmall: 'Nhỏ', color: 'Đỏ', drawAt: addSeconds(-50) },
-    { periodNo: `${base}-340`, result: '0', bigSmall: 'Nhỏ', color: 'Tím', drawAt: addSeconds(-80) },
-    { periodNo: `${base}-339`, result: '5', bigSmall: 'Lớn', color: 'Tím', drawAt: addSeconds(-110) },
-    { periodNo: `${base}-338`, result: '9', bigSmall: 'Lớn', color: 'Xanh', drawAt: addSeconds(-140) },
+    {
+      periodNo: `${base}-340`,
+      result: '0',
+      bigSmall: 'Nhỏ',
+      color: 'Tím',
+      drawAt: addSeconds(-80),
+    },
+    {
+      periodNo: `${base}-339`,
+      result: '5',
+      bigSmall: 'Lớn',
+      color: 'Tím',
+      drawAt: addSeconds(-110),
+    },
+    {
+      periodNo: `${base}-338`,
+      result: '9',
+      bigSmall: 'Lớn',
+      color: 'Xanh',
+      drawAt: addSeconds(-140),
+    },
   ]
 }
 
 function buildK3Results(base: string): PlayResult[] {
   return [
-    { periodNo: `${base}-442`, result: '4-4-4', bigSmall: 'Bộ ba', color: 'Đỏ', drawAt: addSeconds(-20) },
-    { periodNo: `${base}-441`, result: '1-2-6', bigSmall: 'Tổng 9', color: 'Xanh', drawAt: addSeconds(-50) },
-    { periodNo: `${base}-440`, result: '3-3-1', bigSmall: 'Tổng 7', color: 'Tím', drawAt: addSeconds(-80) },
-    { periodNo: `${base}-439`, result: '6-5-4', bigSmall: 'Tổng 15', color: 'Xanh', drawAt: addSeconds(-110) },
-    { periodNo: `${base}-438`, result: '2-2-8', bigSmall: 'Tổng 12', color: 'Đỏ', drawAt: addSeconds(-140) },
+    {
+      periodNo: `${base}-442`,
+      result: '4-4-4',
+      bigSmall: 'Bộ ba',
+      color: 'Đỏ',
+      drawAt: addSeconds(-20),
+    },
+    {
+      periodNo: `${base}-441`,
+      result: '1-2-6',
+      bigSmall: 'Tổng 9',
+      color: 'Xanh',
+      drawAt: addSeconds(-50),
+    },
+    {
+      periodNo: `${base}-440`,
+      result: '3-3-1',
+      bigSmall: 'Tổng 7',
+      color: 'Tím',
+      drawAt: addSeconds(-80),
+    },
+    {
+      periodNo: `${base}-439`,
+      result: '6-5-4',
+      bigSmall: 'Tổng 15',
+      color: 'Xanh',
+      drawAt: addSeconds(-110),
+    },
+    {
+      periodNo: `${base}-438`,
+      result: '2-2-8',
+      bigSmall: 'Tổng 12',
+      color: 'Đỏ',
+      drawAt: addSeconds(-140),
+    },
   ]
 }
 
 function buildLotteryResults(base: string): PlayResult[] {
   return [
-    { periodNo: `${base}-542`, result: '12345', bigSmall: 'Tổng 15', color: 'Xanh', drawAt: addSeconds(-20) },
-    { periodNo: `${base}-541`, result: '90876', bigSmall: 'Tổng 30', color: 'Đỏ', drawAt: addSeconds(-50) },
-    { periodNo: `${base}-540`, result: '55678', bigSmall: 'Tổng 31', color: 'Tím', drawAt: addSeconds(-80) },
-    { periodNo: `${base}-539`, result: '11223', bigSmall: 'Tổng 9', color: 'Xanh', drawAt: addSeconds(-110) },
-    { periodNo: `${base}-538`, result: '67890', bigSmall: 'Tổng 30', color: 'Đỏ', drawAt: addSeconds(-140) },
+    {
+      periodNo: `${base}-542`,
+      result: '12345',
+      bigSmall: 'Tổng 15',
+      color: 'Xanh',
+      drawAt: addSeconds(-20),
+    },
+    {
+      periodNo: `${base}-541`,
+      result: '90876',
+      bigSmall: 'Tổng 30',
+      color: 'Đỏ',
+      drawAt: addSeconds(-50),
+    },
+    {
+      periodNo: `${base}-540`,
+      result: '55678',
+      bigSmall: 'Tổng 31',
+      color: 'Tím',
+      drawAt: addSeconds(-80),
+    },
+    {
+      periodNo: `${base}-539`,
+      result: '11223',
+      bigSmall: 'Tổng 9',
+      color: 'Xanh',
+      drawAt: addSeconds(-110),
+    },
+    {
+      periodNo: `${base}-538`,
+      result: '67890',
+      bigSmall: 'Tổng 30',
+      color: 'Đỏ',
+      drawAt: addSeconds(-140),
+    },
   ]
 }
 
-function buildWingoVariant(code: string, label: string, durationLabel: string, countdownSeconds: number): PlayVariant {
+function buildWingoVariant(
+  code: string,
+  label: string,
+  durationLabel: string,
+  countdownSeconds: number,
+): PlayVariant {
   const base = `WG-${code.toUpperCase()}-${Date.now().toString().slice(-5)}`
   return {
     code,
@@ -153,7 +249,12 @@ function buildWingoVariant(code: string, label: string, durationLabel: string, c
         options: [
           { key: 'green', label: 'Xanh', accent: '#24b561', odds: '1:2' },
           { key: 'red', label: 'Đỏ', accent: '#e64545', odds: '1:2' },
-          { key: 'violet', label: 'Tím', accent: 'linear-gradient(135deg, #8b5cf6, #e8404a)', odds: '1:4.5' },
+          {
+            key: 'violet',
+            label: 'Tím',
+            accent: 'linear-gradient(135deg, #8b5cf6, #e8404a)',
+            odds: '1:4.5',
+          },
         ],
       },
       {
@@ -188,7 +289,12 @@ function buildWingoVariant(code: string, label: string, durationLabel: string, c
   }
 }
 
-function buildK3Variant(code: string, label: string, durationLabel: string, countdownSeconds: number): PlayVariant {
+function buildK3Variant(
+  code: string,
+  label: string,
+  durationLabel: string,
+  countdownSeconds: number,
+): PlayVariant {
   const base = `K3-${code.toUpperCase()}-${Date.now().toString().slice(-5)}`
   return {
     code,
@@ -213,6 +319,18 @@ function buildK3Variant(code: string, label: string, durationLabel: string, coun
       ['440', 'Lớn', '10.000đ', '19.000đ', 'WON'],
     ]),
     betGroups: [
+      {
+        title: 'Lớn / Nhỏ / Chẵn / Lẻ',
+        description: 'Bám theo tổng kết quả của K3.',
+        mode: 'chips',
+        subTab: 'Lớn / Nhỏ / Chẵn / Lẻ',
+        options: [
+          { key: 'big', label: 'Lớn', accent: '#e64545', odds: '2X' },
+          { key: 'small', label: 'Nhỏ', accent: '#3b82f6', odds: '2X' },
+          { key: 'odd', label: 'Lẻ', accent: '#f59e0b', odds: '2X' },
+          { key: 'even', label: 'Chẵn', accent: '#10b981', odds: '2X' },
+        ],
+      },
       {
         title: 'Tổng số',
         description: 'Chọn tổng 3 đến 18 theo bộ 3 xúc xắc.',
@@ -286,24 +404,17 @@ function buildK3Variant(code: string, label: string, durationLabel: string, coun
           { key: 'diff_6', label: '6', accent: '#10b981', odds: '34.56X' },
         ],
       },
-      {
-        title: 'Lớn / Nhỏ / Chẵn / Lẻ',
-        description: 'Bám theo tổng kết quả của K3.',
-        mode: 'chips',
-        subTab: 'Lớn / Nhỏ / Chẵn / Lẻ',
-        options: [
-          { key: 'big', label: 'Lớn', accent: '#e64545', odds: '2X' },
-          { key: 'small', label: 'Nhỏ', accent: '#3b82f6', odds: '2X' },
-          { key: 'odd', label: 'Lẻ', accent: '#f59e0b', odds: '2X' },
-          { key: 'even', label: 'Chẵn', accent: '#10b981', odds: '2X' },
-        ],
-      },
     ],
     note: 'K3 cho phép nhiều cửa theo tổng và bộ ba, nhưng UI phải giữ cho chọn lệnh thật nhanh.',
   }
 }
 
-function buildLotteryVariant(code: string, label: string, durationLabel: string, countdownSeconds: number): PlayVariant {
+function buildLotteryVariant(
+  code: string,
+  label: string,
+  durationLabel: string,
+  countdownSeconds: number,
+): PlayVariant {
   const base = `5D-${code.toUpperCase()}-${Date.now().toString().slice(-5)}`
   return {
     code,
@@ -335,7 +446,14 @@ function buildLotteryVariant(code: string, label: string, durationLabel: string,
         options: Array.from({ length: 10 }, (_, number) => ({
           key: `digit_${number}`,
           label: String(number),
-          accent: number >= 5 ? '#f6c32d' : '#24b561',
+          accent:
+            number === 0
+              ? zeroBallAccent
+              : number === 5
+                ? fiveBallAccent
+                : number % 2 === 0
+                  ? redBallAccent
+                  : greenBallAccent,
           odds: '1:9',
         })),
       },

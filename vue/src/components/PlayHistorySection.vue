@@ -31,6 +31,7 @@ const props = defineProps<{
   minePage: number
   mineTotalPages: number
   isK3: boolean
+  isLottery: boolean
 }>()
 
 const emit = defineEmits<{
@@ -206,6 +207,24 @@ function resultBadgeStyle(label: string) {
   return {}
 }
 
+const wingoBallAssetMap: Record<number, string> = {
+  0: '/wingo/zero.png',
+  1: '/wingo/one.png',
+  2: '/wingo/two.png',
+  3: '/wingo/three.png',
+  4: '/wingo/four.png',
+  5: '/wingo/image.png',
+  6: '/wingo/six.png',
+  7: '/wingo/seven.png',
+  8: '/wingo/eight.png',
+  9: '/wingo/nine.png',
+}
+
+function wingoBallImageSrc(n: number | null | undefined) {
+  if (!Number.isInteger(n) || Number(n) < 0 || Number(n) > 9) return ''
+  return wingoBallAssetMap[Number(n)] ?? ''
+}
+
 function periodTail(value: string | null | undefined, size = 6) {
   const raw = String(value ?? '').trim()
   if (!raw) return '—'
@@ -311,6 +330,28 @@ function wingoTicketBallText(row: PlayRoomBetHistoryResponse['items'][number]) {
   if (main.includes('Nhỏ')) return 'N'
   return '•'
 }
+
+function historyResultNumber(row: PlayRoomHistoryResponse['items'][number]) {
+  const parsed = Number.parseInt(String(row.result ?? '').trim(), 10)
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 9) return null
+  return parsed
+}
+
+function extractDigitSequence(value: string | null | undefined): number[] {
+  const raw = String(value ?? '').trim()
+  if (!raw) return []
+
+  return Array.from(raw.matchAll(/\d/g), (match) => Number.parseInt(match[0] ?? '', 10))
+    .filter((digit) => Number.isInteger(digit) && digit >= 0 && digit <= 9)
+}
+
+function historyResultDigits(row: PlayRoomHistoryResponse['items'][number]) {
+  return extractDigitSequence(row.result)
+}
+
+function mineResultDigits(row: PlayRoomBetHistoryResponse['items'][number]) {
+  return extractDigitSequence(row.result)
+}
 </script>
 
 <template>
@@ -399,11 +440,39 @@ function wingoTicketBallText(row: PlayRoomBetHistoryResponse['items'][number]) {
             </p>
             <p class="mt-0.5 text-[0.6rem] text-slate-400">{{ row.period_no ? row.period_no.split('_')[0] : '—' }}</p>
           </div>
-          <span
-            class="flex h-7 w-7 mx-auto items-center justify-center rounded-full text-[0.75rem] font-black text-white shadow-sm"
-            :class="resultBadgeClass(row.color)"
-            :style="resultBadgeStyle(row.color)"
-          >{{ row.result ? row.result.slice(0, 1) : '—' }}</span>
+          <div v-if="props.isLottery && historyResultDigits(row).length > 0" class="mx-auto flex max-w-[78px] flex-wrap justify-center gap-1">
+            <div
+              v-for="(digit, digitIdx) in historyResultDigits(row).slice(0, 5)"
+              :key="`${row.period_no || row.period_index || 'lottery'}-${digitIdx}`"
+              class="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-[#f1d9d9]"
+            >
+              <img
+                v-if="wingoBallImageSrc(digit)"
+                :src="wingoBallImageSrc(digit)"
+                :alt="`Lottery ${digit}`"
+                class="block h-full w-full scale-[1.16] object-cover mix-blend-multiply"
+              />
+              <div
+                v-else
+                class="flex h-full w-full items-center justify-center rounded-full text-[0.6rem] font-black text-white"
+                :style="{ background: wingoBallBackground(digit) }"
+              >{{ digit }}</div>
+            </div>
+          </div>
+          <div v-else class="mx-auto flex h-7 w-7 items-center justify-center overflow-hidden rounded-full">
+            <img
+              v-if="wingoBallImageSrc(historyResultNumber(row))"
+              :src="wingoBallImageSrc(historyResultNumber(row))"
+              :alt="`Wingo ${row.result}`"
+              class="block h-full w-full scale-[1.16] object-cover mix-blend-multiply"
+            />
+            <span
+              v-else
+              class="flex h-7 w-7 items-center justify-center rounded-full text-[0.75rem] font-black text-white shadow-sm"
+              :class="resultBadgeClass(row.color)"
+              :style="resultBadgeStyle(row.color)"
+            >{{ row.result ? row.result.slice(0, 1) : '—' }}</span>
+          </div>
           <span class="font-semibold" :class="(row.big_small?.toLowerCase().includes('lớn') || row.big_small?.toLowerCase().includes('big')) ? 'text-[#e8404a]' : 'text-[#2563eb]'">
             {{ normalizeBetLabel(row.big_small) }}
           </span>
@@ -444,10 +513,43 @@ function wingoTicketBallText(row: PlayRoomBetHistoryResponse['items'][number]) {
                 :style="{ background: diceColor(d) }"
               >{{ d }}</div>
               <div
+                v-else-if="props.isLottery && mineResultDigits(row).length > 0"
+                class="flex max-w-[78px] flex-wrap gap-1"
+              >
+                <div
+                  v-for="(digit, digitIdx) in mineResultDigits(row).slice(0, 5)"
+                  :key="`${row.id}-digit-${digitIdx}`"
+                  class="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-[#f1d9d9]"
+                >
+                  <img
+                    v-if="wingoBallImageSrc(digit)"
+                    :src="wingoBallImageSrc(digit)"
+                    :alt="`Lottery ${digit}`"
+                    class="block h-full w-full scale-[1.16] object-cover mix-blend-multiply"
+                  />
+                  <div
+                    v-else
+                    class="flex h-full w-full items-center justify-center rounded-full text-[0.6rem] font-black text-white"
+                    :style="{ background: wingoBallBackground(digit) }"
+                  >{{ digit }}</div>
+                </div>
+              </div>
+              <div
                 v-else
-                class="h-7 w-7 rounded-full flex items-center justify-center text-[0.75rem] font-black text-white"
-                :style="{ background: wingoTicketBallBackground(row) }"
-              >{{ wingoTicketBallText(row) }}</div>
+                class="h-7 w-7 overflow-hidden rounded-full flex items-center justify-center text-[0.75rem] font-black text-white"
+              >
+                <img
+                  v-if="wingoBallImageSrc(extractWingoNumber(row.result))"
+                  :src="wingoBallImageSrc(extractWingoNumber(row.result))"
+                  :alt="`Ticket ${wingoTicketBallText(row)}`"
+                  class="block h-full w-full scale-[1.16] object-cover mix-blend-multiply"
+                />
+                <div
+                  v-else
+                  class="flex h-full w-full items-center justify-center rounded-full"
+                  :style="{ background: wingoTicketBallBackground(row) }"
+                >{{ wingoTicketBallText(row) }}</div>
+              </div>
             </div>
 
             <div class="min-w-0 flex-1">

@@ -11,7 +11,7 @@
     PlayRoomStateResponse,
     GameJoinResponse,
   } from '@/shared/api/types'
-  import { getPlayRoom, type PlayBetGroup, type PlayRoom, type PlayVariant } from '@/data/play'
+  import { getPlayRoom, type PlayBetGroup, type PlayBetOption, type PlayRoom, type PlayVariant } from '@/data/play'
   import { formatViMoney } from '@/shared/lib/money'
   import { useAuthStore } from '@/stores/auth'
   import { useWalletStore } from '@/stores/wallet'
@@ -195,6 +195,7 @@
   const room = computed<PlayRoom | null>(() => getPlayRoom(String(route.params.game ?? 'wingo')) ?? null)
   const isK3 = computed(() => room.value?.code === 'k3')
   const isWingo = computed(() => room.value?.code === 'wingo')
+  const isLottery = computed(() => room.value?.code === 'lottery')
 
   const selectedVariant = computed<PlayVariant | null>(() => {
     if (!room.value || room.value.variants.length === 0) return null
@@ -634,6 +635,23 @@
   }
 
   // WinGo number color
+  const wingoBallAssetMap: Record<number, string> = {
+    0: '/wingo/zero.png',
+    1: '/wingo/one.png',
+    2: '/wingo/two.png',
+    3: '/wingo/three.png',
+    4: '/wingo/four.png',
+    5: '/wingo/image.png',
+    6: '/wingo/six.png',
+    7: '/wingo/seven.png',
+    8: '/wingo/eight.png',
+    9: '/wingo/nine.png',
+  }
+
+  function wingoBallImageSrc(n: number): string {
+    return wingoBallAssetMap[n] ?? ''
+  }
+
   function wingoBallBackground(n: number): string {
     const gloss = 'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%)'
     const zigZagA = 'repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px)'
@@ -1850,6 +1868,27 @@
     return parsed
   }
 
+  function extractLotteryDigits(value: string | null | undefined): number[] {
+    const raw = String(value ?? '').trim()
+    if (!raw) return []
+
+    return Array.from(raw.matchAll(/\d/g), (match) => Number.parseInt(match[0] ?? '', 10))
+      .filter((digit) => Number.isInteger(digit) && digit >= 0 && digit <= 9)
+  }
+
+  function betOptionBallNumber(option: PlayBetOption): number | null {
+    const fromKey = extractWingoNumber(option.key)
+    if (fromKey !== null) return fromKey
+
+    const labelDigits = extractLotteryDigits(option.label)
+    if (labelDigits.length === 1) return labelDigits[0] ?? null
+    return null
+  }
+
+  function isDigitBallGroup(group: PlayBetGroup) {
+    return group.options.length > 0 && group.options.every((option) => betOptionBallNumber(option) !== null)
+  }
+
 
 
   watch(
@@ -2217,9 +2256,20 @@
             <div
               v-for="(result, idx) in recentResults"
               :key="'wingo-ball-' + (result.period_no || idx)"
-              class="flex h-7 w-7 items-center justify-center rounded-full text-[0.75rem] font-black text-white flex-shrink-0"
-              :style="{ background: wingoBallBackground(Number(result.result)) }"
-            >{{ result.result }}</div>
+              class="flex h-7 w-7 items-center justify-center flex-shrink-0 overflow-hidden rounded-full"
+            >
+              <img
+                v-if="wingoBallImageSrc(Number(result.result))"
+                :src="wingoBallImageSrc(Number(result.result))"
+                :alt="`Wingo ${result.result}`"
+                class="block h-full w-full scale-[1.16] object-cover mix-blend-multiply"
+              />
+              <div
+                v-else
+                class="flex h-full w-full items-center justify-center rounded-full text-[0.75rem] font-black text-white"
+                :style="{ background: wingoBallBackground(Number(result.result)) }"
+              >{{ result.result }}</div>
+            </div>
             <div class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400 flex-shrink-0">
               <span class="material-symbols-outlined text-[0.9rem]">chevron_right</span>
             </div>
@@ -2230,11 +2280,62 @@
             <div
               v-for="(n, i) in recentResults.slice(0, 2).map(r => Number(r.result))"
               :key="i"
-              class="flex h-20 w-20 items-center justify-center rounded-[14px] bg-white border-2 border-[#f0e0e0] shadow-md"
+              class="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[14px] bg-white border border-[#f0e0e0] shadow-md"
             >
-              <span class="text-[3rem] font-black leading-none" :style="wingoNumberTextStyle(n)">
+              <img
+                v-if="wingoBallImageSrc(n)"
+                :src="wingoBallImageSrc(n)"
+                :alt="`Wingo ${n}`"
+                class="block h-full w-full scale-[1.08] object-cover mix-blend-multiply"
+              />
+              <span v-else class="text-[3rem] font-black leading-none" :style="wingoNumberTextStyle(n)">
                 {{ n }}
               </span>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- ===== LOTTERY: RESULT BALLS ===== -->
+      <template v-else-if="isLottery">
+        <div class="mx-3 mt-2 rounded-[16px] bg-white px-4 py-3 shadow-sm border border-slate-100">
+          <div class="mb-3 flex items-center justify-between">
+            <div>
+              <p class="text-[0.68rem] uppercase tracking-[0.12em] text-slate-400">Kết quả gần đây</p>
+              <strong class="text-[0.9rem] font-black text-on-surface">5 kỳ mới nhất</strong>
+            </div>
+            <span class="rounded-full bg-[#fff5f5] px-3 py-1 text-[0.65rem] font-black text-primary">Lottery 5D</span>
+          </div>
+
+          <div class="rounded-[14px] border border-[#f0e0e0] bg-[#fff9f9] p-3">
+            <div
+              v-for="(result, idx) in recentResults.slice(0, 5)"
+              :key="'lottery-result-' + (result.period_no || idx)"
+              class="flex items-center justify-between gap-3 border-b border-[#f7e3e3] py-2 last:border-b-0 last:pb-0 first:pt-0"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-[0.66rem] font-bold text-slate-700">{{ result.period_index ? `#${result.period_index}` : (result.period_no || '—') }}</p>
+                <p class="mt-0.5 text-[0.6rem] text-slate-400">{{ result.big_small || '—' }}</p>
+              </div>
+              <div class="flex flex-wrap justify-end gap-1.5">
+                <div
+                  v-for="(digit, digitIdx) in extractLotteryDigits(result.result)"
+                  :key="`${result.period_no || idx}-${digitIdx}`"
+                  class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-[#f1d9d9]"
+                >
+                  <img
+                    v-if="wingoBallImageSrc(digit)"
+                    :src="wingoBallImageSrc(digit)"
+                    :alt="`Lottery ${digit}`"
+                    class="block h-full w-full scale-[1.14] object-cover mix-blend-multiply"
+                  />
+                  <div
+                    v-else
+                    class="flex h-full w-full items-center justify-center rounded-full text-[0.8rem] font-black text-white"
+                    :style="{ background: wingoBallBackground(digit) }"
+                  >{{ digit }}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2359,13 +2460,28 @@
               v-for="option in numberGroup.options"
               :key="option.key"
               type="button"
-              class="flex aspect-square flex-col items-center justify-center rounded-full text-white transition-transform active:scale-95 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-              :style="{ background: option.accent }"
+              class="relative flex aspect-square flex-col items-center justify-center overflow-hidden rounded-full transition-transform active:scale-95 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="!canBet"
               @click="selectOption(numberGroup.title, option.key, option.label)"
             >
-              <span class="text-[1rem] font-black leading-none">{{ option.label }}</span>
-              <span v-if="option.odds" class="mt-0.5 text-[0.55rem] font-semibold opacity-85">{{ option.odds }}</span>
+              <img
+                v-if="wingoBallImageSrc(extractWingoNumber(option.key) ?? Number(option.label))"
+                :src="wingoBallImageSrc(extractWingoNumber(option.key) ?? Number(option.label))"
+                :alt="`Ball ${option.label}`"
+                class="block h-full w-full scale-[1.12] object-cover mix-blend-multiply"
+              />
+              <div
+                v-else
+                class="flex h-full w-full flex-col items-center justify-center rounded-full text-white"
+                :style="{ background: option.accent }"
+              >
+                <span class="text-[1rem] font-black leading-none">{{ option.label }}</span>
+                <span v-if="option.odds" class="mt-0.5 text-[0.55rem] font-semibold opacity-85">{{ option.odds }}</span>
+              </div>
+              <span
+                v-if="option.odds && wingoBallImageSrc(extractWingoNumber(option.key) ?? Number(option.label))"
+                class="pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-black/8 px-1.5 py-0.5 text-[0.52rem] font-bold text-slate-700 backdrop-blur-[1px]"
+              >{{ option.odds }}</span>
             </button>
           </div>
 
@@ -2386,8 +2502,60 @@
           </div>
         </template>
 
+        <!-- LOTTERY specific bet UI -->
+        <template v-else-if="isLottery">
+          <div v-for="group in selectedVariant.betGroups" :key="group.title" class="mb-4">
+            <p class="mb-2 text-[0.72rem] font-bold uppercase tracking-wide text-slate-500">{{ group.title }}</p>
+
+            <div v-if="isDigitBallGroup(group)" class="grid grid-cols-5 gap-2">
+              <button
+                v-for="option in group.options"
+                :key="option.key"
+                type="button"
+                class="relative flex aspect-square flex-col items-center justify-center overflow-hidden rounded-full transition-transform active:scale-95 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!canBet"
+                @click="selectOption(group.title, option.key, option.label)"
+              >
+                <img
+                  v-if="wingoBallImageSrc(betOptionBallNumber(option) ?? -1)"
+                  :src="wingoBallImageSrc(betOptionBallNumber(option) ?? -1)"
+                  :alt="`Lottery ${option.label}`"
+                  class="block h-full w-full scale-[1.12] object-cover mix-blend-multiply"
+                />
+                <div
+                  v-else
+                  class="flex h-full w-full flex-col items-center justify-center rounded-full text-white"
+                  :style="{ background: option.accent }"
+                >
+                  <span class="text-[1rem] font-black leading-none">{{ option.label }}</span>
+                  <span v-if="option.odds" class="mt-0.5 text-[0.55rem] font-semibold opacity-85">{{ option.odds }}</span>
+                </div>
+                <span
+                  v-if="option.odds && wingoBallImageSrc(betOptionBallNumber(option) ?? -1)"
+                  class="pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-black/8 px-1.5 py-0.5 text-[0.52rem] font-bold text-slate-700 backdrop-blur-[1px]"
+                >{{ option.odds }}</span>
+              </button>
+            </div>
+
+            <div v-else class="flex flex-wrap gap-2">
+              <button
+                v-for="option in group.options"
+                :key="option.key"
+                type="button"
+                class="rounded-full px-4 py-2 text-[0.82rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                :style="{ background: option.accent }"
+                :disabled="!canBet"
+                @click="selectOption(group.title, option.key, option.label)"
+              >
+                {{ option.label }}
+                <span v-if="option.odds" class="ml-1 text-[0.65rem] opacity-85">({{ option.odds }})</span>
+              </button>
+            </div>
+          </div>
+        </template>
+
         <!-- Fallback for other games (5D etc) -->
-        <template v-if="!isK3 && !isWingo">
+        <template v-if="!isK3 && !isWingo && !isLottery">
           <div v-for="group in selectedVariant.betGroups" :key="group.title" class="mb-4">
             <p class="text-[0.72rem] font-bold text-slate-500 mb-2 uppercase tracking-wide">{{ group.title }}</p>
             <div class="flex flex-wrap gap-2">
@@ -2432,6 +2600,7 @@
         :mine-page="minePage"
         :mine-total-pages="mineTotalPages"
         :is-k3="isK3"
+        :is-lottery="isLottery"
         @change-tab="activeHistoryTab = $event"
         @refresh-chart="void loadChartHistory()"
         @refresh-history="void loadRoomHistory(historyPage)"
