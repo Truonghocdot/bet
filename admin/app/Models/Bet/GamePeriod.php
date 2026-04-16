@@ -87,17 +87,12 @@ class GamePeriod extends Model
                 return;
             }
 
-            $query = static::query();
-
-            if ($period->room_code === null) {
-                $query->whereNull('room_code');
-            } else {
-                $query->where('room_code', $period->room_code);
+            if ($period->draw_at !== null) {
+                $period->period_index = (int) $period->draw_at->copy()->format('YmdHis');
+                return;
             }
 
-            $nextPeriodIndex = (int) ($query->max('period_index') ?? -1) + 1;
-
-            $period->period_index = max(0, $nextPeriodIndex);
+            $period->period_index = (int) now()->format('YmdHis');
         });
 
         static::updating(function (GamePeriod $period): void {

@@ -28,6 +28,9 @@ class GamePeriodForm
                         ->label('Kỳ số')
                         ->required()
                         ->maxLength(50),
+                    TextInput::make('period_index')
+                        ->label('Mã kỳ')
+                        ->numeric(),
                     TextInput::make('room_code')
                         ->label('Phòng')
                         ->maxLength(30),

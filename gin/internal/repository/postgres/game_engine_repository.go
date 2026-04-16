@@ -619,22 +619,17 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room GameRoomRecord, openAt, drawAt time.Time, status int) (GamePeriodRecord, bool, error) {
 	lockAt := drawAt.Add(-time.Duration(room.BetCutoffSeconds) * time.Second)
 	periodNo := buildPeriodNo(room.Code, drawAt)
+	periodIndex := buildPeriodIndex(drawAt)
 	var record GamePeriodRecord
 	err := tx.QueryRowContext(ctx, `
-		with next_period_index as (
-			select coalesce(max(period_index), -1) + 1 as value
-			from game_periods
-			where room_code = $3
-		)
 		insert into game_periods (
 			game_type, period_no, period_index, room_code, open_at, close_at, bet_lock_at, draw_at, status, created_at, updated_at
 		)
 		select
-			$1, $2, next_period_index.value, $3, $4, $5, $5, $6, $7, now(), now()
-		from next_period_index
+			$1, $2, $3, $4, $5, $6, $6, $7, $8, now(), now()
 		on conflict (room_code, period_no) do nothing
 		returning id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
-	`, room.GameType, periodNo, room.Code, openAt, lockAt, drawAt, status).Scan(
+	`, room.GameType, periodNo, periodIndex, room.Code, openAt, lockAt, drawAt, status).Scan(
 		&record.ID,
 		&record.RoomCode,
 		&record.GameType,
@@ -751,6 +746,15 @@ func decodeResultTags(payload []byte) (map[string]struct{}, error) {
 func buildPeriodNo(roomCode string, drawAt time.Time) string {
 	base := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(roomCode), "-", "_"))
 	return fmt.Sprintf("%s_%d", base, drawAt.Unix())
+}
+
+func buildPeriodIndex(drawAt time.Time) int64 {
+	value := drawAt.In(clock.Location()).Format("20060102150405")
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return drawAt.Unix()
+	}
+	return parsed
 }
 
 func toGameTypeSlug(gameType int) string {

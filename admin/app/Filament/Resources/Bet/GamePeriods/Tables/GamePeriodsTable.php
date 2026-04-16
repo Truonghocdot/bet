@@ -25,6 +25,12 @@ class GamePeriodsTable
                     ->formatStateUsing(fn ($state): string => EnumPresenter::label(GameType::class, $state))
                     ->color(fn ($state): string => EnumPresenter::color(GameType::class, $state)),
                 TextColumn::make('period_no')->label('Kỳ số')->searchable()->sortable(),
+                TextColumn::make('period_index')
+                    ->label('Mã kỳ')
+                    ->sortable()
+                    ->searchable()
+                    ->copyable()
+                    ->fontFamily('mono'),
                 TextColumn::make('room_code')->label('Phòng')->toggleable(),
                 TextColumn::make('status')
                     ->label('Trạng thái')
