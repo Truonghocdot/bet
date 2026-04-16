@@ -64,6 +64,7 @@
   const stableRemainingSeconds = ref(0)
   const roomStateCachePrefix = 'ff789:play-room-state:'
   const settlementHandledCachePrefix = 'ff789:play-settlement-handled:'
+  const enableRealtimeDebug = import.meta.env.DEV
   let roomStateGeneration = 0
 
   // Bet modal state
@@ -184,7 +185,6 @@
   let roomStreamReconnectTimer: number | undefined
   let roomStateReconcileTimer: number | undefined
   let periodRollForwardTimer: number | undefined
-  let betsStreamHistoryRequested = false
   const mineRowsCached: PlayRoomBetHistoryResponse['items'] = []
   let mineHistoryRestFallbackAt = 0
   let autoJoinTimer: number | undefined
@@ -332,6 +332,7 @@
   }
 
   function logRealtimeEvent(event: string, payload: Record<string, unknown> = {}) {
+    if (!enableRealtimeDebug) return
     console.debug(`[play.sync] ${event}`, payload)
   }
 
@@ -429,15 +430,9 @@
     const tasks: Promise<unknown>[] = []
     if (refreshWallet) tasks.push(Promise.resolve(loadWallet()))
     if (history) tasks.push(Promise.resolve(loadRoomHistory(1)))
-    
-    // Nếu có kỳ đang chờ hiện kết quả, ưu tiên tải lại lịch sử cá nhân
+
     const hasPendingSettlements = settlementTargets.size > 0
     if (mine || hasPendingSettlements) {
-      // Luôn yêu cầu Server gửi lại lịch sử mới nhất qua WS khi đặt cược hoặc chốt kỳ xong
-      if (betsStreamConnection && betsStreamConnection.readyState === WebSocket.OPEN) {
-        mineRowsCached.length = 0
-        betsStreamConnection.send(JSON.stringify({ action: 'request_history' }))
-      }
       tasks.push(loadMineHistory(1, { force: true }))
     }
     if (chart) tasks.push(Promise.resolve(loadChartHistory()))
@@ -835,9 +830,8 @@
 
   async function handleHistoryPageChange(page: number) {
     if (activeHistoryTab.value === 'mine') {
-      // All data is in WebSocket cache, just update UI pagination
       minePage.value = page
-      updateMineRowsFromCache(page)
+      await loadMineHistory(page, { force: page !== 1 })
       return
     }
     if (activeHistoryTab.value === 'history') {
@@ -976,14 +970,13 @@
     // Tự động cập nhật bảng lịch sử game nếu đang ở trang 1
     if (historyPage.value === 1) {
       if (previousPeriodNo && previousPeriodNo !== nextPeriodNo) {
-          // Có sự chuyển kỳ, tải lại lịch sử mới nhất từ Server qua WS
-          // Có sự chuyển kỳ, đợi 500ms sau đó mới gọi dữ liệu lấy history mới
           setTimeout(() => {
-            loadRoomHistory(1)
-            refreshRealtimeSlices({ mine: true })
-          }, 500);
+            void loadRoomHistory(1)
+            if (settlementTargets.size > 0 || activeHistoryTab.value === 'mine') {
+              void loadMineHistory(1, { force: true })
+            }
+          }, 500)
       } else {
-          // Chỉ cập nhật từ mảng snapshot nếu không có sự thay đổi kỳ (vẫn trong cùng 1 kỳ nhưng có update kết quả)
           applyHistoryFromRecentResults(1)
       }
     }
@@ -992,8 +985,6 @@
     if (nextStatus === 'SETTLED') {
         void refreshRealtimeSlices({ mine: true, history: true, wallet: true, reason: 'period_settled' })
     }
-    
-    await maybeShowSettlementModal(previousPeriod, response.current_period)
 
     if (previousPeriodNo && previousPeriodNo !== nextPeriodNo && ['OPEN', 'LOCKED', 'DRAWN', 'SETTLED'].includes(nextStatus)) {
       scheduleRoomStateReconcile(selectedRoomCode.value, 650)
@@ -1093,18 +1084,11 @@
     if (!roomCode || !auth.accessToken) return
     
     disconnectBetsStream()
-    betsStreamHistoryRequested = false
     try {
       const socket = new WebSocket(buildBetsWSUrl(roomCode))
       betsStreamConnection = socket
       
-      socket.onopen = () => {
-        // Request full mine history via WebSocket (instead of REST API)
-        if (!betsStreamHistoryRequested) {
-          betsStreamHistoryRequested = true
-          socket.send(JSON.stringify({ action: 'request_history' }))
-        }
-      }
+      socket.onopen = () => {}
       
       socket.onmessage = (event) => {
         try {
@@ -1115,37 +1099,16 @@
               mineRowsCached.length = 0
               mineRowsCached.push(...data.items)
               mineTotalPages.value = Math.max(1, Number(data.total_pages ?? Math.ceil(mineRowsCached.length / tablePageSize)))
-              updateMineRowsFromCache(minePage.value)
-              mineError.value = ''
-              mineLoading.value = false
-            }
-          } else if (payload.event === 'bets.history_chunk') {
-            // Receive paginated history chunks from server
-            if (payload.data?.items && Array.isArray(payload.data.items)) {
-              // Add new bets to cache (avoid duplicates by period_no)
-              for (const bet of payload.data.items) {
-                if (!mineRowsCached.find((b) => b.period_no === bet.period_no)) {
-                  mineRowsCached.push(bet)
-                }
+              if (minePage.value <= 1) {
+                updateMineRowsFromCache(1)
               }
-              // Update UI with current page from cache
-              updateMineRowsFromCache(minePage.value)
-              mineTotalPages.value = Math.max(1, Math.ceil(mineRowsCached.length / tablePageSize))
               mineError.value = ''
               mineLoading.value = false
             }
-          } else if (payload.event === 'bets.history_complete') {
-            // History stream finished
-            logRealtimeEvent('bets.history_complete', { totalBets: mineRowsCached.length })
-            void resolvePendingSettlementModalFromMineRows()
           } else if (payload.event === 'bets.updated') {
             logRealtimeEvent('bets.updated', { roomCode })
-            // Khi có cập nhật cược (chốt kết quả), yêu cầu Server gửi lại lịch sử mới nhất
-            if (betsStreamConnection && betsStreamConnection.readyState === WebSocket.OPEN) {
-              mineRowsCached.length = 0 // Xóa cache cũ để nhận data mới
-              betsStreamConnection.send(JSON.stringify({ action: 'request_history' }))
-            }
-            wallet.connectStream()
+            void loadMineHistory(minePage.value || 1, { force: true })
+            void loadWallet()
           }
         } catch {
           // ignore malformed ws payload
@@ -1367,33 +1330,15 @@
 
   async function loadMineHistory(page = minePage.value, options: { force?: boolean } = {}) {
     const normalizedPage = Math.max(1, Math.floor(page))
-    
-    // All mine history is now streamed via WebSocket into mineRowsCached
-    // Just update the displayed rows from cache (client-side pagination)
-    if (mineRowsCached.length > 0) {
+
+    if (!options.force && normalizedPage === 1 && mineRowsCached.length > 0) {
       updateMineRowsFromCache(normalizedPage)
-      return
-    }
-    
-    // If cache is empty, wait a bit for WebSocket to deliver history
-    // (should happen automatically when connection opens)
-    mineLoading.value = true
-    mineError.value = ''
-    
-    // Wait up to 3 seconds for WebSocket to provide data
-    let attempts = 0
-    while (mineRowsCached.length === 0 && attempts < 30) {
-      await new Promise((resolve) => setTimeout(resolve, 100))
-      attempts += 1
-    }
-    
-    if (mineRowsCached.length > 0) {
-      updateMineRowsFromCache(normalizedPage)
-      mineLoading.value = false
       return
     }
 
-    // Controlled REST fallback for WS cold start.
+    mineLoading.value = true
+    mineError.value = ''
+
     const now = Date.now()
     if (!options.force && now - mineHistoryRestFallbackAt < 2500) {
       mineError.value = 'Không thể tải lịch sử cược'
@@ -1410,6 +1355,10 @@
         { token: auth.accessToken },
       )
       mineRows.value = response.items
+      if (normalizedPage === 1) {
+        mineRowsCached.length = 0
+        mineRowsCached.push(...response.items)
+      }
       minePage.value = response.page
       mineTotalPages.value = response.total_pages
       mineError.value = ''
@@ -1809,13 +1758,13 @@
       setTimeout(async () => {
         await refreshRealtimeSlices({
           history: false,
-          mine: true, // Force refresh even if not on 'mine' tab yet
+          mine: true,
           chart: false,
           wallet: true,
           reason: 'bet_placed',
         })
         setPendingWalletDebit(0)
-      }, 250);
+      }, 250)
       
       // Auto clear success message after a few seconds
       setTimeout(() => {
@@ -2031,7 +1980,7 @@
         resolvePendingSettlementModalFromMineRows()
       }
     },
-    { deep: true }
+    { deep: false }
   )
 
   watch(remainingSeconds, (newVal, oldVal) => {
@@ -2093,8 +2042,7 @@
   onMounted(() => {
     void loadWallet()
     rollingDice.value = [...currentDice.value]
-    // Cập nhật clockTick thường xuyên hơn để countdown mượt và bám server hơn
-    timer = window.setInterval(() => { clockTick.value = Date.now() }, 250)
+    timer = window.setInterval(() => { clockTick.value = Date.now() }, 1000)
     maybeAutoJoinRoom()
   })
 

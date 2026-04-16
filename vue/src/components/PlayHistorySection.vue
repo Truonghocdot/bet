@@ -50,7 +50,7 @@ watch(
   ([rows, loading]) => {
     if (!loading) visibleHistoryRows.value = [...rows]
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 
 watch(
@@ -58,7 +58,7 @@ watch(
   ([rows, loading]) => {
     if (!loading) visibleMineRows.value = [...rows]
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 
 watch(
@@ -66,7 +66,7 @@ watch(
   ([rows, loading]) => {
     if (!loading) visibleChartSeries.value = [...rows]
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 
 const activePage = computed(() => {

@@ -515,16 +515,51 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		}
 	}
 
+	now := clock.Now()
+
 	period, err := r.lockPeriodForBet(ctx, tx, params.RoomCode, params.PeriodID)
 	if err != nil {
-		return BetTicketRecord{}, err
+		if !errors.Is(err, ErrPeriodNotFound) {
+			return BetTicketRecord{}, err
+		}
+
+		// Production-safe fallback:
+		// the client may still hold the previous period_id for a brief moment while
+		// the room has already rolled to the next OPEN period. In that case, accept
+		// the latest valid OPEN period instead of failing hard with PeriodNotFound.
+		fallbackPeriod, fallbackErr := r.lockCurrentOpenPeriodForBet(ctx, tx, params.RoomCode, now)
+		if fallbackErr != nil {
+			return BetTicketRecord{}, err
+		}
+		log.Printf(
+			"[play.bet.period.fallback] room_code=%s requested_period_id=%d actual_period_id=%d actual_period_no=%s reason=period_not_found",
+			params.RoomCode,
+			params.PeriodID,
+			fallbackPeriod.ID,
+			fallbackPeriod.PeriodNo,
+		)
+		period = fallbackPeriod
+	}
+
+	if period.Status != periodStatusOpen || !now.Before(period.BetLockAt) {
+		fallbackPeriod, fallbackErr := r.lockCurrentOpenPeriodForBet(ctx, tx, params.RoomCode, now)
+		if fallbackErr == nil {
+			if fallbackPeriod.ID != period.ID {
+				log.Printf(
+					"[play.bet.period.fallback] room_code=%s requested_period_id=%d actual_period_id=%d actual_period_no=%s reason=requested_period_unavailable",
+					params.RoomCode,
+					params.PeriodID,
+					fallbackPeriod.ID,
+					fallbackPeriod.PeriodNo,
+				)
+			}
+			period = fallbackPeriod
+		}
 	}
 
 	if period.Status != periodStatusOpen {
 		return BetTicketRecord{}, ErrPeriodNotOpen
 	}
-
-	now := clock.Now()
 	if !now.Before(period.BetLockAt) {
 		return BetTicketRecord{}, ErrPeriodBetLocked
 	}
@@ -753,6 +788,40 @@ func (r *GameRepository) lockPeriodForBet(ctx context.Context, tx *sql.Tx, roomC
 		limit 1
 		for update
 	`, periodID, roomCode).Scan(
+		&period.ID,
+		&period.RoomCode,
+		&period.GameType,
+		&period.PeriodNo,
+		&period.PeriodIndex,
+		&period.OpenAt,
+		&period.BetLockAt,
+		&period.DrawAt,
+		&period.Status,
+		&period.ManualResultJSON,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return GamePeriodRecord{}, ErrPeriodNotFound
+		}
+		return GamePeriodRecord{}, err
+	}
+
+	return period, nil
+}
+
+func (r *GameRepository) lockCurrentOpenPeriodForBet(ctx context.Context, tx *sql.Tx, roomCode string, now time.Time) (GamePeriodRecord, error) {
+	var period GamePeriodRecord
+	err := tx.QueryRowContext(ctx, `
+		select id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
+		from game_periods
+		where room_code = $1
+		  and status = $2
+		  and open_at <= $3
+		  and $3 < bet_lock_at
+		order by draw_at asc, open_at desc, id asc
+		limit 1
+		for update
+	`, roomCode, periodStatusOpen, now).Scan(
 		&period.ID,
 		&period.RoomCode,
 		&period.GameType,

@@ -81,9 +81,13 @@ func (s *PlayRoomService) GetRoomState(ctx context.Context, roomCode string) (ga
 	}
 
 	if cached, hit := s.readRoomStateCache(ctx, roomCode); hit {
-		cached.ServerTime = clock.Now()
-		log.Printf("[realtime][room.cache.hit] room_code=%s", roomCode)
-		return cached, nil
+		if !isRoomStateCacheFresh(cached) {
+			log.Printf("[realtime][room.cache.stale] room_code=%s period_id=%d period_no=%s", roomCode, cached.CurrentPeriod.ID, cached.CurrentPeriod.PeriodNo)
+		} else {
+			cached.ServerTime = clock.Now()
+			log.Printf("[realtime][room.cache.hit] room_code=%s", roomCode)
+			return cached, nil
+		}
 	}
 
 	log.Printf("[realtime][room.cache.miss] room_code=%s", roomCode)
@@ -93,6 +97,31 @@ func (s *PlayRoomService) GetRoomState(ctx context.Context, roomCode string) (ga
 	}
 	response.ServerTime = clock.Now()
 	return response, nil
+}
+
+func isRoomStateCacheFresh(response game.RoomStateResponse) bool {
+	now := clock.Now()
+	period := response.CurrentPeriod
+	if period.ID == 0 || strings.TrimSpace(period.PeriodNo) == "" {
+		return false
+	}
+
+	status := strings.ToUpper(strings.TrimSpace(period.Status))
+	if status != "SCHEDULED" && status != "OPEN" && status != "LOCKED" {
+		return false
+	}
+
+	// Once draw_at has passed, the cache is already outdated for bet placement.
+	if !period.DrawAt.After(now) {
+		return false
+	}
+
+	// Guard against obviously drifted snapshots that point too far in the past.
+	if period.OpenAt.After(now.Add(15 * time.Minute)) {
+		return false
+	}
+
+	return true
 }
 
 func (s *PlayRoomService) RefreshRoomState(ctx context.Context, roomCode string, source string) (game.RoomStateResponse, error) {

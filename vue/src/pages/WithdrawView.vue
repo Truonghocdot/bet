@@ -42,14 +42,34 @@ const validationMessage = computed(() => {
   if (!amount.value) return ''
   const numeric = Number(amount.value)
   if (method.value === 'vnd') {
-    if (numeric < 50000) return 'Tối thiểu rút 50,000 VND'
+    if (numeric < 200000) return 'Tối thiểu rút 200,000 VND'
     if (numeric > Number(currentWallets.value.vnd?.balance || 0)) return 'Số dư khả dụng không đủ'
   } else {
-    if (numeric < 5) return 'Tối thiểu rút 5 USDT'
+    if (numeric < 15) return 'Tối thiểu rút 15 USDT'
     if (numeric > Number(currentWallets.value.usdt?.balance || 0)) return 'Số dư USDT khả dụng không đủ'
   }
   return ''
 })
+
+const amountInputMode = computed(() => (method.value === 'vnd' ? 'numeric' : 'decimal'))
+
+function sanitizeAmountInput(raw: string, allowDecimal: boolean) {
+  const normalized = String(raw ?? '').replaceAll(',', '.').replace(/[^\d.]/g, '')
+  if (!allowDecimal) {
+    return normalized.replaceAll('.', '')
+  }
+
+  const [rawIntegerPart = '', ...fractionParts] = normalized.split('.')
+  const integerPart = rawIntegerPart ?? ''
+  const fraction = fractionParts.join('')
+  if (!fractionParts.length) return integerPart
+  return `${integerPart}.${fraction}`
+}
+
+function handleAmountInput(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  amount.value = sanitizeAmountInput(target?.value ?? '', method.value === 'usdt')
+}
 
 const canSubmit = computed(() => {
   return amount.value && !validationMessage.value && currentAccount.value !== undefined
@@ -67,11 +87,6 @@ onMounted(async () => {
 })
 
 // Methods limit helpers
-const presets = computed(() => {
-  if (method.value === 'vnd') return [200000, 300000, 500000, 1500000, 5000000 , 15000000]
-  return [5, 10, 50, 100, 500]
-})
-
 async function submitSaveMethod() {
   if (!addHolder.value || !addNumber.value) return
   await withdraw.addAccount({
@@ -232,22 +247,9 @@ function closeWithdrawPolicyModal() {
         <form @submit.prevent="handleWithdraw" class="space-y-4">
           <div>
             <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
-              <input v-model="amount" type="number" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold text-lg" inputmode="decimal" placeholder="Nhập số tiền muốn rút" />
+              <input v-model="amount" type="text" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold text-lg" :inputmode="amountInputMode" autocomplete="off" placeholder="Nhập số tiền muốn rút" @input="handleAmountInput" />
             </label>
             <p v-if="validationMessage" class="mt-2 text-xs font-bold text-[#e64545] px-2 m-0">{{ validationMessage }}</p>
-          </div>
-
-          <div class="grid grid-cols-5 gap-1.5">
-            <button
-              v-for="amt in presets"
-              :key="amt"
-              type="button"
-              class="min-h-10 rounded-[12px] bg-slate-50 text-[0.75rem] font-bold text-on-surface transition-transform active:scale-95"
-              :class="Number(amount) === amt ? 'bg-primary/10 text-primary border-primary border' : ''"
-              @click="amount = String(amt)"
-            >
-              {{ method === 'vnd' && amt >= 1000 ? (amt / 1000) + 'K' : amt }}
-            </button>
           </div>
 
           <button class="min-h-14 w-full rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white hover:shadow-lg disabled:opacity-60" type="submit" :disabled="withdraw.loading || !canSubmit">

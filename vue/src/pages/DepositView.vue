@@ -76,21 +76,41 @@ const presetAmounts = computed(() => {
 
 const isAmountValid = computed(() => {
   const numericAmount = Number(amount.value) || 0
-  if (method.value === 'vietqr') return numericAmount >= 50000
+  if (method.value === 'vietqr') return numericAmount >= 2000
   if (method.value === 'usdt') return numericAmount >= 20
   return false
 })
 
 const validationMessage = computed(() => {
   if (!amount.value) return ''
-  if (method.value === 'vietqr' && Number(amount.value) < 50000) {
-    return 'Nạp tối thiểu 50.000 VND'
+  if (method.value === 'vietqr' && Number(amount.value) < 2000) {
+    return 'Nạp tối thiểu 2.000 VND'
   }
   if (method.value === 'usdt' && Number(amount.value) < 20) {
     return 'Nạp tối thiểu 20 USDT'
   }
   return ''
 })
+
+const amountInputMode = computed(() => (method.value === 'vietqr' ? 'numeric' : 'decimal'))
+
+function sanitizeAmountInput(raw: string, allowDecimal: boolean) {
+  const normalized = String(raw ?? '').replaceAll(',', '.').replace(/[^\d.]/g, '')
+  if (!allowDecimal) {
+    return normalized.replaceAll('.', '')
+  }
+
+  const [rawIntegerPart = '', ...fractionParts] = normalized.split('.')
+  const integerPart = rawIntegerPart ?? ''
+  const fraction = fractionParts.join('')
+  if (!fractionParts.length) return integerPart
+  return `${integerPart}.${fraction}`
+}
+
+function handleAmountInput(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  amount.value = sanitizeAmountInput(target?.value ?? '', method.value === 'usdt')
+}
 
 function redirectBack() {
   router.back()
@@ -528,11 +548,13 @@ async function logout() {
         <div class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-inner">
           <input
             v-model="amount"
-            type="number"
+            type="text"
             class="min-w-0 border-0 bg-transparent px-4 py-4 text-lg font-black outline-none disabled:cursor-not-allowed disabled:opacity-60"
-            inputmode="decimal"
+            :inputmode="amountInputMode"
+            autocomplete="off"
             placeholder="Số tiền (VD: 50000)"
             :disabled="isIntentActive"
+            @input="handleAmountInput"
           />
         </div>
 
