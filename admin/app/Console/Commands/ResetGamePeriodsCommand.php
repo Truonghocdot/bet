@@ -21,6 +21,7 @@ class ResetGamePeriodsCommand extends Command
         'bet_settlements',
         'bet_items',
         'bet_tickets',
+        'game_round_histories',
         'game_periods',
     ];
 
