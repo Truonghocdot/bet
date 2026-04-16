@@ -12,3 +12,4 @@
 ./gin/api
 ./gin/tmp/main
 ./gin/gip-api
+.codex

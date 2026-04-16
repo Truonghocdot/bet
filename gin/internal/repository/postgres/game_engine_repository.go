@@ -628,18 +628,22 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room GameRoomRecord, openAt, drawAt time.Time, status int) (GamePeriodRecord, bool, error) {
 	lockAt := drawAt.Add(-time.Duration(room.BetCutoffSeconds) * time.Second)
 	periodNo := buildPeriodNo(room.Code, drawAt)
-	periodIndex := drawAt.Unix()
 	var record GamePeriodRecord
 	err := tx.QueryRowContext(ctx, `
+		with next_period_index as (
+			select coalesce(max(period_index), -1) + 1 as value
+			from game_periods
+			where room_code = $3
+		)
 		insert into game_periods (
 			game_type, period_no, period_index, room_code, open_at, close_at, bet_lock_at, draw_at, status, created_at, updated_at
 		)
-		values (
-			$1, $2, $3, $4, $5, $6, $6, $7, $8, now(), now()
-		)
+		select
+			$1, $2, next_period_index.value, $3, $4, $5, $5, $6, $7, now(), now()
+		from next_period_index
 		on conflict (room_code, period_no) do nothing
 		returning id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
-	`, room.GameType, periodNo, periodIndex, room.Code, openAt, lockAt, drawAt, status).Scan(
+	`, room.GameType, periodNo, room.Code, openAt, lockAt, drawAt, status).Scan(
 		&record.ID,
 		&record.RoomCode,
 		&record.GameType,
@@ -660,7 +664,7 @@ func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room Ga
 		return GamePeriodRecord{}, false, err
 	}
 
-	log.Printf("[engine][period.insert.done] room_code=%s period_id=%d period_no=%s open_at=%s draw_at=%s status=%d", record.RoomCode, record.ID, record.PeriodNo, record.OpenAt.Format(time.RFC3339Nano), record.DrawAt.Format(time.RFC3339Nano), record.Status)
+	log.Printf("[engine][period.insert.done] room_code=%s period_id=%d period_no=%s period_index=%d open_at=%s draw_at=%s status=%d", record.RoomCode, record.ID, record.PeriodNo, record.PeriodIndex, record.OpenAt.Format(time.RFC3339Nano), record.DrawAt.Format(time.RFC3339Nano), record.Status)
 	return record, true, nil
 }
 

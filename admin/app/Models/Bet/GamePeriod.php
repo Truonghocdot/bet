@@ -82,6 +82,24 @@ class GamePeriod extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (GamePeriod $period): void {
+            if ($period->period_index !== null) {
+                return;
+            }
+
+            $query = static::query();
+
+            if ($period->room_code === null) {
+                $query->whereNull('room_code');
+            } else {
+                $query->where('room_code', $period->room_code);
+            }
+
+            $nextPeriodIndex = (int) ($query->max('period_index') ?? -1) + 1;
+
+            $period->period_index = max(0, $nextPeriodIndex);
+        });
+
         static::updating(function (GamePeriod $period): void {
             if ($period->isAdminMutationLocked()) {
                 throw ValidationException::withMessages([
