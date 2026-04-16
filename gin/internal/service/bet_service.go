@@ -90,9 +90,9 @@ func (s *BetService) PlaceBet(ctx context.Context, connectionID string, request 
 			return game.PlaceBetResponse{}, err
 		}
 
-		available, err := subtractDecimal(wallet.Balance, wallet.LockedBalance)
-		if err != nil {
-			return game.PlaceBetResponse{}, err
+		available := strings.TrimSpace(wallet.Balance)
+		if available == "" {
+			available = "0"
 		}
 
 		if compareDecimal(available, totalStake) < 0 {

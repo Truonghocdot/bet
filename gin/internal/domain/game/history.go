@@ -25,6 +25,7 @@ type HistoryListResponse struct {
 
 type BetTicketHistoryItem struct {
 	ID             int64      `json:"id"`
+	PeriodID       int64      `json:"period_id"`
 	PeriodNo       string     `json:"period_no"`
 	PeriodIndex    int64      `json:"period_index"`
 	Result         string     `json:"result"`

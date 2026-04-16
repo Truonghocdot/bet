@@ -7,7 +7,6 @@ use App\Enum\Transaction\TypeTransaction;
 use App\Enum\Transaction\WithdrawalStatus;
 use App\Enum\Wallet\LedgerDirection;
 use App\Enum\Wallet\WalletStatus;
-use App\Enum\Wallet\WalletStatusWalletStatus;
 use App\Models\Transaction\Transaction;
 use App\Models\Transaction\WithdrawalRequest;
 use App\Models\Wallet\WalletLedgerEntry;
@@ -50,14 +49,14 @@ class WithdrawalWorkflowService
             }
 
             $wallet = $request->wallet()->lockForUpdate()->first();
-
-            if ($wallet && $wallet->status === WalletStatus::ACTIVE && $wallet->locked_balance >= $request->amount) {
+            if ($wallet) {
                 $balanceBefore = $wallet->balance;
                 $lockedBefore = $wallet->locked_balance;
 
+                // Hoàn tiền: Cộng lại vào balance khả dụng, trừ ở tiền khóa
                 $wallet->forceFill([
-                    'locked_balance' => $lockedBefore - $request->amount,
                     'balance' => $balanceBefore + $request->amount,
+                    'locked_balance' => max(0, $lockedBefore - $request->amount),
                 ])->save();
 
                 WalletLedgerEntry::create([
@@ -101,34 +100,25 @@ class WithdrawalWorkflowService
             }
 
             $wallet = $request->wallet()->lockForUpdate()->first();
-
-            if ($wallet && $wallet->status === WalletStatus::ACTIVE) {
+            if ($wallet) {
                 $balanceBefore = $wallet->balance;
                 $lockedBefore = $wallet->locked_balance;
-                $balanceAfter = $balanceBefore;
 
-                if ($wallet->locked_balance >= $request->amount) {
-                    $balanceAfter = $balanceBefore;
-                    $wallet->forceFill([
-                        'locked_balance' => $lockedBefore - $request->amount,
-                    ])->save();
-                } elseif ($wallet->balance >= $request->amount) {
-                    $balanceAfter = $balanceBefore - $request->amount;
-                    $wallet->forceFill([
-                        'balance' => $balanceAfter,
-                    ])->save();
-                }
+                // Khi chi trả: Tiền khóa "bay màu", balance khả dụng giữ nguyên (vì đã trừ lúc tạo lệnh)
+                $wallet->forceFill([
+                    'locked_balance' => max(0, $lockedBefore - $request->amount),
+                ])->save();
 
                 WalletLedgerEntry::create([
                     'wallet_id' => $wallet->id,
                     'user_id' => $request->user_id,
-                    'direction' => LedgerDirection::DEBIT,
+                    'direction' => LedgerDirection::NEUTRAL, // Trung tính vì balance khả dụng không đổi thêm
                     'amount' => $request->amount,
                     'balance_before' => $balanceBefore,
-                    'balance_after' => $balanceAfter,
+                    'balance_after' => $balanceBefore,
                     'reference_type' => WithdrawalRequest::class,
                     'reference_id' => $request->id,
-                    'note' => 'Chi trả thủ công yêu cầu rút',
+                    'note' => 'Giải phóng tiền khóa: Đã chi trả xong lệnh rút',
                     'created_at' => now(),
                 ]);
             }

@@ -487,19 +487,14 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=add_balance err=%v", period.ID, ticket.ID, err)
 			return nil, err
 		}
-		balanceAfter, err = subtractNumeric(balanceAfter, originalAmount)
-		if err != nil {
-			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=subtract_stake err=%v", period.ID, ticket.ID, err)
-			return nil, err
-		}
 
 		if _, err := tx.ExecContext(ctx, `
 			update wallets
-			set balance = $1::numeric(20,8),
-			    locked_balance = $2::numeric(20,8),
+			set balance = balance + $1::numeric(20,8),
+			    locked_balance = locked_balance - $2::numeric(20,8),
 			    updated_at = $3
 			where id = $4
-		`, balanceAfter, lockedAfter, now, ticket.WalletID); err != nil {
+		`, payoutTotal, originalAmount, now, ticket.WalletID); err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=update_wallet err=%v", period.ID, ticket.ID, err)
 			return nil, err
 		}
@@ -553,33 +548,29 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			return nil, err
 		}
 
-		netDelta, err := subtractNumeric(payoutTotal, originalAmount)
-		if err != nil {
-			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=net_delta err=%v", period.ID, ticket.ID, err)
-			return nil, err
-		}
-		if compareNumeric(netDelta, "0") != 0 {
-			direction := 1
-			ledgerAmount := netDelta
-			note := "Cộng tiền thắng cược"
-			if compareNumeric(netDelta, "0") < 0 {
-				direction = 2
-				ledgerAmount, err = subtractNumeric("0", netDelta)
-				if err != nil {
-					log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=ledger_amount err=%v", period.ID, ticket.ID, err)
-					return nil, err
-				}
-				note = "Trừ tiền thua cược"
-			}
+		if compareNumeric(payoutTotal, "0") > 0 {
 			if _, err := tx.ExecContext(ctx, `
 				insert into wallet_ledger_entries (
 					wallet_id, user_id, direction, amount, balance_before, balance_after,
 					reference_type, reference_id, note, created_at
 				)
-				values ($1, $2, $3, $4::numeric(20,8), $5::numeric(20,8), $6::numeric(20,8),
-				        $7, $8, $9, $10)
-			`, ticket.WalletID, ticket.UserID, direction, ledgerAmount, balanceBefore, balanceAfter, "App\\Models\\Bet\\BetTicket", ticket.ID, note, now); err != nil {
+				values ($1, $2, 1, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8),
+				        $6, $7, $8, $9)
+			`, ticket.WalletID, ticket.UserID, payoutTotal, balanceBefore, balanceAfter, "App\\Models\\Bet\\BetTicket", ticket.ID, "Cộng tiền thắng cược", now); err != nil {
 				log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=insert_ledger err=%v", period.ID, ticket.ID, err)
+				return nil, err
+			}
+		} else {
+			// Thêm lịch sử ghi nhận khi thua để minh bạch số dư
+			if _, err := tx.ExecContext(ctx, `
+				insert into wallet_ledger_entries (
+					wallet_id, user_id, direction, amount, balance_before, balance_after,
+					reference_type, reference_id, note, created_at
+				)
+				values ($1, $2, 3, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8),
+				        $6, $7, $8, $9)
+			`, ticket.WalletID, ticket.UserID, "0", balanceBefore, balanceAfter, "App\\Models\\Bet\\BetTicket", ticket.ID, "Giải phóng tiền cược (Thua)", now); err != nil {
+				log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=insert_ledger_lost err=%v", period.ID, ticket.ID, err)
 				return nil, err
 			}
 		}

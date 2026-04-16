@@ -529,29 +529,20 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		return BetTicketRecord{}, ErrPeriodBetLocked
 	}
 
-	walletID, balanceBefore, lockedBefore, err := r.lockWalletForBet(ctx, tx, params.UserID)
+	walletID, balanceBefore, _, err := r.lockWalletForBet(ctx, tx, params.UserID)
 	if err != nil {
 		return BetTicketRecord{}, err
 	}
 
-	availableBefore, err := subtractNumeric(balanceBefore, lockedBefore)
-	if err != nil {
-		return BetTicketRecord{}, err
-	}
-
-	if compareNumeric(availableBefore, originalAmountDB) < 0 {
+	if compareNumeric(balanceBefore, originalAmountDB) < 0 {
 		return BetTicketRecord{}, ErrInsufficientBetBalance
 	}
 
-	lockedAfter, err := addNumeric(lockedBefore, originalAmountDB)
+	balanceAfter, err := subtractNumeric(balanceBefore, originalAmountDB)
 	if err != nil {
 		return BetTicketRecord{}, err
 	}
 
-	availableAfter, err := subtractNumeric(balanceBefore, lockedAfter)
-	if err != nil {
-		return BetTicketRecord{}, err
-	}
 
 	ticketNo := buildTicketNo()
 	betType := 1
@@ -625,10 +616,11 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 
 	if _, err := tx.ExecContext(ctx, `
 		update wallets
-		set locked_balance = $1::numeric(20,8),
+		set balance = balance - $1::numeric(20,8),
+		    locked_balance = locked_balance + $1::numeric(20,8),
 		    updated_at = now()
 		where id = $2
-	`, lockedAfter, walletID); err != nil {
+	`, params.TotalStake, walletID); err != nil {
 		return BetTicketRecord{}, err
 	}
 
@@ -660,9 +652,9 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 			wallet_id, user_id, direction, amount, balance_before, balance_after,
 			reference_type, reference_id, note, created_at
 		)
-		values ($1, $2, $3, $4::numeric(20,8), $5::numeric(20,8), $6::numeric(20,8),
-		        $7, $8, $9, now())
-	`, walletID, params.UserID, 2, originalAmountDB, availableBefore, availableAfter, "App\\Models\\Bet\\BetTicket", record.ID, "Khóa tiền khi đặt cược (thuế 2% upfront)"); err != nil {
+		values ($1, $2, 2, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8),
+		        $6, $7, $8, now())
+	`, walletID, params.UserID, originalAmountDB, balanceBefore, balanceAfter, "App\\Models\\Bet\\BetTicket", record.ID, "Giảm số dư khả dụng khi đặt cược (khóa tiền)"); err != nil {
 		return BetTicketRecord{}, err
 	}
 
@@ -783,20 +775,24 @@ func (r *GameRepository) lockPeriodForBet(ctx context.Context, tx *sql.Tx, roomC
 }
 
 func (r *GameRepository) lockWalletForBet(ctx context.Context, tx *sql.Tx, userID int64) (walletID int64, balanceBefore string, lockedBefore string, err error) {
+	var status int
 	row := tx.QueryRowContext(ctx, `
-		select id, balance::text, locked_balance::text
+		select id, balance::text, locked_balance::text, status
 		from wallets
-		where user_id = $1 and unit = $2 and status = $3
+		where user_id = $1 and unit = $2
 		limit 1
 		for update
-	`, userID, 1, 1)
+	`, userID, 1)
 
-	if err := row.Scan(&walletID, &balanceBefore, &lockedBefore); err != nil {
+	if err := row.Scan(&walletID, &balanceBefore, &lockedBefore, &status); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, "", "", ErrInsufficientBetBalance
 		}
-
 		return 0, "", "", err
+	}
+
+	if status != 1 {
+		return 0, "", "", fmt.Errorf("ví đang bị khóa (status=%d)", status)
 	}
 
 	return walletID, balanceBefore, lockedBefore, nil

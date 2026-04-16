@@ -7,4 +7,5 @@ enum LedgerDirection: int
 {
     case CREDIT = 1;
     case DEBIT = 2;
+    case NEUTRAL = 3;
 }

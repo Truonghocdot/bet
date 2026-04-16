@@ -51,19 +51,19 @@ const mineError = ref('')
 const chartError = ref('')
 const roomStateLoading = ref(false)
 const roomStateError = ref('')
-const serverTimeOffsetMs = ref(0)
+const serverClockAnchorMs = ref(0)
+const localClockAnchorMs = ref(0)
 const clockTick = ref(Date.now())
+const pendingWalletDebit = ref(0)
+const lastSettledPeriodId = ref<number | null>(null)
 const seenSettlementPeriods = new Set<string>()
 const settlementTargets = new Map<string, string>()
-const pendingSettlementChecks = new Map<string, number>()
-const settlementRetryAttempts = new Map<string, number>()
-const settlementChecksInFlight = new Set<string>()
 const countdownTargetMs = ref(0)
 const countdownTargetPeriodNo = ref('')
-const closingCountdownTargetMs = ref(0)
-const closingCountdownPeriodNo = ref('')
-const countdownCachePrefix = 'ff789:play-countdown:'
+const stableCountdownPeriodKey = ref('')
+const stableRemainingSeconds = ref(0)
 const roomStateCachePrefix = 'ff789:play-room-state:'
+const settlementHandledCachePrefix = 'ff789:play-settlement-handled:'
 let roomStateGeneration = 0
 
 // Bet modal state
@@ -177,30 +177,20 @@ const isDiceRolling = ref(false)
 const rollingDice = ref([1, 2, 3])
 let rollTimer: number | undefined
 
-const stakeOptions = [1, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000] as const
-
-function formatMultiplierLabel(m: number) {
-  if (m >= 1000) {
-    const millions = m / 1000
-    return `${millions}M`
-  }
-  if (m >= 50) {
-    // 50 * 1000 = 50,000 -> 50K
-    return `${m}K`
-  }
-  return `X${m}`
-}
 const tablePageSize = 4
 let timer: number | undefined
 let roomStreamConnection: WebSocket | null = null
 let betsStreamConnection: WebSocket | null = null
 let roomStreamReconnectTimer: number | undefined
-let transitionRefreshTimer: number | undefined
-let transitionRefreshPeriodNo = ''
 let roomStateReconcileTimer: number | undefined
-const transitionRefreshAttempts = ref(0)
-const mineHistoryRequestPromises = new Map<number, Promise<PlayRoomBetHistoryResponse | null>>()
-let mineHistoryPendingRequests = 0
+let periodRollForwardTimer: number | undefined
+let betsStreamHistoryRequested = false
+const mineRowsCached: PlayRoomBetHistoryResponse['items'] = []
+let mineHistoryRestFallbackAt = 0
+let autoJoinTimer: number | undefined
+let autoJoinAttemptKey = ''
+const pendingBetRequests = new Map<string, { resolve: (response: any) => void; reject: (error: any) => void; timeout: number }>()
+const pendingRoomHistoryRequests = new Map<string, { resolve: (response: PlayRoomHistoryResponse) => void; reject: (error: Error) => void; timeout: number }>()
 
 const room = computed<PlayRoom | null>(() => getPlayRoom(String(route.params.game ?? 'wingo')) ?? null)
 const isK3 = computed(() => room.value?.code === 'k3')
@@ -242,17 +232,28 @@ function navigateBack() {
 }
 
 const walletVnd = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
-const walletUsdt = computed(() => wallet.wallets.find((item) => item.unit === 2) ?? null)
 const availableVndBalance = computed(() => {
-  const balance = Number(walletVnd.value?.balance ?? 0)
-  const locked = Number(walletVnd.value?.locked_balance ?? 0)
-  return Math.max(0, balance - locked)
+  return Number(walletVnd.value?.balance ?? 0)
 })
 const canPlay = computed(() => availableVndBalance.value > 0)
 const currentPeriod = computed(() => roomState.value?.current_period ?? null)
-const syncedNow = computed(() => clockTick.value + serverTimeOffsetMs.value)
+const syncedNow = computed(() => {
+  if (serverClockAnchorMs.value > 0 && localClockAnchorMs.value > 0) {
+    return serverClockAnchorMs.value + Math.max(0, clockTick.value - localClockAnchorMs.value)
+  }
+  return clockTick.value
+})
 const expectedPeriodSeconds = computed(() => selectedVariant.value?.countdownSeconds ?? 0)
-const currentPeriodBetLockAtMs = computed(() => currentPeriod.value ? new Date(currentPeriod.value.bet_lock_at).getTime() : 0)
+const currentPeriodBetLockAtMs = computed(() => parsePeriodTimeMs(currentPeriod.value?.bet_lock_at))
+const activeCountdownTargetMs = computed(() => {
+  const currentPeriodNo = String(currentPeriod.value?.period_no ?? '')
+  if (!currentPeriodNo) return 0
+  const baseTargetMs = countdownTargetPeriodNo.value === currentPeriodNo && countdownTargetMs.value > 0
+    ? countdownTargetMs.value
+    : parsePeriodTimeMs(currentPeriod.value?.draw_at)
+  if (!Number.isFinite(baseTargetMs) || baseTargetMs <= 0) return 0
+  return baseTargetMs
+})
 const visibleBetMessage = computed(() => {
   if (!betMessage.value) return ''
   if (!selectedRoomCode.value) return ''
@@ -263,50 +264,75 @@ function resetTransientRoomUiState() {
   joinError.value = ''
   betMessage.value = ''
   betMessageRoomCode.value = ''
+  pendingWalletDebit.value = 0
+  connectionId.value = ''
+  autoJoinAttemptKey = ''
+  if (autoJoinTimer) {
+    window.clearTimeout(autoJoinTimer)
+    autoJoinTimer = undefined
+  }
 }
 
 function resetRoomStateSession() {
   roomState.value = null
   countdownTargetMs.value = 0
   countdownTargetPeriodNo.value = ''
-  closingCountdownTargetMs.value = 0
-  closingCountdownPeriodNo.value = ''
+  stableCountdownPeriodKey.value = ''
+  stableRemainingSeconds.value = 0
+  serverClockAnchorMs.value = 0
+  localClockAnchorMs.value = 0
+  if (periodRollForwardTimer) {
+    window.clearTimeout(periodRollForwardTimer)
+    periodRollForwardTimer = undefined
+  }
   seenSettlementPeriods.clear()
   settlementTargets.clear()
-  pendingSettlementChecks.forEach((timerId) => window.clearTimeout(timerId))
-  pendingSettlementChecks.clear()
-  settlementRetryAttempts.clear()
-  settlementChecksInFlight.clear()
-  transitionRefreshAttempts.value = 0
-  transitionRefreshPeriodNo = ''
 }
 
-function countdownCacheKey(roomCode: string) {
-  return `${countdownCachePrefix}${roomCode}`
+function settlementHandledCacheKey(roomCode: string) {
+  return `${settlementHandledCachePrefix}${roomCode}`
 }
 
-function loadCountdownCache(roomCode: string): { periodNo: string; targetMs: number } | null {
-  if (!roomCode) return null
+function hydrateHandledSettlementPeriods(roomCode: string) {
+  seenSettlementPeriods.clear()
+  if (!roomCode) return
   try {
-    const raw = sessionStorage.getItem(countdownCacheKey(roomCode))
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as { periodNo?: string; targetMs?: number }
-    const periodNo = String(parsed?.periodNo ?? '')
-    const targetMs = Number(parsed?.targetMs ?? 0)
-    if (!periodNo || !Number.isFinite(targetMs) || targetMs <= 0) return null
-    return { periodNo, targetMs }
-  } catch {
-    return null
-  }
-}
-
-function saveCountdownCache(roomCode: string, periodNo: string, targetMs: number) {
-  if (!roomCode || !periodNo || !Number.isFinite(targetMs) || targetMs <= 0) return
-  try {
-    sessionStorage.setItem(countdownCacheKey(roomCode), JSON.stringify({ periodNo, targetMs }))
+    const raw = sessionStorage.getItem(settlementHandledCacheKey(roomCode))
+    if (!raw) return
+    const parsed = JSON.parse(raw) as string[]
+    if (!Array.isArray(parsed)) return
+    parsed.forEach((item) => {
+      if (typeof item === 'string' && item.trim()) {
+        seenSettlementPeriods.add(item)
+      }
+    })
   } catch {
     // ignore storage failures
   }
+}
+
+function persistHandledSettlementPeriods(roomCode: string) {
+  if (!roomCode) return
+  try {
+    const values = [...seenSettlementPeriods].filter((item) => item.startsWith(`${roomCode}:`))
+    sessionStorage.setItem(settlementHandledCacheKey(roomCode), JSON.stringify(values))
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function settlementKeyFor(roomCode: string, periodNo: string | null | undefined) {
+  return `${roomCode}:${String(periodNo ?? '')}`
+}
+
+function markSettlementHandled(roomCode: string, periodNo: string | null | undefined) {
+  if (!roomCode || !String(periodNo ?? '').trim()) return
+  seenSettlementPeriods.add(settlementKeyFor(roomCode, periodNo))
+  persistHandledSettlementPeriods(roomCode)
+}
+
+function logRealtimeEvent(event: string, payload: Record<string, unknown> = {}) {
+  console.debug(`[play.sync] ${event}`, payload)
 }
 
 function roomStateCacheKey(roomCode: string) {
@@ -353,7 +379,7 @@ function scheduleRoomStateReconcile(roomCode: string, delayMs = 800) {
   }
   roomStateReconcileTimer = window.setTimeout(() => {
     roomStateReconcileTimer = undefined
-    void loadRoomState(roomCode)
+    requestRoomStateSnapshot(roomCode)
   }, delayMs)
 }
 
@@ -363,19 +389,66 @@ function hydrateRoomStateFromCache(roomCode: string) {
 
   roomState.value = cached.response
 
-  const serverTimeMs = Number(new Date(cached.response.server_time).getTime())
+  const serverTimeMs = parseServerTimeMs(cached.response.server_time)
   if (Number.isFinite(serverTimeMs) && serverTimeMs > 0) {
     applyServerClock(cached.response.server_time, cached.savedAt)
   }
 
-  syncCountdownTarget(cached.response.current_period, Date.now(), true, roomCode)
+  syncCountdownTarget(cached.response.current_period, Date.now(), true)
   return true
+}
+
+function setPendingWalletDebit(amount: number) {
+  pendingWalletDebit.value = Math.max(0, Math.floor(amount))
+}
+
+async function refreshRealtimeSlices(options: {
+  history?: boolean
+  mine?: boolean
+  chart?: boolean
+  wallet?: boolean
+  reason?: string
+} = {}) {
+  const {
+    history = true,
+    mine = true,
+    chart = true,
+    wallet: refreshWallet = false,
+    reason = 'unknown',
+  } = options
+
+  logRealtimeEvent('refresh.start', {
+    roomCode: selectedRoomCode.value,
+    history,
+    mine,
+    chart,
+    wallet: refreshWallet,
+    reason,
+  })
+
+  const tasks: Promise<unknown>[] = []
+  if (refreshWallet) tasks.push(Promise.resolve(loadWallet()))
+  if (history) tasks.push(Promise.resolve(loadRoomHistory(1)))
+  
+  // Nếu có kỳ đang chờ hiện kết quả, ưu tiên tải lại lịch sử cá nhân
+  const hasPendingSettlements = settlementTargets.size > 0
+  if (mine || hasPendingSettlements) {
+    // Luôn yêu cầu Server gửi lại lịch sử mới nhất qua WS khi đặt cược hoặc chốt kỳ xong
+    if (betsStreamConnection && betsStreamConnection.readyState === WebSocket.OPEN) {
+      mineRowsCached.length = 0
+      betsStreamConnection.send(JSON.stringify({ action: 'request_history' }))
+    }
+    tasks.push(loadMineHistory(1, { force: true }))
+  }
+  if (chart) tasks.push(Promise.resolve(loadChartHistory()))
+  await Promise.allSettled(tasks)
 }
 
 function resetRoomViewData() {
   historyRows.value = []
   mineRows.value = []
   chartRows.value = []
+  mineRowsCached.length = 0
   historyError.value = ''
   mineError.value = ''
   chartError.value = ''
@@ -394,7 +467,7 @@ function isCurrentRoomStateGeneration(generation: number, roomCode: string) {
   return generation === roomStateGeneration && roomCode === selectedRoomCode.value
 }
 
-function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | null, nowMs = Date.now(), force = false, roomCode = selectedRoomCode.value) {
+function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | null, nowMs = Date.now(), force = false) {
   if (!period) {
     countdownTargetMs.value = 0
     countdownTargetPeriodNo.value = ''
@@ -402,8 +475,8 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
   }
 
   const periodNo = String(period.period_no ?? '')
-  const rawBetLockAtMs = Number(new Date(period.bet_lock_at).getTime())
-  const rawDrawAtMs = Number(new Date(period.draw_at).getTime())
+  const rawBetLockAtMs = parsePeriodTimeMs(period.bet_lock_at)
+  const rawDrawAtMs = parsePeriodTimeMs(period.draw_at)
   const expectedSeconds = Math.max(1, expectedPeriodSeconds.value || 30)
   const periodMs = expectedSeconds * 1000
   const fallbackTargetMs = nowMs + expectedSeconds * 1000
@@ -437,11 +510,17 @@ function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | n
     countdownTargetMs.value = fallbackTargetMs
   }
   countdownTargetPeriodNo.value = periodNo
-  if (remainingSeconds.value > 0 && remainingSeconds.value <= 5) {
-    closingCountdownPeriodNo.value = periodNo
-    closingCountdownTargetMs.value = countdownTargetMs.value
-  }
-  saveCountdownCache(roomCode, periodNo, countdownTargetMs.value)
+}
+
+function applyHistoryFromRecentResults(page = historyPage.value) {
+  const results = roomState.value?.recent_results ?? []
+  const totalPages = Math.max(1, Math.ceil(results.length / tablePageSize))
+  const normalizedPage = Math.min(Math.max(1, Math.floor(page)), totalPages)
+  const start = (normalizedPage - 1) * tablePageSize
+  historyRows.value = results.slice(start, start + tablePageSize)
+  historyPage.value = normalizedPage
+  historyTotalPages.value = totalPages
+  historyError.value = ''
 }
 const isBetLocked = computed(() => {
   if (!currentPeriod.value) return true
@@ -450,32 +529,29 @@ const isBetLocked = computed(() => {
 })
 const canBet = computed(() => canPlay.value && !isBetLocked.value)
 
-const remainingSeconds = computed(() => {
-  const drawAt = currentPeriod.value?.draw_at
-  if (!drawAt) return 0
-  const drawMs = new Date(String(drawAt).substring(0, 19).replace(' ', 'T')).getTime()
-  if (!Number.isFinite(drawMs) || drawMs <= 0) return 0
-  return Math.max(0, Math.floor((drawMs - syncedNow.value) / 1000))
+const rawRemainingSeconds = computed(() => {
+  const targetMs = activeCountdownTargetMs.value
+  if (!Number.isFinite(targetMs) || targetMs <= 0) return 0
+  return Math.max(0, Math.ceil((targetMs - syncedNow.value) / 1000))
+})
+const remainingSeconds = computed(() => stableRemainingSeconds.value)
+const currentPeriodKey = computed(() => {
+  if (!currentPeriod.value) return ''
+  const id = Number(currentPeriod.value.id ?? 0)
+  if (Number.isFinite(id) && id > 0) return `id:${id}`
+  const periodNo = String(currentPeriod.value.period_no ?? '').trim()
+  if (periodNo) return `no:${periodNo}`
+  return ''
 })
 
 const closingCountdownSeconds = computed(() => {
-  if (closingCountdownTargetMs.value > 0) {
-    const remaining = Math.max(0, Math.floor((closingCountdownTargetMs.value - syncedNow.value) / 1000))
-    if (remaining <= 5) return remaining
-  }
-  if (currentPeriod.value?.status?.toUpperCase() === 'OPEN' && remainingSeconds.value <= 5) {
-    return remainingSeconds.value
-  }
-  return 0
+  const status = String(currentPeriod.value?.status ?? '').toUpperCase()
+  if (!['OPEN', 'LOCKED'].includes(status)) return 0
+  return remainingSeconds.value > 0 && remainingSeconds.value <= 5 ? remainingSeconds.value : 0
 })
 
 const showClosingCountdownOverlay = computed(() => {
-  if (closingCountdownTargetMs.value > 0) {
-    const remaining = Math.max(0, Math.floor((closingCountdownTargetMs.value - syncedNow.value) / 1000))
-    return remaining > 0 && remaining <= 5
-  }
-  const status = currentPeriod.value?.status?.toUpperCase()
-  return status === 'OPEN' && remainingSeconds.value > 0 && remainingSeconds.value <= 5
+  return closingCountdownSeconds.value > 0
 })
 
 const countdownParts = computed(() => {
@@ -502,10 +578,7 @@ const roomStatusLabel = computed(() => {
   return 'Chưa cập nhật'
 })
 
-const stakeAmount = computed(() => String(modalBetAmount.value))
-const stakeLabel = computed(() => formatMoney(modalBetAmount.value))
-const currentBalanceLabel = computed(() => formatMoney(walletVnd.value?.balance ?? 0))
-const lockedBalanceLabel = computed(() => formatMoney(walletVnd.value?.locked_balance ?? 0))
+const currentBalanceLabel = computed(() => formatMoney(availableVndBalance.value))
 
 const recentResults = computed(() => roomState.value?.recent_results?.slice(0, 5) ?? [])
 const chartSeries = computed(() =>
@@ -519,11 +592,6 @@ const chartSeries = computed(() =>
   })),
 )
 const chartMaxValue = computed(() => Math.max(1, ...chartSeries.value.map((row) => row.value)))
-const periodHistory = computed(() => {
-  if (activeHistoryTab.value === 'mine') return mineRows.value
-  return historyRows.value
-})
-
 // K3 sub-tabs: get unique subTab labels from betGroups
 const k3SubTabs = computed(() => {
   if (!isK3.value || !selectedVariant.value) return []
@@ -612,6 +680,40 @@ function wingoNumberTextStyle(n: number) {
 
 function formatMoney(value: string | number | null | undefined, fractionDigits = 0) {
   return formatViMoney(value ?? 0, fractionDigits)
+}
+
+function parseServerTimeMs(value: string | null | undefined) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return 0
+  const normalized = raw.includes(' ') && !raw.includes('T')
+    ? raw.replace(' ', 'T')
+    : raw
+  const parsed = new Date(normalized).getTime()
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function parsePeriodTimeMs(value: string | null | undefined) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return 0
+  const normalized = raw.includes(' ') && !raw.includes('T')
+    ? raw.replace(' ', 'T')
+    : raw
+  const wallClockMatch = normalized.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/)
+  const candidate = wallClockMatch?.[1] ?? normalized
+  const parsed = new Date(candidate).getTime()
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function formatVietnamTime(value: string | null | undefined, withSeconds = true) {
+  const ms = parseServerTimeMs(value)
+  if (!ms) return '—'
+  const formatter = new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(withSeconds ? { second: '2-digit' } : {}),
+  })
+  return formatter.format(new Date(ms))
 }
 
 function formatSignedMoney(value: string | number | null | undefined) {
@@ -725,22 +827,11 @@ function currentPage() {
   return activeHistoryTab.value === 'mine' ? minePage.value : historyPage.value
 }
 
-function currentTotalPages() {
-  return activeHistoryTab.value === 'mine' ? mineTotalPages.value : historyTotalPages.value
-}
-
-function setCurrentPage(page: number) {
-  if (activeHistoryTab.value === 'mine') {
-    minePage.value = page
-    return
-  }
-  historyPage.value = page
-}
-
 async function handleHistoryPageChange(page: number) {
   if (activeHistoryTab.value === 'mine') {
+    // All data is in WebSocket cache, just update UI pagination
     minePage.value = page
-    await loadMineHistory(page)
+    updateMineRowsFromCache(page)
     return
   }
   if (activeHistoryTab.value === 'history') {
@@ -761,27 +852,57 @@ function ensureDefaultSelections(variant: PlayVariant | null) {
 
 async function loadWallet() {
   if (!auth.isAuthenticated) return
-  try {
-    await wallet.fetchSummary()
-  } catch {
-    // state already stores the error
+  wallet.connectStream()
+
+  // Wait briefly for the first SSE snapshot when caller needs fresh balance now.
+  let attempts = 0
+  while (!wallet.wallets.length && attempts < 20) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    attempts += 1
   }
 }
 
 function applyServerClock(serverTime: string, requestMidpoint = Date.now()) {
-  const serverTimeMs = new Date(serverTime).getTime()
+  const serverTimeMs = parseServerTimeMs(serverTime)
   if (!Number.isFinite(serverTimeMs) || serverTimeMs <= 0) return
-  
-  const newOffset = serverTimeMs - requestMidpoint
-  const drift = Math.abs(newOffset - serverTimeOffsetMs.value)
-  
-  // Log drift for debugging (can be removed in production)
-  if (drift > 100) {
-    console.log(`[Clock Sync] Drift detected: ${drift}ms. Adjusting offset to: ${newOffset}ms`)
+
+  const hasAnchor = serverClockAnchorMs.value > 0 && localClockAnchorMs.value > 0
+  if (!hasAnchor) {
+    serverClockAnchorMs.value = serverTimeMs
+    localClockAnchorMs.value = requestMidpoint
+    clockTick.value = Date.now()
+    return
   }
-  
-  serverTimeOffsetMs.value = newOffset
+
+  const estimated = estimatedServerNowAt(requestMidpoint)
+  if (!estimated) {
+    serverClockAnchorMs.value = serverTimeMs
+    localClockAnchorMs.value = requestMidpoint
+    clockTick.value = Date.now()
+    return
+  }
+
+  const drift = serverTimeMs - estimated
+  const absDrift = Math.abs(drift)
+  if (absDrift <= 120) {
+    return
+  }
+
+  if (absDrift < 1200) {
+    serverClockAnchorMs.value += drift * 0.28
+    localClockAnchorMs.value = requestMidpoint
+    clockTick.value = Date.now()
+    return
+  }
+
+  serverClockAnchorMs.value = serverTimeMs
+  localClockAnchorMs.value = requestMidpoint
   clockTick.value = Date.now()
+}
+
+function estimatedServerNowAt(localMs: number) {
+  if (serverClockAnchorMs.value <= 0 || localClockAnchorMs.value <= 0) return 0
+  return serverClockAnchorMs.value + Math.max(0, localMs - localClockAnchorMs.value)
 }
 
 async function applyRoomStateResponse(
@@ -808,6 +929,8 @@ async function applyRoomStateResponse(
   const shouldRebaseClock = options.forceRebaseClock || !roomState.value || previousPeriodNo !== nextPeriodNo
 
   roomState.value = response
+  chartRows.value = response.recent_results.slice(0, 24)
+  chartError.value = ''
   saveRoomStateCache(selectedRoomCode.value, response)
 
   // Luôn tính midpoint chính xác dù có rebase hay không
@@ -820,33 +943,63 @@ async function applyRoomStateResponse(
     applyServerClock(response.server_time, midpoint)
   } else {
     // Kể cả khi không rebase (WS update), vẫn resync nếu lệch > 1s
-    const serverMs = new Date(response.server_time).getTime()
+    const serverMs = parseServerTimeMs(response.server_time)
     if (Number.isFinite(serverMs) && serverMs > 0) {
-      const drift = Math.abs((serverMs - midpoint) - serverTimeOffsetMs.value)
+      const estimatedServerMs = estimatedServerNowAt(midpoint)
+      const drift = estimatedServerMs > 0
+        ? Math.abs(serverMs - estimatedServerMs)
+        : Number.POSITIVE_INFINITY
       if (drift > 1000) {
         applyServerClock(response.server_time, midpoint)
       }
     }
   }
 
-  const serverNowMs = Number(new Date(response.server_time).getTime())
+  const serverNowMs = parseServerTimeMs(response.server_time)
   const stableNowMs = Number.isFinite(serverNowMs) && serverNowMs > 0 ? serverNowMs : syncedNow.value
-  syncCountdownTarget(response.current_period, stableNowMs, shouldRebaseClock, selectedRoomCode.value)
+  syncCountdownTarget(response.current_period, stableNowMs, shouldRebaseClock)
+  logRealtimeEvent('room.state.applied', {
+    roomCode: responseRoomCode,
+    previousPeriodNo,
+    nextPeriodNo,
+    status: String(response.current_period?.status ?? ''),
+    shouldRebaseClock,
+  })
   await maybeShowSettlementModal(previousPeriod, response.current_period)
 
+  // Tự động cập nhật bảng lịch sử game nếu đang ở trang 1
+  if (historyPage.value === 1) {
+    if (previousPeriodNo && previousPeriodNo !== nextPeriodNo) {
+        // Có sự chuyển kỳ, tải lại lịch sử mới nhất từ Server qua WS
+        setTimeout(() => {
+          loadRoomHistory(1)
+          refreshRealtimeSlices({ mine: true }) // Làm mới lịch sử cá nhân khi sang kỳ mới
+        }, 400);
+    } else {
+        // Chỉ cập nhật từ mảng snapshot nếu không có sự thay đổi kỳ (vẫn trong cùng 1 kỳ nhưng có update kết quả)
+        applyHistoryFromRecentResults(1)
+    }
+  }
+
   const nextStatus = String(response.current_period?.status ?? '').toUpperCase()
+  if (nextStatus === 'SETTLED') {
+      void refreshRealtimeSlices({ mine: true, history: true, wallet: true, reason: 'period_settled' })
+  }
+  
+  await maybeShowSettlementModal(previousPeriod, response.current_period)
+
   if (previousPeriodNo && previousPeriodNo !== nextPeriodNo && ['OPEN', 'LOCKED', 'DRAWN', 'SETTLED'].includes(nextStatus)) {
     scheduleRoomStateReconcile(selectedRoomCode.value, 650)
   }
-  if (previousPeriodNo && previousPeriodNo !== nextPeriodNo && nextStatus === 'SETTLED') {
-    if (activeHistoryTab.value === 'chart') {
-      void loadChartHistory()
-    } else if (activeHistoryTab.value === 'history') {
-      void loadRoomHistory(1)
-    } else if (activeHistoryTab.value === 'mine') {
-      void loadMineHistory(1)
-    }
+  if (previousPeriodNo && previousPeriodNo !== nextPeriodNo) {
+    logRealtimeEvent('period.transition', {
+      roomCode: selectedRoomCode.value,
+      previousPeriodNo,
+      nextPeriodNo,
+    })
   }
+
+  resolvePendingSettlementModalFromMineRows()
 }
 
 function disconnectRoomStateStream() {
@@ -854,8 +1007,53 @@ function disconnectRoomStateStream() {
     window.clearTimeout(roomStreamReconnectTimer)
     roomStreamReconnectTimer = undefined
   }
+  for (const pending of pendingRoomHistoryRequests.values()) {
+    clearTimeout(pending.timeout)
+    pending.reject(new Error('Kết nối realtime phòng chơi đã ngắt.'))
+  }
+  pendingRoomHistoryRequests.clear()
   roomStreamConnection?.close()
   roomStreamConnection = null
+}
+
+function requestRoomStateSnapshot(roomCode = selectedRoomCode.value) {
+  if (!roomCode) return
+  if (!roomStreamConnection || roomStreamConnection.readyState !== WebSocket.OPEN) return
+  try {
+    roomStreamConnection.send(JSON.stringify({ action: 'request_state' }))
+  } catch {
+    // ignore request_state send failures
+  }
+}
+
+function requestRoomHistoryViaWS(page: number, pageSize = tablePageSize): Promise<PlayRoomHistoryResponse> {
+  const normalizedPage = Math.max(1, Math.floor(page))
+  const normalizedPageSize = Math.max(1, Math.floor(pageSize))
+  if (!roomStreamConnection || roomStreamConnection.readyState !== WebSocket.OPEN) {
+    return Promise.reject(new Error('Kết nối realtime chưa sẵn sàng để tải lịch sử.'))
+  }
+
+  const requestId = globalThis.crypto?.randomUUID?.() ?? `history-${Date.now()}-${normalizedPage}`
+  return new Promise<PlayRoomHistoryResponse>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      pendingRoomHistoryRequests.delete(requestId)
+      reject(new Error('Hết thời gian chờ tải lịch sử realtime.'))
+    }, 5000)
+
+    pendingRoomHistoryRequests.set(requestId, { resolve, reject, timeout })
+    try {
+      roomStreamConnection?.send(JSON.stringify({
+        action: 'request_history',
+        request_id: requestId,
+        page: normalizedPage,
+        page_size: normalizedPageSize,
+      }))
+    } catch (error) {
+      pendingRoomHistoryRequests.delete(requestId)
+      clearTimeout(timeout)
+      reject(error instanceof Error ? error : new Error('Không thể gửi yêu cầu lịch sử realtime.'))
+    }
+  })
 }
 
 function disconnectBetsStream() {
@@ -871,9 +1069,16 @@ function buildBetsWSUrl(roomCode: string): string {
     const rawBase = (env.apiBaseUrl || '').trim()
     const baseUrl = new URL(rawBase || window.location.origin, window.location.origin)
     const wsProtocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${wsProtocol}//${baseUrl.host}${endpoint}`
+    const wsUrl = new URL(`${wsProtocol}//${baseUrl.host}${endpoint}`)
+    if (auth.accessToken) {
+      wsUrl.searchParams.set('access_token', auth.accessToken)
+    }
+    return wsUrl.toString()
   } catch {
-    return fallback
+    if (!auth.accessToken) return fallback
+    const wsUrl = new URL(fallback)
+    wsUrl.searchParams.set('access_token', auth.accessToken)
+    return wsUrl.toString()
   }
 }
 
@@ -881,28 +1086,59 @@ function connectBetsStream(roomCode: string): void {
   if (!roomCode || !auth.accessToken) return
   
   disconnectBetsStream()
+  betsStreamHistoryRequested = false
   try {
     const socket = new WebSocket(buildBetsWSUrl(roomCode))
     betsStreamConnection = socket
     
     socket.onopen = () => {
-      // connection established
+      // Request full mine history via WebSocket (instead of REST API)
+      if (!betsStreamHistoryRequested) {
+        betsStreamHistoryRequested = true
+        socket.send(JSON.stringify({ action: 'request_history' }))
+      }
     }
     
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(String(event.data)) as { event?: string; data?: any }
         if (payload.event === 'bets.init') {
-          // Initial bets load
-          if (payload.data?.items) {
-            mineRows.value = payload.data.items
-            minePage.value = payload.data.page ?? 1
-            mineTotalPages.value = payload.data.total_pages ?? 1
-            void resolvePendingSettlementModalFromMineRows()
+          const data = payload.data as PlayRoomBetHistoryResponse | undefined
+          if (data?.items && Array.isArray(data.items)) {
+            mineRowsCached.length = 0
+            mineRowsCached.push(...data.items)
+            mineTotalPages.value = Math.max(1, Number(data.total_pages ?? Math.ceil(mineRowsCached.length / tablePageSize)))
+            updateMineRowsFromCache(minePage.value)
+            mineError.value = ''
+            mineLoading.value = false
           }
+        } else if (payload.event === 'bets.history_chunk') {
+          // Receive paginated history chunks from server
+          if (payload.data?.items && Array.isArray(payload.data.items)) {
+            // Add new bets to cache (avoid duplicates by period_no)
+            for (const bet of payload.data.items) {
+              if (!mineRowsCached.find((b) => b.period_no === bet.period_no)) {
+                mineRowsCached.push(bet)
+              }
+            }
+            // Update UI with current page from cache
+            updateMineRowsFromCache(minePage.value)
+            mineTotalPages.value = Math.max(1, Math.ceil(mineRowsCached.length / tablePageSize))
+            mineError.value = ''
+            mineLoading.value = false
+          }
+        } else if (payload.event === 'bets.history_complete') {
+          // History stream finished
+          logRealtimeEvent('bets.history_complete', { totalBets: mineRowsCached.length })
+          void resolvePendingSettlementModalFromMineRows()
         } else if (payload.event === 'bets.updated') {
-          // Bets were updated (settled), reload them
-          void loadMineHistory(1)
+          logRealtimeEvent('bets.updated', { roomCode })
+          // Khi có cập nhật cược (chốt kết quả), yêu cầu Server gửi lại lịch sử mới nhất
+          if (betsStreamConnection && betsStreamConnection.readyState === WebSocket.OPEN) {
+            mineRowsCached.length = 0 // Xóa cache cũ để nhận data mới
+            betsStreamConnection.send(JSON.stringify({ action: 'request_history' }))
+          }
+          wallet.connectStream()
         }
       } catch {
         // ignore malformed ws payload
@@ -921,6 +1157,14 @@ function connectBetsStream(roomCode: string): void {
   }
 }
 
+function updateMineRowsFromCache(page: number) {
+  const normalized = Math.max(1, Math.floor(page))
+  const start = (normalized - 1) * tablePageSize
+  const end = start + tablePageSize
+  mineRows.value = mineRowsCached.slice(start, end)
+  minePage.value = normalized
+}
+
 function buildRoomWSUrl(roomCode: string): string {
   const endpoint = `/v1/play/rooms/${roomCode}/ws`
   const fallbackProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -929,9 +1173,16 @@ function buildRoomWSUrl(roomCode: string): string {
     const rawBase = (env.apiBaseUrl || '').trim()
     const baseUrl = new URL(rawBase || window.location.origin, window.location.origin)
     const wsProtocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${wsProtocol}//${baseUrl.host}${endpoint}`
+    const wsUrl = new URL(`${wsProtocol}//${baseUrl.host}${endpoint}`)
+    if (auth.accessToken) {
+      wsUrl.searchParams.set('access_token', auth.accessToken)
+    }
+    return wsUrl.toString()
   } catch {
-    return fallback
+    if (!auth.accessToken) return fallback
+    const wsUrl = new URL(fallback)
+    wsUrl.searchParams.set('access_token', auth.accessToken)
+    return wsUrl.toString()
   }
 }
 
@@ -953,6 +1204,11 @@ function connectRoomStateStream(roomCode: string) {
     roomStreamConnection = socket
     socket.onopen = () => {
       roomStateError.value = ''
+      // Request initial room state via WebSocket instead of REST API
+      socket.send(JSON.stringify({ action: 'request_state' }))
+      if (activeHistoryTab.value === 'history') {
+        void loadRoomHistory(historyPage.value || 1)
+      }
     }
 
     socket.onmessage = (event) => {
@@ -966,7 +1222,71 @@ function connectRoomStateStream(roomCode: string) {
         if (payload.event === 'room.state') {
           if (!isCurrentRoomStateGeneration(generation, roomCode)) return
           roomStateError.value = ''
-          void applyRoomStateResponse(payload.data as PlayRoomStateResponse, { roomCode, generation })
+          roomStateLoading.value = false
+          void applyRoomStateResponse(payload.data as PlayRoomStateResponse, { roomCode, generation, forceRebaseClock: !roomState.value })
+          return
+        }
+        if (payload.event === 'history.page') {
+          const requestId = String(payload.data?.request_id ?? '')
+          const response = payload.data as PlayRoomHistoryResponse
+          if (requestId && pendingRoomHistoryRequests.has(requestId)) {
+            const pending = pendingRoomHistoryRequests.get(requestId)
+            if (pending) {
+              clearTimeout(pending.timeout)
+              pendingRoomHistoryRequests.delete(requestId)
+              pending.resolve(response)
+            }
+          }
+          return
+        }
+        if (payload.event === 'history.error') {
+          const requestId = String(payload.data?.request_id ?? '')
+          const message = String(payload.data?.message ?? 'Không thể tải lịch sử realtime')
+          if (requestId && pendingRoomHistoryRequests.has(requestId)) {
+            const pending = pendingRoomHistoryRequests.get(requestId)
+            if (pending) {
+              clearTimeout(pending.timeout)
+              pendingRoomHistoryRequests.delete(requestId)
+              pending.reject(new Error(message))
+            }
+          }
+          return
+        }
+        if (payload.event === 'bet.placed') {
+          // Handle bet placement response from WebSocket
+          const requestId = String(payload.data?.request_id ?? '')
+          logRealtimeEvent('bet.ws.event.placed', {
+            roomCode,
+            requestId,
+            payload: payload.data,
+          })
+          if (requestId && pendingBetRequests.has(requestId)) {
+            const pending = pendingBetRequests.get(requestId)
+            if (pending) {
+              clearTimeout(pending.timeout)
+              pendingBetRequests.delete(requestId)
+              pending.resolve(payload.data)
+            }
+          }
+          return
+        }
+        if (payload.event === 'bet.error') {
+          // Handle bet placement error from WebSocket
+          const requestId = String(payload.data?.request_id ?? '')
+          logRealtimeEvent('bet.ws.event.error', {
+            roomCode,
+            requestId,
+            payload: payload.data,
+          })
+          if (requestId && pendingBetRequests.has(requestId)) {
+            const pending = pendingBetRequests.get(requestId)
+            if (pending) {
+              clearTimeout(pending.timeout)
+              pendingBetRequests.delete(requestId)
+              pending.reject(new Error(payload.data?.message ?? 'Lỗi khi đặt lệnh'))
+            }
+          }
+          return
         }
       } catch {
         // ignore malformed ws payload
@@ -987,52 +1307,19 @@ function connectRoomStateStream(roomCode: string) {
   }
 }
 
-async function loadRoomState(roomCode = selectedRoomCode.value) {
-  if (!roomCode) return
-  const generation = roomStateGeneration
-  roomStateLoading.value = true
-  roomStateError.value = ''
-  try {
-    const startedAt = Date.now()
-    const response = await request<PlayRoomStateResponse>('GET', `/v1/play/rooms/${roomCode}/state`)
-    const finishedAt = Date.now()
-    if (!isCurrentRoomStateGeneration(generation, roomCode)) return
-    await applyRoomStateResponse(response, {
-      requestStartedAt: startedAt,
-      requestFinishedAt: finishedAt,
-      roomCode,
-      generation,
-    })
-  } catch (error: unknown) {
-    if (!isCurrentRoomStateGeneration(generation, roomCode)) return
-    const err = error as ApiError
-    const hasCache = !!loadRoomStateCache(roomCode)
-    roomStateError.value = hasCache ? '' : (err?.message ?? 'Không thể tải trạng thái phòng chơi')
-    if (!hasCache) {
-      roomState.value = null
-      countdownTargetMs.value = 0
-      countdownTargetPeriodNo.value = ''
-    }
-  } finally {
-    roomStateLoading.value = false
-  }
-}
-
 async function loadRoomHistory(page = historyPage.value) {
   if (!selectedRoomCode.value) return
+
   historyLoading.value = true
   historyError.value = ''
   try {
-    const response = await request<PlayRoomHistoryResponse>(
-      'GET',
-      `/v1/play/rooms/${selectedRoomCode.value}/history?page=${page}&page_size=${tablePageSize}`,
-      {},
-    )
+    logRealtimeEvent('history.fetch.ws', { page })
+    const response = await requestRoomHistoryViaWS(page, tablePageSize)
     historyRows.value = response.items
     historyPage.value = response.page
     historyTotalPages.value = response.total_pages
   } catch (error: unknown) {
-    const err = error as ApiError
+    const err = error as Error
     historyError.value = err?.message ?? 'Không thể tải lịch sử game'
     historyRows.value = []
   } finally {
@@ -1042,9 +1329,20 @@ async function loadRoomHistory(page = historyPage.value) {
 
 async function loadChartHistory() {
   if (!selectedRoomCode.value) return
+
+  // Chart history is included in roomState loaded via WebSocket
+  if (roomState.value?.recent_results?.length) {
+    chartRows.value = roomState.value.recent_results.slice(0, 24)
+    chartError.value = ''
+    chartLoading.value = false
+    return
+  }
+  
+  // Fallback to REST API if WebSocket hasn't delivered yet
   chartLoading.value = true
   chartError.value = ''
   try {
+    logRealtimeEvent('chart.fallback', { reason: 'no_room_state' })
     const response = await request<PlayRoomHistoryResponse>(
       'GET',
       `/v1/play/rooms/${selectedRoomCode.value}/history?page=1&page_size=24`,
@@ -1060,48 +1358,61 @@ async function loadChartHistory() {
   }
 }
 
-async function loadMineHistory(page = minePage.value) {
-  const response = await fetchMineHistoryPage(page)
-  if (!response) return
-  mineRows.value = response.items
-  minePage.value = response.page
-  mineTotalPages.value = response.total_pages
-  void resolvePendingSettlementModalFromMineRows()
-}
-
-async function fetchMineHistoryPage(page: number): Promise<PlayRoomBetHistoryResponse | null> {
-  if (!selectedRoomCode.value || !auth.accessToken) return null
+async function loadMineHistory(page = minePage.value, options: { force?: boolean } = {}) {
   const normalizedPage = Math.max(1, Math.floor(page))
-  const existingPromise = mineHistoryRequestPromises.get(normalizedPage)
-  if (existingPromise) {
-    await existingPromise
-    return null
+  
+  // All mine history is now streamed via WebSocket into mineRowsCached
+  // Just update the displayed rows from cache (client-side pagination)
+  if (mineRowsCached.length > 0) {
+    updateMineRowsFromCache(normalizedPage)
+    return
   }
-
-  mineHistoryPendingRequests += 1
+  
+  // If cache is empty, wait a bit for WebSocket to deliver history
+  // (should happen automatically when connection opens)
   mineLoading.value = true
   mineError.value = ''
+  
+  // Wait up to 3 seconds for WebSocket to provide data
+  let attempts = 0
+  while (mineRowsCached.length === 0 && attempts < 30) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    attempts += 1
+  }
+  
+  if (mineRowsCached.length > 0) {
+    updateMineRowsFromCache(normalizedPage)
+    mineLoading.value = false
+    return
+  }
 
-  const promise: Promise<PlayRoomBetHistoryResponse | null> = (async () => {
-    try {
-      return await request<PlayRoomBetHistoryResponse>(
-        'GET',
-        `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${normalizedPage}&page_size=${tablePageSize}`,
-        { token: auth.accessToken },
-      )
-    } catch (error: unknown) {
-      const err = error as ApiError
-      mineError.value = err?.message ?? 'Không thể tải lịch sử cược'
-      return null
-    } finally {
-      mineHistoryRequestPromises.delete(normalizedPage)
-      mineHistoryPendingRequests = Math.max(0, mineHistoryPendingRequests - 1)
-      mineLoading.value = mineHistoryPendingRequests > 0
-    }
-  })()
+  // Controlled REST fallback for WS cold start.
+  const now = Date.now()
+  if (!options.force && now - mineHistoryRestFallbackAt < 2500) {
+    mineError.value = 'Không thể tải lịch sử cược'
+    mineRows.value = []
+    mineLoading.value = false
+    return
+  }
 
-  mineHistoryRequestPromises.set(normalizedPage, promise)
-  return promise
+  mineHistoryRestFallbackAt = now
+  try {
+    const response = await request<PlayRoomBetHistoryResponse>(
+      'GET',
+      `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${normalizedPage}&page_size=${tablePageSize}`,
+      { token: auth.accessToken },
+    )
+    mineRows.value = response.items
+    minePage.value = response.page
+    mineTotalPages.value = response.total_pages
+    mineError.value = ''
+  } catch (error: unknown) {
+    const err = error as ApiError
+    mineError.value = err?.message ?? 'Không thể tải lịch sử cược'
+    mineRows.value = []
+  }
+  
+  mineLoading.value = false
 }
 
 async function maybeShowSettlementModal(
@@ -1109,105 +1420,46 @@ async function maybeShowSettlementModal(
   nextPeriod: PlayRoomStateResponse['current_period'] | null,
 ) {
   if (!nextPeriod || !auth.accessToken) return
+  
+  // Tránh hiện liên tục cho cùng một kỳ đã chốt
+  if (nextPeriod.status === 'SETTLED' && lastSettledPeriodId.value === nextPeriod.id) {
+    return
+  }
 
   const nextPeriodNo = nextPeriod.period_no
   const isTransition = nextPeriodNo && previousPeriod && previousPeriod.period_no !== nextPeriodNo
   const isManualSettled = String(nextPeriod.status ?? '').toUpperCase() === 'SETTLED'
 
   const targetPeriodNo = isTransition ? previousPeriod.period_no : isManualSettled ? nextPeriodNo : ''
-  const settlementKey = `${selectedRoomCode.value}:${targetPeriodNo}`
+  const settlementKey = settlementKeyFor(selectedRoomCode.value, targetPeriodNo)
 
-  if (!targetPeriodNo || seenSettlementPeriods.has(settlementKey) || pendingSettlementChecks.has(settlementKey) || settlementChecksInFlight.has(settlementKey)) {
+  if (!targetPeriodNo || seenSettlementPeriods.has(settlementKey)) {
     return
   }
 
   settlementTargets.set(settlementKey, targetPeriodNo)
-  await runSettlementModalCheck(targetPeriodNo, settlementKey)
+  
+  // Thử lại tối đa 4 lần nếu dữ liệu lịch sử chưa về kịp
+  for (let i = 0; i < 4; i++) {
+    const success = resolvePendingSettlementModalFromMineRows()
+    if (success) break
+    
+    // Nếu chưa thấy kết quả, ép Server gửi lại lịch sử ngay
+    if (i === 1) {
+       void refreshRealtimeSlices({ mine: true, wallet: true, reason: 'settlement_retry' })
+    }
+    await new Promise(r => setTimeout(r, 1000))
+  }
 }
 
 function clearSettlementRetry(settlementKey: string) {
-  const timerId = pendingSettlementChecks.get(settlementKey)
-  if (timerId) {
-    window.clearTimeout(timerId)
-  }
-  pendingSettlementChecks.delete(settlementKey)
-  settlementRetryAttempts.delete(settlementKey)
-}
-
-async function runSettlementModalCheck(targetPeriodNo: string, settlementKey: string) {
-  if (!targetPeriodNo || seenSettlementPeriods.has(settlementKey)) return
-
-  if (settlementChecksInFlight.has(settlementKey)) return
-  settlementChecksInFlight.add(settlementKey)
-  clearSettlementRetry(settlementKey)
-
-  try {
-    const foundRow = await findSettledBetRowByPeriod(targetPeriodNo)
-    if (!foundRow) {
-      scheduleSettlementModalRetry(targetPeriodNo, settlementKey)
-      return
-    }
-
-    if (checkAndShowSettlementForRow(foundRow)) {
-      seenSettlementPeriods.add(settlementKey)
-      clearSettlementRetry(settlementKey)
-      return
-    }
-
-    scheduleSettlementModalRetry(targetPeriodNo, settlementKey)
-  } finally {
-    settlementChecksInFlight.delete(settlementKey)
-  }
-}
-
-function scheduleSettlementModalRetry(targetPeriodNo: string, settlementKey: string) {
-  const attempts = (settlementRetryAttempts.get(settlementKey) ?? 0) + 1
-  if (attempts > 6) {
-    settlementRetryAttempts.delete(settlementKey)
-    return
-  }
-  settlementRetryAttempts.set(settlementKey, attempts)
-
-  const existingTimer = pendingSettlementChecks.get(settlementKey)
-  if (existingTimer) {
-    window.clearTimeout(existingTimer)
-  }
-
-  const timerId = window.setTimeout(() => {
-    if (seenSettlementPeriods.has(settlementKey)) {
-      clearSettlementRetry(settlementKey)
-      return
-    }
-    void runSettlementModalCheck(targetPeriodNo, settlementKey)
-  }, 700)
-  pendingSettlementChecks.set(settlementKey, timerId)
-}
-
-async function findSettledBetRowByPeriod(targetPeriodNo: string) {
-  const target = String(targetPeriodNo)
-  const maxPagesToScan = 10
-
-  for (let page = 1; page <= maxPagesToScan; page += 1) {
-    const response = await fetchMineHistoryPage(page)
-    if (!response) continue
-
-    const found = response.items.find((row) => String(row.period_no) === target)
-    if (found) {
-      mineRows.value = response.items
-      minePage.value = response.page
-      mineTotalPages.value = response.total_pages
-      return found
-    }
-
-    if (page >= response.total_pages) break
-  }
-
-  return null
+  settlementTargets.delete(settlementKey)
 }
 
 function resolvePendingSettlementModalFromMineRows() {
-  if (!settlementTargets.size || !mineRows.value.length) return
+  if (!settlementTargets.size || !mineRows.value.length) return false
 
+  let anySuccess = false
   for (const [settlementKey, targetPeriodNo] of settlementTargets.entries()) {
     if (!targetPeriodNo) {
       settlementTargets.delete(settlementKey)
@@ -1220,76 +1472,126 @@ function resolvePendingSettlementModalFromMineRows() {
       continue
     }
 
-    const foundRow = mineRows.value.find((row) => String(row.period_no) === String(targetPeriodNo))
-    if (!foundRow) continue
-
-    if (checkAndShowSettlementForRow(foundRow)) {
+    if (checkAndShowSettlementForPeriod(targetPeriodNo)) {
       clearSettlementRetry(settlementKey)
       settlementTargets.delete(settlementKey)
+      anySuccess = true
       continue
     }
   }
+  return anySuccess
 }
 
-function checkAndShowSettlementForRow(settledRow: PlayRoomBetHistoryResponse['items'][number]): boolean {
-  if (!settledRow) return false
-
-  const status = String(settledRow.status ?? '').toUpperCase()
-  const isFinalStatus = ['WON', 'LOST', 'VOID', 'HALF_WON', 'HALF_LOST', 'CANCELED', 'CASHED_OUT'].includes(status)
-
-  if (!isFinalStatus) return false // Still pending
-
-  // Show result modal
-  const settlementKey = `${selectedRoomCode.value}:${settledRow.period_no}`
-  seenSettlementPeriods.add(settlementKey)
-  void wallet.fetchSummary().catch(() => {
-    // ignore wallet refresh error
+function checkAndShowSettlementForPeriod(periodNo: string): boolean {
+  if (!periodNo) return false
+  
+  // Tìm tất cả các vé của kỳ này
+  const matches = mineRows.value.filter(row => String(row.period_no) === String(periodNo))
+  if (matches.length === 0) return false
+  
+  // Kiểm tra xem tất cả các vé đã có kết quả chưa
+  const allSettled = matches.every(row => {
+    const status = String(row.status ?? '').toUpperCase()
+    return ['WON', 'LOST', 'VOID', 'HALF_WON', 'HALF_LOST', 'CANCELED', 'CASHED_OUT'].includes(status)
   })
+  
+  if (!allSettled) return false // Vẫn còn vé đang chờ xử lý
+
+  // Tổng hợp dữ liệu
+  let totalStake = 0
+  let totalPayout = 0
+  let latestSettledAt = ''
+  let latestPeriodId = 0
+
+  matches.forEach(row => {
+    totalStake += rowOriginalAmountValue(row)
+    totalPayout += rowWinCreditValue(row)
+    if (row.settled_at && (!latestSettledAt || row.settled_at > latestSettledAt)) {
+      latestSettledAt = row.settled_at
+    }
+    if (row.period_id) latestPeriodId = row.period_id
+  })
+
+  const profitLoss = totalPayout - totalStake
+  const status = profitLoss > 0 ? 'WON' : profitLoss < 0 ? 'LOST' : 'DRAW'
+
+  // Hiển thị modal tổng kết
+  const settlementKey = settlementKeyFor(selectedRoomCode.value, periodNo)
+  markSettlementHandled(selectedRoomCode.value, periodNo)
+  
+  logRealtimeEvent('settlement.summary.modal', {
+    roomCode: selectedRoomCode.value,
+    periodNo,
+    totalTickets: matches.length,
+    totalStake,
+    totalPayout,
+    profitLoss
+  })
+
+  wallet.connectStream()
   clearSettlementRetry(settlementKey)
-  resultModalPeriodNo.value = settledRow.period_no
-  resultModalTitle.value = status === 'WON' ? 'Chúc mừng! Bạn đã thắng' : 'Kết quả kỳ xổ'
-  resultModalDescription.value = status === 'WON'
-    ? 'Tiền thắng đã được cộng vào số dư ví của bạn.'
-    : status === 'LOST'
-      ? 'Rất tiếc, lệnh cược của bạn chưa may mắn kỳ này.'
-      : 'Trạng thái lệnh cược đã được cập nhật.'
+  
+  resultModalPeriodNo.value = periodNo
+  resultModalTitle.value = profitLoss > 0 ? 'Chúc mừng! Kỳ quay có lãi' : 
+                           profitLoss < 0 ? 'Kết quả kỳ quay (Chưa may mắn)' : 'Kết quả kỳ quay (Hòa vốn)'
+  
+  resultModalDescription.value = profitLoss > 0 
+    ? `Bạn đã thắng tổng cộng ${matches.length} vé trong kỳ này.`
+    : `Tổng hợp kết quả của ${matches.length} vé cược trong kỳ.`
 
-  resultModalTone.value = status === 'WON' ? 'win' : status === 'LOST' ? 'lose' : 'draw'
-  resultModalStake.value = formatMoney(rowOriginalAmountValue(settledRow))
-  resultModalPayout.value = formatMoney(rowWinCreditValue(settledRow))
-
-  if (status === 'WON') {
-    resultModalAmount.value = `+${formatMoney(rowWinCreditValue(settledRow))}đ`
-  } else if (status === 'LOST') {
-    resultModalAmount.value = `-${formatMoney(rowOriginalAmountValue(settledRow))}đ`
-  } else {
-    resultModalAmount.value = formatSignedMoney(rowProfitLossValue(settledRow))
-  }
-
-  resultModalSettledAt.value = settledRow.settled_at ?? settledRow.created_at
+  resultModalTone.value = profitLoss > 0 ? 'win' : profitLoss < 0 ? 'lose' : 'draw'
+  resultModalStake.value = formatMoney(totalStake)
+  resultModalPayout.value = formatMoney(totalPayout)
+  resultModalAmount.value = formatSignedMoney(profitLoss)
+  
+  resultModalSettledAt.value = formatLocalTime(latestSettledAt || matches[0]?.created_at)
   showResultModal.value = true
-  settlementTargets.delete(settlementKey)
+  if (latestPeriodId) lastSettledPeriodId.value = latestPeriodId
+  
   return true
+}
+
+function formatLocalTime(isoString?: string | null) {
+  if (!isoString) return new Date().toLocaleTimeString('vi-VN', { hour12: false })
+  try {
+    const d = new Date(isoString)
+    // Nếu isoString không có chỉ thị muối giờ, coi như là UTC
+    if (!isoString.includes('Z') && !isoString.includes('+')) {
+      const utcDate = new Date(isoString + 'Z')
+      if (!isNaN(utcDate.getTime())) return utcDate.toLocaleTimeString('vi-VN', { hour12: false })
+    }
+    return d.toLocaleTimeString('vi-VN', { hour12: false })
+  } catch (e) {
+    return isoString
+  }
 }
 
 async function loadActiveHistory(page = currentPage()) {
   if (activeHistoryTab.value === 'mine') {
-    await loadMineHistory(page)
+    // Only load if empty or different page
+    if (!mineRows.value.length || minePage.value !== page) {
+      await loadMineHistory(page)
+    }
     return
   }
   if (activeHistoryTab.value === 'chart') {
-    await loadChartHistory()
+    if (!chartRows.value.length) {
+      await loadChartHistory()
+    }
     return
   }
-  await loadRoomHistory(page)
+  if (!historyRows.value.length) {
+    await loadRoomHistory(page)
+  }
 }
 
 async function joinRoom() {
-  if (!room.value || room.value.status !== 'OPEN' || !auth.accessToken) return
+  if (!room.value || room.value.status !== 'OPEN' || !auth.accessToken) return false
+  if (connectionId.value) return true
   if (!wallet.wallets.length) await loadWallet()
   if (availableVndBalance.value <= 0) {
-    joinError.value = 'Số dư không đủ để vào phòng chơi. Vui lòng nạp tiền.'
-    return
+    joinError.value = 'Số dư khả dụng không đủ để vào phòng chơi.'
+    return false
   }
   joinLoading.value = true
   joinError.value = ''
@@ -1299,12 +1601,34 @@ async function joinRoom() {
       token: auth.accessToken,
     })
     connectionId.value = res.connection_id
+    return true
   } catch (error: unknown) {
     const err = error as ApiError
     joinError.value = err?.message ?? 'Không thể vào phòng'
+    return false
   } finally {
     joinLoading.value = false
   }
+}
+
+function maybeAutoJoinRoom() {
+  if (!room.value || !selectedRoomCode.value || !auth.accessToken) return
+  if (room.value.status !== 'OPEN') return
+  if (connectionId.value || joinLoading.value) return
+  if (availableVndBalance.value <= 0) return
+
+  const attemptKey = `${room.value.code}:${selectedRoomCode.value}`
+  if (autoJoinAttemptKey === attemptKey) return
+  autoJoinAttemptKey = attemptKey
+
+  if (autoJoinTimer) {
+    window.clearTimeout(autoJoinTimer)
+    autoJoinTimer = undefined
+  }
+  autoJoinTimer = window.setTimeout(() => {
+    autoJoinTimer = undefined
+    void joinRoom()
+  }, 120)
 }
 
 function openBetModal(groupTitle: string, optionKey: string, optionLabel: string) {
@@ -1366,8 +1690,56 @@ function groupTypeKey(group: PlayBetGroup): string {
   return 'OPTION'
 }
 
+async function sendBetViaSocket(betPayload: any) {
+  // Ensure room state connection is ready
+  if (!roomStreamConnection || roomStreamConnection.readyState !== WebSocket.OPEN) {
+    logRealtimeEvent('bet.ws.unavailable', {
+      roomCode: selectedRoomCode.value,
+      readyState: roomStreamConnection?.readyState ?? -1,
+    })
+    throw new Error('Kết nối với máy chủ không sẵn sàng. Vui lòng thử lại.')
+  }
+
+  const requestId = betPayload.request_id
+  logRealtimeEvent('bet.ws.send', {
+    roomCode: selectedRoomCode.value,
+    requestId,
+    periodId: String(betPayload.period_id ?? ''),
+    connectionId: String(betPayload.connection_id ?? ''),
+    items: Array.isArray(betPayload.items) ? betPayload.items.length : 0,
+  })
+  return new Promise<any>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      pendingBetRequests.delete(requestId)
+      logRealtimeEvent('bet.ws.timeout', {
+        roomCode: selectedRoomCode.value,
+        requestId,
+      })
+      reject(new Error('Hết thời gian chờ phản hồi từ máy chủ.'))
+    }, 5000) // 5 second timeout
+
+    pendingBetRequests.set(requestId, {
+      resolve,
+      reject,
+      timeout: timeoutId,
+    })
+
+    // Send bet through WebSocket
+    try {
+      roomStreamConnection?.send(JSON.stringify({
+        action: 'place_bet',
+        ...betPayload,
+      }))
+    } catch (error) {
+      pendingBetRequests.delete(requestId)
+      clearTimeout(timeoutId)
+      reject(error)
+    }
+  })
+}
+
 async function confirmBet() {
-  if (!room.value || !selectedVariant.value || !auth.accessToken || !connectionId.value) {
+  if (!room.value || !selectedVariant.value || !auth.accessToken) {
     betMessage.value = 'Vui lòng đăng nhập và vào phòng chơi trước.'
     betMessageRoomCode.value = selectedRoomCode.value
     showBetModal.value = false
@@ -1391,29 +1763,68 @@ async function confirmBet() {
   betMessageRoomCode.value = ''
   showBetModal.value = false
 
+  if (!connectionId.value) {
+    const joined = await joinRoom()
+    if (!joined || !connectionId.value) {
+      betMessage.value = joinError.value || 'Không thể vào phòng chơi lúc này.'
+      betMessageRoomCode.value = selectedRoomCode.value
+      return
+    }
+  }
+
   try {
     const requestId = globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}`
-    const res = await request<PlayRoomBetResponse>('POST', `/v1/play/rooms/${selectedRoomCode.value}/bets`, {
-      token: auth.accessToken,
-      headers: { 'X-Connection-ID': connectionId.value },
-      body: {
-        request_id: requestId,
-        period_id: String(currentPeriod.value.id),
-        items: [{
-          option_type: groupTypeKey({ title: modalBetGroupTitle.value, description: '', mode: 'chips', options: [] }),
-          option_key: modalBetKey.value,
-          stake: String(modalBetAmount.value),
-        }],
-      },
+    logRealtimeEvent('bet.request', {
+      roomCode: selectedRoomCode.value,
+      requestId,
+      connectionId: connectionId.value,
+      periodId: String(currentPeriod.value.id),
+      optionKey: modalBetKey.value,
+      amount: modalBetAmount.value,
+      socketState: roomStreamConnection?.readyState ?? -1,
     })
+    // setPendingWalletDebit(modalBetAmount.value) // Bỏ trừ tiền ảo để tránh hụt 2 lần
     
+    // Send bet through WebSocket instead of REST API
+    const betResponse = await sendBetViaSocket({
+      request_id: requestId,
+      period_id: String(currentPeriod.value.id),
+      connection_id: connectionId.value,
+      items: [{
+        option_type: groupTypeKey({ title: modalBetGroupTitle.value, description: '', mode: 'chips', options: [] }),
+        option_key: modalBetKey.value,
+        stake: String(modalBetAmount.value),
+      }],
+    })
+
     // Explicit success feedback
-    betMessage.value = res.message || 'Lệnh cược đã được hệ thống tiếp nhận thành công!'
+    logRealtimeEvent('bet.response.ok', {
+      roomCode: selectedRoomCode.value,
+      requestId,
+      response: betResponse,
+    })
+    betMessage.value = betResponse?.message || 'Lệnh cược đã được hệ thống tiếp nhận thành công!'
     betMessageRoomCode.value = selectedRoomCode.value
-    
-    // Refresh state immediately
-    void wallet.fetchSummary()
-    void loadMineHistory(1)
+    logRealtimeEvent('bet.placed', {
+      roomCode: selectedRoomCode.value,
+      requestId,
+      amount: modalBetAmount.value,
+      optionKey: modalBetKey.value,
+      periodId: String(currentPeriod.value.id),
+      source: 'websocket',
+    })
+
+    // Refresh state after a tiny delay to ensure DB commit is visible.
+    setTimeout(async () => {
+      await refreshRealtimeSlices({
+        history: false,
+        mine: true, // Force refresh even if not on 'mine' tab yet
+        chart: false,
+        wallet: true,
+        reason: 'bet_placed',
+      })
+      setPendingWalletDebit(0)
+    }, 250);
     
     // Auto clear success message after a few seconds
     setTimeout(() => {
@@ -1424,8 +1835,17 @@ async function confirmBet() {
     
   } catch (error: unknown) {
     const err = error as ApiError
+    logRealtimeEvent('bet.response.error', {
+      roomCode: selectedRoomCode.value,
+      error: err?.message ?? String(error),
+      socketState: roomStreamConnection?.readyState ?? -1,
+      connectionId: connectionId.value,
+      periodId: String(currentPeriod.value?.id ?? ''),
+    })
     betMessage.value = err?.message ?? 'Không thể gửi lệnh cược. Vui lòng thử lại.'
     betMessageRoomCode.value = selectedRoomCode.value
+    setPendingWalletDebit(0)
+    wallet.connectStream()
   } finally {
     betLoading.value = false
   }
@@ -1458,9 +1878,6 @@ function chartBarClass(row: PlayRoomHistoryResponse['items'][number]) {
   return 'bg-slate-400'
 }
 
-function openResultModal() {
-  showResultModal.value = true
-}
 
 function closeResultModal() {
   showResultModal.value = false
@@ -1476,37 +1893,7 @@ function closeTicketDetail() {
   selectedTicketDetail.value = null
 }
 
-function resultDotClass(label: string) {
-  const lower = label.toLowerCase()
-  if (lower.includes('green_violet')) return 'bg-gradient-to-br from-[#24b561] to-[#8b5cf6]'
-  if (lower.includes('red_violet')) return 'bg-gradient-to-br from-[#e64545] to-[#8b5cf6]'
-  if (lower.includes('xanh') || lower.includes('green')) return 'bg-[#24b561]'
-  if (lower.includes('đỏ') || lower.includes('red')) return 'bg-[#e64545]'
-  if (lower.includes('tím') || lower.includes('violet')) return 'bg-[#8b5cf6]'
-  return 'bg-primary'
-}
 
-function resultBadgeClass(label: string) {
-  const lower = label.toLowerCase()
-  if (lower.includes('green_violet') || lower.includes('red_violet')) {
-    return 'border-transparent text-white'
-  }
-  if (lower.includes('xanh') || lower.includes('green')) return 'border-[#24b561] bg-[#24b561] text-white'
-  if (lower.includes('đỏ') || lower.includes('red')) return 'border-[#e64545] bg-[#e64545] text-white'
-  if (lower.includes('tím') || lower.includes('violet')) return 'border-[#8b5cf6] bg-[#8b5cf6] text-white'
-  return 'border-primary bg-primary text-white'
-}
-
-function resultBadgeStyle(label: string) {
-  const lower = label.toLowerCase()
-  if (lower.includes('red_violet')) {
-    return { background: 'linear-gradient(135deg, #e64545, #8b5cf6)' }
-  }
-  if (lower.includes('green_violet')) {
-    return { background: 'linear-gradient(135deg, #24b561, #8b5cf6)' }
-  }
-  return {}
-}
 
 function extractWingoNumber(value: string | null | undefined): number | null {
   const raw = String(value ?? '').trim().toLowerCase()
@@ -1523,33 +1910,7 @@ function extractWingoNumber(value: string | null | undefined): number | null {
   return parsed
 }
 
-function wingoTicketBallBackground(row: PlayRoomBetHistoryResponse['items'][number]) {
-  const numberFromResult = extractWingoNumber(row.result)
-  if (numberFromResult !== null) return wingoBallBackground(numberFromResult)
 
-  const byColor = normalizeBetLabel(row.color)
-  if (byColor.includes('Tím')) return 'linear-gradient(135deg, #8b5cf6, #e8404a)'
-  if (byColor.includes('Xanh')) return '#24b561'
-  if (byColor.includes('Đỏ')) return '#e64545'
-
-  const main = rowMainLabel(row)
-  if (main.includes('Lớn')) return '#f6c32d'
-  if (main.includes('Nhỏ')) return '#24b561'
-  return '#94a3b8'
-}
-
-function wingoTicketBallText(row: PlayRoomBetHistoryResponse['items'][number]) {
-  const numberFromResult = extractWingoNumber(row.result)
-  if (numberFromResult !== null) return String(numberFromResult)
-
-  const main = rowMainLabel(row)
-  if (main.includes('Xanh')) return 'X'
-  if (main.includes('Đỏ')) return 'Đ'
-  if (main.includes('Tím')) return 'T'
-  if (main.includes('Lớn')) return 'L'
-  if (main.includes('Nhỏ')) return 'N'
-  return '•'
-}
 
 watch(
   () => room.value?.code,
@@ -1565,7 +1926,6 @@ watch(
     if (isK3.value) activeK3SubTab.value = 'Tổng số'
     await nextTick()
     ensureDefaultSelections(room.value.variants[0] ?? null)
-    await joinRoom()
   },
   { immediate: true },
 )
@@ -1581,17 +1941,19 @@ watch(
     const generation = bumpRoomStateGeneration()
     resetTransientRoomUiState()
     resetRoomViewData()
-    seenSettlementPeriods.clear()
-    if (!hydrateRoomStateFromCache(roomCode)) {
-      resetRoomStateSession()
-    }
+    resetRoomStateSession()
+    hydrateHandledSettlementPeriods(roomCode)
+    void loadWallet()
+    hydrateRoomStateFromCache(roomCode)
+    roomStateLoading.value = true
+    roomStateError.value = ''
     setLoading(true)
     try {
-      await loadRoomState(roomCode)
-      if (!isCurrentRoomStateGeneration(generation, roomCode)) return
       connectRoomStateStream(roomCode)
       connectBetsStream(roomCode)
-      await loadActiveHistory(1)
+      requestRoomStateSnapshot(roomCode)
+      if (!isCurrentRoomStateGeneration(generation, roomCode)) return
+      maybeAutoJoinRoom()
     } finally {
       if (!isCurrentRoomStateGeneration(generation, roomCode)) return
       // Small delay to ensure smooth transition
@@ -1610,10 +1972,53 @@ watch(
   { immediate: true },
 )
 
+watch(availableVndBalance, (balance) => {
+  if (balance > 0 && joinError.value.includes('Số dư khả dụng không đủ')) {
+    joinError.value = ''
+  }
+  if (balance > 0 && !connectionId.value) {
+    maybeAutoJoinRoom()
+  }
+})
+
 watch(
-  () => currentPeriod.value?.period_no,
-  () => {
-    syncCountdownTarget(currentPeriod.value, syncedNow.value, false, selectedRoomCode.value)
+  () => [currentPeriod.value?.id, currentPeriod.value?.draw_at] as const,
+  (current, previous) => {
+    const [periodID] = current
+    const [previousPeriodID] = previous ?? []
+    syncCountdownTarget(
+      currentPeriod.value,
+      syncedNow.value,
+      String(periodID ?? '') !== String(previousPeriodID ?? ''),
+    )
+  },
+  { immediate: true },
+)
+
+watch(
+  () => [currentPeriodKey.value, rawRemainingSeconds.value] as const,
+  ([periodKey, rawRemaining]) => {
+    if (!periodKey) {
+      stableCountdownPeriodKey.value = ''
+      stableRemainingSeconds.value = 0
+      return
+    }
+
+    if (stableCountdownPeriodKey.value !== periodKey) {
+      stableCountdownPeriodKey.value = periodKey
+      stableRemainingSeconds.value = rawRemaining
+      return
+    }
+
+    if (stableRemainingSeconds.value === 0 && rawRemaining > 0) {
+      return
+    }
+
+    if (rawRemaining > stableRemainingSeconds.value) {
+      return
+    }
+
+    stableRemainingSeconds.value = rawRemaining
   },
   { immediate: true },
 )
@@ -1622,18 +2027,27 @@ watch(
 
 watch(
   () => activeHistoryTab.value,
-  async () => { await loadActiveHistory(currentPage()) },
+  async () => {
+    await loadActiveHistory(currentPage())
+  },
 )
 
 watch(remainingSeconds, (newVal, oldVal) => {
-  if (currentPeriod.value?.period_no && newVal <= 5) {
-    closingCountdownPeriodNo.value = String(currentPeriod.value.period_no)
-    const drawAt = currentPeriod.value.draw_at
-    const drawMs = new Date(String(drawAt).substring(0, 19).replace(' ', 'T')).getTime()
-    if (Number.isFinite(drawMs) && drawMs > 0) {
-      closingCountdownTargetMs.value = drawMs
+  if (newVal > 0 && periodRollForwardTimer) {
+    window.clearTimeout(periodRollForwardTimer)
+    periodRollForwardTimer = undefined
+  }
+
+  if (newVal === 0 && oldVal !== 0 && currentPeriod.value) {
+    const status = String(currentPeriod.value.status ?? '').toUpperCase()
+    if ((status === 'OPEN' || status === 'LOCKED') && !periodRollForwardTimer) {
+      periodRollForwardTimer = window.setTimeout(() => {
+        periodRollForwardTimer = undefined
+        requestRoomStateSnapshot()
+      }, 1200)
     }
   }
+
   if (newVal !== oldVal && newVal > 0 && newVal <= 5) {
     playTickSound()
   }
@@ -1663,14 +2077,17 @@ onMounted(() => {
   rollingDice.value = [...currentDice.value]
   // Cập nhật clockTick thường xuyên hơn để countdown mượt và bám server hơn
   timer = window.setInterval(() => { clockTick.value = Date.now() }, 250)
+  maybeAutoJoinRoom()
 })
 
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
-  if (transitionRefreshTimer) window.clearTimeout(transitionRefreshTimer)
   if (roomStateReconcileTimer) window.clearTimeout(roomStateReconcileTimer)
+  if (periodRollForwardTimer) window.clearTimeout(periodRollForwardTimer)
+  if (autoJoinTimer) window.clearTimeout(autoJoinTimer)
   disconnectRoomStateStream()
   disconnectBetsStream()
+  wallet.disconnectStream()
 })
 </script>
 
@@ -1777,7 +2194,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="flex items-center justify-between mt-2">
         <div>
-          <p class="text-[0.78rem] font-bold text-on-surface">{{ currentPeriod?.period_no ?? '—' }}</p>
+          <p class="text-[0.78rem] font-bold text-on-surface">kỳ hiện tại: {{ currentPeriod?.period_index ?? '—' }}</p>
           <p class="text-[0.65rem] text-slate-400 uppercase tracking-wide mt-0.5">{{ roomStatusLabel }}</p>
         </div>
         <!-- Digit-box countdown (matching source design) -->
@@ -2023,7 +2440,7 @@ onBeforeUnmount(() => {
 
       <!-- Bet status messages -->
       <div v-if="!canPlay" class="rounded-[12px] bg-red-50 px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">
-        Số dư hiện tại bằng 0. Vui lòng nạp tiền.
+        Số dư khả dụng không đủ để đặt cược. Vui lòng nạp thêm tiền hoặc chờ hệ thống giải phóng số dư đang bị khóa.
       </div>
       <div v-else-if="isBetLocked" class="rounded-[12px] bg-amber-50 px-4 py-3 text-[0.78rem] font-semibold text-amber-700">
         Kỳ hiện tại đã bước vào 5 giây cuối hoặc đã khóa lệnh. Vui lòng chờ kỳ tiếp theo.
@@ -2187,7 +2604,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
             <p class="text-slate-400">Thời gian chốt</p>
-            <strong class="block text-on-surface">{{ resultModalSettledAt ? new Date(resultModalSettledAt).toLocaleTimeString('vi-VN') : '—' }}</strong>
+            <strong class="block text-on-surface">{{ formatVietnamTime(resultModalSettledAt) }}</strong>
           </div>
         </div>
 
@@ -2257,7 +2674,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
               <p class="text-slate-400">Chốt lúc</p>
-              <strong class="block text-on-surface">{{ selectedTicketDetail.settled_at ? new Date(selectedTicketDetail.settled_at).toLocaleTimeString('vi-VN') : '—' }}</strong>
+              <strong class="block text-on-surface">{{ formatVietnamTime(selectedTicketDetail.settled_at) }}</strong>
             </div>
           </div>
 

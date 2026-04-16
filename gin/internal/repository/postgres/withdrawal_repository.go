@@ -123,36 +123,28 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 
 	now := clock.Now()
 
-	var balanceBefore, lockedBefore string
+	var balanceBefore string
 	if err := tx.QueryRowContext(ctx, `
-		select balance::text, locked_balance::text
+		select balance::text
 		from wallets
 		where id = $1 and user_id = $2 and unit = $3
 		for update
-	`, walletID, userID, unit).Scan(&balanceBefore, &lockedBefore); err != nil {
+	`, walletID, userID, unit).Scan(&balanceBefore); err != nil {
 		return 0, err
 	}
 
-	balanceAfter, err := subtractNumeric(balanceBefore, amount)
-	if err != nil {
-		return 0, err
-	}
-	if compareNumeric(balanceAfter, "0") < 0 {
+	availableBefore := balanceBefore
+	if compareNumeric(availableBefore, amount) < 0 {
 		return 0, ErrInsufficientBalance
-	}
-
-	lockedAfter, err := addNumeric(lockedBefore, amount)
-	if err != nil {
-		return 0, err
 	}
 
 	if _, err := tx.ExecContext(ctx, `
 		update wallets
-		set balance = $1::numeric(20,8),
-		    locked_balance = $2::numeric(20,8),
-		    updated_at = $3
-		where id = $4
-	`, balanceAfter, lockedAfter, now, walletID); err != nil {
+		set balance = balance - $1::numeric(20,8),
+		    locked_balance = locked_balance + $1::numeric(20,8),
+		    updated_at = $2
+		where id = $3
+	`, amount, now, walletID); err != nil {
 		return 0, err
 	}
 
@@ -167,6 +159,11 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 		return 0, err
 	}
 
+	availableAfter, err := subtractNumeric(availableBefore, amount)
+	if err != nil {
+		return 0, err
+	}
+
 	if _, err := tx.ExecContext(ctx, `
 		insert into wallet_ledger_entries (
 			wallet_id, user_id, direction, amount, balance_before, balance_after,
@@ -175,7 +172,7 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 			$1, $2, 2, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8),
 			'App\\Models\\Transaction\\WithdrawalRequest', $6, 'Khóa tiền tạo lệnh rút', $7
 		)
-	`, walletID, userID, amount, balanceBefore, balanceAfter, requestID, now); err != nil {
+	`, walletID, userID, amount, availableBefore, availableAfter, requestID, now); err != nil {
 		return 0, err
 	}
 

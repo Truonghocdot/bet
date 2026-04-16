@@ -162,6 +162,7 @@ func (s *PlayRoomService) ListMyRoomBets(ctx context.Context, userID int64, room
 		}
 		items = append(items, game.BetTicketHistoryItem{
 			ID:             record.ID,
+			PeriodID:       record.PeriodID,
 			PeriodNo:       record.PeriodNo,
 			PeriodIndex:    record.PeriodIndex,
 			Result:         summary.Result,
@@ -199,6 +200,15 @@ func (s *PlayRoomService) PlaceRoomBet(
 	placedDevice string,
 	connectionID string,
 ) (game.RoomBetResponse, error) {
+	log.Printf(
+		"[play.bet.service.start] room=%s user_id=%d request_id=%s period_id=%s connection_id=%s items=%d",
+		strings.TrimSpace(roomCode),
+		userID,
+		strings.TrimSpace(req.RequestID),
+		strings.TrimSpace(req.PeriodID),
+		strings.TrimSpace(connectionID),
+		len(req.Items),
+	)
 	if strings.TrimSpace(roomCode) == "" {
 		return game.RoomBetResponse{}, fmt.Errorf(message.GameRoomCodeRequired)
 	}
@@ -231,12 +241,20 @@ func (s *PlayRoomService) PlaceRoomBet(
 		return game.RoomBetResponse{}, err
 	}
 
-	available, err := subtractDecimal(wallet.Balance, wallet.LockedBalance)
-	if err != nil {
-		return game.RoomBetResponse{}, err
+	available := strings.TrimSpace(wallet.Balance)
+	if available == "" {
+		available = "0"
 	}
 
 	if compareDecimal(available, totalStake) < 0 {
+		log.Printf(
+			"[play.bet.service.reject] room=%s user_id=%d request_id=%s reason=insufficient_balance available=%s stake=%s",
+			roomCode,
+			userID,
+			req.RequestID,
+			available,
+			totalStake,
+		)
 		return game.RoomBetResponse{}, fmt.Errorf(message.InsufficientBalanceBet)
 	}
 
@@ -252,6 +270,13 @@ func (s *PlayRoomService) PlaceRoomBet(
 		PlacedDevice: placedDevice,
 	})
 	if err != nil {
+		log.Printf(
+			"[play.bet.service.error] room=%s user_id=%d request_id=%s stage=create_ticket err=%v",
+			roomCode,
+			userID,
+			req.RequestID,
+			err,
+		)
 		return game.RoomBetResponse{}, err
 	}
 
@@ -261,6 +286,14 @@ func (s *PlayRoomService) PlaceRoomBet(
 		}
 	}
 
+	log.Printf(
+		"[play.bet.service.ok] room=%s user_id=%d request_id=%s ticket_id=%d total_stake=%s",
+		roomCode,
+		userID,
+		req.RequestID,
+		ticket.ID,
+		totalStake,
+	)
 	return game.RoomBetResponse{
 		RequestID:  req.RequestID,
 		RoomCode:   roomCode,

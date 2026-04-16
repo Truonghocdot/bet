@@ -1,13 +1,16 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	authmiddleware "gin/internal/auth/middleware"
+	"gin/internal/domain/auth"
 	"gin/internal/domain/game"
 	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
@@ -116,6 +119,16 @@ type wsRoomEventPayload struct {
 	Data  any    `json:"data"`
 }
 
+type wsRoomActionPayload struct {
+	Action    string         `json:"action"`
+	RequestID string         `json:"request_id"`
+	PeriodID  string         `json:"period_id"`
+	ConnectionID string      `json:"connection_id"`
+	Page      int            `json:"page"`
+	PageSize  int            `json:"page_size"`
+	Items     []game.BetItem `json:"items"`
+}
+
 var playWSUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -131,10 +144,9 @@ func (h *PlayRoomHandler) RoomStateWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	initialResponse, err := h.playRoomService.GetRoomState(r.Context(), roomCode)
-	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": playRoomErrorMessage(err)})
-		return
+	var userClaims *auth.TokenClaims
+	if claims, ok := authmiddleware.CurrentClaims(r.Context()); ok {
+		userClaims = &claims
 	}
 
 	conn, err := playWSUpgrader.Upgrade(w, r, nil)
@@ -148,11 +160,28 @@ func (h *PlayRoomHandler) RoomStateWS(w http.ResponseWriter, r *http.Request) {
 		return conn.SetReadDeadline(time.Now().Add(75 * time.Second))
 	})
 
+	// Fetch initial room state
+	initialResponse, err := h.playRoomService.GetRoomState(r.Context(), roomCode)
+	if err != nil {
+		_ = conn.WriteJSON(wsRoomEventPayload{Event: "error", Data: map[string]string{"message": message.InternalServerError}})
+		return
+	}
+
+	// Channel to receive actions from read loop
+	actionChan := make(chan wsRoomActionPayload)
 	done := make(chan struct{})
+
 	go func() {
 		defer close(done)
 		for {
-			if _, _, readErr := conn.ReadMessage(); readErr != nil {
+			var action wsRoomActionPayload
+			if readErr := conn.ReadJSON(&action); readErr != nil {
+				return
+			}
+			// Send action to main loop for processing
+			select {
+			case actionChan <- action:
+			case <-done:
 				return
 			}
 		}
@@ -180,6 +209,73 @@ func (h *PlayRoomHandler) RoomStateWS(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-done:
 			return
+		case action := <-actionChan:
+			// Handle incoming actions from client
+			switch action.Action {
+			case "request_state":
+				// Always fetch latest snapshot instead of reusing stale initialResponse.
+				latestState, stateErr := h.playRoomService.GetRoomState(r.Context(), roomCode)
+				if stateErr != nil {
+					_ = conn.WriteJSON(wsRoomEventPayload{
+						Event: "error",
+						Data: map[string]any{
+							"message": playRoomErrorMessage(stateErr),
+						},
+					})
+					continue
+				}
+				if err := conn.WriteJSON(wsRoomEventPayload{Event: "room.state", Data: latestState}); err != nil {
+					return
+				}
+			case "request_history":
+				page := action.Page
+				if page <= 0 {
+					page = 1
+				}
+				pageSize := action.PageSize
+				if pageSize <= 0 {
+					pageSize = 4
+				}
+
+				response, historyErr := h.playRoomService.ListRoomHistory(r.Context(), roomCode, page, pageSize)
+				if historyErr != nil {
+					_ = conn.WriteJSON(wsRoomEventPayload{
+						Event: "history.error",
+						Data: map[string]any{
+							"request_id": action.RequestID,
+							"message":    playRoomErrorMessage(historyErr),
+						},
+					})
+					continue
+				}
+
+				_ = conn.WriteJSON(wsRoomEventPayload{
+					Event: "history.page",
+					Data: map[string]any{
+						"request_id": action.RequestID,
+						"message":    response.Message,
+						"page":       response.Page,
+						"page_size":  response.PageSize,
+						"total":      response.Total,
+						"total_pages": response.TotalPages,
+						"items":      response.Items,
+					},
+				})
+			case "place_bet":
+				// Handle bet placement
+				if userClaims == nil {
+					_ = conn.WriteJSON(wsRoomEventPayload{
+						Event: "bet.error",
+						Data: map[string]any{
+							"request_id": action.RequestID,
+							"message":    "Unauthorized: please login first",
+						},
+					})
+					continue
+				}
+
+				h.handlePlaceBetAction(conn, r.Context(), userClaims, roomCode, action)
+			}
 		case update, ok := <-updates:
 			if !ok {
 				return
@@ -290,6 +386,131 @@ func (h *PlayRoomHandler) MyBetsWS(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func (h *PlayRoomHandler) handlePlaceBetAction(
+	conn *websocket.Conn,
+	ctx context.Context,
+	userClaims *auth.TokenClaims,
+	roomCode string,
+	action wsRoomActionPayload,
+) {
+	// Validate required fields
+	if action.RequestID == "" {
+		log.Printf("[play.bet.ws.reject] room=%s user_id=%d reason=request_id_required", roomCode, userClaims.UserID)
+		_ = conn.WriteJSON(wsRoomEventPayload{
+			Event: "bet.error",
+			Data: map[string]any{
+				"request_id": action.RequestID,
+				"message":    "Invalid request: request_id is required",
+			},
+		})
+		return
+	}
+
+	if action.PeriodID == "" {
+		log.Printf("[play.bet.ws.reject] room=%s user_id=%d request_id=%s reason=period_id_required", roomCode, userClaims.UserID, action.RequestID)
+		_ = conn.WriteJSON(wsRoomEventPayload{
+			Event: "bet.error",
+			Data: map[string]any{
+				"request_id": action.RequestID,
+				"message":    "Invalid request: period_id is required",
+			},
+		})
+		return
+	}
+
+	if len(action.Items) == 0 {
+		log.Printf("[play.bet.ws.reject] room=%s user_id=%d request_id=%s reason=items_empty", roomCode, userClaims.UserID, action.RequestID)
+		_ = conn.WriteJSON(wsRoomEventPayload{
+			Event: "bet.error",
+			Data: map[string]any{
+				"request_id": action.RequestID,
+				"message":    "Invalid request: items cannot be empty",
+			},
+		})
+		return
+	}
+
+	connectionID := strings.TrimSpace(action.ConnectionID)
+	if connectionID == "" {
+		log.Printf("[play.bet.ws.reject] room=%s user_id=%d request_id=%s reason=connection_id_required", roomCode, userClaims.UserID, action.RequestID)
+		_ = conn.WriteJSON(wsRoomEventPayload{
+			Event: "bet.error",
+			Data: map[string]any{
+				"request_id": action.RequestID,
+				"message":    message.MissingConnectionID,
+			},
+		})
+		return
+	}
+
+	// Create RoomBetRequest
+	req := game.RoomBetRequest{
+		RequestID: action.RequestID,
+		PeriodID:  action.PeriodID,
+		Items:     action.Items,
+	}
+	log.Printf(
+		"[play.bet.ws.receive] room=%s user_id=%d request_id=%s period_id=%s connection_id=%s items=%d",
+		roomCode,
+		userClaims.UserID,
+		action.RequestID,
+		action.PeriodID,
+		connectionID,
+		len(action.Items),
+	)
+
+	// Call service to place bet
+	response, err := h.playRoomService.PlaceRoomBet(
+		ctx,
+		userClaims.UserID,
+		roomCode,
+		req,
+		"",            // X-Forwarded-For (not available from WebSocket)
+		"WebSocket",   // User-Agent
+		connectionID,
+	)
+
+	if err != nil {
+		log.Printf(
+			"[play.bet.ws.error] room=%s user_id=%d request_id=%s period_id=%s connection_id=%s err=%v",
+			roomCode,
+			userClaims.UserID,
+			action.RequestID,
+			action.PeriodID,
+			connectionID,
+			err,
+		)
+		_ = conn.WriteJSON(wsRoomEventPayload{
+			Event: "bet.error",
+			Data: map[string]any{
+				"request_id": action.RequestID,
+				"message":    playRoomErrorMessage(err),
+			},
+		})
+		return
+	}
+
+	// Send success response
+	log.Printf(
+		"[play.bet.ws.ok] room=%s user_id=%d request_id=%s period_id=%s connection_id=%s status=%s",
+		roomCode,
+		userClaims.UserID,
+		action.RequestID,
+		action.PeriodID,
+		connectionID,
+		response.Status,
+	)
+	_ = conn.WriteJSON(wsRoomEventPayload{
+		Event: "bet.placed",
+		Data: map[string]any{
+			"request_id":  action.RequestID,
+			"message":     response.Message,
+			"status":      response.Status,
+			"accepted_at": response.AcceptedAt,
+		},
+	})
 }
 
 func (h *PlayRoomHandler) RoomHistory(w http.ResponseWriter, r *http.Request) {

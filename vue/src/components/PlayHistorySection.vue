@@ -228,11 +228,39 @@ function periodTail(value: string | null | undefined, size = 6) {
   return `…${raw.slice(-size)}`
 }
 
-function formatDrawClock(value: string | null | undefined) {
-  if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+function parseTimeMs(value: string | null | undefined) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return 0
+  const normalized = raw.includes(' ') && !raw.includes('T') ? raw.replace(' ', 'T') : raw
+  const parsed = new Date(normalized).getTime()
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function formatClockMs(ms: number) {
+  if (!Number.isFinite(ms) || ms <= 0) return '—'
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(ms))
+}
+
+function formatDrawClock(drawAt: string | null | undefined, createdAt?: string | null | undefined) {
+  const drawMs = parseTimeMs(drawAt)
+  const createdMs = parseTimeMs(createdAt)
+
+  // Backend dữ liệu lịch sử hiện có room trả draw_at lệch đúng ~7h so với created_at.
+  // Khi phát hiện mẫu lệch này, ưu tiên created_at để hiển thị giờ quay thực tế.
+  if (drawMs > 0 && createdMs > 0) {
+    const deltaMs = Math.abs(drawMs - createdMs)
+    if (Math.abs(deltaMs - 7 * 60 * 60 * 1000) <= 2 * 60 * 1000) {
+      return formatClockMs(createdMs)
+    }
+  }
+
+  if (drawMs > 0) return formatClockMs(drawMs)
+  if (createdMs > 0) return formatClockMs(createdMs)
+  return '—'
 }
 
 function diceColor(n: number): string {
@@ -399,7 +427,7 @@ function wingoTicketBallText(row: PlayRoomBetHistoryResponse['items'][number]) {
                 :style="resultBadgeStyle(row.color)">
             {{ normalizeBetLabel(row.color) }}
           </span>
-          <span class="text-right text-[0.66rem] font-semibold text-slate-500">{{ formatDrawClock(row.draw_at) }}</span>
+          <span class="text-right text-[0.66rem] font-semibold text-slate-500">{{ formatDrawClock(row.draw_at, row.created_at) }}</span>
         </div>
         <div v-if="!visibleHistoryRows.length" class="flex flex-col items-center gap-2 py-8 text-slate-300">
           <span class="material-symbols-outlined text-[2rem]">history</span>

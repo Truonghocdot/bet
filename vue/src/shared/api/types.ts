@@ -227,6 +227,7 @@ export type PlayRoomHistoryResponse = {
 
 export type PlayRoomBetHistoryItem = {
   id: number
+  period_id: number
   period_no: string
   period_index: number
   result: string

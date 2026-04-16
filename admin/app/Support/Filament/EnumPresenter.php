@@ -107,6 +107,7 @@ class EnumPresenter
             LedgerDirection::class => [
                 'CREDIT' => 'Cộng',
                 'DEBIT' => 'Trừ',
+                'NEUTRAL' => 'Trung tính/Khác',
             ],
             UnitTransaction::class => [
                 'VND' => 'VND',
@@ -244,6 +245,7 @@ class EnumPresenter
             LedgerDirection::class => [
                 'CREDIT' => 'success',
                 'DEBIT' => 'danger',
+                'NEUTRAL' => 'info',
             ],
             UnitTransaction::class => [
                 'VND' => 'info',

@@ -28,6 +28,13 @@ func (m *Authentication) Require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenValue, ok := extractBearerToken(r.Header.Get("Authorization"))
 		if !ok {
+			queryToken := strings.TrimSpace(r.URL.Query().Get("access_token"))
+			if queryToken != "" {
+				tokenValue = queryToken
+				ok = true
+			}
+		}
+		if !ok {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.MissingBearerToken})
 			return
 		}
