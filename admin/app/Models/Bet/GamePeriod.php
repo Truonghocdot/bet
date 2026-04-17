@@ -8,6 +8,7 @@ use App\Enum\Bet\PeriodStatus;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class GamePeriod extends Model
@@ -87,12 +88,10 @@ class GamePeriod extends Model
                 return;
             }
 
-            if ($period->draw_at !== null) {
-                $period->period_index = (int) $period->draw_at->copy()->format('YmdHis');
-                return;
-            }
-
-            $period->period_index = (int) now()->format('YmdHis');
+            $period->period_index = static::nextPeriodIndex(
+                $period->room_code,
+                $period->draw_at instanceof Carbon ? $period->draw_at : null,
+            );
         });
 
         static::updating(function (GamePeriod $period): void {
@@ -110,5 +109,29 @@ class GamePeriod extends Model
                 ]);
             }
         });
+    }
+
+    protected static function nextPeriodIndex(?string $roomCode, ?Carbon $drawAt = null): int
+    {
+        $referenceAt = ($drawAt ?? now())->copy()->timezone(config('app.timezone', 'Asia/Ho_Chi_Minh'));
+        $yearPrefix = (int) $referenceAt->format('Y');
+        $baseIndex = $yearPrefix * 100000000;
+        $maxIndex = $baseIndex + 99999999;
+
+        $query = static::query()->whereBetween('period_index', [$baseIndex, $maxIndex]);
+
+        $normalizedRoomCode = trim((string) $roomCode);
+        if ($normalizedRoomCode !== '') {
+            $query->where('room_code', $normalizedRoomCode);
+        }
+
+        $latestIndex = $query->max('period_index');
+        if (! is_numeric($latestIndex)) {
+            return $baseIndex;
+        }
+
+        $nextIndex = (int) $latestIndex + 1;
+
+        return $nextIndex > $maxIndex ? $maxIndex : $nextIndex;
     }
 }

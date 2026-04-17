@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	"strconv"
 	"strings"
 	"time"
 
@@ -618,9 +617,13 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room GameRoomRecord, openAt, drawAt time.Time, status int) (GamePeriodRecord, bool, error) {
 	lockAt := drawAt.Add(-time.Duration(room.BetCutoffSeconds) * time.Second)
 	periodNo := buildPeriodNo(room.Code, drawAt)
-	periodIndex := buildPeriodIndex(drawAt)
+	periodIndex, err := r.buildNextPeriodIndexTx(ctx, tx, room.Code, drawAt)
+	if err != nil {
+		log.Printf("[engine][period.insert.error] room_code=%s period_no=%s stage=build_period_index err=%v", room.Code, periodNo, err)
+		return GamePeriodRecord{}, false, err
+	}
 	var record GamePeriodRecord
-	err := tx.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
 		insert into game_periods (
 			game_type, period_no, period_index, room_code, open_at, close_at, bet_lock_at, draw_at, status, created_at, updated_at
 		)
@@ -650,6 +653,33 @@ func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room Ga
 	}
 
 	return record, true, nil
+}
+
+func (r *GameRepository) buildNextPeriodIndexTx(ctx context.Context, tx *sql.Tx, roomCode string, drawAt time.Time) (int64, error) {
+	yearPrefix := int64(drawAt.In(clock.Location()).Year())
+	baseIndex := yearPrefix * 100000000
+	maxIndex := baseIndex + 99999999
+
+	var latest sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `
+		select max(period_index)
+		from game_periods
+		where room_code = $1
+		  and period_index between $2 and $3
+	`, roomCode, baseIndex, maxIndex).Scan(&latest); err != nil {
+		return 0, err
+	}
+
+	if !latest.Valid || latest.Int64 < baseIndex {
+		return baseIndex, nil
+	}
+
+	nextIndex := latest.Int64 + 1
+	if nextIndex > maxIndex {
+		return maxIndex, nil
+	}
+
+	return nextIndex, nil
 }
 
 func settleTicketItems(rawItems []byte, tags map[string]struct{}, originalAmount string, taxAmount string) ([]ticketSettleItemOutcome, string, error) {
@@ -744,15 +774,6 @@ func decodeResultTags(payload []byte) (map[string]struct{}, error) {
 func buildPeriodNo(roomCode string, drawAt time.Time) string {
 	base := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(roomCode), "-", "_"))
 	return fmt.Sprintf("%s_%d", base, drawAt.Unix())
-}
-
-func buildPeriodIndex(drawAt time.Time) int64 {
-	value := drawAt.In(clock.Location()).Format("20060102150405")
-	parsed, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return drawAt.Unix()
-	}
-	return parsed
 }
 
 func toGameTypeSlug(gameType int) string {

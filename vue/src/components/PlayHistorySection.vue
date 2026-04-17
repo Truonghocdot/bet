@@ -203,11 +203,17 @@ function wingoBallImageSrc(n: number | null | undefined) {
   return wingoBallAssetMap[Number(n)] ?? ''
 }
 
-function periodTail(value: string | null | undefined, size = 6) {
+function periodSuffix(value: string | number | null | undefined, size = 9) {
   const raw = String(value ?? '').trim()
   if (!raw) return '—'
-  if (raw.length <= size) return raw
-  return `…${raw.slice(-size)}`
+  return raw.length <= size ? raw : raw.slice(-size)
+}
+
+function periodLabel(periodIndex: string | number | null | undefined, periodNo: string | null | undefined, size = 6) {
+  if (periodIndex !== null && periodIndex !== undefined && String(periodIndex).trim()) {
+    return periodSuffix(periodIndex, size)
+  }
+  return periodSuffix(periodNo, size)
 }
 
 function parseTimeMs(value: string | null | undefined) {
@@ -414,7 +420,7 @@ function mineResultDigits(row: PlayRoomBetHistoryResponse['items'][number]) {
         >
           <div class="min-w-0">
             <p class="truncate text-[0.66rem] font-bold text-slate-700">
-              {{ row.period_index ? `#${row.period_index}` : periodTail(row.period_no, 10) }}
+              {{ periodLabel(row.period_index, row.period_no, 6) }}
             </p>
             <p class="mt-0.5 text-[0.6rem] text-slate-400">{{ row.period_no ? row.period_no.split('_')[0] : '—' }}</p>
           </div>

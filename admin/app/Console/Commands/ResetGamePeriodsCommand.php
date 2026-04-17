@@ -67,7 +67,7 @@ class ResetGamePeriodsCommand extends Command
         }
 
         $this->info('Da xoa du lieu game periods, cac bang phu thuoc va reset sequence cua game_periods.id.');
-        $this->line('Luu y: period_index khong phai auto increment cua database, no se duoc app tu dong gan lai tu 0 khi tao ky moi.');
+        $this->line('Luu y: period_index khong phai auto increment cua database, app se gan theo dinh dang YYYY + 8 chu so tang dan khi tao ky moi.');
 
         return self::SUCCESS;
     }
