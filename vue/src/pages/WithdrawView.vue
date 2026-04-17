@@ -34,6 +34,9 @@ const currentAccount = computed<WithdrawalAccount | undefined>(() => {
   return withdraw.usdtAccounts[0]
 })
 
+const withdrawPolicy = computed(() => wallet.summary?.withdraw_policy ?? null)
+const showWithdrawInfo = computed(() => method.value === 'vnd' && Boolean(withdrawPolicy.value?.enabled))
+
 const needsSetup = computed(() => {
   return currentAccount.value === undefined
 })
@@ -41,11 +44,10 @@ const needsSetup = computed(() => {
 const validationMessage = computed(() => {
   if (!amount.value) return ''
   const numeric = Number(amount.value)
+  if (!Number.isFinite(numeric) || numeric <= 0) return 'Số tiền rút không hợp lệ'
   if (method.value === 'vnd') {
-    if (numeric < 200000) return 'Tối thiểu rút 200,000 VND'
     if (numeric > Number(currentWallets.value.vnd?.balance || 0)) return 'Số dư khả dụng không đủ'
   } else {
-    if (numeric < 15) return 'Tối thiểu rút 15 USDT'
     if (numeric > Number(currentWallets.value.usdt?.balance || 0)) return 'Số dư USDT khả dụng không đủ'
   }
   return ''
@@ -120,6 +122,16 @@ function closeWithdrawPolicyModal() {
   } catch {
     // no-op
   }
+}
+
+function formatWithdrawPolicyPercent(value: string | number | null | undefined) {
+  const numeric = Number(value ?? 0)
+  if (!Number.isFinite(numeric)) return '0%'
+  return `${formatViMoney(numeric, numeric % 1 === 0 ? 0 : 2)}%`
+}
+
+function formatWithdrawPolicyVolume(value: string | number | null | undefined) {
+  return formatViMoney(value ?? 0, 2)
 }
 </script>
 
@@ -197,6 +209,34 @@ function closeWithdrawPolicyModal() {
         <p class="m-0 mt-1 text-2xl font-black">
           {{ method === 'vnd' ? formatViMoney(currentWallets.vnd?.balance || 0, 0) : formatViMoney(currentWallets.usdt?.balance || 0, 2) }}
         </p>
+      </div>
+
+      <div
+        v-if="showWithdrawInfo"
+        class="mt-4 rounded-[18px] border border-[#ffd9d5] bg-[#fff7f6] px-4 py-4 text-[0.82rem] text-slate-700"
+      >
+        <div class="grid gap-2 sm:grid-cols-2">
+          <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5">
+            <span class="font-bold text-slate-500">Lệ phí</span>
+            <span class="font-black text-primary">+{{ formatWithdrawPolicyPercent(withdrawPolicy?.fee_percent) }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5">
+            <span class="font-bold text-slate-500">Tổng tiền cược</span>
+            <span class="font-black text-primary">+{{ formatWithdrawPolicyVolume(withdrawPolicy?.required_bet_volume) }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5">
+            <span class="font-bold text-slate-500">Số lần rút tiền</span>
+            <span class="font-black text-primary">+{{ withdrawPolicy?.max_times_per_day ?? 0 }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5">
+            <span class="font-bold text-slate-500">Rút tối thiểu</span>
+            <span class="font-black text-primary">+{{ formatViMoney(withdrawPolicy?.min_amount ?? 0, 0) }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5 sm:col-span-2">
+            <span class="font-bold text-slate-500">Rút tối đa</span>
+            <span class="font-black text-primary">+{{ formatViMoney(withdrawPolicy?.max_amount ?? 0, 0) }}</span>
+          </div>
+        </div>
       </div>
     </section>
 

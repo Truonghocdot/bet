@@ -3,22 +3,32 @@ package wallet
 import "time"
 
 type WalletBalance struct {
-	ID            int64      `json:"id"`
-	Unit          int        `json:"unit"`
-	UnitCode      string     `json:"unit_code"`
-	UnitLabel     string     `json:"unit_label"`
-	Balance       string     `json:"balance"`
-	LockedBalance string     `json:"locked_balance"`
-	Status        int        `json:"status"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID            int64     `json:"id"`
+	Unit          int       `json:"unit"`
+	UnitCode      string    `json:"unit_code"`
+	UnitLabel     string    `json:"unit_label"`
+	Balance       string    `json:"balance"`
+	LockedBalance string    `json:"locked_balance"`
+	Status        int       `json:"status"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type WithdrawPolicyDisplay struct {
+	Enabled           bool   `json:"enabled"`
+	FeePercent        string `json:"fee_percent"`
+	RequiredBetVolume string `json:"required_bet_volume"`
+	MaxTimesPerDay    int    `json:"max_times_per_day"`
+	MinAmount         string `json:"min_amount"`
+	MaxAmount         string `json:"max_amount"`
 }
 
 type WalletSummaryResponse struct {
-	Message           string          `json:"message"`
-	ExchangeRate      string          `json:"exchange_rate"`
-	TelegramCskhLink  string          `json:"telegram_cskh_link,omitempty"`
-	Wallets           []WalletBalance `json:"wallets"`
+	Message          string                `json:"message"`
+	ExchangeRate     string                `json:"exchange_rate"`
+	TelegramCskhLink string                `json:"telegram_cskh_link,omitempty"`
+	WithdrawPolicy   WithdrawPolicyDisplay `json:"withdraw_policy"`
+	Wallets          []WalletBalance       `json:"wallets"`
 }
 
 type ExchangeRequest struct {

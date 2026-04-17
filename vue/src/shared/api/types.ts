@@ -350,6 +350,14 @@ export type WalletSummaryResponse = {
   message: string
   exchange_rate: string
   telegram_cskh_link?: string | null
+  withdraw_policy?: {
+    enabled: boolean
+    fee_percent: string
+    required_bet_volume: string
+    max_times_per_day: number
+    min_amount: string
+    max_amount: string
+  }
   wallets: WalletSummaryItem[]
 }
 

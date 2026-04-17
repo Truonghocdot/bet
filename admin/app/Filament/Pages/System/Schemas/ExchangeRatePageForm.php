@@ -86,41 +86,46 @@ class ExchangeRatePageForm
                 ])
                 ->columns(2),
 
-            Section::make('Chính sách rút tiền (Hiển thị)')
-                ->description('Cấu hình chính sách rút tiền áp dụng ở backend Gin.')
+            Section::make('Khối Thông Tin Rút Tiền')
+                ->description('Chỉ hiển thị trên app người chơi, không còn áp dụng làm rule cứng ở backend Gin.')
                 ->schema([
+                    Toggle::make('withdraw_policy_enabled')
+                        ->label('Hiển thị khối thông tin ở màn rút tiền'),
                     TextInput::make('withdraw_fee_percent')
                         ->label('Lệ phí (%)')
                         ->numeric()
                         ->minValue(0)
                         ->step('0.01')
                         ->required()
-                        ->helperText('Ví dụ nhập 0, 1.5, 2 ...'),
+                        ->helperText('Chỉ dùng để hiển thị trên app. Ví dụ: 0, 1.5, 2 ...'),
                     TextInput::make('withdraw_required_bet_volume')
-                        ->label('Tổng tiền cược tối thiểu')
+                        ->label('Tổng tiền cược')
                         ->numeric()
                         ->minValue(0)
                         ->step('0.000001')
                         ->required()
-                        ->helperText('Khối lượng cược tối thiểu để được phép rút.'),
+                        ->helperText('Chỉ dùng để hiển thị trên app.'),
                     TextInput::make('withdraw_max_times_per_day')
-                        ->label('Số lần rút tối đa / ngày')
+                        ->label('Số lần rút tiền')
                         ->numeric()
                         ->minValue(1)
                         ->step('1')
-                        ->required(),
+                        ->required()
+                        ->helperText('Chỉ dùng để hiển thị trên app.'),
                     TextInput::make('withdraw_min_amount')
                         ->label('Rút tối thiểu')
                         ->numeric()
                         ->minValue(0)
                         ->step('0.000001')
-                        ->required(),
+                        ->required()
+                        ->helperText('Chỉ dùng để hiển thị trên app.'),
                     TextInput::make('withdraw_max_amount')
                         ->label('Rút tối đa')
                         ->numeric()
                         ->minValue(0)
                         ->step('0.000001')
-                        ->required(),
+                        ->required()
+                        ->helperText('Chỉ dùng để hiển thị trên app.'),
                 ])
                 ->columns(2),
 

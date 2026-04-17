@@ -30,9 +30,9 @@ class ExchangeRatePage extends Page
 
     protected static UnitEnum|string|null $navigationGroup = 'Thiết lập';
 
-    protected static ?string $navigationLabel = 'Tỷ giá USDT/VND';
+    protected static ?string $navigationLabel = 'Thiết lập';
 
-    protected static ?string $title = 'Tỷ giá USDT/VND';
+    protected static ?string $title = 'Thiết lập';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCurrencyDollar;
 
@@ -147,7 +147,7 @@ class ExchangeRatePage extends Page
 
         Notification::make()
             ->title(sprintf(
-                'Đã cập nhật tỉ giá USDT/VND: %s VND',
+                'Đã cập nhật cấu hình hệ thống. Tỉ giá USDT/VND: %s VND',
                 number_format((float) $setting->rate, 0, ',', '.'),
             ))
             ->success()

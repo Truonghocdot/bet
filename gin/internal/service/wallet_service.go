@@ -18,6 +18,11 @@ import (
 const (
 	ExchangeRateUSDTToVNDDefault = 25000
 	ExchangeRateRedisKey         = "shared:exchange-rate:usdt-vnd"
+	DefaultWithdrawFeePercent    = "0"
+	DefaultWithdrawRequiredBet   = "0"
+	DefaultWithdrawMaxTimes      = 3
+	DefaultWithdrawMinAmount     = "200000"
+	DefaultWithdrawMaxAmount     = "20000000"
 )
 
 type WalletService struct {
@@ -57,12 +62,20 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 	}
 
 	snapshot := s.getSnapshot(ctx)
-	
+
 	return wallet.WalletSummaryResponse{
 		Message:          message.WalletSummarySuccess,
 		ExchangeRate:     snapshot.Rate,
 		TelegramCskhLink: snapshot.TelegramCskhLink,
-		Wallets:          items,
+		WithdrawPolicy: wallet.WithdrawPolicyDisplay{
+			Enabled:           snapshot.WithdrawPolicyEnabled != nil && *snapshot.WithdrawPolicyEnabled,
+			FeePercent:        snapshot.WithdrawFeePercent,
+			RequiredBetVolume: snapshot.WithdrawRequiredBet,
+			MaxTimesPerDay:    snapshot.WithdrawMaxTimes,
+			MinAmount:         snapshot.WithdrawMinAmount,
+			MaxAmount:         snapshot.WithdrawMaxAmount,
+		},
+		Wallets: items,
 	}, nil
 }
 
@@ -138,13 +151,26 @@ func (s *WalletService) GetExchangeRate(ctx context.Context) string {
 }
 
 type systemSnapshot struct {
-	Rate             string `json:"rate"`
-	TelegramCskhLink string `json:"telegram_cskh_link"`
+	Rate                  string `json:"rate"`
+	TelegramCskhLink      string `json:"telegram_cskh_link"`
+	WithdrawPolicyEnabled *bool  `json:"withdraw_policy_enabled"`
+	WithdrawFeePercent    string `json:"withdraw_fee_percent"`
+	WithdrawRequiredBet   string `json:"withdraw_required_bet_volume"`
+	WithdrawMaxTimes      int    `json:"withdraw_max_times_per_day"`
+	WithdrawMinAmount     string `json:"withdraw_min_amount"`
+	WithdrawMaxAmount     string `json:"withdraw_max_amount"`
 }
 
 func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
+	defaultEnabled := true
 	defaultSnap := systemSnapshot{
-		Rate: fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault),
+		Rate:                  fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault),
+		WithdrawPolicyEnabled: &defaultEnabled,
+		WithdrawFeePercent:    DefaultWithdrawFeePercent,
+		WithdrawRequiredBet:   DefaultWithdrawRequiredBet,
+		WithdrawMaxTimes:      DefaultWithdrawMaxTimes,
+		WithdrawMinAmount:     DefaultWithdrawMinAmount,
+		WithdrawMaxAmount:     DefaultWithdrawMaxAmount,
 	}
 
 	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
@@ -159,6 +185,24 @@ func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
 
 	if snapshot.Rate == "" {
 		snapshot.Rate = defaultSnap.Rate
+	}
+	if snapshot.WithdrawPolicyEnabled == nil {
+		snapshot.WithdrawPolicyEnabled = defaultSnap.WithdrawPolicyEnabled
+	}
+	if snapshot.WithdrawFeePercent == "" {
+		snapshot.WithdrawFeePercent = defaultSnap.WithdrawFeePercent
+	}
+	if snapshot.WithdrawRequiredBet == "" {
+		snapshot.WithdrawRequiredBet = defaultSnap.WithdrawRequiredBet
+	}
+	if snapshot.WithdrawMaxTimes <= 0 {
+		snapshot.WithdrawMaxTimes = defaultSnap.WithdrawMaxTimes
+	}
+	if snapshot.WithdrawMinAmount == "" {
+		snapshot.WithdrawMinAmount = defaultSnap.WithdrawMinAmount
+	}
+	if snapshot.WithdrawMaxAmount == "" {
+		snapshot.WithdrawMaxAmount = defaultSnap.WithdrawMaxAmount
 	}
 
 	return snapshot
