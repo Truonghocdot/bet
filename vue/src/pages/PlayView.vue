@@ -293,7 +293,7 @@
     try {
       const current = BigInt(raw)
       if (current <= 0n) return raw
-      return (current - 1n).toString()
+      return (current).toString()
     } catch {
       return raw
     }
