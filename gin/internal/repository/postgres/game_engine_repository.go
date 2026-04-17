@@ -630,7 +630,6 @@ func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room Ga
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			log.Printf("[engine][period.insert.skip] room_code=%s period_no=%s reason=conflict_or_no_rows", room.Code, periodNo)
 			return GamePeriodRecord{}, false, nil
 		}
 		log.Printf("[engine][period.insert.error] room_code=%s period_no=%s err=%v", room.Code, periodNo, err)

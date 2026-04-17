@@ -219,6 +219,29 @@
     return candidate
   })
 
+  function resolveVariantCode(roomItem: PlayRoom | null | undefined, rawVariant?: unknown) {
+    if (!roomItem || roomItem.variants.length === 0) return ''
+    const requested = typeof rawVariant === 'string' ? rawVariant.trim() : ''
+    if (!requested) return roomItem.variants[0]?.code ?? ''
+    return roomItem.variants.some((variant) => variant.code === requested)
+      ? requested
+      : roomItem.variants[0]?.code ?? ''
+  }
+
+  function syncVariantQuery(variantCode: string) {
+    if (!room.value || !variantCode) return
+    const currentVariant = typeof route.query.variant === 'string' ? route.query.variant.trim() : ''
+    if (currentVariant === variantCode) return
+
+    void router.replace({
+      path: route.path,
+      query: {
+        ...route.query,
+        variant: variantCode,
+      },
+    })
+  }
+
   function navigateBack() {
     const target = backTarget.value
     const hasRealHistory = typeof window !== 'undefined' && window.history.length > 1
@@ -1392,7 +1415,13 @@
       pending.reject(new Error('Kết nối phòng chơi đã ngắt.'))
     }
     pendingRoomHistoryRequests.clear()
-    roomStreamConnection?.close()
+    if (roomStreamConnection) {
+      roomStreamConnection.onopen = null
+      roomStreamConnection.onmessage = null
+      roomStreamConnection.onerror = null
+      roomStreamConnection.onclose = null
+      roomStreamConnection.close()
+    }
     roomStreamConnection = null
   }
 
@@ -1437,7 +1466,13 @@
   }
 
   function disconnectBetsStream() {
-    betsStreamConnection?.close()
+    if (betsStreamConnection) {
+      betsStreamConnection.onopen = null
+      betsStreamConnection.onmessage = null
+      betsStreamConnection.onerror = null
+      betsStreamConnection.onclose = null
+      betsStreamConnection.close()
+    }
     betsStreamConnection = null
   }
 
@@ -1549,15 +1584,17 @@
   }
 
   function scheduleRoomWSReconnect(roomCode: string) {
+    if (!roomCode || roomCode !== selectedRoomCode.value) return
     if (roomStreamReconnectTimer) return
     roomStreamReconnectTimer = window.setTimeout(() => {
       roomStreamReconnectTimer = undefined
+      if (roomCode !== selectedRoomCode.value) return
       connectRoomStateStream(roomCode)
     }, 2500)
   }
 
   function connectRoomStateStream(roomCode: string) {
-    if (!roomCode) return
+    if (!roomCode || roomCode !== selectedRoomCode.value) return
     const generation = roomStateGeneration
 
     disconnectRoomStateStream()
@@ -1656,14 +1693,17 @@
       }
 
       socket.onerror = () => {
+        if (!isCurrentRoomStateGeneration(generation, roomCode)) return
         roomStateError.value = 'Kết nối phòng chơi đang được nối lại'
       }
 
       socket.onclose = () => {
+        if (!isCurrentRoomStateGeneration(generation, roomCode)) return
         roomStreamConnection = null
         scheduleRoomWSReconnect(roomCode)
       }
     } catch {
+      if (roomCode !== selectedRoomCode.value) return
       roomStateError.value = 'Kết nối phòng chơi đang được nối lại'
       scheduleRoomWSReconnect(roomCode)
     }
@@ -2374,12 +2414,24 @@
         activeVariantCode.value = ''
         return
       }
-      activeVariantCode.value = room.value.variants[0]?.code ?? ''
+      activeVariantCode.value = resolveVariantCode(room.value, route.query.variant)
       // Reset K3 sub-tab to first
       if (isK3.value) activeK3SubTab.value = 'Tổng số'
       if (isLottery.value) activeLotterySubTab.value = 'A'
       await nextTick()
-      ensureDefaultSelections(room.value.variants[0] ?? null)
+      ensureDefaultSelections(selectedVariant.value)
+    },
+    { immediate: true },
+  )
+
+  watch(
+    () => route.query.variant,
+    (rawVariant) => {
+      if (!room.value || room.value.variants.length === 0) return
+      const resolved = resolveVariantCode(room.value, rawVariant)
+      if (resolved && resolved !== activeVariantCode.value) {
+        activeVariantCode.value = resolved
+      }
     },
     { immediate: true },
   )
@@ -2419,8 +2471,11 @@
 
   watch(
     () => selectedVariant.value?.code,
-    () => {
+    (variantCode) => {
       resetTransientRoomUiState()
+      if (variantCode) {
+        syncVariantQuery(variantCode)
+      }
       if (isLottery.value) {
         activeLotterySubTab.value = lotterySubTabs.value[0] ?? 'A'
       }
