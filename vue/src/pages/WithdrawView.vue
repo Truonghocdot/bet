@@ -41,13 +41,6 @@ const needsSetup = computed(() => {
   return currentAccount.value === undefined
 })
 
-const validationMessage = computed(() => {
-  if (!amount.value) return ''
-  const numeric = Number(amount.value)
-  if (!Number.isFinite(numeric) || numeric <= 0) return 'Số tiền rút không hợp lệ'
-  return ''
-})
-
 const amountInputMode = computed(() => (method.value === 'vnd' ? 'numeric' : 'decimal'))
 
 function sanitizeAmountInput(raw: string, allowDecimal: boolean) {
@@ -69,7 +62,7 @@ function handleAmountInput(event: Event) {
 }
 
 const canSubmit = computed(() => {
-  return amount.value && !validationMessage.value && currentAccount.value !== undefined
+  return String(amount.value).trim() !== '' && currentAccount.value !== undefined
 })
 
 onMounted(async () => {
@@ -284,7 +277,6 @@ function formatWithdrawPolicyVolume(value: string | number | null | undefined) {
             <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
               <input v-model="amount" type="text" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold text-lg" :inputmode="amountInputMode" autocomplete="off" placeholder="Nhập số tiền muốn rút" @input="handleAmountInput" />
             </label>
-            <p v-if="validationMessage" class="mt-2 text-xs font-bold text-[#e64545] px-2 m-0">{{ validationMessage }}</p>
           </div>
 
           <button class="min-h-14 w-full rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-black text-white hover:shadow-lg disabled:opacity-60" type="submit" :disabled="withdraw.loading || !canSubmit">
