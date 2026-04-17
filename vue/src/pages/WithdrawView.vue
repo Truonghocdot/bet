@@ -115,11 +115,16 @@ function closeWithdrawPolicyModal() {
 function formatWithdrawPolicyPercent(value: string | number | null | undefined) {
   const numeric = Number(value ?? 0)
   if (!Number.isFinite(numeric)) return '0%'
-  return `${formatViMoney(numeric, numeric % 1 === 0 ? 0 : 2)}%`
+  return `${numeric % 1 === 0 ? numeric.toFixed(0) : numeric.toString()}%`
 }
 
-function formatWithdrawPolicyVolume(value: string | number | null | undefined) {
-  return formatViMoney(value ?? 0, 2)
+function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '0'
+
+  const numeric = Number(raw)
+  if (!Number.isFinite(numeric)) return raw
+  return numeric % 1 === 0 ? numeric.toFixed(0) : numeric.toString()
 }
 </script>
 
@@ -206,23 +211,23 @@ function formatWithdrawPolicyVolume(value: string | number | null | undefined) {
         <div class="grid gap-2 sm:grid-cols-2">
           <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5">
             <span class="font-bold text-slate-500">Lệ phí</span>
-            <span class="font-black text-primary">+{{ formatWithdrawPolicyPercent(withdrawPolicy?.fee_percent) }}</span>
+            <span class="font-black text-primary">{{ formatWithdrawPolicyPercent(withdrawPolicy?.fee_percent) }}</span>
           </div>
           <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5">
             <span class="font-bold text-slate-500">Tổng tiền cược</span>
-            <span class="font-black text-primary">+{{ formatWithdrawPolicyVolume(withdrawPolicy?.required_bet_volume) }}</span>
+            <span class="font-black text-primary">{{ formatWithdrawPolicyPlain(withdrawPolicy?.required_bet_volume) }}</span>
           </div>
           <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5">
             <span class="font-bold text-slate-500">Số lần rút tiền</span>
-            <span class="font-black text-primary">+{{ withdrawPolicy?.max_times_per_day ?? 0 }}</span>
+            <span class="font-black text-primary">{{ formatWithdrawPolicyPlain(withdrawPolicy?.max_times_per_day) }}</span>
           </div>
           <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5">
             <span class="font-bold text-slate-500">Rút tối thiểu</span>
-            <span class="font-black text-primary">+{{ formatViMoney(withdrawPolicy?.min_amount ?? 0, 0) }}</span>
+            <span class="font-black text-primary">{{ formatWithdrawPolicyPlain(withdrawPolicy?.min_amount) }}</span>
           </div>
           <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5 sm:col-span-2">
             <span class="font-bold text-slate-500">Rút tối đa</span>
-            <span class="font-black text-primary">+{{ formatViMoney(withdrawPolicy?.max_amount ?? 0, 0) }}</span>
+            <span class="font-black text-primary">{{ formatWithdrawPolicyPlain(withdrawPolicy?.max_amount) }}</span>
           </div>
         </div>
       </div>
@@ -240,15 +245,15 @@ function formatWithdrawPolicyVolume(value: string | number | null | undefined) {
         <form class="mt-4 space-y-3" @submit.prevent="submitSaveMethod">
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Tên Ngân hàng (VD: MBBank, VCB)' : 'Mạng lưới (VD: TRC20, ERC20)' }}</span>
-            <input v-model="addProvider" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none" :required="method === 'usdt'" />
+            <input v-model="addProvider" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none" :required="method === 'usdt'" :placeholder="method === 'vnd' ? 'Điền Tên Ngân Hàng' : ''" />
           </label>
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Chủ tài khoản (Không dấu)' : 'Nhãn ghi nhớ' }}</span>
-            <input v-model="addHolder" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none uppercase" required />
+            <input v-model="addHolder" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none uppercase" required :placeholder="method === 'vnd' ? 'Điền Tên Chủ Tài Khoản' : ''" />
           </label>
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Số tài khoản' : 'Địa chỉ ví' }}</span>
-            <input v-model="addNumber" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none" required />
+            <input v-model="addNumber" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none" required :placeholder="method === 'vnd' ? 'Điền Số Tài Khoản' : ''" />
           </label>
 
           <div class="pt-2 flex gap-2">

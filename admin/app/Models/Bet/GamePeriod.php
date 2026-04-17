@@ -13,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class GamePeriod extends Model
 {
+    private const PERIOD_INDEX_YEAR_SPAN = 100000000;
+    private const PERIOD_INDEX_SEED_OFFSET = 10000000;
+    private const PERIOD_INDEX_SEED_RANGE = 50000000;
+
     protected $fillable = [
         'game_type',
         'period_no',
@@ -115,8 +119,9 @@ class GamePeriod extends Model
     {
         $referenceAt = ($drawAt ?? now())->copy()->timezone(config('app.timezone', 'Asia/Ho_Chi_Minh'));
         $yearPrefix = (int) $referenceAt->format('Y');
-        $baseIndex = $yearPrefix * 100000000;
-        $maxIndex = $baseIndex + 99999999;
+        $baseIndex = $yearPrefix * self::PERIOD_INDEX_YEAR_SPAN;
+        $maxIndex = $baseIndex + (self::PERIOD_INDEX_YEAR_SPAN - 1);
+        $startIndex = $baseIndex + static::periodIndexSeedOffset($roomCode);
 
         $query = static::query()->whereBetween('period_index', [$baseIndex, $maxIndex]);
 
@@ -126,12 +131,20 @@ class GamePeriod extends Model
         }
 
         $latestIndex = $query->max('period_index');
-        if (! is_numeric($latestIndex)) {
-            return $baseIndex;
+        if (! is_numeric($latestIndex) || (int) $latestIndex < $startIndex) {
+            return $startIndex;
         }
 
         $nextIndex = (int) $latestIndex + 1;
 
         return $nextIndex > $maxIndex ? $maxIndex : $nextIndex;
+    }
+
+    protected static function periodIndexSeedOffset(?string $roomCode): int
+    {
+        $normalizedRoomCode = strtolower(trim((string) $roomCode));
+        $seed = crc32($normalizedRoomCode);
+
+        return self::PERIOD_INDEX_SEED_OFFSET + ($seed % self::PERIOD_INDEX_SEED_RANGE);
     }
 }

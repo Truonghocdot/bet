@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"log"
 	"math/big"
 	"strings"
@@ -640,9 +641,14 @@ func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room Ga
 }
 
 func (r *GameRepository) buildNextPeriodIndexTx(ctx context.Context, tx *sql.Tx, roomCode string, drawAt time.Time) (int64, error) {
+	const periodIndexYearSpan int64 = 100000000
+	const periodIndexSeedOffset int64 = 10000000
+	const periodIndexSeedRange int64 = 50000000
+
 	yearPrefix := int64(drawAt.In(clock.Location()).Year())
-	baseIndex := yearPrefix * 100000000
-	maxIndex := baseIndex + 99999999
+	baseIndex := yearPrefix * periodIndexYearSpan
+	maxIndex := baseIndex + (periodIndexYearSpan - 1)
+	startIndex := baseIndex + periodIndexSeedOffset + (int64(crc32.ChecksumIEEE([]byte(strings.ToLower(strings.TrimSpace(roomCode))))) % periodIndexSeedRange)
 
 	var latest sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `
@@ -654,8 +660,8 @@ func (r *GameRepository) buildNextPeriodIndexTx(ctx context.Context, tx *sql.Tx,
 		return 0, err
 	}
 
-	if !latest.Valid || latest.Int64 < baseIndex {
-		return baseIndex, nil
+	if !latest.Valid || latest.Int64 < startIndex {
+		return startIndex, nil
 	}
 
 	nextIndex := latest.Int64 + 1
