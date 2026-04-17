@@ -1743,6 +1743,24 @@
     }
   }
 
+  async function fetchRoomStateOnce() {
+    if (!selectedRoomCode.value) return null
+    const requestStartedAt = Date.now()
+    const response = await request<PlayRoomStateResponse>(
+      'GET',
+      `/v1/play/rooms/${selectedRoomCode.value}/state`,
+      {},
+    )
+    await applyRoomStateResponse(response, {
+      requestStartedAt,
+      requestFinishedAt: Date.now(),
+      forceRebaseClock: true,
+      roomCode: selectedRoomCode.value,
+      generation: roomStateGeneration,
+    })
+    return response
+  }
+
   async function loadMineHistory(page = minePage.value, options: { force?: boolean } = {}) {
     const normalizedPage = Math.max(1, Math.floor(page))
 
@@ -2157,6 +2175,23 @@
 
     try {
       const requestId = globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}`
+      const buildBetPayload = (periodID: string) => ({
+        request_id: requestId,
+        period_id: periodID,
+        connection_id: connectionId.value,
+        items: [{
+          option_type: groupTypeKey({ title: modalBetGroupTitle.value, description: '', mode: 'chips', options: [] }, modalBetKey.value),
+          option_key: modalBetKey.value,
+          stake: String(modalBetAmount.value),
+        }],
+      })
+      const shouldRetryBetWithFreshState = (message: string) => {
+        const normalized = String(message ?? '').toLowerCase()
+        return normalized.includes('không tìm thấy kỳ cược')
+          || normalized.includes('kỳ cược hiện không mở')
+          || normalized.includes('period not found')
+          || normalized.includes('period not open')
+      }
       logRealtimeEvent('bet.request', {
         roomCode: selectedRoomCode.value,
         requestId,
@@ -2169,16 +2204,27 @@
       // setPendingWalletDebit(modalBetAmount.value) // Bỏ trừ tiền ảo để tránh hụt 2 lần
       
       // Send bet through WebSocket instead of REST API
-      const betResponse = await sendBetViaSocket({
-        request_id: requestId,
-        period_id: String(currentPeriod.value.id),
-        connection_id: connectionId.value,
-        items: [{
-          option_type: groupTypeKey({ title: modalBetGroupTitle.value, description: '', mode: 'chips', options: [] }, modalBetKey.value),
-          option_key: modalBetKey.value,
-          stake: String(modalBetAmount.value),
-        }],
-      })
+      let betResponse: any
+      try {
+        betResponse = await sendBetViaSocket(buildBetPayload(String(currentPeriod.value.id)))
+      } catch (error: unknown) {
+        const err = error as ApiError
+        const errorMessage = String(err?.message ?? error ?? '')
+        if (shouldRetryBetWithFreshState(errorMessage)) {
+          logRealtimeEvent('bet.retry.refresh_state', {
+            roomCode: selectedRoomCode.value,
+            requestId,
+            reason: errorMessage,
+          })
+          await fetchRoomStateOnce()
+          if (!currentPeriod.value?.id) {
+            throw error
+          }
+          betResponse = await sendBetViaSocket(buildBetPayload(String(currentPeriod.value.id)))
+        } else {
+          throw error
+        }
+      }
 
       // Explicit success feedback
       logRealtimeEvent('bet.response.ok', {

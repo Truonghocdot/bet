@@ -61,7 +61,7 @@ func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRec
 		_ = tx.Rollback()
 	}()
 
-	created := make([]GamePeriodRecord, 0, 1)
+	created := make([]GamePeriodRecord, 0, periodGenerationBufferCount)
 
 	var latestDrawAt sql.NullTime
 	err = tx.QueryRowContext(ctx, `
@@ -76,46 +76,36 @@ func (r *GameRepository) EnsureRoomPeriods(ctx context.Context, room GameRoomRec
 		log.Printf("[engine][period.ensure.error] room_code=%s stage=latest_draw_at err=%v", room.Code, err)
 		return nil, err
 	}
-	nextDrawAt := alignNextDrawAt(nowVN, duration)
-	nextOpenAt := nextDrawAt.Add(-duration)
+	firstDrawAt := alignNextDrawAt(nowVN, duration)
 
 	if !latestDrawAt.Valid {
 		// Log bootstrap only
 		log.Printf("[engine][period.ensure.state] room_code=%s action=bootstrap_initial_period", room.Code)
 	}
 
-	candidateNo := buildPeriodNo(room.Code, nextDrawAt)
-
-	var existingID int64
-	err = tx.QueryRowContext(ctx, `
-		select id
-		from game_periods
-		where room_code = $1 and period_no = $2
-		limit 1
-	`, room.Code, candidateNo).Scan(&existingID)
-	if err == nil {
-		if err := tx.Commit(); err != nil {
-			log.Printf("[engine][period.ensure.error] room_code=%s stage=commit_duplicate_skip err=%v", room.Code, err)
-			return nil, err
+	for offset := 0; offset < periodGenerationBufferCount; offset += 1 {
+		drawAt := firstDrawAt.Add(time.Duration(offset) * duration)
+		openAt := drawAt.Add(-duration)
+		status := periodStatusScheduled
+		if openAt.Equal(nowVN) || openAt.Before(nowVN) {
+			status = periodStatusOpen
 		}
-		return nil, nil
-	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		log.Printf("[engine][period.ensure.error] room_code=%s stage=check_duplicate period_no=%s err=%v", room.Code, candidateNo, err)
-		return nil, err
-	}
 
-	status := periodStatusScheduled
-	if nextOpenAt.Equal(nowVN) || nextOpenAt.Before(nowVN) {
-		status = periodStatusOpen
-	}
-	record, inserted, err := r.insertPeriodTx(ctx, tx, room, nextOpenAt, nextDrawAt, status)
-	if err != nil {
-		log.Printf("[engine][period.ensure.error] room_code=%s stage=insert_single open_at=%s draw_at=%s err=%v", room.Code, nextOpenAt.Format(time.RFC3339Nano), nextDrawAt.Format(time.RFC3339Nano), err)
-		return nil, err
-	}
-	if inserted {
-		created = append(created, record)
+		record, inserted, insertErr := r.insertPeriodTx(ctx, tx, room, openAt, drawAt, status)
+		if insertErr != nil {
+			log.Printf(
+				"[engine][period.ensure.error] room_code=%s stage=insert_buffer offset=%d open_at=%s draw_at=%s err=%v",
+				room.Code,
+				offset,
+				openAt.Format(time.RFC3339Nano),
+				drawAt.Format(time.RFC3339Nano),
+				insertErr,
+			)
+			return nil, insertErr
+		}
+		if inserted {
+			created = append(created, record)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

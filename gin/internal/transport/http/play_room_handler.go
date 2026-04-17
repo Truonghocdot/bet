@@ -375,7 +375,7 @@ func (h *PlayRoomHandler) MyBetsWS(w http.ResponseWriter, r *http.Request) {
 			if err := conn.WriteJSON(wsRoomEventPayload{
 				Event: "ping",
 				Data: map[string]any{
-					"server_time": time.Now().UTC().Format(time.RFC3339),
+					"server_time": clock.Now(),
 				},
 			}); err != nil {
 				return

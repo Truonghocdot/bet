@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -312,6 +313,17 @@ func (s *PlayRoomService) PlaceRoomBet(
 			log.Printf("[realtime][wallet.publish.error] user_id=%d source=place_room_bet err=%v", ticket.UserID, err)
 		}
 	}
+	if s.broker != nil {
+		if err := s.broker.Publish(ctx, realtime.PlayRoomBetsTopic(roomCode, ticket.UserID), "bets.updated", map[string]any{
+			"type":      "bet_placed",
+			"room_code": roomCode,
+			"ticket_id": ticket.ID,
+			"user_id":   ticket.UserID,
+			"at":        clock.Now(),
+		}); err != nil {
+			log.Printf("[realtime][bets.publish.error] room_code=%s user_id=%d ticket_id=%d err=%v", roomCode, ticket.UserID, ticket.ID, err)
+		}
+	}
 
 	log.Printf(
 		"[play.bet.service.ok] room=%s user_id=%d request_id=%s ticket_id=%d total_stake=%s",
@@ -381,8 +393,20 @@ func (s *PlayRoomService) buildRoomState(ctx context.Context, roomCode string) (
 
 	period, err := s.gameRepository.GetCurrentPeriodByRoom(ctx, roomCode)
 	if err != nil {
-		log.Printf("[realtime][room.cache.rebuild.error] room_code=%s stage=current_period err=%v", roomCode, err)
-		return game.RoomStateResponse{}, err
+		if errors.Is(err, repopg.ErrPeriodNotFound) {
+			if _, ensureErr := s.gameRepository.EnsureRoomPeriods(ctx, room, clock.Now()); ensureErr != nil {
+				log.Printf("[realtime][room.cache.rebuild.error] room_code=%s stage=ensure_period err=%v", roomCode, ensureErr)
+			}
+
+			period, err = s.gameRepository.GetCurrentPeriodByRoom(ctx, roomCode)
+			if errors.Is(err, repopg.ErrPeriodNotFound) {
+				period, err = s.gameRepository.GetNearestUpcomingPeriodByRoom(ctx, roomCode)
+			}
+		}
+		if err != nil {
+			log.Printf("[realtime][room.cache.rebuild.error] room_code=%s stage=current_period err=%v", roomCode, err)
+			return game.RoomStateResponse{}, err
+		}
 	}
 
 	results, err := s.gameRepository.ListRoomRecentRounds(ctx, roomCode, 20)
