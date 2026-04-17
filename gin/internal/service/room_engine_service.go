@@ -56,7 +56,6 @@ func (s *RoomEngineService) Run(ctx context.Context) error {
 		}
 	}()
 
-	log.Printf("[engine][start] tick_interval=%s", s.tickInterval)
 	if err := s.runTick(ctx); err != nil {
 		if !errors.Is(err, context.Canceled) {
 			log.Printf("[engine] tick lỗi ban đầu: %v", err)
@@ -270,21 +269,20 @@ func (s *RoomEngineService) publishBetsUpdate(ctx context.Context, roomCode stri
 	if s.broker == nil || roomCode == "" || userID == 0 {
 		return nil
 	}
-	
+
 	// Publish event để notify client bets được updated
 	topic := realtime.PlayRoomBetsTopic(roomCode, userID)
 	payload := map[string]any{
 		"type":    "settlement",
 		"message": "Bets have been updated",
 	}
-	
+
 	if err := s.broker.Publish(ctx, topic, "bets.updated", payload); err != nil {
 		log.Printf("[realtime][bets.update.error] room_code=%s user_id=%d err=%v", roomCode, userID, err)
 		return err
 	}
 	return nil
 }
-
 
 func (s *RoomEngineService) acquireLock(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	return s.redis.SetNX(ctx, key, "1", ttl).Result()
@@ -421,13 +419,21 @@ func generateLotteryDraw() repopg.DrawResult {
 	}
 
 	last := digits[4]
-	bigSmall := "small"
+	lastBigSmall := "small"
 	if last >= 5 {
-		bigSmall = "big"
+		lastBigSmall = "big"
 	}
-	oddEven := "even"
+	lastOddEven := "even"
 	if last%2 != 0 {
-		oddEven = "odd"
+		lastOddEven = "odd"
+	}
+	sumBigSmall := "small"
+	if sum >= 23 {
+		sumBigSmall = "big"
+	}
+	sumOddEven := "even"
+	if sum%2 != 0 {
+		sumOddEven = "odd"
 	}
 
 	builder := strings.Builder{}
@@ -439,25 +445,53 @@ func generateLotteryDraw() repopg.DrawResult {
 		fmt.Sprintf("pick5_%s", result),
 		fmt.Sprintf("sum_%d", sum),
 		fmt.Sprintf("last_%d", last),
-		bigSmall,
-		oddEven,
+		lastBigSmall,
+		lastOddEven,
+		fmt.Sprintf("sum_%s", sumBigSmall),
+		fmt.Sprintf("sum_%s", sumOddEven),
+	}
+	positionPayload := make(map[string]map[string]any, len(digits))
+	for index, digit := range digits {
+		position := string(rune('a' + index))
+		positionBigSmall := "small"
+		if digit >= 5 {
+			positionBigSmall = "big"
+		}
+		positionOddEven := "even"
+		if digit%2 != 0 {
+			positionOddEven = "odd"
+		}
+
+		tags = append(tags,
+			fmt.Sprintf("pos_%s_%d", position, digit),
+			fmt.Sprintf("pos_%s_%s", position, positionBigSmall),
+			fmt.Sprintf("pos_%s_%s", position, positionOddEven),
+		)
+		positionPayload[strings.ToUpper(position)] = map[string]any{
+			"digit":     digit,
+			"big_small": positionBigSmall,
+			"odd_even":  positionOddEven,
+		}
 	}
 
 	payload, _ := json.Marshal(map[string]any{
-		"game_type":    "lottery",
-		"digits":       digits,
-		"sum":          sum,
-		"last_digit":   last,
-		"result":       result,
-		"big_small":    bigSmall,
-		"odd_even":     oddEven,
-		"tags":         tags,
-		"generated_at": clock.Now(),
+		"game_type":     "lottery",
+		"digits":        digits,
+		"positions":     positionPayload,
+		"sum":           sum,
+		"sum_big_small": sumBigSmall,
+		"sum_odd_even":  sumOddEven,
+		"last_digit":    last,
+		"result":        result,
+		"big_small":     lastBigSmall,
+		"odd_even":      lastOddEven,
+		"tags":          tags,
+		"generated_at":  clock.Now(),
 	})
 
 	return repopg.DrawResult{
 		Result:      result,
-		BigSmall:    bigSmall,
+		BigSmall:    lastBigSmall,
 		Color:       "-",
 		PayloadJSON: payload,
 	}

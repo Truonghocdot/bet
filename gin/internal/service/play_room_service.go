@@ -82,7 +82,6 @@ func (s *PlayRoomService) GetRoomState(ctx context.Context, roomCode string) (ga
 
 	if cached, hit := s.readRoomStateCache(ctx, roomCode); hit {
 		if !isRoomStateCacheFresh(cached) {
-			log.Printf("[realtime][room.cache.stale] room_code=%s period_id=%d period_no=%s", roomCode, cached.CurrentPeriod.ID, cached.CurrentPeriod.PeriodNo)
 		} else {
 			cached.ServerTime = clock.Now()
 			log.Printf("[realtime][room.cache.hit] room_code=%s", roomCode)
@@ -90,7 +89,6 @@ func (s *PlayRoomService) GetRoomState(ctx context.Context, roomCode string) (ga
 		}
 	}
 
-	log.Printf("[realtime][room.cache.miss] room_code=%s", roomCode)
 	response, err := s.RefreshRoomState(ctx, roomCode, "cache_rebuild")
 	if err != nil {
 		return game.RoomStateResponse{}, err

@@ -28,6 +28,7 @@
   const activeVariantCode = ref('')
   const activeHistoryTab = ref<'history' | 'chart' | 'mine'>('history')
   const activeK3SubTab = ref('Tổng số')
+  const activeLotterySubTab = ref('A')
   const connectionId = ref('')
   const joinLoading = ref(false)
   const joinError = ref('')
@@ -72,7 +73,8 @@
   const modalBetLabel = ref('')
   const modalBetKey = ref('')
   const modalBetGroupTitle = ref('')
-  const initialBetAmount = 10000
+  const modalBetGroupSubTab = ref('')
+  const initialBetAmount = 0
   const minimumBetAmount = 1000
   const modalBetAmount = ref(initialBetAmount)
   const modalBetStepAmount = ref(minimumBetAmount)
@@ -160,9 +162,9 @@
       content: `
         ● 5D Lô tô dựa trên chuỗi 5 con số được quay ngẫu nhiên cho các vị trí A, B, C, D, E.
         ● Các hình thức đặt cược:
-          1. Cược Vị trí: Dự đoán số cụ thể tại 1 trong 5 vị trí (A, B, C, D hoặc E).
-          2. Cược Tổng hợp: Dự đoán Tổng của cả 5 con số là Lớn/Nhỏ hoặc Chẵn/Lẻ.
-          3. Cược Số đuôi: Dự đoán số cuối cùng (vị trí E) hoặc các tổ hợp số đặc biệt.
+          1. Chọn tab A, B, C, D hoặc E để đặt theo từng vị trí riêng.
+          2. Trong từng vị trí, có thể cược Lớn/Nhỏ/Lẻ/Chẵn hoặc chọn đúng số 0-9.
+          3. Chọn tab SUM để cược thuộc tính Lớn/Nhỏ/Lẻ/Chẵn của tổng 5 chữ số.
         ● Vị trí tương ứng:
           - A: Số thứ nhất (hàng vạn)
           - B: Số thứ hai (hàng nghìn)
@@ -612,6 +614,34 @@
   const colorGroup = computed(() => selectedVariant.value?.betGroups.find((group) => groupTypeKey(group) === 'COLOR') ?? null)
   const numberGroup = computed(() => selectedVariant.value?.betGroups.find((group) => groupTypeKey(group) === 'NUMBER') ?? null)
   const bigSmallGroup = computed(() => selectedVariant.value?.betGroups.find((group) => groupTypeKey(group) === 'BIG_SMALL') ?? null)
+  const lotterySubTabs = computed(() => {
+    if (!isLottery.value || !selectedVariant.value) return []
+    const preferredOrder = ['A', 'B', 'C', 'D', 'E', 'SUM']
+    const tabs = Array.from(new Set(
+      selectedVariant.value.betGroups
+        .map((group) => group.subTab)
+        .filter((tab): tab is string => Boolean(tab)),
+    ))
+    return preferredOrder.filter((tab) => tabs.includes(tab))
+  })
+  const activeLotteryGroups = computed(() => {
+    if (!isLottery.value || !selectedVariant.value) return []
+    return selectedVariant.value.betGroups.filter((group) => group.subTab === activeLotterySubTab.value)
+  })
+  const lotteryPropertyGroup = computed(() => activeLotteryGroups.value.find((group) => group.mode === 'chips') ?? null)
+  const lotteryNumberGroup = computed(() => activeLotteryGroups.value.find((group) => group.mode === 'grid') ?? null)
+  const selectedBetGroup = computed(() => {
+    if (!selectedVariant.value || !modalBetGroupTitle.value) return null
+    return selectedVariant.value.betGroups.find((group) =>
+      group.title === modalBetGroupTitle.value &&
+      String(group.subTab ?? '') === String(modalBetGroupSubTab.value ?? ''),
+    ) ?? null
+  })
+  const selectedBetOption = computed(() => {
+    const group = selectedBetGroup.value
+    if (!group || !modalBetKey.value) return null
+    return group.options.find((option) => option.key === modalBetKey.value) ?? null
+  })
 
   // Dice render for K3
   const currentDice = computed<number[]>(() => {
@@ -621,6 +651,67 @@
     }
     return [4, 2, 3]
   })
+
+  function parseK3DiceValues(value: string | null | undefined): number[] {
+    return String(value ?? '')
+      .split('-')
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item >= 1 && item <= 6)
+  }
+
+  function k3DiceTotal(value: string | null | undefined): number {
+    return parseK3DiceValues(value).reduce((total, item) => total + item, 0)
+  }
+
+  function k3PatternLabel(value: string | null | undefined): string {
+    const dice = parseK3DiceValues(value)
+    if (dice.length !== 3) return '—'
+
+    const uniqueCount = new Set(dice).size
+    if (uniqueCount === 1) return 'Bộ ba'
+    if (uniqueCount === 2) return 'Đôi'
+
+    const total = k3DiceTotal(value)
+    return total >= 11 ? 'Lớn' : 'Nhỏ'
+  }
+
+  function lotteryDigitTotal(value: string | null | undefined): number {
+    return extractLotteryDigits(value).reduce((total, digit) => total + digit, 0)
+  }
+
+  function lotteryParityLabel(value: string | null | undefined): string {
+    const total = lotteryDigitTotal(value)
+    return total % 2 === 0 ? 'Chẵn' : 'Lẻ'
+  }
+
+  function lotteryTailLabel(value: string | null | undefined): string {
+    const digits = extractLotteryDigits(value)
+    if (!digits.length) return '—'
+    return `Đuôi ${digits[digits.length - 1]}`
+  }
+
+  function periodSuffix(value: string | number | null | undefined, size = 10) {
+    const raw = String(value ?? '').trim()
+    if (!raw) return '—'
+    return raw.length <= size ? raw : raw.slice(-size)
+  }
+
+  const k3LatestResult = computed(() => recentResults.value[0] ?? null)
+  const k3LatestTotal = computed(() => k3DiceTotal(k3LatestResult.value?.result))
+  const k3LatestPattern = computed(() => k3PatternLabel(k3LatestResult.value?.result))
+  const lotteryLatestResult = computed(() => recentResults.value[0] ?? null)
+  const lotteryLatestDigits = computed(() => extractLotteryDigits(lotteryLatestResult.value?.result))
+  const lotteryLatestTotal = computed(() => lotteryDigitTotal(lotteryLatestResult.value?.result))
+  const lotteryLatestParity = computed(() => lotteryParityLabel(lotteryLatestResult.value?.result))
+  const lotteryLatestTail = computed(() => lotteryTailLabel(lotteryLatestResult.value?.result))
+  const modalTaxAmount = computed(() => modalBetAmount.value * 0.02)
+  const modalOddsMultiplier = computed(() => oddsMultiplierForOptionKey(modalBetKey.value))
+  const modalPotentialPayout = computed(() =>
+    Math.max(0, modalBetAmount.value * modalOddsMultiplier.value - modalTaxAmount.value),
+  )
+  const modalPotentialProfit = computed(() => modalPotentialPayout.value - modalBetAmount.value)
+  const modalOddsLabel = computed(() => formatOddsMultiplierLabel(modalOddsMultiplier.value))
+  const modalSelectionContext = computed(() => buildModalSelectionContext())
 
   function diceDots(n: number): Array<{ x: string; y: string }> {
     const positions: Record<number, Array<[string, string]>> = {
@@ -820,11 +911,18 @@
     return 0
   }
 
-  function normalizeBetLabel(value: string | null | undefined) {
+  type LotteryBetSelectionSummary = {
+    main: string
+    sub: string
+  }
+
+  function normalizeBetLabel(value: string | null | undefined): string {
     const raw = String(value ?? '').trim()
     if (!raw || raw === '—') return '—'
 
     const lower = raw.toLowerCase()
+    const lotterySelection = describeLotteryBetSelection(raw)
+    if (lotterySelection) return lotterySelection.main
     if (lower.startsWith('number_')) {
       const number = lower.replace('number_', '').trim()
       return number ? `Số ${number}` : 'Số'
@@ -842,11 +940,98 @@
     return raw.replaceAll('_', ' ')
   }
 
+  function isLotteryDrawValue(value: string | null | undefined) {
+    return /^\d{5}$/.test(String(value ?? '').trim())
+  }
+
+  function describeLotteryBetSelection(value: string | null | undefined): LotteryBetSelectionSummary | null {
+    const raw = String(value ?? '').trim()
+    if (!raw) return null
+
+    const lower = raw.toLowerCase()
+    const positionDigitMatch = lower.match(/^pos_([a-e])_(\d)$/)
+    if (positionDigitMatch) {
+      const position = positionDigitMatch[1]?.toUpperCase() ?? ''
+      const digit = positionDigitMatch[2] ?? ''
+      return {
+        main: `Vị trí ${position} = ${digit}`,
+        sub: `Cược đúng số cho vị trí ${position}`,
+      }
+    }
+
+    const positionPropertyMatch = lower.match(/^pos_([a-e])_(big|small|odd|even)$/)
+    if (positionPropertyMatch) {
+      const position = positionPropertyMatch[1]?.toUpperCase() ?? ''
+      const property = normalizeBetLabel(positionPropertyMatch[2] ?? '')
+      return {
+        main: `Vị trí ${position} • ${property}`,
+        sub: `Cược thuộc tính cho vị trí ${position}`,
+      }
+    }
+
+    const sumPropertyMatch = lower.match(/^sum_(big|small|odd|even)$/)
+    if (sumPropertyMatch) {
+      const property = normalizeBetLabel(sumPropertyMatch[1] ?? '')
+      return {
+        main: `SUM • ${property}`,
+        sub: 'Cược thuộc tính tổng 5 số',
+      }
+    }
+
+    const sumNumberMatch = lower.match(/^sum_(\d+)$/)
+    if (sumNumberMatch) {
+      const sum = sumNumberMatch[1] ?? ''
+      return {
+        main: `SUM = ${sum}`,
+        sub: 'Dự đoán tổng 5 số',
+      }
+    }
+
+    const lastDigitMatch = lower.match(/^last_(\d)$/)
+    if (lastDigitMatch) {
+      const digit = lastDigitMatch[1] ?? ''
+      return {
+        main: `Đuôi ${digit}`,
+        sub: 'Cược số cuối',
+      }
+    }
+
+    return null
+  }
+
   function rowMainLabel(row: PlayRoomBetHistoryResponse['items'][number]) {
+    if (isK3.value) {
+      const dice = parseK3DiceValues(row.result)
+      if (dice.length === 3) return `Tổng ${k3DiceTotal(row.result)}`
+    }
+
+    if (isLottery.value) {
+      if (isLotteryDrawValue(row.result)) {
+        return `Tổng ${lotteryDigitTotal(row.result)}`
+      }
+      const selection = describeLotteryBetSelection(row.result)
+      if (selection) return selection.main
+    }
+
     return normalizeBetLabel(row.big_small || row.color || row.result || '—')
   }
 
   function rowSubLabel(row: PlayRoomBetHistoryResponse['items'][number]) {
+    if (isK3.value) {
+      const total = k3DiceTotal(row.result)
+      const pattern = k3PatternLabel(row.result)
+      if (total > 0) return `Xúc xắc ${row.result || '—'} • Tổng ${total} • ${pattern}`
+    }
+
+    if (isLottery.value) {
+      if (isLotteryDrawValue(row.result)) {
+        const digits = extractLotteryDigits(row.result)
+        return `${digits.join(' ')} • Tổng ${lotteryDigitTotal(row.result)} • ${lotteryTailLabel(row.result)}`
+      }
+      const selection = describeLotteryBetSelection(row.result)
+      if (selection) return selection.sub
+    }
+
     const normalizedResult = normalizeBetLabel(row.result)
     if (normalizedResult && normalizedResult !== '—') return normalizedResult
     return 'Lệnh đang chờ kết quả'
@@ -865,6 +1050,159 @@
     if (status === 'WON') return 'text-[#10b981]'
     if (status === 'LOST') return 'text-slate-400'
     return 'text-amber-500'
+  }
+
+  function oddsMultiplierForOptionKey(optionKey: string | null | undefined): number {
+    const key = String(optionKey ?? '').trim().toLowerCase()
+    if (!key) return 2
+
+    if (key.startsWith('number_') || key.startsWith('digit_') || key.startsWith('last_') || /^pos_[a-e]_\d$/.test(key)) return 9
+    if (key === 'violet') return 4.5
+    if (['green', 'red', 'big', 'small', 'odd', 'even', 'sum_big', 'sum_small', 'sum_odd', 'sum_even'].includes(key)) return 2
+    if (/^pos_[a-e]_(big|small|odd|even)$/.test(key)) return 2
+    if (key.startsWith('pair_')) return 13.83
+    if (key.startsWith('sspair_')) return 69.12
+    if (key.startsWith('triple_')) return 207.36
+    if (key === 'serial_any') return 8.64
+    if (key.startsWith('diff_')) return 34.56
+    if (key === 'sum_3' || key === 'sum_18') return 207.36
+    if (key === 'sum_4' || key === 'sum_17') return 69.12
+    if (key === 'sum_5' || key === 'sum_16') return 34.56
+    if (key === 'sum_6' || key === 'sum_15' || key === 'sum_30') return 20.74
+    if (key === 'sum_7' || key === 'sum_14') return 13.83
+    if (key === 'sum_8' || key === 'sum_13') return 9.88
+    if (key === 'sum_9' || key === 'sum_12') return 8.3
+    if (key === 'sum_10' || key === 'sum_11') return 7.68
+
+    return 2
+  }
+
+  function formatOddsMultiplierLabel(value: number) {
+    if (!Number.isFinite(value) || value <= 0) return '—'
+    return `${value.toFixed(value % 1 === 0 ? 0 : 2).replace(/\.00$/, '')}X`
+  }
+
+  function buildModalSelectionContext() {
+    const key = String(modalBetKey.value ?? '').trim().toLowerCase()
+    const option = selectedBetOption.value
+
+    if (isK3.value) {
+      if (key.startsWith('sum_')) {
+        return {
+          family: 'K3 Tổng số',
+          title: `Tổng ${option?.label ?? key.replace('sum_', '')}`,
+          description: 'Thắng khi tổng 3 viên xúc xắc đúng bằng giá trị đã chọn.',
+          accent: 'from-[#10b981] to-[#0f9f74]',
+          badge: 'Theo tổng điểm',
+        }
+      }
+      if (key.startsWith('pair_')) {
+        return {
+          family: 'K3 2 số trùng',
+          title: `${option?.label ?? ''}${option?.label ?? ''}`,
+          description: 'Thắng khi xuất hiện đúng một cặp trùng của mặt số đã chọn.',
+          accent: 'from-[#f59e0b] to-[#e64545]',
+          badge: 'Một đôi cụ thể',
+        }
+      }
+      if (key.startsWith('sspair_')) {
+        return {
+          family: 'K3 2 số trùng',
+          title: `${option?.label ?? ''}${option?.label ?? ''}`,
+          description: 'Thắng khi ra cặp đặc biệt đúng mặt số đã chọn.',
+          accent: 'from-[#fb7185] to-[#f97316]',
+          badge: 'Cặp đặc biệt',
+        }
+      }
+      if (key.startsWith('triple_')) {
+        return {
+          family: 'K3 3 số trùng',
+          title: `${option?.label ?? ''}${option?.label ?? ''}${option?.label ?? ''}`,
+          description: 'Thắng khi cả 3 viên xúc xắc cùng ra một mặt số.',
+          accent: 'from-[#8b5cf6] to-[#ec4899]',
+          badge: 'Bộ ba cụ thể',
+        }
+      }
+      if (key === 'serial_any') {
+        return {
+          family: 'K3 Khác số',
+          title: option?.label ?? '3 liên tiếp',
+          description: 'Thắng khi kết quả tạo thành bộ 3 số liên tiếp bất kỳ.',
+          accent: 'from-[#ef4444] to-[#fb7185]',
+          badge: 'Dạng liên tiếp',
+        }
+      }
+      if (key.startsWith('diff_')) {
+        return {
+          family: 'K3 Khác số',
+          title: option?.label ?? modalBetLabel.value,
+          description: 'Thắng khi 3 viên đều khác nhau và có chứa mặt số đã chọn.',
+          accent: 'from-[#22c55e] to-[#14b8a6]',
+          badge: '3 số khác nhau',
+        }
+      }
+
+      return {
+        family: 'K3 Cơ bản',
+        title: option?.label ?? modalBetLabel.value,
+        description: 'Thắng theo nhóm tổng điểm hoặc thuộc tính cơ bản của 3 viên xúc xắc.',
+        accent: 'from-[#2563eb] to-[#7c3aed]',
+        badge: 'Cửa cơ bản',
+      }
+    }
+
+    if (isLottery.value) {
+      const positionMatch = key.match(/^pos_([a-e])_(.+)$/)
+      if (positionMatch) {
+        const position = positionMatch[1]?.toUpperCase() ?? ''
+        const suffix = positionMatch[2] ?? ''
+        if (/^\d$/.test(suffix)) {
+          return {
+            family: `5D Vị trí ${position}`,
+            title: `${position} = ${option?.label ?? suffix}`,
+            description: `Thắng khi chữ số tại vị trí ${position} đúng bằng số bạn đã chọn.`,
+            accent: 'from-[#2563eb] to-[#0ea5e9]',
+            badge: `Vị trí ${position}`,
+          }
+        }
+
+        return {
+          family: `5D Vị trí ${position}`,
+          title: `${position} • ${option?.label ?? modalBetLabel.value}`,
+          description: `Thắng theo thuộc tính lớn/nhỏ/chẵn/lẻ của riêng vị trí ${position}.`,
+          accent: 'from-[#0f766e] to-[#14b8a6]',
+          badge: `Vị trí ${position}`,
+        }
+      }
+
+      if (key.startsWith('sum_')) {
+        return {
+          family: '5D SUM',
+          title: option?.label ?? modalBetLabel.value,
+          description: ['sum_big', 'sum_small', 'sum_odd', 'sum_even'].includes(key)
+            ? 'Thắng theo thuộc tính lớn/nhỏ/chẵn/lẻ của tổng 5 số.'
+            : 'Thắng khi tổng 5 chữ số đúng bằng giá trị SUM đã chọn.',
+          accent: 'from-[#f59e0b] to-[#eab308]',
+          badge: 'Theo tổng 5 số',
+        }
+      }
+
+      return {
+        family: '5D Tổng hợp',
+        title: option?.label ?? modalBetLabel.value,
+        description: 'Thắng theo thuộc tính lớn/nhỏ/chẵn/lẻ của tổng bộ số 5D.',
+        accent: 'from-[#0f766e] to-[#14b8a6]',
+        badge: 'Thuộc tính tổng',
+      }
+    }
+
+    return {
+      family: room.value?.title ?? 'Đặt cược',
+      title: option?.label ?? modalBetLabel.value,
+      description: 'Xác nhận lại lựa chọn, số tiền và tỷ lệ trước khi gửi lệnh.',
+      accent: 'from-[#ff8a00] to-[#e52e2e]',
+      badge: 'Cửa cược',
+    }
   }
 
   function currentPage() {
@@ -887,7 +1225,7 @@
     Object.keys(selectedOptions).forEach((key) => delete selectedOptions[key])
     variant?.betGroups.forEach((group) => {
       if (group.options[0]) {
-        selectedOptions[group.title] = group.options[0].key
+        selectedOptions[`${group.subTab ?? ''}:${group.title}`] = group.options[0].key
       }
     })
     modalBetAmount.value = initialBetAmount
@@ -1072,14 +1410,14 @@
     const normalizedPage = Math.max(1, Math.floor(page))
     const normalizedPageSize = Math.max(1, Math.floor(pageSize))
     if (!roomStreamConnection || roomStreamConnection.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error('Đang chờ'))
+      return Promise.reject(new Error('Kết nối realtime chưa sẵn sàng'))
     }
 
     const requestId = globalThis.crypto?.randomUUID?.() ?? `history-${Date.now()}-${normalizedPage}`
     return new Promise<PlayRoomHistoryResponse>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         pendingRoomHistoryRequests.delete(requestId)
-        reject(new Error(''))
+        reject(new Error('Yêu cầu lịch sử qua realtime bị quá hạn'))
       }, 5000)
 
       pendingRoomHistoryRequests.set(requestId, { resolve, reject, timeout })
@@ -1122,6 +1460,16 @@
       wsUrl.searchParams.set('access_token', auth.accessToken)
       return wsUrl.toString()
     }
+  }
+
+  async function requestRoomHistoryViaRest(page: number, pageSize = tablePageSize) {
+    const normalizedPage = Math.max(1, Math.floor(page))
+    const normalizedPageSize = Math.max(1, Math.floor(pageSize))
+    return request<PlayRoomHistoryResponse>(
+      'GET',
+      `/v1/play/rooms/${selectedRoomCode.value}/history?page=${normalizedPage}&page_size=${normalizedPageSize}`,
+      {},
+    )
   }
 
   function connectBetsStream(roomCode: string): void {
@@ -1326,16 +1674,39 @@
 
     historyLoading.value = true
     historyError.value = ''
+    const normalizedPage = Math.max(1, Math.floor(page))
+    const previousRows = [...historyRows.value]
+    const hasRecentResults = Boolean(roomState.value?.recent_results?.length)
     try {
       logRealtimeEvent('history.fetch.ws', { page })
-      const response = await requestRoomHistoryViaWS(page, tablePageSize)
+      const response = await requestRoomHistoryViaWS(normalizedPage, tablePageSize)
       historyRows.value = response.items
       historyPage.value = response.page
       historyTotalPages.value = response.total_pages
-    } catch (error: unknown) {
-      const err = error as Error
-      historyError.value = err?.message ?? 'Không thể tải lịch sử game'
-      historyRows.value = []
+      historyError.value = ''
+    } catch (wsError: unknown) {
+      const wsErr = wsError as Error
+      logRealtimeEvent('history.fetch.ws.error', {
+        page: normalizedPage,
+        message: wsErr?.message ?? String(wsError),
+      })
+
+      try {
+        logRealtimeEvent('history.fetch.rest', { page: normalizedPage, reason: wsErr?.message ?? 'fallback' })
+        const response = await requestRoomHistoryViaRest(normalizedPage, tablePageSize)
+        historyRows.value = response.items
+        historyPage.value = response.page
+        historyTotalPages.value = response.total_pages
+        historyError.value = ''
+      } catch (restError: unknown) {
+        const restErr = restError as ApiError
+        historyError.value = restErr?.message || wsErr?.message || 'Không thể tải lịch sử game'
+        if (previousRows.length > 0) {
+          historyRows.value = previousRows
+        } else if (hasRecentResults && normalizedPage === 1) {
+          applyHistoryFromRecentResults(1)
+        }
+      }
     } finally {
       historyLoading.value = false
     }
@@ -1622,9 +1993,10 @@
     }, 120)
   }
 
-  function openBetModal(groupTitle: string, optionKey: string, optionLabel: string) {
+  function openBetModal(groupTitle: string, optionKey: string, optionLabel: string, groupSubTab?: string) {
     if (!canBet.value) return
     modalBetGroupTitle.value = groupTitle
+    modalBetGroupSubTab.value = String(groupSubTab ?? '')
     modalBetKey.value = optionKey
     modalBetLabel.value = optionLabel
     modalBetAmount.value = initialBetAmount
@@ -1665,17 +2037,27 @@
     return newAmount >= minimumBetAmount && newAmount <= availableVndBalance.value
   }
 
-  function selectOption(groupTitle: string, key: string, label: string) {
-    selectedOptions[groupTitle] = key
-    openBetModal(groupTitle, key, label)
+  function selectOption(groupTitle: string, key: string, label: string, groupSubTab?: string) {
+    selectedOptions[`${groupSubTab ?? ''}:${groupTitle}`] = key
+    openBetModal(groupTitle, key, label, groupSubTab)
   }
 
-  function groupTypeKey(group: PlayBetGroup): string {
+  function isSelectedOption(groupTitle: string, key: string, groupSubTab?: string) {
+    return selectedOptions[`${groupSubTab ?? ''}:${groupTitle}`] === key
+  }
+
+  function groupTypeKey(group: PlayBetGroup, optionKey = ''): string {
+    const normalizedKey = optionKey.toLowerCase()
+    if (/^pos_[a-e]_\d$/.test(normalizedKey)) return 'NUMBER'
+    if (/^pos_[a-e]_(big|small)$/.test(normalizedKey)) return 'BIG_SMALL'
+    if (/^pos_[a-e]_(odd|even)$/.test(normalizedKey)) return 'ODD_EVEN'
+    if (/^sum_(big|small|odd|even|\d+)$/.test(normalizedKey)) return 'SUM'
+
     const title = group.title.toLowerCase()
     if (title.includes('màu') || title.includes('màu sắc')) return 'COLOR'
-    if (title.includes('chọn số') || title.includes('vị trí')) return 'NUMBER'
+    if (title.includes('chọn số') || title.includes('vị trí') || title.includes('số vị trí')) return 'NUMBER'
     if (title.includes('lớn') || title.includes('nhỏ')) return 'BIG_SMALL'
-    if (title.includes('tổng') && title.includes('điểm')) return 'SUM'
+    if (title.includes('sum') || (title.includes('tổng') && title.includes('điểm'))) return 'SUM'
     if (title.includes('chẵn') || title.includes('lẻ') || title.includes('tổng hợp')) return 'ODD_EVEN'
     if (title.includes('bộ ba')) return 'COMBINATION'
     return 'OPTION'
@@ -1748,6 +2130,16 @@
       showBetModal.value = false
       return
     }
+    if (!Number.isFinite(modalBetAmount.value) || modalBetAmount.value < minimumBetAmount) {
+      betMessage.value = `Vui lòng nhập số tiền cược từ ${formatMoney(minimumBetAmount)}đ trở lên.`
+      betMessageRoomCode.value = selectedRoomCode.value
+      return
+    }
+    if (modalBetAmount.value > availableVndBalance.value) {
+      betMessage.value = 'Số dư khả dụng không đủ cho mức cược đã chọn.'
+      betMessageRoomCode.value = selectedRoomCode.value
+      return
+    }
 
     betLoading.value = true
     betMessage.value = ''
@@ -1782,7 +2174,7 @@
         period_id: String(currentPeriod.value.id),
         connection_id: connectionId.value,
         items: [{
-          option_type: groupTypeKey({ title: modalBetGroupTitle.value, description: '', mode: 'chips', options: [] }),
+          option_type: groupTypeKey({ title: modalBetGroupTitle.value, description: '', mode: 'chips', options: [] }, modalBetKey.value),
           option_key: modalBetKey.value,
           stake: String(modalBetAmount.value),
         }],
@@ -1939,6 +2331,7 @@
       activeVariantCode.value = room.value.variants[0]?.code ?? ''
       // Reset K3 sub-tab to first
       if (isK3.value) activeK3SubTab.value = 'Tổng số'
+      if (isLottery.value) activeLotterySubTab.value = 'A'
       await nextTick()
       ensureDefaultSelections(room.value.variants[0] ?? null)
     },
@@ -1982,6 +2375,9 @@
     () => selectedVariant.value?.code,
     () => {
       resetTransientRoomUiState()
+      if (isLottery.value) {
+        activeLotterySubTab.value = lotterySubTabs.value[0] ?? 'A'
+      }
       ensureDefaultSelections(selectedVariant.value)
     },
     { immediate: true },
@@ -2251,8 +2647,8 @@
 
       <!-- ===== K3: DICE DISPLAY ===== -->
       <template v-if="isK3">
-        <div class="mx-3 mt-2 rounded-[16px] overflow-hidden">
-          <div class="flex justify-center gap-4 bg-[#1a5c34] border-[3px] border-[#2d8c4e] rounded-[16px] py-5 px-4">
+        <div class="mx-3 mt-2 overflow-hidden rounded-[16px]">
+          <div class="flex justify-center gap-4 rounded-t-[16px] border-[3px] border-[#2d8c4e] bg-[#1a5c34] px-4 py-5">
             <div
               v-for="(d, i) in (isDiceRolling ? rollingDice : currentDice)"
               :key="i"
@@ -2268,18 +2664,47 @@
               />
             </div>
           </div>
+          <div class="grid grid-cols-3 gap-2 rounded-b-[16px] border border-t-0 border-[#d8e6db] bg-white px-3 py-3 shadow-sm">
+            <div class="rounded-[12px] bg-[#f4fbf6] px-3 py-2">
+              <p class="text-[0.62rem] uppercase tracking-[0.08em] text-slate-400">Tổng điểm</p>
+              <strong class="text-[1rem] font-black text-[#1a5c34]">{{ k3LatestTotal || '—' }}</strong>
+            </div>
+            <div class="rounded-[12px] bg-[#fff7ed] px-3 py-2">
+              <p class="text-[0.62rem] uppercase tracking-[0.08em] text-slate-400">Phân loại</p>
+              <strong class="text-[0.9rem] font-black text-[#c2410c]">{{ k3LatestPattern }}</strong>
+            </div>
+            <div class="rounded-[12px] bg-[#f8fafc] px-3 py-2">
+              <p class="text-[0.62rem] uppercase tracking-[0.08em] text-slate-400">Kỳ gần nhất</p>
+              <strong class="text-[0.82rem] font-black text-on-surface">{{ periodSuffix(k3LatestResult?.period_index ?? k3LatestResult?.period_no, 10) }}</strong>
+            </div>
+          </div>
         </div>
 
         <!-- K3 Recent Results -->
-        <div class="mx-3 mt-2 flex items-center gap-2 rounded-[14px] bg-white px-3 py-2.5 shadow-sm border border-slate-100">
-          <span class="text-[0.7rem] text-slate-400">Gần đây:</span>
-          <div v-for="(result, idx) in recentResults" :key="'k3-recent-' + (result.period_no || idx)" class="flex gap-1">
+        <div class="mx-3 mt-2 rounded-[14px] border border-slate-100 bg-white px-3 py-3 shadow-sm">
+          <div class="mb-2 flex items-center justify-between">
+            <span class="text-[0.68rem] uppercase tracking-[0.12em] text-slate-400">K3 gần đây</span>
+            <span class="rounded-full bg-[#f4fbf6] px-2.5 py-1 text-[0.62rem] font-black text-[#1a5c34]">3 xúc xắc</span>
+          </div>
+          <div class="space-y-2">
             <div
-              v-for="(d, di) in result.result.split('-').map(Number)"
-              :key="di"
-              class="flex h-5 w-5 items-center justify-center rounded-[4px] text-[0.6rem] font-black text-white"
-              :style="{ background: diceColor(d) }"
-            >{{ d }}</div>
+              v-for="(result, idx) in recentResults"
+              :key="'k3-recent-' + (result.period_no || idx)"
+              class="flex items-center justify-between gap-3 rounded-[12px] bg-[#f8fafc] px-3 py-2"
+            >
+              <div class="min-w-0">
+                <p class="truncate text-[0.66rem] font-bold text-slate-700">{{ periodSuffix(result.period_index || result.period_no, 10) }}</p>
+                <p class="mt-0.5 text-[0.6rem] text-slate-400">Tổng {{ k3DiceTotal(result.result) }} • {{ k3PatternLabel(result.result) }}</p>
+              </div>
+              <div class="flex gap-1">
+                <div
+                  v-for="(d, di) in parseK3DiceValues(result.result)"
+                  :key="di"
+                  class="flex h-6 w-6 items-center justify-center rounded-[5px] text-[0.65rem] font-black text-white"
+                  :style="{ background: diceColor(d) }"
+                >{{ d }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </template>
@@ -2343,6 +2768,42 @@
             <span class="rounded-full bg-[#fff5f5] px-3 py-1 text-[0.65rem] font-black text-primary">Lottery 5D</span>
           </div>
 
+          <div class="mb-3 rounded-[14px] border border-[#f0e0e0] bg-[#fff9f9] p-3">
+            <div class="mb-3 flex items-center justify-between">
+              <div>
+                <p class="text-[0.62rem] uppercase tracking-[0.08em] text-slate-400">Kỳ mới nhất</p>
+                <strong class="text-[0.82rem] font-black text-on-surface">{{ periodSuffix(lotteryLatestResult?.period_index ?? lotteryLatestResult?.period_no, 10) }}</strong>
+              </div>
+              <div class="flex gap-1.5">
+                <span class="rounded-full bg-white px-2.5 py-1 text-[0.62rem] font-black text-primary shadow-sm">Tổng {{ lotteryLatestTotal }}</span>
+                <span class="rounded-full bg-white px-2.5 py-1 text-[0.62rem] font-black text-[#2563eb] shadow-sm">{{ lotteryLatestParity }}</span>
+                <span class="rounded-full bg-white px-2.5 py-1 text-[0.62rem] font-black text-[#c2410c] shadow-sm">{{ lotteryLatestTail }}</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-5 gap-2">
+              <div
+                v-for="(digit, idx) in lotteryLatestDigits"
+                :key="'lottery-latest-digit-' + idx"
+                class="rounded-[14px] bg-white px-2 py-2 text-center shadow-sm ring-1 ring-[#f1d9d9]"
+              >
+                <p class="text-[0.55rem] font-bold uppercase tracking-[0.08em] text-slate-300">{{ ['A', 'B', 'C', 'D', 'E'][idx] }}</p>
+                <div class="mx-auto mt-1 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full">
+                  <img
+                    v-if="wingoBallImageSrc(digit)"
+                    :src="wingoBallImageSrc(digit)"
+                    :alt="`Lottery ${digit}`"
+                    class="block h-full w-full scale-[1.14] object-cover mix-blend-multiply"
+                  />
+                  <div
+                    v-else
+                    class="flex h-full w-full items-center justify-center rounded-full text-[0.9rem] font-black text-white"
+                    :style="{ background: wingoBallBackground(digit) }"
+                  >{{ digit }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="rounded-[14px] border border-[#f0e0e0] bg-[#fff9f9] p-3">
             <div
               v-for="(result, idx) in recentResults.slice(0, 5)"
@@ -2350,8 +2811,8 @@
               class="flex items-center justify-between gap-3 border-b border-[#f7e3e3] py-2 last:border-b-0 last:pb-0 first:pt-0"
             >
               <div class="min-w-0">
-                <p class="truncate text-[0.66rem] font-bold text-slate-700">{{ result.period_index ? `#${result.period_index}` : (result.period_no || '—') }}</p>
-                <p class="mt-0.5 text-[0.6rem] text-slate-400">{{ result.big_small || '—' }}</p>
+                <p class="truncate text-[0.66rem] font-bold text-slate-700">{{ periodSuffix(result.period_index || result.period_no, 10) }}</p>
+                <p class="mt-0.5 text-[0.6rem] text-slate-400">Tổng {{ lotteryDigitTotal(result.result) }} • {{ lotteryParityLabel(result.result) }} • {{ lotteryTailLabel(result.result) }}</p>
               </div>
               <div class="flex flex-wrap justify-end gap-1.5">
                 <div
@@ -2540,52 +3001,71 @@
 
         <!-- LOTTERY specific bet UI -->
         <template v-else-if="isLottery">
-          <div v-for="group in selectedVariant.betGroups" :key="group.title" class="mb-4">
-            <p class="mb-2 text-[0.72rem] font-bold uppercase tracking-wide text-slate-500">{{ group.title }}</p>
+          <div class="mb-3 flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            <button
+              v-for="tab in lotterySubTabs"
+              :key="tab"
+              type="button"
+              class="min-w-[52px] rounded-t-[12px] border border-b-0 px-3 py-2 text-[0.82rem] font-black transition-all"
+              :class="activeLotterySubTab === tab ? 'border-[#ff6b66] bg-[#ff6b66] text-white shadow-sm' : 'border-slate-200 bg-[#d8dae8] text-white'"
+              @click="activeLotterySubTab = tab"
+            >{{ tab }}</button>
+          </div>
 
-            <div v-if="isDigitBallGroup(group)" class="grid grid-cols-5 gap-2">
-              <button
-                v-for="option in group.options"
-                :key="option.key"
-                type="button"
-                class="relative flex aspect-square flex-col items-center justify-center overflow-hidden rounded-full transition-transform active:scale-95 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="!canBet"
-                @click="selectOption(group.title, option.key, option.label)"
-              >
-                <img
-                  v-if="wingoBallImageSrc(betOptionBallNumber(option) ?? -1)"
-                  :src="wingoBallImageSrc(betOptionBallNumber(option) ?? -1)"
-                  :alt="`Lottery ${option.label}`"
-                  class="block h-full w-full scale-[1.12] object-cover mix-blend-multiply"
-                />
-                <div
-                  v-else
-                  class="flex h-full w-full flex-col items-center justify-center rounded-full text-white"
-                  :style="{ background: option.accent }"
+          <div class="rounded-[16px] border border-slate-100 bg-white px-3 py-3">
+            <div v-if="lotteryPropertyGroup" class="mb-3">
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-[0.72rem] font-bold text-slate-500">
+                  {{ activeLotterySubTab === 'SUM' ? 'Thuộc tính tổng 5 số' : `Thuộc tính vị trí ${activeLotterySubTab}` }}
+                </p>
+                <span class="text-[0.68rem] font-black text-slate-400">{{ activeLotterySubTab === 'SUM' ? '2X' : '2X / vị trí' }}</span>
+              </div>
+              <div class="grid grid-cols-4 gap-2">
+                <button
+                  v-for="option in lotteryPropertyGroup.options"
+                  :key="option.key"
+                  type="button"
+                  class="rounded-[10px] px-2 py-2.5 text-[0.82rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  :class="isSelectedOption(lotteryPropertyGroup.title, option.key, lotteryPropertyGroup.subTab) ? 'ring-2 ring-[#ff6b66]/45 ring-offset-2 shadow-sm' : ''"
+                  :style="{ background: isSelectedOption(lotteryPropertyGroup.title, option.key, lotteryPropertyGroup.subTab) ? option.accent : '#d8dae8' }"
+                  :disabled="!canBet"
+                  @click="selectOption(lotteryPropertyGroup.title, option.key, option.label, lotteryPropertyGroup.subTab)"
                 >
-                  <span class="text-[1rem] font-black leading-none">{{ option.label }}</span>
-                  <span v-if="option.odds" class="mt-0.5 text-[0.55rem] font-semibold opacity-85">{{ option.odds }}</span>
-                </div>
-                <span
-                  v-if="option.odds && wingoBallImageSrc(betOptionBallNumber(option) ?? -1)"
-                  class="pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-black/8 px-1.5 py-0.5 text-[0.52rem] font-bold text-slate-700 backdrop-blur-[1px]"
-                >{{ option.odds }}</span>
-              </button>
+                  <span class="block leading-none">{{ option.label }}</span>
+                  <span v-if="option.odds" class="mt-1 block text-[0.68rem] font-semibold opacity-85">{{ option.odds.replace('X', '') }}</span>
+                </button>
+              </div>
             </div>
 
-            <div v-else class="flex flex-wrap gap-2">
-              <button
-                v-for="option in group.options"
-                :key="option.key"
-                type="button"
-                class="rounded-full px-4 py-2 text-[0.82rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                :style="{ background: option.accent }"
-                :disabled="!canBet"
-                @click="selectOption(group.title, option.key, option.label)"
-              >
-                {{ option.label }}
-                <span v-if="option.odds" class="ml-1 text-[0.65rem] opacity-85">({{ option.odds }})</span>
-              </button>
+            <div v-if="lotteryNumberGroup" class="border-t border-slate-100 pt-3">
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-[0.72rem] font-bold text-slate-500">Chọn đúng số vị trí {{ activeLotterySubTab }}</p>
+                <span class="text-[0.68rem] font-black text-slate-400">9X</span>
+              </div>
+              <div class="grid grid-cols-5 gap-x-3 gap-y-3">
+                <button
+                  v-for="option in lotteryNumberGroup.options"
+                  :key="option.key"
+                  type="button"
+                  class="flex flex-col items-center justify-center transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!canBet"
+                  @click="selectOption(lotteryNumberGroup.title, option.key, option.label, lotteryNumberGroup.subTab)"
+                >
+                  <div
+                    class="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border bg-white text-[1rem] font-black text-slate-400 transition-all"
+                    :class="isSelectedOption(lotteryNumberGroup.title, option.key, lotteryNumberGroup.subTab) ? 'border-[#ff6b66] ring-2 ring-[#ff6b66]/30 ring-offset-2 shadow-sm' : 'border-[#cfd5e2]'"
+                  >
+                    <img
+                      v-if="wingoBallImageSrc(betOptionBallNumber(option) ?? -1)"
+                      :src="wingoBallImageSrc(betOptionBallNumber(option) ?? -1)"
+                      :alt="`Lottery ${option.label}`"
+                      class="block h-full w-full scale-[1.12] object-cover mix-blend-multiply"
+                    />
+                    <span v-else>{{ option.label }}</span>
+                  </div>
+                  <span class="mt-0.5 text-[0.78rem] font-black text-[#64748b]">{{ option.odds?.replace('X', '') }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </template>
@@ -2663,9 +3143,33 @@
 
           <h3 class="mb-4 text-[1rem] font-black text-on-surface">Đặt cược</h3>
 
-          <div class="mb-3 flex items-center justify-between rounded-[14px] bg-[#fff5f5] px-4 py-3">
-            <span class="text-[0.82rem] text-slate-500">Lựa chọn</span>
-            <span class="text-[0.9rem] font-black text-[#e8404a]">{{ modalBetLabel }}</span>
+          <div
+            class="mb-3 rounded-[18px] bg-gradient-to-r px-4 py-4 text-white"
+            :class="modalSelectionContext.accent"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-[0.68rem] uppercase tracking-[0.12em] text-white/75">{{ modalSelectionContext.family }}</p>
+                <strong class="mt-1 block truncate text-[1.15rem] font-black">{{ modalSelectionContext.title }}</strong>
+                <p class="mt-1 text-[0.76rem] leading-5 text-white/90">{{ modalSelectionContext.description }}</p>
+              </div>
+              <span class="rounded-full bg-white/18 px-2.5 py-1 text-[0.62rem] font-black whitespace-nowrap">{{ modalSelectionContext.badge }}</span>
+            </div>
+          </div>
+
+          <div class="mb-4 grid grid-cols-3 gap-2 text-[0.76rem]">
+            <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+              <p class="text-slate-400">Lựa chọn</p>
+              <strong class="block truncate text-on-surface">{{ modalBetLabel }}</strong>
+            </div>
+            <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+              <p class="text-slate-400">Odds</p>
+              <strong class="block text-[#e8404a]">{{ modalOddsLabel }}</strong>
+            </div>
+            <div class="rounded-[14px] bg-[#fff9f9] px-3 py-3">
+              <p class="text-slate-400">Thuế</p>
+              <strong class="block text-on-surface">{{ formatMoney(modalTaxAmount) }}đ</strong>
+            </div>
           </div>
 
           <div class="mb-5 flex items-center justify-between rounded-[14px] bg-slate-50 px-4 py-4">
@@ -2681,7 +3185,7 @@
                 <input
                   type="number"
                   v-model.number="modalBetAmount"
-                  :min="1000"
+                  :min="0"
                   :max="availableVndBalance"
                   class="w-[120px] text-center text-[1.1rem] font-black text-on-surface bg-transparent border-none focus:ring-0"
                 />
@@ -2693,6 +3197,43 @@
                 :disabled="!canAdjustBetAmount(1)"
                 @click="adjustBetAmount(1)"
               >+</button>
+            </div>
+          </div>
+
+          <div v-if="isK3" class="mb-5 rounded-[16px] border border-[#f3d9d9] bg-[#fff8f8] px-4 py-4">
+            <div class="mb-2 flex items-center justify-between">
+              <p class="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">Tóm tắt K3</p>
+              <span class="rounded-full bg-white px-2.5 py-1 text-[0.62rem] font-black text-[#e8404a] shadow-sm">{{ modalSelectionContext.badge }}</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-[#ede9fe] px-3 py-1 text-[0.7rem] font-black text-[#7c3aed]">{{ modalSelectionContext.title }}</span>
+              <span v-if="modalBetKey.startsWith('sum_')" class="rounded-full bg-[#dcfce7] px-3 py-1 text-[0.7rem] font-black text-[#15803d]">Theo tổng điểm</span>
+              <span v-if="modalBetKey.startsWith('pair_') || modalBetKey.startsWith('sspair_')" class="rounded-full bg-[#fee2e2] px-3 py-1 text-[0.7rem] font-black text-[#dc2626]">Theo cặp trùng</span>
+              <span v-if="modalBetKey.startsWith('triple_')" class="rounded-full bg-[#f3e8ff] px-3 py-1 text-[0.7rem] font-black text-[#9333ea]">Theo bộ ba</span>
+              <span v-if="modalBetKey === 'serial_any' || modalBetKey.startsWith('diff_')" class="rounded-full bg-[#d1fae5] px-3 py-1 text-[0.7rem] font-black text-[#0f766e]">Theo dạng khác số</span>
+            </div>
+          </div>
+
+          <div v-else-if="isLottery" class="mb-5 rounded-[16px] border border-[#dbeafe] bg-[#f8fbff] px-4 py-4">
+            <div class="mb-2 flex items-center justify-between">
+              <p class="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">Tóm tắt 5D</p>
+              <span class="rounded-full bg-white px-2.5 py-1 text-[0.62rem] font-black text-[#2563eb] shadow-sm">{{ modalSelectionContext.badge }}</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-full bg-[#dbeafe] px-3 py-1 text-[0.7rem] font-black text-[#2563eb]">{{ modalSelectionContext.title }}</span>
+              <span
+                v-if="/^pos_[a-e]_\\d$/.test(modalBetKey)"
+                class="rounded-full bg-white px-3 py-1 text-[0.7rem] font-black text-slate-600"
+              >Đúng số theo vị trí</span>
+              <span
+                v-if="/^pos_[a-e]_(big|small|odd|even)$/.test(modalBetKey)"
+                class="rounded-full bg-[#ecfeff] px-3 py-1 text-[0.7rem] font-black text-[#0f766e]"
+              >Thuộc tính theo vị trí</span>
+              <span v-if="modalBetKey.startsWith('sum_')" class="rounded-full bg-[#fef3c7] px-3 py-1 text-[0.7rem] font-black text-[#b45309]">SUM</span>
+              <span
+                v-if="['sum_big', 'sum_small', 'sum_odd', 'sum_even'].includes(modalBetKey)"
+                class="rounded-full bg-[#ecfeff] px-3 py-1 text-[0.7rem] font-black text-[#0f766e]"
+              >Thuộc tính tổng</span>
             </div>
           </div>
 

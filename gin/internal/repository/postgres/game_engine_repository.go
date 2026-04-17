@@ -261,7 +261,6 @@ func (r *GameRepository) ListLockedPeriodsForDraw(ctx context.Context, now time.
 }
 
 func (r *GameRepository) MarkPeriodDrawn(ctx context.Context, period GamePeriodRecord, draw DrawResult) error {
-	log.Printf("[engine][period.draw.start] period_id=%d room_code=%s period_no=%s draw_at=%s result=%s big_small=%s color=%s", period.ID, period.RoomCode, period.PeriodNo, period.DrawAt.Format(time.RFC3339Nano), draw.Result, draw.BigSmall, draw.Color)
 
 	hashBytes := sha256.Sum256(draw.PayloadJSON)
 	hashValue := hex.EncodeToString(hashBytes[:])
@@ -315,7 +314,6 @@ func (r *GameRepository) MarkPeriodDrawn(ctx context.Context, period GamePeriodR
 		return err
 	}
 
-	log.Printf("[engine][period.draw.done] period_id=%d room_code=%s period_no=%s", period.ID, period.RoomCode, period.PeriodNo)
 	return nil
 }
 
@@ -354,7 +352,6 @@ func (r *GameRepository) ListDrawnPeriodsForSettlement(ctx context.Context, limi
 }
 
 func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSettlementRecord) ([]int64, error) {
-	log.Printf("[engine][period.settle.start] period_id=%d room_code=%s period_no=%s", period.ID, period.RoomCode, period.PeriodNo)
 
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -448,13 +445,11 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		if strings.TrimSpace(netAmount) == "" {
 			netAmount = originalAmount
 		}
-		log.Printf("[engine][period.settle.ticket.values] period_id=%d ticket_id=%d original_amount=%s tax_amount=%s net_amount=%s", period.ID, ticket.ID, originalAmount, taxAmount, netAmount)
 		outcomes, payoutTotal, err := settleTicketItems(ticket.ItemsJSON, tags, originalAmount, taxAmount)
 		if err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=settle_ticket_items err=%v", period.ID, ticket.ID, err)
 			return nil, err
 		}
-		log.Printf("[engine][period.settle.payout] period_id=%d ticket_id=%d original_amount=%s tax_amount=%s net_amount=%s payout_total=%s", period.ID, ticket.ID, originalAmount, taxAmount, netAmount, payoutTotal)
 
 		statusAfter := betStatusLost
 		if compareNumeric(payoutTotal, "0") > 0 {

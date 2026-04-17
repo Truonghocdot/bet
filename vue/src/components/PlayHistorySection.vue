@@ -46,6 +46,31 @@ const emit = defineEmits<{
 const visibleHistoryRows = computed(() => props.historyRows)
 const visibleMineRows = computed(() => props.mineRows)
 const visibleChartSeries = computed(() => props.chartSeries)
+const historyGridClass = computed(() => {
+  if (props.isLottery) return 'grid-cols-[1.1fr_1.25fr_0.72fr_0.82fr_0.78fr]'
+  if (props.isK3) return 'grid-cols-[1.15fr_1fr_0.9fr_0.8fr_0.78fr]'
+  return 'grid-cols-[1.35fr_0.7fr_1fr_0.7fr_0.8fr]'
+})
+const resultColumnLabel = computed(() => {
+  if (props.isLottery) return 'Bộ số'
+  if (props.isK3) return 'Xí ngầu'
+  return 'KQ'
+})
+const summaryColumnLabel = computed(() => {
+  if (props.isLottery) return 'Tổng'
+  if (props.isK3) return 'Tổng/Bộ'
+  return 'Lớn/Nhỏ'
+})
+const secondaryColumnLabel = computed(() => {
+  if (props.isLottery) return 'Đặc tính'
+  if (props.isK3) return 'Loại'
+  return 'Màu'
+})
+const chartTitle = computed(() => {
+  if (props.isLottery) return '24 kỳ tổng 5 số'
+  if (props.isK3) return '24 kỳ tổng xúc xắc'
+  return '24 kỳ gần nhất'
+})
 
 const activePage = computed(() => {
   if (props.activeHistoryTab === 'mine') return props.minePage
@@ -114,11 +139,18 @@ function rowProfitLossValue(row: PlayRoomBetHistoryResponse['items'][number]) {
   return 0
 }
 
-function normalizeBetLabel(value: string | null | undefined) {
+type LotteryBetSelectionSummary = {
+  main: string
+  sub: string
+}
+
+function normalizeBetLabel(value: string | null | undefined): string {
   const raw = String(value ?? '').trim()
   if (!raw || raw === '—') return '—'
 
   const lower = raw.toLowerCase()
+  const lotterySelection = describeLotteryBetSelection(raw)
+  if (lotterySelection) return lotterySelection.main
   if (lower.startsWith('number_')) {
     const number = lower.replace('number_', '').trim()
     return number ? `Số ${number}` : 'Số'
@@ -136,11 +168,99 @@ function normalizeBetLabel(value: string | null | undefined) {
   return raw.replaceAll('_', ' ')
 }
 
+function isLotteryDrawValue(value: string | null | undefined) {
+  return /^\d{5}$/.test(String(value ?? '').trim())
+}
+
+function describeLotteryBetSelection(value: string | null | undefined): LotteryBetSelectionSummary | null {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+
+  const lower = raw.toLowerCase()
+  const positionDigitMatch = lower.match(/^pos_([a-e])_(\d)$/)
+  if (positionDigitMatch) {
+    const position = positionDigitMatch[1]?.toUpperCase() ?? ''
+    const digit = positionDigitMatch[2] ?? ''
+    return {
+      main: `Vị trí ${position} = ${digit}`,
+      sub: `Cược đúng số cho vị trí ${position}`,
+    }
+  }
+
+  const positionPropertyMatch = lower.match(/^pos_([a-e])_(big|small|odd|even)$/)
+  if (positionPropertyMatch) {
+    const position = positionPropertyMatch[1]?.toUpperCase() ?? ''
+    const property = normalizeBetLabel(positionPropertyMatch[2] ?? '')
+    return {
+      main: `Vị trí ${position} • ${property}`,
+      sub: `Cược thuộc tính cho vị trí ${position}`,
+    }
+  }
+
+  const sumPropertyMatch = lower.match(/^sum_(big|small|odd|even)$/)
+  if (sumPropertyMatch) {
+    const property = normalizeBetLabel(sumPropertyMatch[1] ?? '')
+    return {
+      main: `SUM • ${property}`,
+      sub: 'Cược thuộc tính tổng 5 số',
+    }
+  }
+
+  const sumNumberMatch = lower.match(/^sum_(\d+)$/)
+  if (sumNumberMatch) {
+    const sum = sumNumberMatch[1] ?? ''
+    return {
+      main: `SUM = ${sum}`,
+      sub: 'Dự đoán tổng 5 số',
+    }
+  }
+
+  const lastDigitMatch = lower.match(/^last_(\d)$/)
+  if (lastDigitMatch) {
+    const digit = lastDigitMatch[1] ?? ''
+    return {
+      main: `Đuôi ${digit}`,
+      sub: 'Cược số cuối',
+    }
+  }
+
+  return null
+}
+
 function rowMainLabel(row: PlayRoomBetHistoryResponse['items'][number]) {
+  if (props.isK3) {
+    const dice = parseK3DiceValues(row.result)
+    if (dice.length === 3) return `Tổng ${k3DiceTotal(row.result)}`
+  }
+
+  if (props.isLottery) {
+    if (isLotteryDrawValue(row.result)) {
+      return `Tổng ${lotteryDigitTotal(row.result)}`
+    }
+    const selection = describeLotteryBetSelection(row.result)
+    if (selection) return selection.main
+  }
+
   return normalizeBetLabel(row.big_small || row.color || row.result || '—')
 }
 
 function rowSubLabel(row: PlayRoomBetHistoryResponse['items'][number]) {
+  if (props.isK3) {
+    const dice = parseK3DiceValues(row.result)
+    if (dice.length === 3) {
+      return `Xúc xắc ${dice.join(' - ')} • Tổng ${k3DiceTotal(row.result)} • ${k3PatternLabel(row.result)}`
+    }
+  }
+
+  if (props.isLottery) {
+    if (isLotteryDrawValue(row.result)) {
+      const digits = extractDigitSequence(row.result)
+      return `${digits.join(' ')} • Tổng ${lotteryDigitTotal(row.result)} • ${lotteryParityLabel(row.result)} • ${lotteryTailLabel(row.result)}`
+    }
+    const selection = describeLotteryBetSelection(row.result)
+    if (selection) return selection.sub
+  }
+
   const normalizedResult = normalizeBetLabel(row.result)
   if (normalizedResult && normalizedResult !== '—') return normalizedResult
   return 'Lệnh đang chờ kết quả'
@@ -336,6 +456,79 @@ function historyResultDigits(row: PlayRoomHistoryResponse['items'][number]) {
 function mineResultDigits(row: PlayRoomBetHistoryResponse['items'][number]) {
   return extractDigitSequence(row.result)
 }
+
+function parseK3DiceValues(value: string | null | undefined): number[] {
+  return String(value ?? '')
+    .split('-')
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item >= 1 && item <= 6)
+}
+
+function k3DiceTotal(value: string | null | undefined): number {
+  return parseK3DiceValues(value).reduce((total, item) => total + item, 0)
+}
+
+function k3PatternLabel(value: string | null | undefined): string {
+  const dice = parseK3DiceValues(value)
+  if (dice.length !== 3) return '—'
+
+  const uniqueCount = new Set(dice).size
+  if (uniqueCount === 1) return 'Bộ ba'
+  if (uniqueCount === 2) return 'Đôi'
+  return k3DiceTotal(value) >= 11 ? 'Lớn' : 'Nhỏ'
+}
+
+function lotteryDigitTotal(value: string | null | undefined): number {
+  return extractDigitSequence(value).reduce((total, digit) => total + digit, 0)
+}
+
+function lotteryParityLabel(value: string | null | undefined): string {
+  return lotteryDigitTotal(value) % 2 === 0 ? 'Chẵn' : 'Lẻ'
+}
+
+function lotteryTailLabel(value: string | null | undefined): string {
+  const digits = extractDigitSequence(value)
+  if (!digits.length) return '—'
+  return `Đuôi ${digits[digits.length - 1]}`
+}
+
+function historySummaryLabel(row: PlayRoomHistoryResponse['items'][number]) {
+  if (props.isLottery) return `Tổng ${lotteryDigitTotal(row.result)}`
+  if (props.isK3) {
+    const dice = parseK3DiceValues(row.result)
+    if (dice.length === 3) return `Tổng ${k3DiceTotal(row.result)}`
+  }
+  return normalizeBetLabel(row.big_small)
+}
+
+function historySecondaryLabel(row: PlayRoomHistoryResponse['items'][number]) {
+  if (props.isLottery) return lotteryParityLabel(row.result)
+  if (props.isK3) return k3PatternLabel(row.result)
+  return normalizeBetLabel(row.color)
+}
+
+function historySummaryClass(row: PlayRoomHistoryResponse['items'][number]) {
+  if (props.isLottery) {
+    return lotteryDigitTotal(row.result) >= 23 ? 'text-[#e8404a]' : 'text-[#2563eb]'
+  }
+  if (props.isK3) {
+    return k3DiceTotal(row.result) >= 11 ? 'text-[#e8404a]' : 'text-[#2563eb]'
+  }
+  return (row.big_small?.toLowerCase().includes('lớn') || row.big_small?.toLowerCase().includes('big'))
+    ? 'text-[#e8404a]'
+    : 'text-[#2563eb]'
+}
+
+function historySecondaryBadgeClass(row: PlayRoomHistoryResponse['items'][number]) {
+  const label = historySecondaryLabel(row).toLowerCase()
+  if (label.includes('bộ ba')) return 'bg-[#8b5cf6] text-white'
+  if (label.includes('đôi')) return 'bg-[#f59e0b] text-white'
+  if (label.includes('lớn')) return 'bg-[#e64545] text-white'
+  if (label.includes('nhỏ')) return 'bg-[#2563eb] text-white'
+  if (label.includes('chẵn')) return 'bg-[#0f766e] text-white'
+  if (label.includes('lẻ')) return 'bg-[#c2410c] text-white'
+  return `${resultBadgeClass(row.color)}`
+}
 </script>
 
 <template>
@@ -365,7 +558,7 @@ function mineResultDigits(row: PlayRoomBetHistoryResponse['items'][number]) {
       <div class="mb-3 flex items-center justify-between">
         <div>
           <p class="text-[0.68rem] uppercase tracking-[0.12em] text-slate-400">Biểu đồ kết quả</p>
-          <strong class="text-[0.9rem] font-black text-on-surface">24 kỳ gần nhất</strong>
+          <strong class="text-[0.9rem] font-black text-on-surface">{{ chartTitle }}</strong>
         </div>
         <button
           type="button"
@@ -406,17 +599,18 @@ function mineResultDigits(row: PlayRoomBetHistoryResponse['items'][number]) {
     <div v-if="props.activeHistoryTab === 'history'" class="overflow-hidden">
       <div v-if="props.historyError" class="px-4 py-3 text-[0.78rem] font-semibold text-[#e64545]">{{ props.historyError }}</div>
       <div v-else class="relative overflow-hidden">
-        <div class="grid grid-cols-[1.35fr_0.7fr_1fr_0.7fr_0.8fr] bg-[#f8fafc] border-b border-slate-200 px-3 py-2 text-[0.62rem] font-black uppercase tracking-[0.06em] text-slate-500">
+        <div class="grid bg-[#f8fafc] border-b border-slate-200 px-3 py-2 text-[0.62rem] font-black uppercase tracking-[0.06em] text-slate-500" :class="historyGridClass">
           <span>Kỳ</span>
-          <span class="text-center">KQ</span>
-          <span>Lớn/Nhỏ</span>
-          <span class="text-center">Màu</span>
+          <span class="text-center">{{ resultColumnLabel }}</span>
+          <span>{{ summaryColumnLabel }}</span>
+          <span class="text-center">{{ secondaryColumnLabel }}</span>
           <span class="text-right">Giờ quay</span>
         </div>
         <div
           v-for="row in visibleHistoryRows"
           :key="`${row.period_index || 0}-${row.period_no}`"
-          class="grid grid-cols-[1.35fr_0.7fr_1fr_0.7fr_0.8fr] items-center border-b border-slate-100 px-3 py-2.5 text-[0.78rem] hover:bg-slate-50"
+          class="grid items-center border-b border-slate-100 px-3 py-2.5 text-[0.78rem] hover:bg-slate-50"
+          :class="historyGridClass"
         >
           <div class="min-w-0">
             <p class="truncate text-[0.66rem] font-bold text-slate-700">
@@ -424,7 +618,15 @@ function mineResultDigits(row: PlayRoomBetHistoryResponse['items'][number]) {
             </p>
             <p class="mt-0.5 text-[0.6rem] text-slate-400">{{ row.period_no ? row.period_no.split('_')[0] : '—' }}</p>
           </div>
-          <div v-if="props.isLottery && historyResultDigits(row).length > 0" class="mx-auto flex max-w-[78px] flex-wrap justify-center gap-1">
+          <div v-if="props.isK3 && parseK3DiceValues(row.result).length === 3" class="mx-auto flex gap-1">
+            <div
+              v-for="(digit, digitIdx) in parseK3DiceValues(row.result)"
+              :key="`${row.period_no || row.period_index || 'k3'}-${digitIdx}`"
+              class="flex h-5 w-5 items-center justify-center rounded-[5px] text-[0.62rem] font-black text-white shadow-sm"
+              :style="{ background: diceColor(digit) }"
+            >{{ digit }}</div>
+          </div>
+          <div v-else-if="props.isLottery && historyResultDigits(row).length > 0" class="mx-auto flex max-w-[92px] flex-wrap justify-center gap-1">
             <div
               v-for="(digit, digitIdx) in historyResultDigits(row).slice(0, 5)"
               :key="`${row.period_no || row.period_index || 'lottery'}-${digitIdx}`"
@@ -457,13 +659,13 @@ function mineResultDigits(row: PlayRoomBetHistoryResponse['items'][number]) {
               :style="resultBadgeStyle(row.color)"
             >{{ row.result ? row.result.slice(0, 1) : '—' }}</span>
           </div>
-          <span class="font-semibold" :class="(row.big_small?.toLowerCase().includes('lớn') || row.big_small?.toLowerCase().includes('big')) ? 'text-[#e8404a]' : 'text-[#2563eb]'">
-            {{ normalizeBetLabel(row.big_small) }}
+          <span class="font-semibold" :class="historySummaryClass(row)">
+            {{ historySummaryLabel(row) }}
           </span>
-          <span class="mx-auto flex h-5 min-w-[44px] items-center justify-center rounded-full px-2 text-[0.62rem] font-black text-white"
-                :class="resultBadgeClass(row.color)"
-                :style="resultBadgeStyle(row.color)">
-            {{ normalizeBetLabel(row.color) }}
+          <span class="mx-auto flex h-5 min-w-[50px] items-center justify-center rounded-full px-2 text-[0.62rem] font-black"
+                :class="historySecondaryBadgeClass(row)"
+                :style="props.isK3 || props.isLottery ? {} : resultBadgeStyle(row.color)">
+            {{ historySecondaryLabel(row) }}
           </span>
           <span class="text-right text-[0.66rem] font-semibold text-slate-500">{{ formatDrawClock(row.draw_at, row.created_at) }}</span>
         </div>

@@ -75,6 +75,7 @@ const zeroBallAccent =
   'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #e64545 0%, #ef6b73 38%, #8b5cf6 62%, #6f3de8 100%)'
 const fiveBallAccent =
   'radial-gradient(circle at 28% 26%, rgba(255,255,255,0.96) 0 16%, rgba(255,255,255,0.24) 17%, transparent 28%), repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 8px, transparent 8px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 16px), linear-gradient(135deg, #24b561 0%, #59d88a 38%, #8b5cf6 62%, #6f3de8 100%)'
+const lotteryPositionTabs = ['A', 'B', 'C', 'D', 'E'] as const
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -210,6 +211,70 @@ function buildLotteryResults(base: string): PlayResult[] {
       drawAt: addSeconds(-140),
     },
   ]
+}
+
+function buildLotteryDigitOptions(position: string): PlayBetOption[] {
+  return Array.from({ length: 10 }, (_, number) => ({
+    key: `pos_${position.toLowerCase()}_${number}`,
+    label: String(number),
+    odds: '9X',
+    accent:
+      number === 0
+        ? zeroBallAccent
+        : number === 5
+          ? fiveBallAccent
+          : number % 2 === 0
+            ? redBallAccent
+            : greenBallAccent,
+  }))
+}
+
+function buildLotteryPropertyOptions(position: string): PlayBetOption[] {
+  const prefix = position.toLowerCase()
+  return [
+    { key: `pos_${prefix}_big`, label: 'Lớn', accent: '#f6c32d', odds: '2X' },
+    { key: `pos_${prefix}_small`, label: 'Nhỏ', accent: '#24b561', odds: '2X' },
+    { key: `pos_${prefix}_odd`, label: 'Lẻ', accent: '#8b5cf6', odds: '2X' },
+    { key: `pos_${prefix}_even`, label: 'Chẵn', accent: '#e64545', odds: '2X' },
+  ]
+}
+
+function buildLotteryTabGroups(): PlayBetGroup[] {
+  const groups: PlayBetGroup[] = []
+
+  for (const tab of lotteryPositionTabs) {
+    groups.push(
+      {
+        title: 'Lớn / Nhỏ / Lẻ / Chẵn',
+        description: `Chọn thuộc tính cho vị trí ${tab}.`,
+        mode: 'chips',
+        subTab: tab,
+        options: buildLotteryPropertyOptions(tab),
+      },
+      {
+        title: `Số vị trí ${tab}`,
+        description: `Chọn chính xác chữ số cho vị trí ${tab}.`,
+        mode: 'grid',
+        subTab: tab,
+        options: buildLotteryDigitOptions(tab),
+      },
+    )
+  }
+
+  groups.push({
+    title: 'SUM',
+    description: 'Chọn thuộc tính lớn/nhỏ/chẵn/lẻ cho tổng 5 số.',
+    mode: 'chips',
+    subTab: 'SUM',
+    options: [
+      { key: 'sum_big', label: 'Lớn', accent: '#f6c32d', odds: '2X' },
+      { key: 'sum_small', label: 'Nhỏ', accent: '#24b561', odds: '2X' },
+      { key: 'sum_odd', label: 'Lẻ', accent: '#8b5cf6', odds: '2X' },
+      { key: 'sum_even', label: 'Chẵn', accent: '#e64545', odds: '2X' },
+    ],
+  })
+
+  return groups
 }
 
 function buildWingoVariant(
@@ -438,49 +503,8 @@ function buildLotteryVariant(
       ['541', 'Tổng 30', '50.000đ', '0đ', 'LOST'],
       ['540', 'Lớn / Chẵn', '20.000đ', '0đ', 'LOST'],
     ]),
-    betGroups: [
-      {
-        title: 'Vị trí A - E',
-        description: 'Chọn 1 chữ số cho từng vị trí.',
-        mode: 'grid',
-        options: Array.from({ length: 10 }, (_, number) => ({
-          key: `digit_${number}`,
-          label: String(number),
-          accent:
-            number === 0
-              ? zeroBallAccent
-              : number === 5
-                ? fiveBallAccent
-                : number % 2 === 0
-                  ? redBallAccent
-                  : greenBallAccent,
-          odds: '1:9',
-        })),
-      },
-      {
-        title: 'Tổng hợp',
-        description: 'Đặt theo tổng lớn/nhỏ hoặc chẵn/lẻ.',
-        mode: 'chips',
-        options: [
-          { key: 'big', label: 'LỚN', accent: '#f6c32d', odds: '2X' },
-          { key: 'small', label: 'NHỎ', accent: '#24b561', odds: '2X' },
-          { key: 'odd', label: 'LẺ', accent: '#8b5cf6', odds: '2X' },
-          { key: 'even', label: 'CHẴN', accent: '#e64545', odds: '2X' },
-        ],
-      },
-      {
-        title: 'Số đuôi',
-        description: 'Cược theo số cuối hoặc tổng chữ số.',
-        mode: 'chips',
-        options: [
-          { key: 'last_0', label: 'Đuôi 0', accent: '#e64545', odds: '1:9' },
-          { key: 'last_5', label: 'Đuôi 5', accent: '#e64545', odds: '1:9' },
-          { key: 'sum_15', label: 'Tổng 15', accent: '#f6c32d', odds: '20.74X' },
-          { key: 'sum_30', label: 'Tổng 30', accent: '#f6c32d', odds: '20.74X' },
-        ],
-      },
-    ],
-    note: '5D ưu tiên chọn vị trí và tổng hợp, các cửa phức tạp sẽ mở dần theo cấu hình vận hành.',
+    betGroups: buildLotteryTabGroups(),
+    note: '5D đi theo luồng chọn vị trí A-E hoặc SUM trước, sau đó mới chọn thuộc tính và số cụ thể.',
   }
 }
 

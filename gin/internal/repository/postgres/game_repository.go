@@ -69,18 +69,18 @@ type GamePeriodRecord struct {
 }
 
 type GameRoundRecord struct {
-	ID        int64
-	GameType  string
-	RoomCode  string
-	PeriodNo  string
+	ID          int64
+	GameType    string
+	RoomCode    string
+	PeriodNo    string
 	PeriodIndex int64
-	Result    string
-	BigSmall  string
-	Color     string
-	DrawAt    time.Time
-	Status    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Result      string
+	BigSmall    string
+	Color       string
+	DrawAt      time.Time
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type BetTicketItemRecord struct {
@@ -578,7 +578,6 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		return BetTicketRecord{}, err
 	}
 
-
 	ticketNo := buildTicketNo()
 	betType := 1
 	if len(params.Items) > 1 {
@@ -944,11 +943,11 @@ func settlementOddsForItem(optionType, optionKey string) *big.Rat {
 	typ := strings.ToUpper(strings.TrimSpace(optionType))
 
 	switch {
-	case strings.HasPrefix(key, "number_"), strings.HasPrefix(key, "digit_"), strings.HasPrefix(key, "last_"):
+	case strings.HasPrefix(key, "number_"), strings.HasPrefix(key, "digit_"), strings.HasPrefix(key, "last_"), isLotteryPositionDigitKey(key):
 		return big.NewRat(9, 1)
 	case key == "violet":
 		return big.NewRat(9, 2)
-	case key == "green", key == "red", key == "big", key == "small", key == "odd", key == "even":
+	case key == "green", key == "red", key == "big", key == "small", key == "odd", key == "even", isLotteryPositionPropertyKey(key):
 		return big.NewRat(2, 1)
 	case strings.HasPrefix(key, "pair_"):
 		return big.NewRat(1383, 100)
@@ -1000,6 +999,31 @@ func settlementOddsForItem(optionType, optionKey string) *big.Rat {
 	}
 
 	return big.NewRat(2, 1)
+}
+
+func isLotteryPositionDigitKey(key string) bool {
+	if len(key) != len("pos_a_0") || !strings.HasPrefix(key, "pos_") {
+		return false
+	}
+	position := key[4]
+	if position < 'a' || position > 'e' || key[5] != '_' {
+		return false
+	}
+	return key[6] >= '0' && key[6] <= '9'
+}
+
+func isLotteryPositionPropertyKey(key string) bool {
+	switch {
+	case strings.HasPrefix(key, "pos_a_"),
+		strings.HasPrefix(key, "pos_b_"),
+		strings.HasPrefix(key, "pos_c_"),
+		strings.HasPrefix(key, "pos_d_"),
+		strings.HasPrefix(key, "pos_e_"):
+		suffix := key[len("pos_a_"):]
+		return suffix == "big" || suffix == "small" || suffix == "odd" || suffix == "even"
+	default:
+		return false
+	}
 }
 
 func sumOddsForKey(key string) *big.Rat {
