@@ -19,8 +19,8 @@ class TransactionsTable
         return $table
             ->columns([
                 TextColumn::make('id')->label('ID')->sortable(),
+                TextColumn::make('user_id')->label('ID người dùng')->sortable()->searchable(),
                 TextColumn::make('user.name')->label('Người dùng')->searchable()->sortable(),
-                TextColumn::make('wallet.id')->label('Ví')->sortable(),
                 TextColumn::make('type')
                     ->label('Loại')
                     ->badge()
@@ -32,15 +32,27 @@ class TransactionsTable
                     ->formatStateUsing(fn ($state): string => EnumPresenter::label(\App\Enum\Wallet\UnitTransaction::class, $state))
                     ->color(fn ($state): string => EnumPresenter::color(\App\Enum\Wallet\UnitTransaction::class, $state)),
                 TextColumn::make('amount')->label('Số tiền')->money('VND')->sortable(),
-                TextColumn::make('fee')->label('Phí')->money('VND')->sortable(),
-                TextColumn::make('net_amount')->label('Thực nhận')->money('VND')->sortable(),
+                TextColumn::make('client_ref')
+                    ->label('Mã giao dịch CK')
+                    ->searchable()
+                    ->toggleable()
+                    ->formatStateUsing(function ($state): string {
+                        $value = trim((string) $state);
+
+                        if ($value === '') {
+                            return '—';
+                        }
+
+                        return str_starts_with($value, 'DEP-') ? substr($value, 4) : $value;
+                    })
+                    ->copyable()
+                    ->fontFamily('mono'),
                 TextColumn::make('status')
                     ->label('Trạng thái')
                     ->badge()
                     ->formatStateUsing(fn ($state): string => EnumPresenter::label(TransactionStatus::class, $state))
                     ->color(fn ($state): string => EnumPresenter::color(TransactionStatus::class, $state)),
                 TextColumn::make('provider')->label('Nhà cung cấp')->toggleable(),
-                TextColumn::make('provider_txn_id')->label('Mã nhà cung cấp')->toggleable(),
                 TextColumn::make('approved_at')->label('Duyệt lúc')->dateTime()->toggleable(),
                 TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
             ])
