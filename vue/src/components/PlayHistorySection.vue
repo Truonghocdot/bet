@@ -329,11 +329,12 @@ function periodSuffix(value: string | number | null | undefined, size = 9) {
   return raw.length <= size ? raw : raw.slice(-size)
 }
 
-function periodLabel(periodIndex: string | number | null | undefined, periodNo: string | null | undefined, size = 6) {
-  if (periodIndex !== null && periodIndex !== undefined && String(periodIndex).trim()) {
-    return periodSuffix(periodIndex, size)
-  }
-  return periodSuffix(periodNo, size)
+function fullPeriodLabel(periodIndex: string | number | null | undefined, periodNo: string | null | undefined) {
+  const rawIndex = String(periodIndex ?? '').trim()
+  if (rawIndex) return rawIndex
+
+  const rawPeriodNo = String(periodNo ?? '').trim()
+  return rawPeriodNo || '—'
 }
 
 function parseTimeMs(value: string | null | undefined) {
@@ -613,8 +614,8 @@ function historySecondaryBadgeClass(row: PlayRoomHistoryResponse['items'][number
           :class="historyGridClass"
         >
           <div class="min-w-0">
-            <p class="truncate text-[0.66rem] font-bold text-slate-700">
-              {{ periodLabel(row.period_index, row.period_no, 10) }}
+            <p class="break-all text-[0.66rem] font-bold text-slate-700">
+              {{ fullPeriodLabel(row.period_index, row.period_no) }}
             </p>
             <p class="mt-0.5 text-[0.6rem] text-slate-400">{{ row.period_no ? row.period_no.split('_')[0] : '—' }}</p>
           </div>
@@ -739,8 +740,8 @@ function historySecondaryBadgeClass(row: PlayRoomHistoryResponse['items'][number
             </div>
 
             <div class="min-w-0 flex-1">
-              <p class="truncate text-[0.72rem] font-semibold text-slate-400">
-                {{ row.period_index ? `#${row.period_index}` : (row.period_no || '—') }}
+              <p class="break-all text-[0.72rem] font-semibold text-slate-400">
+                {{ fullPeriodLabel(row.period_index, row.period_no) }}
               </p>
               <p class="truncate text-[0.62rem] text-slate-300">{{ row.period_no || '—' }}</p>
               <p class="mt-0.5 text-[0.88rem] font-black text-on-surface">{{ rowMainLabel(row) }}</p>
