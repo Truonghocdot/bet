@@ -1963,6 +1963,7 @@
     let latestSettledAt = ''
     let fallbackTime = ''
     let latestPeriodId = 0
+    let displayPeriodIndex = 0
 
     matches.forEach(row => {
       totalStake += toFiniteNumber(row.original_amount || row.stake)
@@ -1975,6 +1976,7 @@
         fallbackTime = row.created_at
       }
       if (row.period_id) latestPeriodId = row.period_id
+      if (Number(row.period_index) > 0) displayPeriodIndex = Number(row.period_index)
     })
 
     // Nếu không có giờ chốt, dùng giờ đặt cuối cùng làm fallback
@@ -1999,7 +2001,7 @@
     wallet.connectStream()
     clearSettlementRetry(settlementKey)
     
-    resultModalPeriodNo.value = periodNo
+    resultModalPeriodNo.value = displayPeriodIndex > 0 ? String(displayPeriodIndex) : periodNo
     resultModalTitle.value = profitLoss > 0 ? 'Chúc mừng! Kỳ quay có lãi' : 
                             profitLoss < 0 ? 'Kết quả kỳ quay (Chưa may mắn)' : 'Kết quả kỳ quay (Hòa vốn)'
     
