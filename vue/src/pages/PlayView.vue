@@ -182,6 +182,7 @@
   let rollTimer: number | undefined
 
   const tablePageSize = 4
+  const mineTablePageSize = 50
   let timer: number | undefined
   let roomStreamConnection: WebSocket | null = null
   let betsStreamConnection: WebSocket | null = null
@@ -193,8 +194,27 @@
   let mineHistoryRequestPromise: Promise<PlayRoomBetHistoryResponse> | null = null
   let autoJoinTimer: number | undefined
   let autoJoinAttemptKey = ''
+  let clientRequestNonce = 0
   const pendingBetRequests = new Map<string, { resolve: (response: any) => void; reject: (error: any) => void; timeout: number }>()
   const pendingRoomHistoryRequests = new Map<string, { resolve: (response: PlayRoomHistoryResponse) => void; reject: (error: Error) => void; timeout: number }>()
+
+  function createClientRequestId(prefix = 'req') {
+    clientRequestNonce = (clientRequestNonce + 1) % 1_000_000
+
+    if (globalThis.crypto?.randomUUID) {
+      return `${prefix}-${globalThis.crypto.randomUUID()}`
+    }
+
+    if (globalThis.crypto?.getRandomValues) {
+      const bytes = new Uint8Array(8)
+      globalThis.crypto.getRandomValues(bytes)
+      const randomHex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+      return `${prefix}-${Date.now()}-${clientRequestNonce}-${randomHex}`
+    }
+
+    const randomHex = Math.random().toString(16).slice(2, 14)
+    return `${prefix}-${Date.now()}-${clientRequestNonce}-${randomHex}`
+  }
 
   const room = computed<PlayRoom | null>(() => getPlayRoom(String(route.params.game ?? 'wingo')) ?? null)
   const isK3 = computed(() => room.value?.code === 'k3')
@@ -1442,7 +1462,7 @@
       return Promise.reject(new Error('Kết nối realtime chưa sẵn sàng'))
     }
 
-    const requestId = globalThis.crypto?.randomUUID?.() ?? `history-${Date.now()}-${normalizedPage}`
+    const requestId = createClientRequestId(`history-${normalizedPage}`)
     return new Promise<PlayRoomHistoryResponse>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         pendingRoomHistoryRequests.delete(requestId)
@@ -1525,7 +1545,7 @@
             if (data?.items && Array.isArray(data.items)) {
               mineRowsCached.length = 0
               mineRowsCached.push(...data.items)
-              mineTotalPages.value = Math.max(1, Number(data.total_pages ?? Math.ceil(mineRowsCached.length / tablePageSize)))
+              mineTotalPages.value = Math.max(1, Number(data.total_pages ?? Math.ceil(mineRowsCached.length / mineTablePageSize)))
               if (minePage.value <= 1) {
                 updateMineRowsFromCache(1)
               }
@@ -1556,8 +1576,8 @@
 
   function updateMineRowsFromCache(page: number) {
     const normalized = Math.max(1, Math.floor(page))
-    const start = (normalized - 1) * tablePageSize
-    const end = start + tablePageSize
+    const start = (normalized - 1) * mineTablePageSize
+    const end = start + mineTablePageSize
     mineRows.value = mineRowsCached.slice(start, end)
     minePage.value = normalized
   }
@@ -1816,7 +1836,7 @@
       ? mineHistoryRequestPromise
       : request<PlayRoomBetHistoryResponse>(
           'GET',
-          `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${normalizedPage}&page_size=${tablePageSize}`,
+          `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${normalizedPage}&page_size=${mineTablePageSize}`,
           { token: auth.accessToken },
         )
 
@@ -1884,7 +1904,7 @@
   }
 
   function resolvePendingSettlementModalFromMineRows() {
-    if (!settlementTargets.size || !mineRows.value.length) return false
+    if (!settlementTargets.size || !getMineRowsForSettlement().length) return false
 
     let anySuccess = false
     for (const [settlementKey, targetPeriodNo] of settlementTargets.entries()) {
@@ -1909,11 +1929,24 @@
     return anySuccess
   }
 
+  function getMineRowsForSettlement() {
+    const deduped = new Map<number, PlayRoomBetHistoryResponse['items'][number]>()
+
+    for (const row of mineRowsCached) {
+      deduped.set(Number(row.id), row)
+    }
+    for (const row of mineRows.value) {
+      deduped.set(Number(row.id), row)
+    }
+
+    return Array.from(deduped.values())
+  }
+
   function checkAndShowSettlementForPeriod(periodNo: string): boolean {
     if (!periodNo) return false
     
     // Tìm tất cả các vé của kỳ này
-    const matches = mineRows.value.filter(row => String(row.period_no) === String(periodNo))
+    const matches = getMineRowsForSettlement().filter(row => String(row.period_no) === String(periodNo))
     if (matches.length === 0) return false
     
     // Kiểm tra xem tất cả các vé đã có kết quả chưa
@@ -2214,7 +2247,7 @@
     }
 
     try {
-      const requestId = globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}`
+      const requestId = createClientRequestId('bet')
       const buildBetPayload = (periodID: string) => ({
         request_id: requestId,
         period_id: periodID,

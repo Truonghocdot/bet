@@ -350,7 +350,7 @@ func (h *PlayRoomHandler) MyBetsWS(w http.ResponseWriter, r *http.Request) {
 	defer pingTicker.Stop()
 
 	// Send initial state (list of latest bets)
-	initialBets, err := h.playRoomService.ListMyRoomBets(r.Context(), claims.UserID, roomCode, 1, 4)
+	initialBets, err := h.playRoomService.ListMyRoomBets(r.Context(), claims.UserID, roomCode, 1, 50)
 	if err == nil {
 		_ = conn.WriteJSON(wsRoomEventPayload{Event: "bets.init", Data: initialBets})
 	}
