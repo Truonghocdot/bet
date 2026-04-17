@@ -285,6 +285,19 @@
   })
   const canPlay = computed(() => availableVndBalance.value > 0)
   const currentPeriod = computed(() => roomState.value?.current_period ?? null)
+  const currentDisplayPeriodIndex = computed(() => {
+    const raw = String(currentPeriod.value?.period_index ?? '').trim()
+    if (!raw) return '—'
+    if (!/^\d+$/.test(raw)) return raw
+
+    try {
+      const current = BigInt(raw)
+      if (current <= 0n) return raw
+      return (current - 1n).toString()
+    } catch {
+      return raw
+    }
+  })
   const syncedNow = computed(() => {
     if (serverClockAnchorMs.value > 0 && localClockAnchorMs.value > 0) {
       return serverClockAnchorMs.value + Math.max(0, clockTick.value - localClockAnchorMs.value)
@@ -2767,7 +2780,7 @@
         </div>
         <div class="flex items-center justify-between mt-2">
           <div>
-            <p class="text-[0.78rem] font-bold text-on-surface">kỳ hiện tại: {{ currentPeriod?.period_index ?? '—' }}</p>
+            <p class="text-[0.78rem] font-bold text-on-surface">kỳ hiện tại: {{ currentDisplayPeriodIndex }}</p>
             <p class="text-[0.65rem] text-slate-400 uppercase tracking-wide mt-0.5">{{ roomStatusLabel }}</p>
           </div>
           <!-- Digit-box countdown (matching source design) -->
