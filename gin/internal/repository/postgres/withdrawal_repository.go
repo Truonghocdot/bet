@@ -12,7 +12,6 @@ import (
 
 var (
 	ErrWithdrawalAccountNotFound = errors.New("account not found")
-	ErrInsufficientBalance = errors.New("insufficient balance")
 )
 
 type WithdrawalRepository struct {
@@ -58,7 +57,7 @@ func (r *WithdrawalRepository) ListAccounts(ctx context.Context, userID int64) (
 func (r *WithdrawalRepository) CreateAccount(ctx context.Context, userID int64, req withdrawal.SetupAccountRequest) (int64, error) {
 	var id int64
 	now := clock.Now()
-	
+
 	// If the new account is default, we should probably unset others, but the schema doesn't strictly enforce one default.
 	// For simplicity, we just insert.
 	err := r.db.QueryRowContext(ctx, `
@@ -67,7 +66,7 @@ func (r *WithdrawalRepository) CreateAccount(ctx context.Context, userID int64, 
 		) values ($1, $2, $3, $4, $5, $6, $7, $7)
 		returning id
 	`, userID, req.Unit, req.ProviderCode, req.AccountName, req.AccountNumber, req.IsDefault, now).Scan(&id)
-	
+
 	return id, err
 }
 
@@ -133,11 +132,6 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 		return 0, err
 	}
 
-	availableBefore := balanceBefore
-	if compareNumeric(availableBefore, amount) < 0 {
-		return 0, ErrInsufficientBalance
-	}
-
 	if _, err := tx.ExecContext(ctx, `
 		update wallets
 		set balance = balance - $1::numeric(20,8),
@@ -159,7 +153,7 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 		return 0, err
 	}
 
-	availableAfter, err := subtractNumeric(availableBefore, amount)
+	balanceAfter, err := subtractNumeric(balanceBefore, amount)
 	if err != nil {
 		return 0, err
 	}
@@ -172,7 +166,7 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 			$1, $2, 2, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8),
 			'App\\Models\\Transaction\\WithdrawalRequest', $6, 'Khóa tiền tạo lệnh rút', $7
 		)
-	`, walletID, userID, amount, availableBefore, availableAfter, requestID, now); err != nil {
+	`, walletID, userID, amount, balanceBefore, balanceAfter, requestID, now); err != nil {
 		return 0, err
 	}
 

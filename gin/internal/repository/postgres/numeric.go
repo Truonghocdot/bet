@@ -26,6 +26,10 @@ func addNumeric(left, right string) (string, error) {
 	return new(big.Rat).Add(lv, rv).FloatString(8), nil
 }
 
+func AddNumeric(left, right string) (string, error) {
+	return addNumeric(left, right)
+}
+
 func subtractNumeric(left, right string) (string, error) {
 	lv, err := parseNumeric(left)
 	if err != nil {
@@ -36,6 +40,10 @@ func subtractNumeric(left, right string) (string, error) {
 		return "", err
 	}
 	return new(big.Rat).Sub(lv, rv).FloatString(8), nil
+}
+
+func SubtractNumeric(left, right string) (string, error) {
+	return subtractNumeric(left, right)
 }
 
 func multiplyNumeric(left, right string) (string, error) {

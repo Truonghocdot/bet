@@ -45,11 +45,6 @@ const validationMessage = computed(() => {
   if (!amount.value) return ''
   const numeric = Number(amount.value)
   if (!Number.isFinite(numeric) || numeric <= 0) return 'Số tiền rút không hợp lệ'
-  if (method.value === 'vnd') {
-    if (numeric > Number(currentWallets.value.vnd?.balance || 0)) return 'Số dư khả dụng không đủ'
-  } else {
-    if (numeric > Number(currentWallets.value.usdt?.balance || 0)) return 'Số dư USDT khả dụng không đủ'
-  }
   return ''
 })
 

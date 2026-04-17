@@ -86,6 +86,31 @@ func (r *WalletRepository) ListByUserID(ctx context.Context, userID int64) ([]Wa
 	return records, rows.Err()
 }
 
+func (r *WalletRepository) GetLatestSuccessfulDepositAmount(ctx context.Context, userID int64, unit int) (string, error) {
+	var amount string
+	err := r.db.QueryRowContext(ctx, `
+		select coalesce(amount, net_amount, 0)::text
+		from transactions
+		where user_id = $1
+		  and unit = $2
+		  and type = 1
+		  and status = 3
+		  and deleted_at is null
+		order by coalesce(approved_at, updated_at, created_at) desc, id desc
+		limit 1
+	`, userID, unit).Scan(&amount)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "0", nil
+		}
+		return "", err
+	}
+	if amount == "" {
+		return "0", nil
+	}
+	return amount, nil
+}
+
 func (r *WalletRepository) Exchange(ctx context.Context, userID int64, fromUnit, toUnit int, fromAmount, toAmount string) error {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

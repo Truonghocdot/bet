@@ -48,16 +48,26 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 	items := make([]wallet.WalletBalance, 0, len(records))
 	for _, record := range records {
 		unitCode, unitLabel := walletUnitLabel(record.Unit)
+		withdrawCreditLimit, creditErr := s.repository.GetLatestSuccessfulDepositAmount(ctx, userID, record.Unit)
+		if creditErr != nil {
+			return wallet.WalletSummaryResponse{}, creditErr
+		}
+		withdrawAvailable, availableErr := repopg.AddNumeric(record.Balance, withdrawCreditLimit)
+		if availableErr != nil {
+			return wallet.WalletSummaryResponse{}, availableErr
+		}
 		items = append(items, wallet.WalletBalance{
-			ID:            record.ID,
-			Unit:          record.Unit,
-			UnitCode:      unitCode,
-			UnitLabel:     unitLabel,
-			Balance:       record.Balance,
-			LockedBalance: record.LockedBalance,
-			Status:        record.Status,
-			CreatedAt:     record.CreatedAt,
-			UpdatedAt:     record.UpdatedAt,
+			ID:                  record.ID,
+			Unit:                record.Unit,
+			UnitCode:            unitCode,
+			UnitLabel:           unitLabel,
+			Balance:             record.Balance,
+			LockedBalance:       record.LockedBalance,
+			WithdrawCreditLimit: withdrawCreditLimit,
+			WithdrawAvailable:   withdrawAvailable,
+			Status:              record.Status,
+			CreatedAt:           record.CreatedAt,
+			UpdatedAt:           record.UpdatedAt,
 		})
 	}
 

@@ -30,7 +30,7 @@ func (h *WithdrawalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if path != "" && path != "/" {
 		path = strings.TrimSuffix(path, "/")
 	}
-	
+
 	if path == "/accounts" {
 		if r.Method == http.MethodGet {
 			h.handleListAccounts(w, r)
@@ -235,10 +235,6 @@ func (h *WithdrawalHandler) handleSubmitWithdrawal(w http.ResponseWriter, r *htt
 	requestID, err := h.withdrawalService.SubmitWithdrawalRequest(r.Context(), claims.UserID, req)
 	if err != nil {
 		if errors.Is(err, repopg.ErrWithdrawalAccountNotFound) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
-			return
-		}
-		if errors.Is(err, repopg.ErrInsufficientBalance) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
 			return
 		}

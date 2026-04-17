@@ -341,6 +341,8 @@ export type WalletSummaryItem = {
   unit_label: string
   balance: string
   locked_balance: string
+  withdraw_credit_limit: string
+  withdraw_available: string
   status: number
   created_at: string
   updated_at: string
