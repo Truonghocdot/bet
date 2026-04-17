@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 
 import type { PlayRoomBetHistoryResponse, PlayRoomHistoryResponse } from '@/shared/api/types'
 import { formatViMoney } from '@/shared/lib/money'
@@ -43,33 +43,9 @@ const emit = defineEmits<{
   (event: 'open-ticket-detail', row: PlayRoomBetHistoryResponse['items'][number]): void
 }>()
 
-const visibleHistoryRows = ref<PlayRoomHistoryResponse['items']>([])
-const visibleMineRows = ref<PlayRoomBetHistoryResponse['items']>([])
-const visibleChartSeries = ref<ChartSeriesItem[]>([])
-
-watch(
-  () => [props.historyRows, props.historyLoading] as const,
-  ([rows, loading]) => {
-    if (!loading) visibleHistoryRows.value = [...rows]
-  },
-  { immediate: true },
-)
-
-watch(
-  () => [props.mineRows, props.mineLoading] as const,
-  ([rows, loading]) => {
-    if (!loading) visibleMineRows.value = [...rows]
-  },
-  { immediate: true },
-)
-
-watch(
-  () => [props.chartSeries, props.chartLoading] as const,
-  ([rows, loading]) => {
-    if (!loading) visibleChartSeries.value = [...rows]
-  },
-  { immediate: true },
-)
+const visibleHistoryRows = computed(() => props.historyRows)
+const visibleMineRows = computed(() => props.mineRows)
+const visibleChartSeries = computed(() => props.chartSeries)
 
 const activePage = computed(() => {
   if (props.activeHistoryTab === 'mine') return props.minePage

@@ -1010,8 +1010,11 @@
     })
     await maybeShowSettlementModal(previousPeriod, response.current_period)
 
-    // Tự động cập nhật bảng lịch sử game nếu đang ở trang 1
+    // Tự động cập nhật bảng lịch sử game nếu đang ở trang 1.
+    // Ưu tiên bơm recent_results vào UI ngay khi đổi kỳ để tránh trạng thái
+    // room đã sang kỳ mới nhưng PlayHistorySection vẫn chưa có dữ liệu mới.
     if (historyPage.value === 1) {
+      applyHistoryFromRecentResults(1)
       if (previousPeriodNo && previousPeriodNo !== nextPeriodNo) {
           setTimeout(() => {
             void loadRoomHistory(1)
@@ -1019,8 +1022,6 @@
               void loadMineHistory(1, { force: true })
             }
           }, 500)
-      } else {
-          applyHistoryFromRecentResults(1)
       }
     }
 
