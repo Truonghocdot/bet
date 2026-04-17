@@ -288,15 +288,7 @@
   const currentDisplayPeriodIndex = computed(() => {
     const raw = String(currentPeriod.value?.period_index ?? '').trim()
     if (!raw) return '—'
-    if (!/^\d+$/.test(raw)) return raw
-
-    try {
-      const current = BigInt(raw)
-      if (current <= 0n) return raw
-      return (current).toString()
-    } catch {
-      return raw
-    }
+    return raw
   })
   const syncedNow = computed(() => {
     if (serverClockAnchorMs.value > 0 && localClockAnchorMs.value > 0) {
