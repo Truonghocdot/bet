@@ -1051,7 +1051,7 @@
     }
     for (const pending of pendingRoomHistoryRequests.values()) {
       clearTimeout(pending.timeout)
-      pending.reject(new Error('Kết nối realtime phòng chơi đã ngắt.'))
+      pending.reject(new Error('Kết nối phòng chơi đã ngắt.'))
     }
     pendingRoomHistoryRequests.clear()
     roomStreamConnection?.close()
@@ -1072,14 +1072,14 @@
     const normalizedPage = Math.max(1, Math.floor(page))
     const normalizedPageSize = Math.max(1, Math.floor(pageSize))
     if (!roomStreamConnection || roomStreamConnection.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error('Kết nối realtime chưa sẵn sàng để tải lịch sử.'))
+      return Promise.reject(new Error('Đang chờ'))
     }
 
     const requestId = globalThis.crypto?.randomUUID?.() ?? `history-${Date.now()}-${normalizedPage}`
     return new Promise<PlayRoomHistoryResponse>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         pendingRoomHistoryRequests.delete(requestId)
-        reject(new Error('Hết thời gian chờ tải lịch sử realtime.'))
+        reject(new Error(''))
       }, 5000)
 
       pendingRoomHistoryRequests.set(requestId, { resolve, reject, timeout })
@@ -1093,7 +1093,7 @@
       } catch (error) {
         pendingRoomHistoryRequests.delete(requestId)
         clearTimeout(timeout)
-        reject(error instanceof Error ? error : new Error('Không thể gửi yêu cầu lịch sử realtime.'))
+        reject(error instanceof Error ? error : new Error('Không thể gửi yêu cầu lịch sử .'))
       }
     })
   }
@@ -1255,7 +1255,7 @@
           }
           if (payload.event === 'history.error') {
             const requestId = String(payload.data?.request_id ?? '')
-            const message = String(payload.data?.message ?? 'Không thể tải lịch sử realtime')
+            const message = String(payload.data?.message ?? 'Không thể tải lịch sử ')
             if (requestId && pendingRoomHistoryRequests.has(requestId)) {
               const pending = pendingRoomHistoryRequests.get(requestId)
               if (pending) {
@@ -1308,7 +1308,7 @@
       }
 
       socket.onerror = () => {
-        roomStateError.value = 'Kết nối realtime phòng chơi đang được nối lại'
+        roomStateError.value = 'Kết nối phòng chơi đang được nối lại'
       }
 
       socket.onclose = () => {
@@ -1316,7 +1316,7 @@
         scheduleRoomWSReconnect(roomCode)
       }
     } catch {
-      roomStateError.value = 'Kết nối realtime phòng chơi đang được nối lại'
+      roomStateError.value = 'Kết nối phòng chơi đang được nối lại'
       scheduleRoomWSReconnect(roomCode)
     }
   }

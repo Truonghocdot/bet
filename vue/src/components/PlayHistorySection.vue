@@ -420,7 +420,7 @@ function mineResultDigits(row: PlayRoomBetHistoryResponse['items'][number]) {
         >
           <div class="min-w-0">
             <p class="truncate text-[0.66rem] font-bold text-slate-700">
-              {{ periodLabel(row.period_index, row.period_no, 6) }}
+              {{ periodLabel(row.period_index, row.period_no, 10) }}
             </p>
             <p class="mt-0.5 text-[0.6rem] text-slate-400">{{ row.period_no ? row.period_no.split('_')[0] : '—' }}</p>
           </div>
