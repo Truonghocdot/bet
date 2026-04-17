@@ -69,7 +69,7 @@ const isIntentActive = computed(() => {
 
 const presetAmounts = computed(() => {
   if (method.value === 'vietqr') {
-    return [50000, 100000, 200000, 500000, 1000000, 5000000]
+    return [100000, 200000, 300000, 500000, 1500000, 15000000]
   }
   return [20, 50, 100, 200, 500, 1000]
 })
