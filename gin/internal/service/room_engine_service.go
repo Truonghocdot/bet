@@ -114,7 +114,6 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 			}
 			log.Printf("[engine] ensure period lỗi room=%s err=%v", room.Code, err)
 		} else if len(createdPeriods) > 0 {
-			log.Printf("[engine] room=%s đã sinh %d kỳ mới", room.Code, len(createdPeriods))
 			if err := s.refreshRoomState(ctx, room.Code, "period.created"); err != nil {
 				if errors.Is(err, context.Canceled) {
 					return err

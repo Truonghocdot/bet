@@ -476,7 +476,6 @@ func (s *PlayRoomService) writeRoomStateCache(ctx context.Context, roomCode stri
 		log.Printf("[realtime][room.cache.write.error] room_code=%s stage=set err=%v", roomCode, err)
 		return
 	}
-	log.Printf("[realtime][room.cache.write.done] room_code=%s source=%s", roomCode, source)
 }
 
 func ParseUserID(raw string) (int64, error) {

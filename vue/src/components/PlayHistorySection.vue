@@ -32,6 +32,7 @@ const props = defineProps<{
   mineTotalPages: number
   isK3: boolean
   isLottery: boolean
+  ballAssetsReady: boolean
 }>()
 
 const emit = defineEmits<{
@@ -221,6 +222,7 @@ const wingoBallAssetMap: Record<number, string> = {
 }
 
 function wingoBallImageSrc(n: number | null | undefined) {
+  if (!props.ballAssetsReady) return ''
   if (!Number.isInteger(n) || Number(n) < 0 || Number(n) > 9) return ''
   return wingoBallAssetMap[Number(n)] ?? ''
 }

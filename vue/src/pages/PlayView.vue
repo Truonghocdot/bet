@@ -121,6 +121,7 @@
   const showTicketDetailModal = ref(false)
   const selectedTicketDetail = ref<PlayRoomBetHistoryResponse['items'][number] | null>(null)
   const showHelpModal = ref(false)
+  const ballAssetsReady = ref(false)
 
   const gameHowToPlay = {
     wingo: {
@@ -186,7 +187,8 @@
   let roomStateReconcileTimer: number | undefined
   let periodRollForwardTimer: number | undefined
   const mineRowsCached: PlayRoomBetHistoryResponse['items'] = []
-  let mineHistoryRestFallbackAt = 0
+  let mineHistoryRequestKey = ''
+  let mineHistoryRequestPromise: Promise<PlayRoomBetHistoryResponse> | null = null
   let autoJoinTimer: number | undefined
   let autoJoinAttemptKey = ''
   const pendingBetRequests = new Map<string, { resolve: (response: any) => void; reject: (error: any) => void; timeout: number }>()
@@ -445,6 +447,8 @@
     mineRows.value = []
     chartRows.value = []
     mineRowsCached.length = 0
+    mineHistoryRequestKey = ''
+    mineHistoryRequestPromise = null
     historyError.value = ''
     mineError.value = ''
     chartError.value = ''
@@ -648,7 +652,28 @@
     9: '/wingo/nine.png',
   }
 
+  function preloadBallAssets() {
+    if (ballAssetsReady.value || typeof window === 'undefined') {
+      return Promise.resolve()
+    }
+
+    const sources = Object.values(wingoBallAssetMap)
+    return Promise.allSettled(
+      sources.map((src) => new Promise<void>((resolve) => {
+        const image = new Image()
+        image.decoding = 'async'
+        image.loading = 'eager'
+        image.onload = () => resolve()
+        image.onerror = () => resolve()
+        image.src = src
+      })),
+    ).then(() => {
+      ballAssetsReady.value = true
+    })
+  }
+
   function wingoBallImageSrc(n: number): string {
+    if (!ballAssetsReady.value) return ''
     return wingoBallAssetMap[n] ?? ''
   }
 
@@ -1356,22 +1381,25 @@
 
     mineLoading.value = true
     mineError.value = ''
+    const requestKey = `${selectedRoomCode.value}:${normalizedPage}`
+    const activeRequest = !options.force && mineHistoryRequestPromise && mineHistoryRequestKey === requestKey
+      ? mineHistoryRequestPromise
+      : request<PlayRoomBetHistoryResponse>(
+          'GET',
+          `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${normalizedPage}&page_size=${tablePageSize}`,
+          { token: auth.accessToken },
+        )
 
-    const now = Date.now()
-    if (!options.force && now - mineHistoryRestFallbackAt < 2500) {
-      mineError.value = 'Không thể tải lịch sử cược'
-      mineRows.value = []
+    if (!activeRequest) {
       mineLoading.value = false
       return
     }
 
-    mineHistoryRestFallbackAt = now
+    mineHistoryRequestPromise = activeRequest
+    mineHistoryRequestKey = requestKey
+
     try {
-      const response = await request<PlayRoomBetHistoryResponse>(
-        'GET',
-        `/v1/play/rooms/${selectedRoomCode.value}/bets?page=${normalizedPage}&page_size=${tablePageSize}`,
-        { token: auth.accessToken },
-      )
+      const response = await activeRequest
       mineRows.value = response.items
       if (normalizedPage === 1) {
         mineRowsCached.length = 0
@@ -1383,10 +1411,14 @@
     } catch (error: unknown) {
       const err = error as ApiError
       mineError.value = err?.message ?? 'Không thể tải lịch sử cược'
-      mineRows.value = []
     }
-    
-    mineLoading.value = false
+    finally {
+      if (mineHistoryRequestPromise === activeRequest) {
+        mineHistoryRequestPromise = null
+        mineHistoryRequestKey = ''
+      }
+      mineLoading.value = false
+    }
   }
 
   async function maybeShowSettlementModal(
@@ -1896,6 +1928,9 @@
     async () => {
       resetTransientRoomUiState()
       if (!room.value) return
+      if (room.value.code === 'wingo' || room.value.code === 'lottery') {
+        void preloadBallAssets()
+      }
       if (room.value.variants.length === 0) {
         activeVariantCode.value = ''
         return
@@ -2601,6 +2636,7 @@
         :mine-total-pages="mineTotalPages"
         :is-k3="isK3"
         :is-lottery="isLottery"
+        :ball-assets-ready="ballAssetsReady"
         @change-tab="activeHistoryTab = $event"
         @refresh-chart="void loadChartHistory()"
         @refresh-history="void loadRoomHistory(historyPage)"

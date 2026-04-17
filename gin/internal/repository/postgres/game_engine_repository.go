@@ -418,7 +418,6 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		log.Printf("[engine][period.settle.error] period_id=%d stage=rows_err err=%v", period.ID, err)
 		return nil, err
 	}
-	log.Printf("[engine][period.settle.info] period_id=%d tickets=%d", period.ID, len(tickets))
 
 	now := clock.Now()
 	for _, ticket := range tickets {
@@ -604,7 +603,6 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		return nil, err
 	}
 
-	log.Printf("[engine][period.settle.done] period_id=%d room_code=%s period_no=%s tickets=%d", period.ID, period.RoomCode, period.PeriodNo, len(tickets))
 	userIDs := make([]int64, 0, len(tickets))
 	seenUserIDs := make(map[int64]struct{}, len(tickets))
 	for _, ticket := range tickets {
@@ -651,7 +649,6 @@ func (r *GameRepository) insertPeriodTx(ctx context.Context, tx *sql.Tx, room Ga
 		return GamePeriodRecord{}, false, err
 	}
 
-	log.Printf("[engine][period.insert.done] room_code=%s period_id=%d period_no=%s period_index=%d open_at=%s draw_at=%s status=%d", record.RoomCode, record.ID, record.PeriodNo, record.PeriodIndex, record.OpenAt.Format(time.RFC3339Nano), record.DrawAt.Format(time.RFC3339Nano), record.Status)
 	return record, true, nil
 }
 
