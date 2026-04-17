@@ -63,8 +63,22 @@ const statusLabel = computed(() => {
 
 const isIntentActive = computed(() => {
   if (!intent.value) return false
+  const expiresAtMs = Date.parse(intent.value.expires_at || '')
+  if (Number.isFinite(expiresAtMs) && expiresAtMs > 0 && now.value >= expiresAtMs) {
+    return false
+  }
   const statusValue = Number(status.value?.transaction?.status ?? intent.value.transaction?.status)
   return statusValue !== 2 && statusValue !== 3 && statusValue !== 4
+})
+const isIntentExpired = computed(() => {
+  if (!intent.value?.expires_at) return false
+  const expiresAtMs = Date.parse(intent.value.expires_at)
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= 0) return false
+
+  const statusValue = Number(status.value?.transaction?.status ?? intent.value.transaction?.status)
+  if (statusValue === 2 || statusValue === 3 || statusValue === 4) return false
+
+  return now.value >= expiresAtMs
 })
 
 const presetAmounts = computed(() => {
@@ -116,9 +130,19 @@ function redirectBack() {
   router.back()
 }
 
+function expireCurrentIntent() {
+  const expiredMethod = intent.value?.method
+  deposit.disconnectStatusStream()
+  if (expiredMethod === 'vietqr' || expiredMethod === 'usdt') {
+    deposit.clearPending(expiredMethod)
+  }
+  deposit.currentStatus = null
+  deposit.currentIntent = null
+}
+
 const depositCountdown = computed(() => {
   const expiresAt = intent.value?.expires_at
-  if (!expiresAt) return '10:00'
+  if (!expiresAt) return '03:00'
 
   const remaining = Math.max(0, Date.parse(expiresAt) - now.value)
   const totalSeconds = Math.floor(remaining / 1000)
@@ -310,6 +334,15 @@ watch(
       }
     }
   },
+)
+
+watch(
+  () => isIntentExpired.value,
+  (expired, previousExpired) => {
+    if (!expired || previousExpired) return
+    expireCurrentIntent()
+  },
+  { immediate: true },
 )
 
 onMounted(async () => {

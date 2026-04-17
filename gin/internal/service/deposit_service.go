@@ -26,6 +26,7 @@ var ErrDepositUSDTNotAvailable = errors.New(message.DepositUSDTNotAvailable)
 var ErrDepositUSDTTemporarilyClosed = errors.New(message.DepositUSDTTemporarilyClosed)
 
 const localUSDTMinAmount = "20"
+const pendingDepositTTL = 3 * time.Minute
 
 type DepositConfig struct {
 	ReceivingAccountsRedisKey string
@@ -33,7 +34,7 @@ type DepositConfig struct {
 
 type DepositService struct {
 	repository *repopg.DepositRepository
-	redis      *goredis.Client 
+	redis      *goredis.Client
 	config     DepositConfig
 	wallets    *WalletService
 	gate       *gateclient.DepositClient
@@ -120,7 +121,7 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 			return deposit.DepositInitResponse{}, err
 		}
 
-		expiresAt := clock.Now().Add(10 * time.Minute) // Thống nhất 10 phút
+		expiresAt := clock.Now().Add(pendingDepositTTL)
 		return deposit.DepositInitResponse{
 			Message:     message.DepositCreated,
 			Provider:    string(deposit.DepositProviderManualUSDT),
@@ -188,7 +189,7 @@ func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, requ
 		return deposit.DepositInitResponse{}, err
 	}
 
-	expiresAt := clock.Now().Add(10 * time.Minute)
+	expiresAt := clock.Now().Add(pendingDepositTTL)
 	transaction := s.toDomainTransaction(record)
 
 	network := strings.ToUpper(strings.TrimSpace(created.PayCurrency))
@@ -309,11 +310,11 @@ func (s *DepositService) ListVietQrBanks(ctx context.Context) (deposit.DepositBa
 }
 
 func (s *DepositService) ApplyDeposit(ctx context.Context, request deposit.ApplyDepositRequest) (deposit.ApplyDepositResponse, error) {
-	log.Printf("[deposit][apply.input] client_ref=%s provider=%s status=%s amount=%s txn_id=%s", 
+	log.Printf("[deposit][apply.input] client_ref=%s provider=%s status=%s amount=%s txn_id=%s",
 		request.ClientRef, request.Provider, request.ProviderStatus, request.Amount, request.ProviderTxnID)
-	
+
 	amount := normalizeDepositAmount(request.Amount)
-	// Trạng thái 'waiting' có thể đi kèm amount = 0, ta vẫn cho phép đi tiếp 
+	// Trạng thái 'waiting' có thể đi kèm amount = 0, ta vẫn cho phép đi tiếp
 	// để cập nhật trạng thái đơn hàng trong DB.
 	if amount == "" {
 		return deposit.ApplyDepositResponse{}, fmt.Errorf(message.DepositAmountInvalid)
@@ -430,7 +431,7 @@ func (s *DepositService) initDeposit(
 		return deposit.DepositInitResponse{}, err
 	}
 
-	expiresAt := clock.Now().Add(10 * time.Minute)
+	expiresAt := clock.Now().Add(pendingDepositTTL)
 	transaction := s.toDomainTransaction(record)
 	transaction.ReceivingAccount = s.toDomainReceivingAccount(&selected)
 
@@ -689,7 +690,7 @@ func (s *DepositService) savePendingDepositCache(ctx context.Context, userID int
 		return err
 	}
 
-	return s.redis.Set(ctx, pendingDepositCacheKey(userID, method), payload, 10*time.Minute).Err()
+	return s.redis.Set(ctx, pendingDepositCacheKey(userID, method), payload, pendingDepositTTL).Err()
 }
 
 func (s *DepositService) clearPendingDepositCache(ctx context.Context, userID int64, method deposit.DepositMethod) error {
