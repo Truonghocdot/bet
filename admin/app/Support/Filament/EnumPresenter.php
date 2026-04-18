@@ -90,6 +90,7 @@ class EnumPresenter
     {
         return match ($enumClass) {
             RoleUser::class => [
+                'SUPER_ADMIN' => 'Super Admin',
                 'ADMIN' => 'Quản trị viên',
                 'CLIENT' => 'Người chơi',
                 'STAFF' => 'Nhân sự vận hành',
@@ -228,6 +229,7 @@ class EnumPresenter
     {
         return match ($enumClass) {
             RoleUser::class => [
+                'SUPER_ADMIN' => 'primary',
                 'ADMIN' => 'danger',
                 'CLIENT' => 'success',
                 'STAFF' => 'warning',

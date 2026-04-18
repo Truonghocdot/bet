@@ -27,6 +27,15 @@ class SSOController extends Controller
 
         $vueUrl = env('VUE_ADMIN_CONTROL_URL', 'http://localhost:5173/auth/sso'); 
         
-        return redirect("{$vueUrl}?token={$token}");
+        $query = [
+            'token' => $token,
+        ];
+
+        $roomCode = trim((string) $request->query('room_code', ''));
+        if ($roomCode !== '') {
+            $query['room_code'] = $roomCode;
+        }
+
+        return redirect($vueUrl.'?'.http_build_query($query));
     }
 }

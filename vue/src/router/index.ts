@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { useAdminAuthStore } from '@/stores/adminAuth'
+import { useAuthStore } from '@/stores/auth'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/home' },
@@ -28,8 +30,26 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/control',
     name: 'admin-control',
-    component: () => import('../pages/AdminControlView.vue'),
-    meta: { layout: 'main', title: 'Điều khiển kết quả', requiresAuth: true },
+    redirect: { name: 'admin-control-wingo' },
+    meta: { layout: 'admin', title: 'Điều khiển kết quả', requiresAdminAuth: true },
+  },
+  {
+    path: '/admin/control/wingo',
+    name: 'admin-control-wingo',
+    component: () => import('../pages/AdminControlWingoView.vue'),
+    meta: { layout: 'admin', title: 'Điều khiển WinGo', requiresAdminAuth: true },
+  },
+  {
+    path: '/admin/control/k3',
+    name: 'admin-control-k3',
+    component: () => import('../pages/AdminControlK3View.vue'),
+    meta: { layout: 'admin', title: 'Điều khiển K3', requiresAdminAuth: true },
+  },
+  {
+    path: '/admin/control/lottery',
+    name: 'admin-control-lottery',
+    component: () => import('../pages/AdminControlLotteryView.vue'),
+    meta: { layout: 'admin', title: 'Điều khiển kết quả', requiresAdminAuth: true },
   },
   {
     path: '/forgot-password',
@@ -117,8 +137,6 @@ const routes: RouteRecordRaw[] = [
   },
 ]
 
-import { useAuthStore } from '@/stores/auth'
-
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
@@ -126,21 +144,28 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
+  const adminAuth = useAdminAuthStore()
   const isAuthenticated = !!auth.accessToken
-  const userRole = auth.user?.role
+  const isAdminAuthenticated = !!adminAuth.accessToken
+  const userRole = adminAuth.user?.role
 
   // Title update
   if (to.meta.title) {
     document.title = `${to.meta.title} - ff789`
   }
 
-  // Auth check
+  // Client auth check
   if (to.meta.requiresAuth && !isAuthenticated) {
     return next({ name: 'auth' })
   }
 
+  // Admin auth check
+  if (to.meta.requiresAdminAuth && !isAdminAuthenticated) {
+    return next({ name: 'auth-sso', query: { expired: '1' } })
+  }
+
   // Admin role check for specific route
-  if (to.name === 'admin-control' && userRole !== 1) {
+  if (String(to.name || '').startsWith('admin-control') && userRole !== 0 && userRole !== 1) {
     return next({ name: 'home' })
   }
 

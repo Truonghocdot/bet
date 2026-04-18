@@ -1,10 +1,21 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 import ControlRoomCard from '@/components/ControlRoomCard.vue'
 import { env } from '@/shared/config/env'
 import { request, type ApiError } from '@/shared/api/http'
-import { useAuthStore } from '@/stores/auth'
+import { useAdminAuthStore } from '@/stores/adminAuth'
+
+const props = withDefaults(defineProps<{
+  fixedGameType?: 1 | 2 | 3 | null
+  fixedTitle?: string
+  fixedSubtitle?: string
+}>(), {
+  fixedGameType: null,
+  fixedTitle: 'Admin Control Center',
+  fixedSubtitle: 'Realtime engine monitor, heatmap cược và can thiệp an toàn trong vùng mở.',
+})
 
 interface BetStat {
   option_key: string
@@ -26,6 +37,10 @@ interface RoomStats {
     manual_result: string | null
   } | null
   bet_stats: BetStat[]
+  presence?: {
+    count: number
+    active_user_ids: number[]
+  }
 }
 
 type ManualSubmitRequest = {
@@ -38,72 +53,171 @@ type ManualSubmitRequest = {
   title: string
 }
 
-const auth = useAuthStore()
+type ManualPinnedState = {
+  periodId: number
+  label: string
+}
+
+const auth = useAdminAuthStore()
+const route = useRoute()
 
 const rooms = ref<RoomStats[]>([])
 const loading = ref(false)
 const error = ref('')
-const activeTab = ref(1)
+const activeTab = ref<1 | 2 | 3>(props.fixedGameType ?? 1)
 const autoRefresh = ref(true)
 const serverTimeOffsetMs = ref(0)
 const clockTick = ref(Date.now())
 const wsState = ref<'connecting' | 'connected' | 'disconnected'>('disconnected')
+const roomPresenceCount = ref(0)
+const roomSessionToken = ref('')
+const roomLockState = ref<'idle' | 'acquiring' | 'acquired' | 'denied'>('idle')
+const roomLockMessage = ref('')
+const roomLockHolder = ref('')
 
 const pendingSubmit = ref<ManualSubmitRequest | null>(null)
 const submittingPeriodId = ref<number | null>(null)
 const toast = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 const pulseUntil = ref<Record<string, number>>({})
-
-const lockState = ref<'checking' | 'acquired' | 'denied'>('checking')
-const lockMessage = ref('')
-const lockHolder = ref('')
+const pinnedManualState = ref<Record<string, ManualPinnedState>>({})
 
 let clockTimer: number | undefined
 let toastTimer: number | undefined
-let fallbackPollTimer: number | undefined
 let wsConnection: WebSocket | null = null
 let wsReconnectTimer: number | undefined
-let heartbeatTimer: number | undefined
+let roomPresenceTimer: number | undefined
+let trackedRoomCode = ''
 
-async function acquireLock() {
+const isStandaloneGamePage = computed(() => props.fixedGameType !== null)
+const requestedRoomCode = computed(() => typeof route.query.room_code === 'string' ? route.query.room_code.trim() : '')
+const requestedRoomLabel = computed(() => {
+  if (!requestedRoomCode.value) return ''
+  return requestedRoomCode.value.replaceAll('_', ' ').toUpperCase()
+})
+const statsQueryString = computed(() => {
+  if (!requestedRoomCode.value) return ''
+  const params = new URLSearchParams({ room_code: requestedRoomCode.value })
+  return `?${params.toString()}`
+})
+
+function joinApiUrl(path: string): string {
+  const base = (env.apiBaseUrl || '').trim()
+  if (!base) return path
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  return `${base}${path.startsWith('/') ? path : `/${path}`}`
+}
+
+async function enterControlRoom(roomCode: string) {
+  if (!roomCode || !auth.accessToken) return
+
   try {
-    const res = await request<{ message: string; holder?: string }>('POST', '/v1/admin/lock', {
+    roomLockState.value = 'acquiring'
+    roomLockMessage.value = ''
+    roomLockHolder.value = ''
+    const response = await request<{ presence?: { count?: number }; session_token?: string }>('POST', `/v1/admin/control-rooms/${roomCode}/presence`, {
       token: auth.accessToken,
     })
-    lockState.value = 'acquired'
-    return true
+    trackedRoomCode = roomCode
+    roomPresenceCount.value = Number(response.presence?.count || 0)
+    roomSessionToken.value = String(response.session_token || '')
+    roomLockState.value = 'acquired'
   } catch (err: any) {
     const apiError = err as ApiError
-    lockState.value = 'denied'
-    lockMessage.value = apiError?.message || 'Không thể giành quyền kiểm soát trang quản lý'
-    lockHolder.value = (apiError as any)?.holder || 'Admin khác'
-    return false
+    roomSessionToken.value = ''
+    roomPresenceCount.value = 0
+    roomLockState.value = 'denied'
+    roomLockMessage.value = apiError?.message || 'Không thể ghi nhận trạng thái control room'
+    roomLockHolder.value = (apiError as any)?.holder || ''
+    showToast('error', roomLockMessage.value)
   }
 }
 
-async function sendHeartbeat() {
+async function heartbeatControlRoom(roomCode: string) {
+  if (!roomCode || !auth.accessToken || !roomSessionToken.value) return
+
   try {
-    await request('PUT', '/v1/admin/lock', {
+    const response = await request<{ presence?: { count?: number } }>('PUT', `/v1/admin/control-rooms/${roomCode}/presence`, {
       token: auth.accessToken,
+      headers: {
+        'X-Control-Session': roomSessionToken.value,
+      },
     })
+    if (trackedRoomCode === roomCode) {
+      roomPresenceCount.value = Number(response.presence?.count || 0)
+    }
   } catch (err: any) {
     const apiError = err as ApiError
     if (apiError.status === 403 || apiError.status === 410) {
-      lockState.value = 'denied'
-      lockMessage.value = apiError.message
+      roomLockState.value = 'denied'
+      roomLockMessage.value = apiError.message || 'Session điều khiển phòng không còn hợp lệ'
+      roomSessionToken.value = ''
       stopAdminEngine()
     }
   }
 }
 
-async function releaseLock() {
+async function leaveControlRoom(roomCode: string) {
+  if (!roomCode || !auth.accessToken || !roomSessionToken.value) return
+
   try {
-    await request('DELETE', '/v1/admin/lock', {
+    await request('DELETE', `/v1/admin/control-rooms/${roomCode}/presence`, {
       token: auth.accessToken,
+      headers: {
+        'X-Control-Session': roomSessionToken.value,
+      },
+    })
+  } catch {
+    // ignore
+  } finally {
+    if (trackedRoomCode === roomCode) {
+      trackedRoomCode = ''
+      roomPresenceCount.value = 0
+      roomSessionToken.value = ''
+      roomLockState.value = 'idle'
+    }
+  }
+}
+
+function leaveControlRoomKeepalive(roomCode: string) {
+  if (!roomCode || !auth.accessToken) return
+
+  try {
+    void fetch(joinApiUrl(`/v1/admin/control-rooms/${roomCode}/presence`), {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${auth.accessToken}`,
+        'X-Control-Session': roomSessionToken.value,
+      },
+      keepalive: true,
     })
   } catch {
     // ignore
   }
+}
+
+function startRoomPresence(roomCode: string) {
+  if (!roomCode) return
+  void enterControlRoom(roomCode)
+  if (roomPresenceTimer) window.clearInterval(roomPresenceTimer)
+  roomPresenceTimer = window.setInterval(() => {
+    void heartbeatControlRoom(roomCode)
+  }, 20000)
+}
+
+function stopRoomPresence(roomCode = trackedRoomCode) {
+  if (roomPresenceTimer) {
+    window.clearInterval(roomPresenceTimer)
+    roomPresenceTimer = undefined
+  }
+  if (!roomCode) {
+    trackedRoomCode = ''
+    roomPresenceCount.value = 0
+    roomSessionToken.value = ''
+    roomLockState.value = 'idle'
+    return
+  }
+  void leaveControlRoom(roomCode)
 }
 
 function parseStake(value: string): number {
@@ -135,6 +249,15 @@ function applySnapshot(response: { server_time: string; rooms: RoomStats[] }) {
       pulseUntil.value[room.code] = now + 1400
     }
   }
+
+  const nextPinned: Record<string, ManualPinnedState> = {}
+  for (const room of response.rooms) {
+    const currentPinned = pinnedManualState.value[room.code]
+    if (!currentPinned) continue
+    if (!room.period || room.period.id !== currentPinned.periodId) continue
+    nextPinned[room.code] = currentPinned
+  }
+  pinnedManualState.value = nextPinned
 }
 
 function isRoomPulsing(roomCode: string): boolean {
@@ -149,7 +272,7 @@ async function fetchStats() {
   if (rooms.value.length === 0) loading.value = true
 
   try {
-    const response = await request<{ server_time: string; rooms: RoomStats[] }>('GET', '/v1/admin/rooms/stats', {
+    const response = await request<{ server_time: string; rooms: RoomStats[] }>('GET', `/v1/admin/rooms/stats${statsQueryString.value}`, {
       token: auth.accessToken,
     })
     applySnapshot(response)
@@ -164,15 +287,22 @@ async function fetchStats() {
 
 function buildAdminWSUrl(token: string): string {
   const endpoint = '/v1/admin/rooms/stats/ws'
-  const encodedToken = encodeURIComponent(token)
+  const params = new URLSearchParams({ token })
+  if (requestedRoomCode.value) {
+    params.set('room_code', requestedRoomCode.value)
+  }
+  if (roomSessionToken.value) {
+    params.set('control_session', roomSessionToken.value)
+  }
+  const queryString = params.toString()
   const fallbackProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const fallback = `${fallbackProtocol}//${window.location.host}${endpoint}?token=${encodedToken}`
+  const fallback = `${fallbackProtocol}//${window.location.host}${endpoint}?${queryString}`
 
   try {
     const rawBase = (env.apiBaseUrl || '').trim()
     const baseUrl = new URL(rawBase || window.location.origin, window.location.origin)
     const wsProtocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${wsProtocol}//${baseUrl.host}${endpoint}?token=${encodedToken}`
+    return `${wsProtocol}//${baseUrl.host}${endpoint}?${queryString}`
   } catch {
     return fallback
   }
@@ -238,29 +368,13 @@ function stopStatsStream() {
   wsState.value = 'disconnected'
 }
 
-function startFallbackPolling() {
-  if (!autoRefresh.value || fallbackPollTimer) return
-  fallbackPollTimer = window.setInterval(() => {
-    if (!autoRefresh.value) return
-    void fetchStats()
-  }, 5000)
-}
-
-function stopFallbackPolling() {
-  if (!fallbackPollTimer) return
-  window.clearInterval(fallbackPollTimer)
-  fallbackPollTimer = undefined
-}
-
 function startAdminEngine() {
   void fetchStats()
   startStatsStream()
-  startFallbackPolling()
 }
 
 function stopAdminEngine() {
   stopStatsStream()
-  stopFallbackPolling()
 }
 
 function showToast(type: 'success' | 'error', text: string) {
@@ -269,6 +383,39 @@ function showToast(type: 'success' | 'error', text: string) {
   toastTimer = window.setTimeout(() => {
     toast.value = null
   }, 3200)
+}
+
+function applyManualResultLocally(job: ManualSubmitRequest) {
+  const room = rooms.value.find((item) => item.code === job.roomCode)
+  const periodLabel = String(room?.period?.period_index || room?.period?.period_no || job.periodId)
+  const manualResult = JSON.stringify({
+    ...job.payload,
+    result: job.result,
+    big_small: job.bigSmall,
+    color: job.color,
+    updated_at: new Date().toISOString(),
+  })
+
+  const now = Date.now()
+  rooms.value = rooms.value.map((room) => {
+    if (room.code !== job.roomCode) return room
+    if (!room.period || room.period.id !== job.periodId) return room
+    return {
+      ...room,
+      period: {
+        ...room.period,
+        manual_result: manualResult,
+      },
+    }
+  })
+  pinnedManualState.value = {
+    ...pinnedManualState.value,
+    [job.roomCode]: {
+      periodId: job.periodId,
+      label: `KQ can thiệp kỳ ${periodLabel}: ${job.result}`,
+    },
+  }
+  pulseUntil.value[job.roomCode] = now + 1400
 }
 
 function openSubmitModal(payload: ManualSubmitRequest) {
@@ -296,19 +443,30 @@ async function confirmSubmit() {
         payload: job.payload,
       },
     })
-    showToast('success', `Đã cài kết quả ${job.title}`)
+    applyManualResultLocally(job)
     pendingSubmit.value = null
-    await fetchStats()
+    submittingPeriodId.value = null
+    void fetchStats()
   } catch (err: any) {
     const apiError = err as ApiError
     showToast('error', apiError?.message || 'Không thể cài kết quả, vui lòng thử lại')
-  } finally {
     submittingPeriodId.value = null
   }
 }
 
 const syncedNowMs = computed(() => clockTick.value + serverTimeOffsetMs.value)
-const filteredRooms = computed(() => rooms.value.filter((room) => Number(room.game_type) === Number(activeTab.value)))
+const filteredRooms = computed(() => rooms.value.filter((room) => {
+  if (Number(room.game_type) !== Number(activeTab.value)) return false
+  if (requestedRoomCode.value && room.code !== requestedRoomCode.value) return false
+  return true
+}))
+
+function pinnedManualLabelForRoom(room: RoomStats): string {
+  const pinned = pinnedManualState.value[room.code]
+  if (!pinned) return ''
+  if (!room.period || room.period.id !== pinned.periodId) return ''
+  return pinned.label
+}
 
 function normalizeOptionLabel(rawKey: string): string {
   const key = String(rawKey || '').trim().toLowerCase()
@@ -327,6 +485,10 @@ function normalizeOptionLabel(rawKey: string): string {
   return key.replaceAll('_', ' ')
 }
 
+function formatCompactMoney(value: number): string {
+  return `${Math.round(value).toLocaleString('vi-VN')}đ`
+}
+
 const optionVolumeRows = computed(() => {
   const map = new Map<string, { optionKey: string; stake: number; players: number }>()
   for (const room of filteredRooms.value) {
@@ -343,30 +505,81 @@ const optionVolumeRows = computed(() => {
     .slice(0, 12)
 })
 
-onMounted(async () => {
-  const success = await acquireLock()
-  if (!success) return
+const primaryRoom = computed(() => filteredRooms.value[0] ?? null)
+const totalStakeValue = computed(() =>
+  filteredRooms.value.reduce(
+    (sum, room) => sum + (room.bet_stats ?? []).reduce((roomSum, item) => roomSum + parseStake(item.total_stake), 0),
+    0,
+  ),
+)
+const totalBetCount = computed(() =>
+  filteredRooms.value.reduce(
+    (sum, room) => sum + (room.bet_stats ?? []).reduce((roomSum, item) => roomSum + Number(item.player_count || 0), 0),
+    0,
+  ),
+)
+const topVolumeItem = computed(() => optionVolumeRows.value[0] ?? null)
+const adminOverviewCards = computed(() => [
+  {
+    label: 'Room Đang Bám',
+    value: requestedRoomLabel.value || filteredRooms.value.length.toLocaleString('vi-VN'),
+    tone: 'cyan',
+  },
+  {
+    label: 'Tổng Cược',
+    value: formatCompactMoney(totalStakeValue.value),
+    tone: 'gold',
+  },
+  {
+    label: 'Lượt Đặt',
+    value: totalBetCount.value.toLocaleString('vi-VN'),
+    tone: 'emerald',
+  },
+  {
+    label: 'Kỳ Đang Theo Dõi',
+    value: String(primaryRoom.value?.period?.period_index || primaryRoom.value?.period?.period_no || '---'),
+    tone: 'violet',
+  },
+])
 
+onMounted(async () => {
   startAdminEngine()
+  if (requestedRoomCode.value) {
+    startRoomPresence(requestedRoomCode.value)
+  }
   clockTimer = window.setInterval(() => {
     clockTick.value = Date.now()
   }, 1000)
-
-  heartbeatTimer = window.setInterval(() => {
-    void sendHeartbeat()
-  }, 20000)
+  window.addEventListener('beforeunload', handleBeforeUnload)
 })
 
 onBeforeUnmount(() => {
   stopAdminEngine()
-  void releaseLock()
+  stopRoomPresence()
   if (clockTimer) window.clearInterval(clockTimer)
   if (toastTimer) window.clearTimeout(toastTimer)
-  if (heartbeatTimer) window.clearInterval(heartbeatTimer)
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
+function handleBeforeUnload() {
+  leaveControlRoomKeepalive(trackedRoomCode || requestedRoomCode.value)
+}
+
+function closeCurrentTab() {
+  window.close()
+}
+
+watch(
+  () => props.fixedGameType,
+  (nextType) => {
+    if (nextType) {
+      activeTab.value = nextType
+    }
+  },
+  { immediate: true },
+)
+
 watch(autoRefresh, (enabled) => {
-  if (lockState.value !== 'acquired') return
   if (enabled) {
     startAdminEngine()
   } else {
@@ -375,17 +588,46 @@ watch(autoRefresh, (enabled) => {
 })
 
 watch(
+  requestedRoomCode,
+  (nextRoomCode, previousRoomCode) => {
+    if (previousRoomCode && previousRoomCode !== nextRoomCode) {
+      stopRoomPresence(previousRoomCode)
+    }
+    if (nextRoomCode && nextRoomCode !== previousRoomCode) {
+      startRoomPresence(nextRoomCode)
+    }
+    if (!nextRoomCode) {
+      stopRoomPresence(previousRoomCode)
+    }
+    if (!autoRefresh.value) return
+    stopAdminEngine()
+    startAdminEngine()
+  },
+)
+
+watch(
+  roomSessionToken,
+  (nextToken, previousToken) => {
+    if (nextToken === previousToken || !autoRefresh.value || !auth.accessToken) return
+    stopStatsStream()
+    startStatsStream()
+  },
+)
+
+watch(
   () => auth.accessToken,
-  async (token) => {
+  (token) => {
     if (token) {
-      const success = await acquireLock()
-      if (success && autoRefresh.value) {
+      if (autoRefresh.value) {
         startAdminEngine()
+      }
+      if (requestedRoomCode.value) {
+        startRoomPresence(requestedRoomCode.value)
       }
       return
     }
     stopAdminEngine()
-    void releaseLock()
+    stopRoomPresence()
   },
 )
 </script>
@@ -395,38 +637,33 @@ watch(
     <header class="glass-panel admin-head">
       <div class="admin-head__left">
         <p class="admin-kicker">Systems Online</p>
-        <h1 class="admin-title">Admin Control Center</h1>
-        <p class="admin-sub">Realtime engine monitor, heatmap cược và can thiệp an toàn trong vùng mở.</p>
+        <div class="admin-title-row">
+          <h1 class="admin-title">{{ props.fixedTitle }}</h1>
+          <div class="ws-chip" :class="`ws-chip--${wsState}`">
+            {{ wsState === 'connected' ? 'WS: Connected' : wsState === 'connecting' ? 'WS: Connecting' : 'WS: Disconnected' }}
+          </div>
+        </div>
+        <p class="admin-sub">{{ props.fixedSubtitle }}</p>
+        <div class="hero-meta">
+          <div v-if="requestedRoomCode" class="room-scope-chip">
+            Focus room: {{ requestedRoomLabel }}
+          </div>
+          <div class="room-scope-meta">
+            Slot hiện tại: {{ roomPresenceCount }} admin
+          </div>
+        </div>
       </div>
 
       <div class="admin-head__right">
-        <div class="tab-switch">
+        <div v-if="!isStandaloneGamePage" class="tab-switch">
           <button :class="{ 'is-active': activeTab === 1 }" @click="activeTab = 1">WinGo</button>
           <button :class="{ 'is-active': activeTab === 2 }" @click="activeTab = 2">K3</button>
           <button :class="{ 'is-active': activeTab === 3 }" @click="activeTab = 3">5D</button>
-        </div>
-        <div class="ws-chip" :class="`ws-chip--${wsState}`">
-          {{ wsState === 'connected' ? 'WS: Connected' : wsState === 'connecting' ? 'WS: Connecting' : 'WS: Disconnected' }}
         </div>
       </div>
     </header>
 
     <p v-if="error" class="error-banner">{{ error }}</p>
-
-    <section class="volume-panel glass-card">
-      <div class="volume-panel__head">
-        <h3>Khối lượng theo cửa</h3>
-        <span>Top {{ optionVolumeRows.length }} cửa</span>
-      </div>
-      <div v-if="optionVolumeRows.length === 0" class="volume-empty">Chưa có lệnh cược trong tab hiện tại.</div>
-      <div v-else class="volume-grid">
-        <div v-for="item in optionVolumeRows" :key="item.optionKey" class="volume-card">
-          <p class="volume-card__label">{{ normalizeOptionLabel(item.optionKey) }}</p>
-          <p class="volume-card__stake">{{ item.stake.toLocaleString('vi-VN') }}đ</p>
-          <p class="volume-card__meta">{{ item.players.toLocaleString('vi-VN') }} lượt đặt</p>
-        </div>
-      </div>
-    </section>
 
     <section v-if="loading && rooms.length === 0" class="loading-block">
       <div class="spinner"></div>
@@ -437,16 +674,67 @@ watch(
       <p>Không có phòng game trong tab này.</p>
     </section>
 
-    <section v-else class="room-grid">
-      <ControlRoomCard
-        v-for="room in filteredRooms"
-        :key="room.code"
-        :room="room"
-        :now-ms="syncedNowMs"
-        :is-submitting="submittingPeriodId === room.period?.id"
-        :pulsing="isRoomPulsing(room.code)"
-        @request-submit="openSubmitModal"
-      />
+    <section v-else class="control-layout">
+      <div class="control-layout__main">
+        <section class="room-grid">
+          <ControlRoomCard
+            v-for="room in filteredRooms"
+            :key="room.code"
+            :room="room"
+            :now-ms="syncedNowMs"
+            :is-submitting="submittingPeriodId === room.period?.id"
+            :pulsing="isRoomPulsing(room.code)"
+            :manual-state-label="pinnedManualLabelForRoom(room)"
+            @request-submit="openSubmitModal"
+          />
+        </section>
+      </div>
+
+      <aside class="control-layout__side">
+        <section class="overview-panel glass-card">
+          <div class="overview-panel__head">
+            <h3>Realtime Overview</h3>
+            <span>{{ filteredRooms.length.toLocaleString('vi-VN') }} room</span>
+          </div>
+
+          <div class="overview-grid">
+            <article
+              v-for="item in adminOverviewCards"
+              :key="item.label"
+              class="overview-card"
+              :class="`overview-card--${item.tone}`"
+            >
+              <p>{{ item.label }}</p>
+              <strong>{{ item.value }}</strong>
+            </article>
+          </div>
+
+          <div class="overview-spotlight">
+            <span class="overview-spotlight__label">Cửa nổi bật</span>
+            <strong class="overview-spotlight__value">
+              {{ topVolumeItem ? normalizeOptionLabel(topVolumeItem.optionKey) : 'Chưa có dữ liệu' }}
+            </strong>
+            <p class="overview-spotlight__meta">
+              {{ topVolumeItem ? `${formatCompactMoney(topVolumeItem.stake)} • ${topVolumeItem.players.toLocaleString('vi-VN')} lượt đặt` : 'Chờ lượt cược đầu tiên để hiển thị nhịp thị trường.' }}
+            </p>
+          </div>
+        </section>
+
+        <section class="volume-panel glass-card">
+          <div class="volume-panel__head">
+            <h3>Khối lượng theo cửa</h3>
+            <span>Top {{ optionVolumeRows.length }} cửa</span>
+          </div>
+          <div v-if="optionVolumeRows.length === 0" class="volume-empty">Chưa có lệnh cược trong tab hiện tại.</div>
+          <div v-else class="volume-grid">
+            <div v-for="item in optionVolumeRows" :key="item.optionKey" class="volume-card">
+              <p class="volume-card__label">{{ normalizeOptionLabel(item.optionKey) }}</p>
+              <p class="volume-card__stake">{{ formatCompactMoney(item.stake) }}</p>
+              <p class="volume-card__meta">{{ item.players.toLocaleString('vi-VN') }} lượt đặt</p>
+            </div>
+          </div>
+        </section>
+      </aside>
     </section>
 
     <Teleport to="body">
@@ -476,24 +764,23 @@ watch(
       </div>
     </Teleport>
 
-    <!-- Lock Overlay -->
     <Teleport to="body">
-      <div v-if="lockState === 'denied'" class="lock-overlay">
+      <div v-if="roomLockState === 'denied'" class="lock-overlay">
         <div class="lock-card glass-card">
           <div class="lock-icon">
             <span class="material-symbols-outlined">lock</span>
           </div>
-          <h2>Truy cập bị chặn</h2>
-          <p>{{ lockMessage }}</p>
-          <div class="lock-meta">
-            Người đang giữ: <strong>{{ lockHolder }}</strong>
+          <h2>Room Đã Có Người Điều Khiển</h2>
+          <p>{{ roomLockMessage }}</p>
+          <div v-if="roomLockHolder" class="lock-meta">
+            Người đang giữ: <strong>{{ roomLockHolder }}</strong>
           </div>
-          <button class="btn-primary" @click="() => $router.back()">Quay lại</button>
+          <button class="btn-primary" @click="closeCurrentTab">Đóng tab này</button>
         </div>
       </div>
-      <div v-if="lockState === 'checking'" class="lock-overlay">
+      <div v-if="roomLockState === 'acquiring'" class="lock-overlay">
         <div class="spinner"></div>
-        <p class="mt-4 text-white font-bold">Đang kiểm tra quyền truy cập...</p>
+        <p class="mt-4 text-white font-bold">Đang xác thực quyền điều khiển room...</p>
       </div>
     </Teleport>
   </div>
@@ -508,11 +795,10 @@ watch(
 }
 
 .admin-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 18px;
-  padding: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 18px 20px;
   margin-bottom: 18px;
 }
 
@@ -524,8 +810,15 @@ watch(
   font-weight: 800;
 }
 
+.admin-title-row {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .admin-title {
-  margin-top: 3px;
   font-size: clamp(1.1rem, 2vw, 1.6rem);
   font-weight: 900;
   color: #f8fafc;
@@ -537,13 +830,42 @@ watch(
   color: #a5b4fc;
 }
 
+.hero-meta {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.room-scope-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  background: rgba(15, 23, 42, 0.72);
+  padding: 6px 10px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #99f6e4;
+}
+
+.room-scope-meta {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
 .admin-head__right {
   display: grid;
   gap: 10px;
+  align-content: start;
+  justify-items: end;
 }
 
 .ws-chip {
-  justify-self: end;
   border-radius: 999px;
   padding: 6px 10px;
   font-size: 0.68rem;
@@ -616,10 +938,125 @@ watch(
   font-size: 0.8rem;
 }
 
+.control-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.35fr) minmax(270px, 0.6fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.control-layout__main,
+.control-layout__side {
+  min-width: 0;
+}
+
+.control-layout__side {
+  display: grid;
+  gap: 10px;
+}
+
+.overview-panel,
 .volume-panel {
-  margin-bottom: 12px;
   border-radius: 14px;
   padding: 12px;
+}
+
+.overview-panel {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.overview-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.overview-panel__head h3 {
+  font-size: 0.86rem;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.overview-panel__head span {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.overview-card {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.overview-card p {
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #94a3b8;
+}
+
+.overview-card strong {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #f8fafc;
+  line-height: 1.25;
+}
+
+.overview-card--cyan {
+  background: linear-gradient(145deg, rgba(8, 47, 73, 0.65), rgba(15, 23, 42, 0.72));
+}
+
+.overview-card--gold {
+  background: linear-gradient(145deg, rgba(120, 53, 15, 0.55), rgba(15, 23, 42, 0.72));
+}
+
+.overview-card--emerald {
+  background: linear-gradient(145deg, rgba(6, 78, 59, 0.58), rgba(15, 23, 42, 0.72));
+}
+
+.overview-card--violet {
+  background: linear-gradient(145deg, rgba(76, 29, 149, 0.52), rgba(15, 23, 42, 0.72));
+}
+
+.overview-spotlight {
+  border-radius: 14px;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  background: linear-gradient(160deg, rgba(8, 47, 73, 0.45), rgba(15, 23, 42, 0.7));
+  padding: 12px;
+  display: grid;
+  gap: 5px;
+}
+
+.overview-spotlight__label {
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #67e8f9;
+  text-transform: uppercase;
+}
+
+.overview-spotlight__value {
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.overview-spotlight__meta {
+  font-size: 0.72rem;
+  color: #cbd5e1;
+  line-height: 1.4;
 }
 
 .volume-panel__head {
@@ -650,7 +1087,7 @@ watch(
 
 .volume-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(1, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -880,18 +1317,36 @@ watch(
   }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 1600px) {
   .room-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(720px, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .admin-head,
+  .control-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-panel {
+    position: static;
   }
 }
 
 @media (max-width: 860px) {
-  .admin-head {
-    flex-direction: column;
-  }
   .admin-head__right {
     width: 100%;
+    justify-items: stretch;
+  }
+  .overview-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

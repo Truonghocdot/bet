@@ -12,7 +12,7 @@ class AuthServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::before(function (User $user): ?bool {
-            return $user->role === RoleUser::ADMIN ? true : null;
+            return $user->role === RoleUser::SUPER_ADMIN ? true : null;
         });
 
         $this->registerResourceAbilities();
@@ -22,6 +22,7 @@ class AuthServiceProvider extends ServiceProvider
     private function registerResourceAbilities(): void
     {
         $resourceAbilityMap = [
+            'system.users.admins' => [RoleUser::SUPER_ADMIN],
             'system.users.clients' => [RoleUser::ADMIN, RoleUser::STAFF],
             'system.users.staffs' => [RoleUser::ADMIN],
             'system.users.agencies' => [RoleUser::ADMIN, RoleUser::STAFF],
@@ -59,6 +60,7 @@ class AuthServiceProvider extends ServiceProvider
             'finance.withdrawal-requests.reject' => [RoleUser::ADMIN, RoleUser::STAFF],
             'finance.withdrawal-requests.mark-paid' => [RoleUser::ADMIN],
             'bet.game-periods.settle' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'control_panel_access' => [RoleUser::ADMIN],
             'payment.payment-receiving-accounts.manage' => [RoleUser::ADMIN],
             'affiliate.affiliate-reward-settings.manage' => [RoleUser::ADMIN],
             'system.exchange-rate-settings.manage' => [RoleUser::ADMIN],

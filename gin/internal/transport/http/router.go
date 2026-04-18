@@ -89,7 +89,7 @@ func NewRouter(
 	requireAdmin := func(next http.Handler) http.Handler {
 		return authn.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims, ok := authmiddleware.CurrentClaims(r.Context())
-			if !ok || claims.Role != 1 {
+			if !ok || (claims.Role != 0 && claims.Role != 1) {
 				writeJSON(w, http.StatusForbidden, map[string]string{"message": "Quyền truy cập bị từ chối"})
 				return
 			}
@@ -101,6 +101,9 @@ func NewRouter(
 	mux.Handle("GET /v1/admin/rooms/stats/stream", requireAdmin(http.HandlerFunc(adminHandler.StreamRoomStats)))
 	mux.HandleFunc("GET /v1/admin/rooms/stats/ws", adminHandler.StreamRoomStatsWS)
 	mux.Handle("POST /v1/admin/periods/{id}/result", requireAdmin(http.HandlerFunc(adminHandler.SetManualResult)))
+	mux.Handle("POST /v1/admin/control-rooms/{room_code}/presence", requireAdmin(http.HandlerFunc(adminHandler.EnterControlRoom)))
+	mux.Handle("PUT /v1/admin/control-rooms/{room_code}/presence", requireAdmin(http.HandlerFunc(adminHandler.HeartbeatControlRoom)))
+	mux.Handle("DELETE /v1/admin/control-rooms/{room_code}/presence", requireAdmin(http.HandlerFunc(adminHandler.LeaveControlRoom)))
 	mux.Handle("POST /v1/admin/lock", requireAdmin(http.HandlerFunc(adminHandler.AcquireLock)))
 	mux.Handle("PUT /v1/admin/lock", requireAdmin(http.HandlerFunc(adminHandler.HeartbeatLock)))
 	mux.Handle("DELETE /v1/admin/lock", requireAdmin(http.HandlerFunc(adminHandler.ReleaseLock)))

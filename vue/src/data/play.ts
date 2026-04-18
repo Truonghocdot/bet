@@ -422,7 +422,7 @@ function buildK3Variant(
       },
       {
         title: '2 số trùng',
-        description: 'Cược 2 xúc xắc trùng nhau (đôi cụ thể hoặc đôi bất kỳ).',
+        description: 'Cược 2 xúc xắc trùng nhau theo mặt số cụ thể.',
         mode: 'grid',
         subTab: '2 số trùng',
         options: [
@@ -432,12 +432,6 @@ function buildK3Variant(
           { key: 'pair_4', label: '4', accent: '#e64545', odds: '13.83X' },
           { key: 'pair_5', label: '5', accent: '#e64545', odds: '13.83X' },
           { key: 'pair_6', label: '6', accent: '#e64545', odds: '13.83X' },
-          { key: 'sspair_1', label: '1', accent: '#f59e0b', odds: '69.12X' },
-          { key: 'sspair_2', label: '2', accent: '#f59e0b', odds: '69.12X' },
-          { key: 'sspair_3', label: '3', accent: '#f59e0b', odds: '69.12X' },
-          { key: 'sspair_4', label: '4', accent: '#f59e0b', odds: '69.12X' },
-          { key: 'sspair_5', label: '5', accent: '#f59e0b', odds: '69.12X' },
-          { key: 'sspair_6', label: '6', accent: '#f59e0b', odds: '69.12X' },
         ],
       },
       {

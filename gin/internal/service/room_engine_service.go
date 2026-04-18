@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"gin/internal/domain/game"
 	"gin/internal/realtime"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/support/clock"
@@ -369,41 +370,32 @@ func generateK3Draw() repopg.DrawResult {
 	d2 := rng.Intn(6) + 1
 	d3 := rng.Intn(6) + 1
 
-	sum := d1 + d2 + d3
-	bigSmall := "small"
-	if sum >= 11 {
-		bigSmall = "big"
+	outcome, ok := game.BuildK3Outcome([]int{d1, d2, d3})
+	if !ok {
+		outcome = game.K3Outcome{
+			Dice:     []int{d1, d2, d3},
+			Sum:      d1 + d2 + d3,
+			Result:   fmt.Sprintf("%d-%d-%d", d1, d2, d3),
+			BigSmall: "small",
+			OddEven:  "even",
+			Tags:     []string{fmt.Sprintf("sum_%d", d1+d2+d3), "small", "even"},
+		}
 	}
-	oddEven := "even"
-	if sum%2 != 0 {
-		oddEven = "odd"
-	}
-	isTriple := d1 == d2 && d2 == d3
-	tags := []string{
-		fmt.Sprintf("sum_%d", sum),
-		bigSmall,
-		oddEven,
-	}
-	if isTriple {
-		tags = append(tags, "triple_any")
-	}
-
-	result := fmt.Sprintf("%d-%d-%d", d1, d2, d3)
 	payload, _ := json.Marshal(map[string]any{
 		"game_type":    "k3",
-		"dice":         []int{d1, d2, d3},
-		"sum":          sum,
-		"result":       result,
-		"big_small":    bigSmall,
-		"odd_even":     oddEven,
-		"is_triple":    isTriple,
-		"tags":         tags,
+		"dice":         outcome.Dice,
+		"sum":          outcome.Sum,
+		"result":       outcome.Result,
+		"big_small":    outcome.BigSmall,
+		"odd_even":     outcome.OddEven,
+		"is_triple":    outcome.IsTriple,
+		"tags":         outcome.Tags,
 		"generated_at": clock.Now(),
 	})
 
 	return repopg.DrawResult{
-		Result:      result,
-		BigSmall:    bigSmall,
+		Result:      outcome.Result,
+		BigSmall:    outcome.BigSmall,
 		Color:       "-",
 		PayloadJSON: payload,
 	}
@@ -412,86 +404,40 @@ func generateK3Draw() repopg.DrawResult {
 func generateLotteryDraw() repopg.DrawResult {
 	rng := rand.New(rand.NewSource(clock.Now().UnixNano()))
 	digits := make([]int, 5)
-	sum := 0
 	for i := 0; i < 5; i++ {
 		digits[i] = rng.Intn(10)
-		sum += digits[i]
 	}
 
-	last := digits[4]
-	lastBigSmall := "small"
-	if last >= 5 {
-		lastBigSmall = "big"
-	}
-	lastOddEven := "even"
-	if last%2 != 0 {
-		lastOddEven = "odd"
-	}
-	sumBigSmall := "small"
-	if sum >= 23 {
-		sumBigSmall = "big"
-	}
-	sumOddEven := "even"
-	if sum%2 != 0 {
-		sumOddEven = "odd"
-	}
-
-	builder := strings.Builder{}
-	for _, digit := range digits {
-		builder.WriteString(strconv.Itoa(digit))
-	}
-	result := builder.String()
-	tags := []string{
-		fmt.Sprintf("pick5_%s", result),
-		fmt.Sprintf("sum_%d", sum),
-		fmt.Sprintf("last_%d", last),
-		lastBigSmall,
-		lastOddEven,
-		fmt.Sprintf("sum_%s", sumBigSmall),
-		fmt.Sprintf("sum_%s", sumOddEven),
-	}
-	positionPayload := make(map[string]map[string]any, len(digits))
-	for index, digit := range digits {
-		position := string(rune('a' + index))
-		positionBigSmall := "small"
-		if digit >= 5 {
-			positionBigSmall = "big"
-		}
-		positionOddEven := "even"
-		if digit%2 != 0 {
-			positionOddEven = "odd"
-		}
-
-		tags = append(tags,
-			fmt.Sprintf("pos_%s_%d", position, digit),
-			fmt.Sprintf("pos_%s_%s", position, positionBigSmall),
-			fmt.Sprintf("pos_%s_%s", position, positionOddEven),
-		)
-		positionPayload[strings.ToUpper(position)] = map[string]any{
-			"digit":     digit,
-			"big_small": positionBigSmall,
-			"odd_even":  positionOddEven,
+	outcome, ok := game.BuildLotteryOutcome(digits)
+	if !ok {
+		outcome = game.LotteryOutcome{
+			Digits:      digits,
+			Result:      "00000",
+			BigSmall:    "small",
+			OddEven:     "even",
+			SumBigSmall: "small",
+			SumOddEven:  "even",
+			Tags:        []string{"pick5_00000", "sum_0", "last_0", "small", "even", "sum_small", "sum_even"},
 		}
 	}
-
 	payload, _ := json.Marshal(map[string]any{
 		"game_type":     "lottery",
-		"digits":        digits,
-		"positions":     positionPayload,
-		"sum":           sum,
-		"sum_big_small": sumBigSmall,
-		"sum_odd_even":  sumOddEven,
-		"last_digit":    last,
-		"result":        result,
-		"big_small":     lastBigSmall,
-		"odd_even":      lastOddEven,
-		"tags":          tags,
+		"digits":        outcome.Digits,
+		"positions":     outcome.Positions,
+		"sum":           outcome.Sum,
+		"sum_big_small": outcome.SumBigSmall,
+		"sum_odd_even":  outcome.SumOddEven,
+		"last_digit":    outcome.LastDigit,
+		"result":        outcome.Result,
+		"big_small":     outcome.BigSmall,
+		"odd_even":      outcome.OddEven,
+		"tags":          outcome.Tags,
 		"generated_at":  clock.Now(),
 	})
 
 	return repopg.DrawResult{
-		Result:      result,
-		BigSmall:    lastBigSmall,
+		Result:      outcome.Result,
+		BigSmall:    outcome.BigSmall,
 		Color:       "-",
 		PayloadJSON: payload,
 	}

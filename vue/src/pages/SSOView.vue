@@ -2,16 +2,29 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { request } from '@/shared/api/http'
-import { useAuthStore } from '@/stores/auth'
+import { useAdminAuthStore } from '@/stores/adminAuth'
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
+const adminAuth = useAdminAuthStore()
 const error = ref('')
 const loading = ref(true)
 
+function closeWindow() {
+  window.close()
+}
+
+function resolveAdminControlRouteName(roomCode: string): string {
+  const normalized = roomCode.trim().toLowerCase()
+  if (normalized.startsWith('k3_')) return 'admin-control-k3'
+  if (normalized.startsWith('lottery_')) return 'admin-control-lottery'
+  if (normalized.startsWith('wingo_')) return 'admin-control-wingo'
+  return 'admin-control-wingo'
+}
+
 async function exchangeToken() {
   const ssoToken = route.query.token as string | undefined
+  const roomCode = typeof route.query.room_code === 'string' ? route.query.room_code.trim() : ''
   if (!ssoToken) {
     error.value = 'Hệ thống không tìm thấy mã xác thực SSO'
     loading.value = false
@@ -23,11 +36,13 @@ async function exchangeToken() {
       body: { token: ssoToken }
     })
 
-    // Save auth data
-    auth.applyAuthResponse(response)
+    adminAuth.applyAuthResponse(response)
     
     // Redirect to admin control
-    void router.replace({ name: 'admin-control' })
+    void router.replace({
+      name: resolveAdminControlRouteName(roomCode),
+      query: roomCode ? { room_code: roomCode } : {},
+    })
   } catch (err: any) {
     error.value = err.message || 'Xác thực SSO thất bại'
     loading.value = false
@@ -56,9 +71,9 @@ onMounted(() => {
       </div>
       <h2 class="text-xl font-bold text-white mb-2">Lỗi xác thực</h2>
       <p class="text-red-400 mb-6">{{ error }}</p>
-      <router-link to="/auth" class="inline-block bg-slate-800 hover:bg-slate-700 text-white font-medium px-6 py-2 rounded-lg transition-colors">
-        Quay lại Đăng nhập
-      </router-link>
+      <button type="button" class="inline-block bg-slate-800 hover:bg-slate-700 text-white font-medium px-6 py-2 rounded-lg transition-colors" @click="closeWindow">
+        Đóng cửa sổ này
+      </button>
     </div>
   </div>
 </template>

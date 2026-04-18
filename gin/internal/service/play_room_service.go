@@ -323,6 +323,17 @@ func (s *PlayRoomService) PlaceRoomBet(
 		}); err != nil {
 			log.Printf("[realtime][bets.publish.error] room_code=%s user_id=%d ticket_id=%d err=%v", roomCode, ticket.UserID, ticket.ID, err)
 		}
+		if err := s.broker.Publish(ctx, realtime.AdminRoomsTopic(), "admin.rooms.changed", map[string]any{
+			"room_code":   roomCode,
+			"ticket_id":   ticket.ID,
+			"user_id":     ticket.UserID,
+			"period_id":   ticket.PeriodID,
+			"source":      "bet_placed",
+			"total_stake": totalStake,
+			"at":          clock.Now(),
+		}); err != nil {
+			log.Printf("[realtime][admin.rooms.publish.error] room_code=%s user_id=%d ticket_id=%d err=%v", roomCode, ticket.UserID, ticket.ID, err)
+		}
 	}
 
 	log.Printf(

@@ -1109,7 +1109,6 @@
     if (['green', 'red', 'big', 'small', 'odd', 'even', 'sum_big', 'sum_small', 'sum_odd', 'sum_even'].includes(key)) return 2
     if (/^pos_[a-e]_(big|small|odd|even)$/.test(key)) return 2
     if (key.startsWith('pair_')) return 13.83
-    if (key.startsWith('sspair_')) return 69.12
     if (key.startsWith('triple_')) return 207.36
     if (key === 'serial_any') return 8.64
     if (key.startsWith('diff_')) return 34.56
@@ -1151,15 +1150,6 @@
           description: 'Thắng khi xuất hiện đúng một cặp trùng của mặt số đã chọn.',
           accent: 'from-[#f59e0b] to-[#e64545]',
           badge: 'Một đôi cụ thể',
-        }
-      }
-      if (key.startsWith('sspair_')) {
-        return {
-          family: 'K3 2 số trùng',
-          title: `${option?.label ?? ''}${option?.label ?? ''}`,
-          description: 'Thắng khi ra cặp đặc biệt đúng mặt số đã chọn.',
-          accent: 'from-[#fb7185] to-[#f97316]',
-          badge: 'Cặp đặc biệt',
         }
       }
       if (key.startsWith('triple_')) {
@@ -3349,7 +3339,7 @@
             <div class="flex flex-wrap gap-2">
               <span class="rounded-full bg-[#ede9fe] px-3 py-1 text-[0.7rem] font-black text-[#7c3aed]">{{ modalSelectionContext.title }}</span>
               <span v-if="modalBetKey.startsWith('sum_')" class="rounded-full bg-[#dcfce7] px-3 py-1 text-[0.7rem] font-black text-[#15803d]">Theo tổng điểm</span>
-              <span v-if="modalBetKey.startsWith('pair_') || modalBetKey.startsWith('sspair_')" class="rounded-full bg-[#fee2e2] px-3 py-1 text-[0.7rem] font-black text-[#dc2626]">Theo cặp trùng</span>
+              <span v-if="modalBetKey.startsWith('pair_')" class="rounded-full bg-[#fee2e2] px-3 py-1 text-[0.7rem] font-black text-[#dc2626]">Theo cặp trùng</span>
               <span v-if="modalBetKey.startsWith('triple_')" class="rounded-full bg-[#f3e8ff] px-3 py-1 text-[0.7rem] font-black text-[#9333ea]">Theo bộ ba</span>
               <span v-if="modalBetKey === 'serial_any' || modalBetKey.startsWith('diff_')" class="rounded-full bg-[#d1fae5] px-3 py-1 text-[0.7rem] font-black text-[#0f766e]">Theo dạng khác số</span>
             </div>

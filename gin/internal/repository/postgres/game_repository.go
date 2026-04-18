@@ -148,11 +148,28 @@ func NewGameRepository(db *sql.DB) *GameRepository {
 
 func (r *GameRepository) GetPeriodBetStats(ctx context.Context, periodID int64) ([]PeriodBetStats, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		select option_key, option_type, count(distinct user_id) as player_count, sum(stake)::text as total_stake
+		with ticket_item_counts as (
+			select ticket_id, count(*) as items_count
+			from bet_items
+			where period_id = $1
+			group by ticket_id
+		)
+		select
+			i.option_key,
+			i.option_type,
+			count(distinct t.user_id) as player_count,
+			sum(
+				case
+					when coalesce(i.stake, 0) > 0 then i.stake
+					when coalesce(c.items_count, 0) = 1 then coalesce(t.original_amount, t.total_stake, t.stake, 0)
+					else 0
+				end
+			)::text as total_stake
 		from bet_items i
 		inner join bet_tickets t on t.id = i.ticket_id
+		left join ticket_item_counts c on c.ticket_id = i.ticket_id
 		where i.period_id = $1
-		group by option_key, option_type
+		group by i.option_key, i.option_type
 		order by total_stake desc
 	`, periodID)
 	if err != nil {
@@ -177,8 +194,8 @@ func (r *GameRepository) SetPeriodManualResult(ctx context.Context, periodID int
 		set manual_result = $1,
 		    updated_at = now()
 		where id = $2
-		  and status in (1, 2)
-		  and now() < bet_lock_at
+		  and status in (1, 2, 3)
+		  and now() < draw_at
 	`, resultJSON, periodID)
 	if err != nil {
 		return err

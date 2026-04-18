@@ -2,11 +2,16 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AuthLayout from './layouts/AuthLayout.vue'
+import AdminLayout from './layouts/AdminLayout.vue'
 import MainLayout from './layouts/MainLayout.vue'
 
 const route = useRoute()
 
-const layout = computed(() => (route.meta.layout === 'auth' ? AuthLayout : MainLayout))
+const layout = computed(() => {
+  if (route.meta.layout === 'auth') return AuthLayout
+  if (route.meta.layout === 'admin') return AdminLayout
+  return MainLayout
+})
 </script>
 
 <template>
