@@ -14,13 +14,23 @@ use Filament\Schemas\Schema;
 
 class UserForm
 {
+    public static function roleOptionsForCurrentActor(): array
+    {
+        $actorRole = auth()->user()?->role;
+        $allowedValues = RoleUser::manageableValuesBy($actorRole instanceof RoleUser ? $actorRole : null);
+
+        return collect(EnumPresenter::options(RoleUser::class))
+            ->only($allowedValues)
+            ->all();
+    }
+
     public static function configure(Schema $schema, ?RoleUser $fixedRole = null): Schema
     {
         $roleField = $fixedRole
             ? Hidden::make('role')->default($fixedRole->value)
             : Select::make('role')
                 ->label('Vai trò')
-                ->options(EnumPresenter::options(RoleUser::class))
+                ->options(static::roleOptionsForCurrentActor())
                 ->required();
 
         return $schema
