@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Users\Schemas;
 
 use App\Enum\User\RoleUser;
 use App\Enum\User\UserStatus;
+use App\Enum\Wallet\UnitTransaction;
 use App\Support\Filament\EnumPresenter;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
@@ -78,6 +79,29 @@ class UserForm
                             ->dehydrated(false),
                     ])
                     ->columns(2),
+                Section::make('Số dư ví')
+                    ->description('Chỉnh trực tiếp số dư khả dụng của từng ví người dùng.')
+                    ->schema([
+                        TextInput::make('wallet_vnd_balance')
+                            ->label('Số dư ví '.self::walletUnitLabel(UnitTransaction::VND))
+                            ->numeric()
+                            ->default(0)
+                            ->step('0.000001'),
+                        TextInput::make('wallet_usdt_balance')
+                            ->label('Số dư ví '.self::walletUnitLabel(UnitTransaction::USDT))
+                            ->numeric()
+                            ->default(0)
+                            ->step('0.000001'),
+                    ])
+                    ->columns(2),
             ]);
+    }
+
+    private static function walletUnitLabel(UnitTransaction $unit): string
+    {
+        return match ($unit) {
+            UnitTransaction::USDT => 'USDT',
+            default => 'VND',
+        };
     }
 }
