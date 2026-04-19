@@ -77,4 +77,13 @@ class TransactionResource extends BaseResource
                 SoftDeletingScope::class,
             ]);
     }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->with([
+                'user',
+                'user.referredByReferral.referrerUser',
+            ]);
+    }
 }

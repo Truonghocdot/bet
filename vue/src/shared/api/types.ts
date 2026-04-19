@@ -21,6 +21,17 @@ export type AffiliateProfile = {
   status: number
 }
 
+export type ManagedAffiliateUser = {
+  user_id: number
+  name: string
+  phone: string
+  created_at: string
+  referral_status: number
+  first_deposit_amount: string
+  first_deposit_transaction_id: number
+  first_deposit_transaction_no: string
+}
+
 export type AuthResponse = {
   user: AuthUser
   affiliate_profile?: AffiliateProfile | null

@@ -121,6 +121,11 @@ class User extends Authenticatable
         return $this->hasMany(\App\Models\Affiliate\AffiliateReferral::class, 'referred_user_id');
     }
 
+    public function referredByReferral(): HasOne
+    {
+        return $this->hasOne(\App\Models\Affiliate\AffiliateReferral::class, 'referred_user_id');
+    }
+
     public function referralLogs(): HasMany
     {
         return $this->hasMany(\App\Models\Affiliate\AffiliateRewardLog::class, 'referrer_user_id');

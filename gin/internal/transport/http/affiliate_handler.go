@@ -35,6 +35,26 @@ func (h *AffiliateHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+func (h *AffiliateHandler) ManagedUsers(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	res, err := h.affiliateService.ManagedUsers(r.Context(), claims.UserID, claims.Role)
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorized) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không có quyền xem danh sách user trực thuộc"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, res)
+}
+
 type becomeAgencyRequest struct {
 	StaffRefCode string `json:"staff_ref_code"`
 }
@@ -75,4 +95,3 @@ func (h *AffiliateHandler) BecomeAgency(w http.ResponseWriter, r *http.Request) 
 
 	writeJSON(w, http.StatusOK, res)
 }
-

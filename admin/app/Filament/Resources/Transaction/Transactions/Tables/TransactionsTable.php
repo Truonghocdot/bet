@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Transaction\Transactions\Tables;
 
 use App\Enum\Transaction\TransactionStatus;
 use App\Enum\Transaction\TypeTransaction;
+use App\Enum\User\RoleUser;
 use App\Support\Filament\EnumPresenter;
 use Filament\Actions\Action;
 use Filament\Forms\Components\TextInput;
@@ -21,6 +22,41 @@ class TransactionsTable
                 TextColumn::make('id')->label('ID')->sortable(),
                 TextColumn::make('user_id')->label('ID người dùng')->sortable()->searchable(),
                 TextColumn::make('user.name')->label('Người dùng')->searchable()->sortable(),
+                TextColumn::make('agency_id')
+                    ->label('ID agency')
+                    ->getStateUsing(function ($record): string {
+                        if ($record->type !== TypeTransaction::DEPOSIT) {
+                            return '—';
+                        }
+
+                        $agency = $record->user?->referredByReferral?->referrerUser;
+                        if (! $agency || $agency->role !== RoleUser::AGENCY) {
+                            return '—';
+                        }
+
+                        return (string) $agency->id;
+                    }),
+                TextColumn::make('agency_name')
+                    ->label('Thuộc agency')
+                    ->getStateUsing(function ($record): string {
+                        if ($record->type !== TypeTransaction::DEPOSIT) {
+                            return '—';
+                        }
+
+                        $agency = $record->user?->referredByReferral?->referrerUser;
+                        if (! $agency || $agency->role !== RoleUser::AGENCY) {
+                            return '—';
+                        }
+
+                        return $agency->name ?: ('Agency #'.$agency->id);
+                    })
+                    ->searchable(query: function ($query, string $search): void {
+                        $query->whereHas('user.referredByReferral.referrerUser', function ($agencyQuery) use ($search): void {
+                            $agencyQuery
+                                ->where('role', RoleUser::AGENCY->value)
+                                ->where('name', 'like', '%'.$search.'%');
+                        });
+                    }),
                 TextColumn::make('type')
                     ->label('Loại')
                     ->badge()

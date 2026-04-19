@@ -245,6 +245,65 @@ func (r *UserRepository) CountInvitedUsers(ctx context.Context, referrerUserID i
 	return count, err
 }
 
+type ManagedAffiliateUserRecord struct {
+	UserID                    int64
+	Name                      string
+	Phone                     string
+	CreatedAt                 time.Time
+	ReferralStatus            int
+	FirstDepositAmount        string
+	FirstDepositTransactionID int64
+	FirstDepositTransactionNo string
+}
+
+func (r *UserRepository) ListManagedAffiliateUsers(ctx context.Context, referrerUserID int64, limit int) ([]ManagedAffiliateUserRecord, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		select
+			u.id,
+			u.name,
+			coalesce(u.phone, '') as phone,
+			u.created_at,
+			ar.status,
+			coalesce(ar.first_deposit_amount, 0)::text as first_deposit_amount,
+			coalesce(ar.first_deposit_transaction_id, 0) as first_deposit_transaction_id,
+			coalesce(t.client_ref, '') as first_deposit_transaction_no
+		from affiliate_referrals ar
+		inner join users u on u.id = ar.referred_user_id
+		left join transactions t on t.id = ar.first_deposit_transaction_id
+		where ar.referrer_user_id = $1
+		order by ar.created_at desc, ar.id desc
+		limit $2
+	`, referrerUserID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]ManagedAffiliateUserRecord, 0)
+	for rows.Next() {
+		var item ManagedAffiliateUserRecord
+		if err := rows.Scan(
+			&item.UserID,
+			&item.Name,
+			&item.Phone,
+			&item.CreatedAt,
+			&item.ReferralStatus,
+			&item.FirstDepositAmount,
+			&item.FirstDepositTransactionID,
+			&item.FirstDepositTransactionNo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}
+
 func (r *UserRepository) FindProfileByUserID(ctx context.Context, userID int64) (auth.UserProfile, error) {
 	record, err := r.findUserRecordByID(ctx, userID)
 	if err != nil {

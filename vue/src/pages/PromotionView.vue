@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { request, type ApiError } from '@/shared/api/http'
-import type { ContentListResponse, ContentNewsItem } from '@/shared/api/types'
+import type { ContentListResponse, ContentNewsItem, ManagedAffiliateUser } from '@/shared/api/types'
 import { useAuthStore } from '@/stores/auth'
 
 const activeTab = ref<'affiliate' | 'promotion' | 'news'>('affiliate')
@@ -11,6 +11,7 @@ const error = ref('')
 const promotionItems = ref<ContentNewsItem[]>([])
 const newsItems = ref<ContentNewsItem[]>([])
 const invitedUsersCount = ref(0)
+const managedUsers = ref<ManagedAffiliateUser[]>([])
 const copied = ref(false)
 
 const isBecomeAgencyOpen = ref(false)
@@ -74,6 +75,29 @@ async function loadAffiliateStats() {
   }
 }
 
+async function loadManagedUsers() {
+  if (!auth.isAuthenticated || !isAgency.value) {
+    managedUsers.value = []
+    return
+  }
+
+  try {
+    const res = await request<{ items: ManagedAffiliateUser[] }>('GET', '/v1/affiliate/managed-users', {
+      token: auth.accessToken,
+    })
+    managedUsers.value = res.items || []
+  } catch {
+    managedUsers.value = []
+  }
+}
+
+function affiliateReferralStatusLabel(status: number): string {
+  if (status === 2) return 'Đã nạp đầu'
+  if (status === 1) return 'Chờ nạp đầu'
+  if (status === 3) return 'Không hợp lệ'
+  return '—'
+}
+
 async function copyReferralLink() {
   const link = auth.affiliateProfile?.ref_link
   if (!link) return
@@ -123,6 +147,7 @@ onMounted(async () => {
     }
   }
   await loadAffiliateStats()
+  await loadManagedUsers()
   await loadContent()
 })
 </script>
@@ -199,6 +224,51 @@ onMounted(async () => {
           <span class="material-symbols-outlined text-[1rem]">workspace_premium</span>
           Trở thành đại lý
         </button>
+      </div>
+
+      <div v-if="isAgency" class="overflow-hidden rounded-[18px] border border-slate-100 bg-white shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <div>
+            <p class="m-0 text-[0.72rem] font-black uppercase tracking-[0.05em] text-slate-500">User trực thuộc</p>
+            <p class="m-0 mt-1 text-[0.78rem] font-semibold text-slate-500">Danh sách user đang thuộc tuyến đại lý của bạn.</p>
+          </div>
+          <span class="rounded-full bg-rose-50 px-3 py-1 text-[0.72rem] font-black text-primary">{{ managedUsers.length }} user</span>
+        </div>
+
+        <div v-if="managedUsers.length === 0" class="px-4 py-6 text-[0.82rem] font-semibold text-slate-500">
+          Chưa có user trực thuộc trong tuyến đại lý này.
+        </div>
+
+        <div v-else class="overflow-x-auto">
+          <table class="min-w-full text-left text-[0.78rem]">
+            <thead class="bg-slate-50 text-slate-500">
+              <tr>
+                <th class="px-4 py-3 font-black">ID</th>
+                <th class="px-4 py-3 font-black">User</th>
+                <th class="px-4 py-3 font-black">SĐT</th>
+                <th class="px-4 py-3 font-black">Trạng thái</th>
+                <th class="px-4 py-3 font-black">Nạp đầu</th>
+                <th class="px-4 py-3 font-black">Mã GD nạp đầu</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in managedUsers" :key="item.user_id" class="border-t border-slate-100">
+                <td class="px-4 py-3 font-black text-on-surface">{{ item.user_id }}</td>
+                <td class="px-4 py-3 font-bold text-on-surface">{{ item.name || '—' }}</td>
+                <td class="px-4 py-3 font-semibold text-slate-500">{{ item.phone || '—' }}</td>
+                <td class="px-4 py-3">
+                  <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[0.72rem] font-black text-slate-600">
+                    {{ affiliateReferralStatusLabel(item.referral_status) }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 font-bold text-on-surface">
+                  {{ Number(item.first_deposit_amount || 0).toLocaleString('vi-VN') }}
+                </td>
+                <td class="px-4 py-3 font-mono text-[0.74rem] text-slate-500">{{ item.first_deposit_transaction_no || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div v-if="isBecomeAgencyOpen" class="fixed inset-0 z-[9999] grid place-items-center bg-black/40 px-4">
