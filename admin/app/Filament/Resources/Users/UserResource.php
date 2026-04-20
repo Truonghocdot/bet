@@ -52,7 +52,7 @@ abstract class UserResource extends BaseResource
                 RelationManagers\AccountWithdrawalInfosRelationManager::class,
             ]),
             RelationManagers\BetTicketsRelationManager::class,
-            RelationManagers\AffiliateProfileRelationManager::class,
+            RelationManagers\AffiliateReferralsRelationManager::class,
         ];
     }
 
