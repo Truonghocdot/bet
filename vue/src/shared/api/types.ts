@@ -359,10 +359,16 @@ export type WalletSummaryItem = {
   updated_at: string
 }
 
+export type MarqueeDisplay = {
+  enabled: boolean
+  messages: string[]
+}
+
 export type WalletSummaryResponse = {
   message: string
   exchange_rate: string
   telegram_cskh_link?: string | null
+  marquee?: MarqueeDisplay
   withdraw_policy?: {
     enabled: boolean
     fee_percent: string

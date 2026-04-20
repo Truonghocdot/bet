@@ -139,6 +139,20 @@ class ExchangeRatePageForm
                         ->helperText('Đường dẫn trực tiếp đến tài khoản hoặc group Telegram hỗ trợ.'),
                 ])
                 ->columns(2),
+
+            Section::make('Marquee thông báo')
+                ->description('Nội dung chạy ngang ở trang chủ app. Mỗi dòng là một thông báo riêng.')
+                ->schema([
+                    Toggle::make('marquee_enabled')
+                        ->label('Bật marquee trên app'),
+                    Textarea::make('marquee_messages')
+                        ->label('Danh sách thông báo')
+                        ->rows(6)
+                        ->columnSpanFull()
+                        ->placeholder("Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.\nKhi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!\nFF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.")
+                        ->helperText('Mỗi dòng tương ứng một câu chạy trong marquee.'),
+                ])
+                ->columns(2),
         ]);
     }
 }

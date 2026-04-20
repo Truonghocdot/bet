@@ -77,6 +77,10 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 		Message:          message.WalletSummarySuccess,
 		ExchangeRate:     snapshot.Rate,
 		TelegramCskhLink: snapshot.TelegramCskhLink,
+		Marquee: wallet.MarqueeDisplay{
+			Enabled:  snapshot.MarqueeEnabled != nil && *snapshot.MarqueeEnabled,
+			Messages: snapshot.MarqueeMessages,
+		},
 		WithdrawPolicy: wallet.WithdrawPolicyDisplay{
 			Enabled:           snapshot.WithdrawPolicyEnabled != nil && *snapshot.WithdrawPolicyEnabled,
 			FeePercent:        snapshot.WithdrawFeePercent,
@@ -161,20 +165,28 @@ func (s *WalletService) GetExchangeRate(ctx context.Context) string {
 }
 
 type systemSnapshot struct {
-	Rate                  string `json:"rate"`
-	TelegramCskhLink      string `json:"telegram_cskh_link"`
-	WithdrawPolicyEnabled *bool  `json:"withdraw_policy_enabled"`
-	WithdrawFeePercent    string `json:"withdraw_fee_percent"`
-	WithdrawRequiredBet   string `json:"withdraw_required_bet_volume"`
-	WithdrawMaxTimes      int    `json:"withdraw_max_times_per_day"`
-	WithdrawMinAmount     string `json:"withdraw_min_amount"`
-	WithdrawMaxAmount     string `json:"withdraw_max_amount"`
+	Rate                  string   `json:"rate"`
+	TelegramCskhLink      string   `json:"telegram_cskh_link"`
+	MarqueeEnabled        *bool    `json:"marquee_enabled"`
+	MarqueeMessages       []string `json:"marquee_messages_list"`
+	WithdrawPolicyEnabled *bool    `json:"withdraw_policy_enabled"`
+	WithdrawFeePercent    string   `json:"withdraw_fee_percent"`
+	WithdrawRequiredBet   string   `json:"withdraw_required_bet_volume"`
+	WithdrawMaxTimes      int      `json:"withdraw_max_times_per_day"`
+	WithdrawMinAmount     string   `json:"withdraw_min_amount"`
+	WithdrawMaxAmount     string   `json:"withdraw_max_amount"`
 }
 
 func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
 	defaultEnabled := true
 	defaultSnap := systemSnapshot{
-		Rate:                  fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault),
+		Rate:           fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault),
+		MarqueeEnabled: &defaultEnabled,
+		MarqueeMessages: []string{
+			"Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.",
+			"Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!",
+			"FF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.",
+		},
 		WithdrawPolicyEnabled: &defaultEnabled,
 		WithdrawFeePercent:    DefaultWithdrawFeePercent,
 		WithdrawRequiredBet:   DefaultWithdrawRequiredBet,
@@ -195,6 +207,12 @@ func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
 
 	if snapshot.Rate == "" {
 		snapshot.Rate = defaultSnap.Rate
+	}
+	if snapshot.MarqueeEnabled == nil {
+		snapshot.MarqueeEnabled = defaultSnap.MarqueeEnabled
+	}
+	if len(snapshot.MarqueeMessages) == 0 {
+		snapshot.MarqueeMessages = defaultSnap.MarqueeMessages
 	}
 	if snapshot.WithdrawPolicyEnabled == nil {
 		snapshot.WithdrawPolicyEnabled = defaultSnap.WithdrawPolicyEnabled

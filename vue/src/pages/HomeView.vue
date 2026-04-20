@@ -4,7 +4,6 @@ import { RouterLink, useRoute } from 'vue-router'
 
 import BannerCarousel from '@/components/BannerCarousel.vue'
 import MarqueeBar from '@/components/MarqueeBar.vue'
-import Leaderboard from '@/components/Leaderboard.vue'
 import { request } from '@/shared/api/http'
 import type { ContentBannerItem, ContentHomeResponse, ContentNewsItem } from '@/shared/api/types'
 import { formatViMoney } from '@/shared/lib/money'
@@ -216,9 +215,9 @@ onMounted(() => {
     </div>
 
     <!-- ===== LEADERBOARD ===== -->
-    <div class="px-3 pb-1 pt-2">
+    <!-- <div class="px-3 pb-1 pt-2">
       <Leaderboard />
-    </div>
+    </div> -->
 
     <!-- ===== NEWS HIGHLIGHTS ===== -->
     <div class="mx-3 mb-2 overflow-hidden rounded-[20px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.06)] border border-slate-100">

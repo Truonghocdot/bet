@@ -280,6 +280,17 @@
   }
 
   const walletVnd = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
+  const playMarqueeFallbackMessages = [
+    'Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.',
+    'Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!',
+    'FF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
+  ]
+  const playMarqueeEnabled = computed(() => wallet.summary?.marquee?.enabled ?? true)
+  const playMarqueeText = computed(() => {
+    const configured = wallet.summary?.marquee?.messages?.filter((item) => item.trim().length > 0) ?? []
+    const messages = configured.length > 0 ? configured : playMarqueeFallbackMessages
+    return messages.join(' · ')
+  })
   const availableVndBalance = computed(() => {
     return Number(walletVnd.value?.balance ?? 0)
   })
@@ -2704,10 +2715,13 @@
       </div>
 
       <!-- ===== MARQUEE NOTICE ===== -->
-      <div class="mx-3 mt-2 flex items-center gap-2 rounded-[12px] bg-white px-3 py-2.5 shadow-sm">
+      <div
+        v-if="playMarqueeEnabled && playMarqueeText"
+        class="mx-3 mt-2 flex items-center gap-2 rounded-[12px] bg-white px-3 py-2.5 shadow-sm"
+      >
         <span class="material-symbols-outlined text-[1rem] text-primary flex-shrink-0">campaign</span>
         <span class="flex-1 overflow-hidden text-[0.72rem] text-slate-600 whitespace-nowrap truncate">
-          Chúc mừng người chơi ***123 vừa thắng 2,500,000đ · Nạp tiền ngay để nhận thưởng VIP
+          {{ playMarqueeText }}
         </span>
         <RouterLink to="/promotion" class="flex-shrink-0 rounded-full bg-primary px-2.5 py-1 text-[0.65rem] font-black text-white">Chi tiết</RouterLink>
       </div>

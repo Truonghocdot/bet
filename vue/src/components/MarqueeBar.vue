@@ -1,13 +1,28 @@
 <script setup lang="ts">
-const messages = [
+import { computed } from 'vue'
+
+import { useWalletStore } from '@/stores/wallet'
+
+const walletStore = useWalletStore()
+
+const fallbackMessages = [
   'Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.',
   'Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!',
-  'FF789 – Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
+  'FF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
 ]
+
+const marqueeEnabled = computed(() => walletStore.summary?.marquee?.enabled ?? true)
+const messages = computed(() => {
+  const configured = walletStore.summary?.marquee?.messages?.filter((item) => item.trim().length > 0) ?? []
+  return configured.length > 0 ? configured : fallbackMessages
+})
 </script>
 
 <template>
-  <div class="flex items-center gap-2 overflow-hidden bg-[rgba(232,64,74,0.08)] px-3 py-2.5 border-y border-[rgba(232,64,74,0.15)]">
+  <div
+    v-if="marqueeEnabled && messages.length"
+    class="flex items-center gap-2 overflow-hidden bg-[rgba(232,64,74,0.08)] px-3 py-2.5 border-y border-[rgba(232,64,74,0.15)]"
+  >
     <span class="material-symbols-outlined flex-shrink-0 text-[1rem] text-primary">campaign</span>
     <div class="marquee-track flex-1 overflow-hidden">
       <div class="marquee-content flex whitespace-nowrap">

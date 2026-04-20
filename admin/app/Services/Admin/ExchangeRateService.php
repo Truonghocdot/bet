@@ -35,6 +35,12 @@ class ExchangeRateService
                 'source_rate' => 25000,
                 'auto_sync' => true,
                 'source_name' => 'seed',
+                'marquee_enabled' => true,
+                'marquee_messages' => implode("\n", [
+                    'Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.',
+                    'Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!',
+                    'FF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
+                ]),
                 'withdraw_policy_enabled' => true,
                 'withdraw_fee_percent' => 0,
                 'withdraw_required_bet_volume' => 0,
@@ -62,6 +68,8 @@ class ExchangeRateService
                 'nowpayments_payout_wallet' => $data['nowpayments_payout_wallet'] ?? null,
                 'nowpayments_sandbox' => (bool) ($data['nowpayments_sandbox'] ?? false),
                 'telegram_cskh_link' => $data['telegram_cskh_link'] ?? null,
+                'marquee_enabled' => (bool) ($data['marquee_enabled'] ?? true),
+                'marquee_messages' => $this->normalizeMarqueeMessages($data['marquee_messages'] ?? null),
                 'withdraw_policy_enabled' => (bool) ($data['withdraw_policy_enabled'] ?? true),
                 'withdraw_fee_percent' => $data['withdraw_fee_percent'] ?? 0,
                 'withdraw_required_bet_volume' => $data['withdraw_required_bet_volume'] ?? 0,
@@ -209,6 +217,9 @@ class ExchangeRateService
             'nowpayments_payout_wallet' => $setting->nowpayments_payout_wallet,
             'nowpayments_sandbox' => (bool) $setting->nowpayments_sandbox,
             'telegram_cskh_link' => $setting->telegram_cskh_link,
+            'marquee_enabled' => (bool) ($setting->marquee_enabled ?? true),
+            'marquee_messages' => $setting->marquee_messages,
+            'marquee_messages_list' => $this->parseMarqueeMessages($setting->marquee_messages),
             'withdraw_policy_enabled' => (bool) ($setting->withdraw_policy_enabled ?? true),
             'withdraw_fee_percent' => (string) ($setting->withdraw_fee_percent ?? '0'),
             'withdraw_required_bet_volume' => (string) ($setting->withdraw_required_bet_volume ?? '0'),
@@ -225,6 +236,29 @@ class ExchangeRateService
     private function runtimeRedisHasSnapshot(): bool
     {
         return Redis::connection($this->redisConnection())->exists($this->redisKey()) > 0;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseMarqueeMessages(?string $value): array
+    {
+        if ($value === null || trim($value) === '') {
+            return [];
+        }
+
+        return collect(preg_split('/\r\n|\r|\n/', $value) ?: [])
+            ->map(fn (mixed $line): string => trim((string) $line))
+            ->filter(fn (string $line): bool => $line !== '')
+            ->values()
+            ->all();
+    }
+
+    private function normalizeMarqueeMessages(?string $value): ?string
+    {
+        $lines = $this->parseMarqueeMessages($value);
+
+        return $lines === [] ? null : implode("\n", $lines);
     }
 
     private function extractRateFromPayload(array|string $payload): float

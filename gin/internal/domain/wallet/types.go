@@ -25,10 +25,16 @@ type WithdrawPolicyDisplay struct {
 	MaxAmount         string `json:"max_amount"`
 }
 
+type MarqueeDisplay struct {
+	Enabled  bool     `json:"enabled"`
+	Messages []string `json:"messages"`
+}
+
 type WalletSummaryResponse struct {
 	Message          string                `json:"message"`
 	ExchangeRate     string                `json:"exchange_rate"`
 	TelegramCskhLink string                `json:"telegram_cskh_link,omitempty"`
+	Marquee          MarqueeDisplay        `json:"marquee"`
 	WithdrawPolicy   WithdrawPolicyDisplay `json:"withdraw_policy"`
 	Wallets          []WalletBalance       `json:"wallets"`
 }
