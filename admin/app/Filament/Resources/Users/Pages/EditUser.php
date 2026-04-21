@@ -23,27 +23,34 @@ abstract class EditUser extends EditRecord
     protected array $walletBalancePayload = [];
 
     /**
-     * @var array<string, mixed>
+     * @var array<int, array<string, mixed>>
      */
-    protected array $withdrawalInfoPayload = [];
+    protected array $withdrawalAccountsPayload = [];
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
         $wallets = $this->record->wallets()
             ->get()
             ->keyBy(fn ($wallet): int => (int) ($wallet->unit?->value ?? $wallet->unit));
-        $withdrawalInfo = $this->record->accountWithdrawalInfos()
+        $vndWithdrawalInfo = $this->record->accountWithdrawalInfos()
+            ->where('unit', UnitTransaction::VND->value)
+            ->orderByDesc('is_default')
+            ->orderByDesc('id')
+            ->first();
+        $usdtWithdrawalInfo = $this->record->accountWithdrawalInfos()
+            ->where('unit', UnitTransaction::USDT->value)
             ->orderByDesc('is_default')
             ->orderByDesc('id')
             ->first();
 
         $data['wallet_vnd_balance'] = (string) ($wallets->get(UnitTransaction::VND->value)?->balance ?? 0);
         $data['wallet_usdt_balance'] = (string) ($wallets->get(UnitTransaction::USDT->value)?->balance ?? 0);
-        $data['withdrawal_unit'] = (int) ($withdrawalInfo?->unit?->value ?? $withdrawalInfo?->unit ?? UnitTransaction::VND->value);
-        $data['withdrawal_provider_code'] = (string) ($withdrawalInfo?->provider_code ?? '');
-        $data['withdrawal_account_name'] = (string) ($withdrawalInfo?->account_name ?? '');
-        $data['withdrawal_account_number'] = (string) ($withdrawalInfo?->account_number ?? '');
-        $data['withdrawal_is_default'] = true;
+        $data['withdrawal_vnd_provider_code'] = (string) ($vndWithdrawalInfo?->provider_code ?? '');
+        $data['withdrawal_vnd_account_name'] = (string) ($vndWithdrawalInfo?->account_name ?? '');
+        $data['withdrawal_vnd_account_number'] = (string) ($vndWithdrawalInfo?->account_number ?? '');
+        $data['withdrawal_usdt_provider_code'] = (string) ($usdtWithdrawalInfo?->provider_code ?? '');
+        $data['withdrawal_usdt_account_name'] = (string) ($usdtWithdrawalInfo?->account_name ?? '');
+        $data['withdrawal_usdt_account_number'] = (string) ($usdtWithdrawalInfo?->account_number ?? '');
 
         return $data;
     }
@@ -51,7 +58,7 @@ abstract class EditUser extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $this->walletBalancePayload = $this->extractWalletBalancePayload($data);
-        $this->withdrawalInfoPayload = $this->extractWithdrawalInfoPayload($data);
+        $this->withdrawalAccountsPayload = $this->extractWithdrawalAccountsPayload($data);
 
         if (! array_key_exists('role', $data)) {
             return $this->stripFormRuntimeFields($data);
@@ -78,7 +85,7 @@ abstract class EditUser extends EditRecord
             auth()->user(),
         );
 
-        $this->syncDefaultWithdrawalInfo();
+        $this->syncWithdrawalAccounts();
     }
 
     protected function getHeaderActions(): array
@@ -111,11 +118,12 @@ abstract class EditUser extends EditRecord
         unset(
             $data['wallet_vnd_balance'],
             $data['wallet_usdt_balance'],
-            $data['withdrawal_unit'],
-            $data['withdrawal_provider_code'],
-            $data['withdrawal_account_name'],
-            $data['withdrawal_account_number'],
-            $data['withdrawal_is_default'],
+            $data['withdrawal_vnd_provider_code'],
+            $data['withdrawal_vnd_account_name'],
+            $data['withdrawal_vnd_account_number'],
+            $data['withdrawal_usdt_provider_code'],
+            $data['withdrawal_usdt_account_name'],
+            $data['withdrawal_usdt_account_number'],
         );
 
         return $data;
@@ -123,62 +131,100 @@ abstract class EditUser extends EditRecord
 
     /**
      * @param  array<string, mixed>  $data
+     * @return array<int, array<string, mixed>>
+     */
+    protected function extractWithdrawalAccountsPayload(array $data): array
+    {
+        return [
+            UnitTransaction::VND->value => $this->normalizeWithdrawalAccountPayload(
+                $data,
+                UnitTransaction::VND,
+                'withdrawal_vnd_provider_code',
+                'withdrawal_vnd_account_name',
+                'withdrawal_vnd_account_number',
+            ),
+            UnitTransaction::USDT->value => $this->normalizeWithdrawalAccountPayload(
+                $data,
+                UnitTransaction::USDT,
+                'withdrawal_usdt_provider_code',
+                'withdrawal_usdt_account_name',
+                'withdrawal_usdt_account_number',
+            ),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    protected function extractWithdrawalInfoPayload(array $data): array
-    {
-        $accountName = trim((string) ($data['withdrawal_account_name'] ?? ''));
-        $accountNumber = trim((string) ($data['withdrawal_account_number'] ?? ''));
-        $providerCode = trim((string) ($data['withdrawal_provider_code'] ?? ''));
-        $shouldSync = $accountName !== '' || $accountNumber !== '' || $providerCode !== '';
+    protected function normalizeWithdrawalAccountPayload(
+        array $data,
+        UnitTransaction $unit,
+        string $providerField,
+        string $accountNameField,
+        string $accountNumberField,
+    ): array {
+        $providerCode = trim((string) ($data[$providerField] ?? ''));
+        $accountName = trim((string) ($data[$accountNameField] ?? ''));
+        $accountNumber = trim((string) ($data[$accountNumberField] ?? ''));
+        $shouldSync = $providerCode !== '' || $accountName !== '' || $accountNumber !== '';
 
         if ($shouldSync && ($accountName === '' || $accountNumber === '')) {
             throw ValidationException::withMessages([
-                'withdrawal_account_name' => 'Cần nhập đầy đủ chủ tài khoản và số tài khoản rút.',
-                'withdrawal_account_number' => 'Cần nhập đầy đủ chủ tài khoản và số tài khoản rút.',
+                $accountNameField => 'Cần nhập đầy đủ tên/chủ sở hữu và số tài khoản hoặc địa chỉ ví.',
+                $accountNumberField => 'Cần nhập đầy đủ tên/chủ sở hữu và số tài khoản hoặc địa chỉ ví.',
             ]);
         }
 
         return [
             'should_sync' => $shouldSync,
-            'unit' => (int) ($data['withdrawal_unit'] ?? UnitTransaction::VND->value),
+            'unit' => $unit->value,
             'provider_code' => $providerCode !== '' ? $providerCode : null,
             'account_name' => $accountName,
             'account_number' => $accountNumber,
         ];
     }
 
-    protected function syncDefaultWithdrawalInfo(): void
+    protected function syncWithdrawalAccounts(): void
     {
-        if (($this->withdrawalInfoPayload['should_sync'] ?? false) !== true) {
-            return;
-        }
-
         DB::transaction(function (): void {
-            $relationship = $this->record->accountWithdrawalInfos();
-            $defaultRecord = $relationship->where('is_default', true)->orderByDesc('id')->first()
-                ?? $relationship->orderByDesc('id')->first();
+            foreach ($this->withdrawalAccountsPayload as $payload) {
+                if (($payload['should_sync'] ?? false) !== true) {
+                    continue;
+                }
 
-            $payload = [
-                'unit' => $this->withdrawalInfoPayload['unit'],
-                'provider_code' => $this->withdrawalInfoPayload['provider_code'],
-                'account_name' => $this->withdrawalInfoPayload['account_name'],
-                'account_number' => $this->withdrawalInfoPayload['account_number'],
-                'is_default' => true,
-            ];
+                $relationship = $this->record->accountWithdrawalInfos();
+                $defaultRecord = $relationship
+                    ->where('unit', $payload['unit'])
+                    ->orderByDesc('is_default')
+                    ->orderByDesc('id')
+                    ->first();
 
-            if ($defaultRecord instanceof AccountWithdrawalInfo) {
+                $attributes = [
+                    'unit' => $payload['unit'],
+                    'provider_code' => $payload['provider_code'],
+                    'account_name' => $payload['account_name'],
+                    'account_number' => $payload['account_number'],
+                    'is_default' => true,
+                ];
+
                 $relationship
-                    ->whereKeyNot($defaultRecord->getKey())
+                    ->where('unit', $payload['unit'])
                     ->where('is_default', true)
+                    ->when(
+                        $defaultRecord instanceof AccountWithdrawalInfo,
+                        fn ($query) => $query->whereKeyNot($defaultRecord->getKey()),
+                    )
                     ->update(['is_default' => false]);
 
-                $defaultRecord->fill($payload)->save();
+                if ($defaultRecord instanceof AccountWithdrawalInfo) {
+                    $defaultRecord->fill($attributes)->save();
 
-                return;
+                    continue;
+                }
+
+                $relationship->create($attributes);
             }
-
-            $relationship->create($payload);
         });
     }
 }

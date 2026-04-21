@@ -94,28 +94,41 @@ class UserForm
                             ->step('0.000001'),
                     ])
                     ->columns(2),
-                Section::make('Tài khoản rút mặc định')
-                    ->description('Cho phép cập nhật nhanh tài khoản rút chính ngay trong hồ sơ người dùng.')
+                Section::make('Tài khoản rút tiền của khách hàng')
                     ->schema([
-                        Select::make('withdrawal_unit')
-                            ->label('Đơn vị')
-                            ->options(EnumPresenter::options(UnitTransaction::class))
-                            ->default(UnitTransaction::VND->value),
-                        TextInput::make('withdrawal_provider_code')
-                            ->label('Ngân hàng / Provider')
-                            ->maxLength(50),
-                        TextInput::make('withdrawal_account_name')
-                            ->label('Chủ tài khoản')
-                            ->maxLength(255)
-                            ->requiredWith('withdrawal_account_number'),
-                        TextInput::make('withdrawal_account_number')
-                            ->label('Số tài khoản')
-                            ->maxLength(255)
-                            ->requiredWith('withdrawal_account_name'),
-                        Hidden::make('withdrawal_is_default')
-                            ->default(true),
+                        Section::make('Tài khoản ngân hàng thường')
+                            ->schema([
+                                TextInput::make('withdrawal_vnd_provider_code')
+                                    ->label('Ngân hàng / Provider')
+                                    ->maxLength(50),
+                                TextInput::make('withdrawal_vnd_account_name')
+                                    ->label('Chủ tài khoản')
+                                    ->maxLength(255)
+                                    ->requiredWith('withdrawal_vnd_account_number'),
+                                TextInput::make('withdrawal_vnd_account_number')
+                                    ->label('Số tài khoản')
+                                    ->maxLength(255)
+                                    ->requiredWith('withdrawal_vnd_account_name'),
+                            ])
+                            ->columns(1),
+                        Section::make('Ví USDT')
+                            ->schema([
+                                TextInput::make('withdrawal_usdt_provider_code')
+                                    ->label('Mạng / Provider')
+                                    ->maxLength(50),
+                                TextInput::make('withdrawal_usdt_account_name')
+                                    ->label('Tên ví / Chủ sở hữu')
+                                    ->maxLength(255)
+                                    ->requiredWith('withdrawal_usdt_account_number'),
+                                TextInput::make('withdrawal_usdt_account_number')
+                                    ->label('Địa chỉ ví')
+                                    ->maxLength(255)
+                                    ->requiredWith('withdrawal_usdt_account_name'),
+                            ])
+                            ->columns(1),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->columnSpanFull(),
             ]);
     }
 
