@@ -94,6 +94,28 @@ class UserForm
                             ->step('0.000001'),
                     ])
                     ->columns(2),
+                Section::make('Tài khoản rút mặc định')
+                    ->description('Cho phép cập nhật nhanh tài khoản rút chính ngay trong hồ sơ người dùng.')
+                    ->schema([
+                        Select::make('withdrawal_unit')
+                            ->label('Đơn vị')
+                            ->options(EnumPresenter::options(UnitTransaction::class))
+                            ->default(UnitTransaction::VND->value),
+                        TextInput::make('withdrawal_provider_code')
+                            ->label('Ngân hàng / Provider')
+                            ->maxLength(50),
+                        TextInput::make('withdrawal_account_name')
+                            ->label('Chủ tài khoản')
+                            ->maxLength(255)
+                            ->requiredWith('withdrawal_account_number'),
+                        TextInput::make('withdrawal_account_number')
+                            ->label('Số tài khoản')
+                            ->maxLength(255)
+                            ->requiredWith('withdrawal_account_name'),
+                        Hidden::make('withdrawal_is_default')
+                            ->default(true),
+                    ])
+                    ->columns(2),
             ]);
     }
 
