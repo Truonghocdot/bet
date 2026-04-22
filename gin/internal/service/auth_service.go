@@ -111,10 +111,6 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 		return auth.AuthResponse{}, fmt.Errorf(message.PasswordInvalid)
 	}
 
-	if err := s.enforceRegisterRateLimit(ctx, meta, email, phoneNumber); err != nil {
-		return auth.AuthResponse{}, err
-	}
-
 	hash, err := password.Hash(passwordRaw)
 	if err != nil {
 		return auth.AuthResponse{}, err
@@ -145,13 +141,8 @@ func (s *AuthService) Login(ctx context.Context, request auth.LoginRequest, meta
 		return auth.AuthResponse{}, fmt.Errorf(message.PasswordRequired)
 	}
 
-	if err := s.ensureLoginNotLocked(ctx, account); err != nil {
-		return auth.AuthResponse{}, err
-	}
-
 	profile, hash, err := s.repository.FindByAccount(ctx, account)
 	if err != nil {
-		s.registerLoginFailure(ctx, meta, account)
 		if errors.Is(err, repopg.ErrAccountNotFound) {
 			return auth.AuthResponse{}, ErrInvalidCredentials
 		}
@@ -159,7 +150,6 @@ func (s *AuthService) Login(ctx context.Context, request auth.LoginRequest, meta
 	}
 
 	if err := password.Compare(hash, request.Password); err != nil {
-		s.registerLoginFailure(ctx, meta, account)
 		return auth.AuthResponse{}, ErrInvalidCredentials
 	}
 
@@ -168,7 +158,6 @@ func (s *AuthService) Login(ctx context.Context, request auth.LoginRequest, meta
 		return auth.AuthResponse{}, err
 	}
 	profile.User.LastLoginAt = &now
-	_ = s.clearLoginFailureState(ctx, account, meta)
 
 	return s.newAuthResponse(ctx, profile, meta)
 }
@@ -189,7 +178,7 @@ func (s *AuthService) LoginByUserID(ctx context.Context, userID int64) (auth.Aut
 }
 
 
-func (s *AuthService) ForgotPassword(ctx context.Context, request auth.ForgotPasswordRequest, meta auth.RequestMeta) (auth.MessageResponse, error) {
+func (s *AuthService) ForgotPassword(ctx context.Context, request auth.ForgotPasswordRequest, _ auth.RequestMeta) (auth.MessageResponse, error) {
 	channel, channelDBValue, err := s.parseChannel(request.Channel)
 	if err != nil {
 		return auth.MessageResponse{}, err
@@ -198,10 +187,6 @@ func (s *AuthService) ForgotPassword(ctx context.Context, request auth.ForgotPas
 	account := normalizeAccount(channel, request.Account)
 	if account == "" {
 		return auth.MessageResponse{}, fmt.Errorf(message.AccountRequired)
-	}
-
-	if err := s.enforceForgotPasswordRateLimit(ctx, meta, channel, account); err != nil {
-		return auth.MessageResponse{}, err
 	}
 
 	profile, err := s.repository.FindUserByChannel(ctx, channel, account)
