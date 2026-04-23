@@ -425,7 +425,7 @@ async function logout() {
               </span>
             </div>
             <div class="min-w-0">
-              <p class="m-0 truncate text-[12.5px] font-black text-on-surface">
+              <p class="m-0 break-words text-[12.5px] font-black leading-5 text-on-surface">
                 {{ isUsdtIntent ? activeNetworkLabel : ((intentBank?.short_name ? `${intentBank.short_name} - ` : '') + (intentBank?.name || intent.receiving_account?.provider_code || 'Ngân hàng')) }}
               </p>
               <p class="m-0 truncate text-[0.72rem] text-on-surface-variant lowercase">
