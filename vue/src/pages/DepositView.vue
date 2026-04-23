@@ -50,6 +50,12 @@ const bankOptions = computed(() => deposit.bankOptions)
 const selectedBank = computed(
   () => bankOptions.value.find((bank) => bank.provider_code === selectedBankCode.value) ?? null,
 )
+const intentBank = computed(() => {
+  const providerCode = intent.value?.receiving_account?.provider_code
+  if (!providerCode) return selectedBank.value
+  return bankOptions.value.find((bank) => bank.provider_code === providerCode) ?? selectedBank.value
+})
+const copiedField = ref('')
 
 const statusLabel = computed(() => {
   const value = status.value?.transaction?.status
@@ -59,6 +65,12 @@ const statusLabel = computed(() => {
   if (numValue === 2 || numValue === 3) return 'Hoàn tất'
   if (numValue === 4) return 'Thất bại'
   return `Mã trạng thái: ${value}`
+})
+const statusToneClass = computed(() => {
+  const numValue = Number(status.value?.transaction?.status ?? intent.value?.transaction?.status)
+  if (numValue === 2 || numValue === 3) return 'text-emerald-600'
+  if (numValue === 4) return 'text-rose-500'
+  return 'text-primary'
 })
 
 const isIntentActive = computed(() => {
@@ -70,17 +82,6 @@ const isIntentActive = computed(() => {
   const statusValue = Number(status.value?.transaction?.status ?? intent.value.transaction?.status)
   return statusValue !== 2 && statusValue !== 3 && statusValue !== 4
 })
-const isIntentExpired = computed(() => {
-  if (!intent.value?.expires_at) return false
-  const expiresAtMs = Date.parse(intent.value.expires_at)
-  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= 0) return false
-
-  const statusValue = Number(status.value?.transaction?.status ?? intent.value.transaction?.status)
-  if (statusValue === 2 || statusValue === 3 || statusValue === 4) return false
-
-  return now.value >= expiresAtMs
-})
-
 const presetAmounts = computed(() => {
   if (method.value === 'vietqr') {
     return [100000, 200000, 300000, 500000, 1500000, 15000000]
@@ -130,14 +131,18 @@ function redirectBack() {
   router.back()
 }
 
-function expireCurrentIntent() {
-  const expiredMethod = intent.value?.method
-  deposit.disconnectStatusStream()
-  if (expiredMethod === 'vietqr' || expiredMethod === 'usdt') {
-    deposit.clearPending(expiredMethod)
+async function copyIntentValue(key: string, value: string | null | undefined) {
+  const text = String(value ?? '').trim()
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedField.value = key
+    window.setTimeout(() => {
+      if (copiedField.value === key) copiedField.value = ''
+    }, 1500)
+  } catch {
+    copiedField.value = ''
   }
-  deposit.currentStatus = null
-  deposit.currentIntent = null
 }
 
 const depositCountdown = computed(() => {
@@ -155,31 +160,6 @@ const depositCountdown = computed(() => {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-})
-
-const qrImageUrl = computed(() => {
-  if (method.value !== 'vietqr' || !intent.value) return ''
-  if (intent.value.qr_code_url) return intent.value.qr_code_url
-
-  const account = intent.value.receiving_account
-  const accountNumber = account?.account_number?.trim()
-  if (!accountNumber) return ''
-
-  const bankCode = (selectedBank.value?.provider_code || account?.provider_code || '').trim().toLowerCase()
-  if (!bankCode) return ''
-
-  const params = new URLSearchParams()
-  if (intent.value.amount) params.set('amount', String(Number.parseFloat(intent.value.amount) || 0))
-  if (intent.value.client_ref) params.set('addInfo', intent.value.client_ref)
-  if (account?.account_name?.trim()) params.set('accountName', account.account_name.trim())
-
-  const query = params.toString()
-  return `https://img.vietqr.io/image/${encodeURIComponent(bankCode)}-${encodeURIComponent(accountNumber)}-compact.jpg${query ? `?${query}` : ''}`
-})
-
-const cryptoQrImageUrl = computed(() => {
-  if (!intent.value || !isUsdtIntent.value) return ''
-  return usdtQrDataUri.value
 })
 
 const transferContent = computed(() => {
@@ -336,15 +316,6 @@ watch(
   },
 )
 
-watch(
-  () => isIntentExpired.value,
-  (expired, previousExpired) => {
-    if (!expired || previousExpired) return
-    expireCurrentIntent()
-  },
-  { immediate: true },
-)
-
 onMounted(async () => {
   countdownTicker = window.setInterval(() => {
     now.value = Date.now()
@@ -414,18 +385,12 @@ async function logout() {
       <div v-if="!intent" class="mt-4">
         <div class="rounded-[24px] bg-white/12 p-4 backdrop-blur-sm md:p-5">
           <p class="m-0 text-[0.72rem] font-black uppercase tracking-[0.28em] text-white/80">Nạp nhanh</p>
-          <h2 class="mt-2 text-[1.35rem] font-black leading-tight md:text-[1.65rem]">
-            Chọn ngân hàng, tạo QR và nạp tiền tự động
-          </h2>
-          <p class="mt-2 max-w-[40rem] text-sm leading-6 text-white/90">
-            Hệ thống hỗ trợ VietQR đối soát tự động 24/7. Vui lòng nhập đúng nội dung chuyển khoản.
-          </p>
         </div>
       </div>
     </section>
 
     <!-- TRƯỜNG HỢP CÓ LỆNH ĐANG MỞ: ĐƯA LÊN ĐẦU TIÊN (UX TỐT HƠN) -->
-    <section v-if="intent" class="rounded-[24px] bg-white p-4 shadow-[0_12px_30px_rgba(255,109,102,0.12)] md:p-5 border-2 border-primary/20">
+    <section v-if="intent" class="overflow-hidden rounded-[24px] border-2 border-primary/20 bg-white p-4 shadow-[0_12px_30px_rgba(255,109,102,0.12)] md:p-5">
       <div class="flex items-start justify-between gap-3">
         <div>
           <h2 class="m-0 text-base font-black text-primary">Lệnh nạp đang chờ xử lý</h2>
@@ -445,48 +410,100 @@ async function logout() {
         </div>
       </div>
 
-      <div class="mt-4 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+      <div class="mt-4">
         <div class="space-y-3 rounded-[20px] bg-surface-container-low p-4">
           <div class="flex items-center gap-3">
             <div class="flex h-12 w-12 items-center justify-center rounded-[16px] bg-white shadow-sm border border-slate-100">
               <img
-                v-if="!isUsdtIntent && selectedBank?.logo"
-                :src="selectedBank.logo"
-                :alt="selectedBank?.short_name"
+                v-if="!isUsdtIntent && intentBank?.logo"
+                :src="intentBank.logo"
+                :alt="intentBank?.short_name"
                 class="h-full w-full object-contain p-1.5"
               />
               <span v-else class="text-sm font-black text-primary">
-                {{ isUsdtIntent ? 'USDT' : (selectedBank?.short_name || 'QR').slice(0, 2) }}
+                {{ isUsdtIntent ? 'USDT' : (intentBank?.short_name || 'QR').slice(0, 2) }}
               </span>
             </div>
             <div class="min-w-0">
-              <p class="m-0 truncate text-sm font-black text-on-surface">
-                {{ isUsdtIntent ? activeNetworkLabel : (selectedBank?.short_name || intent.receiving_account?.provider_code || 'Ngân hàng') }}
+              <p class="m-0 truncate text-[12.5px] font-black text-on-surface">
+                {{ isUsdtIntent ? activeNetworkLabel : ((intentBank?.short_name ? `${intentBank.short_name} - ` : '') + (intentBank?.name || intent.receiving_account?.provider_code || 'Ngân hàng')) }}
               </p>
               <p class="m-0 truncate text-[0.72rem] text-on-surface-variant lowercase">
-                {{ isUsdtIntent ? 'CryptAPI - USDT Deposit' : (intent.receiving_account?.account_name || 'Tài khoản nhận') }}
+                {{ isUsdtIntent ? 'CryptAPI - USDT Deposit' : `Mã ngân hàng: ${intent.receiving_account?.provider_code || '---'}` }}
               </p>
             </div>
+            <button
+              v-if="!isUsdtIntent"
+              type="button"
+              class="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
+              @click="copyIntentValue('bank_code', intent.receiving_account?.provider_code)"
+            >
+              <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'bank_code' ? 'check' : 'content_copy' }}</span>
+            </button>
           </div>
 
           <div class="grid grid-cols-2 gap-2 text-sm">
-            <div class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'Đơn vị nhận' : 'Tên người nhận' }}</p>
-              <p class="m-0 mt-1 font-black text-on-surface text-[0.8rem] uppercase">{{ intent.receiving_account?.account_name || '---' }}</p>
+            <div class="rounded-[16px] col-span-2 bg-white p-3 border border-slate-50">
+              <div class="grid grid-cols-[minmax(0,1fr)_32px] items-center gap-2">
+                <div class="min-w-0">
+                  <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'Đơn vị nhận' : 'Tên người nhận' }}</p>
+                  <p class="m-0 mt-1 font-black text-on-surface text-[0.8rem] uppercase">{{ intent.receiving_account?.account_name || '---' }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="grid h-8 w-8 place-items-center self-center justify-self-end rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
+                  @click="copyIntentValue('account_name', intent.receiving_account?.account_name)"
+                >
+                  <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'account_name' ? 'check' : 'content_copy' }}</span>
+                </button>
+              </div>
             </div>
-            <div class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'Địa chỉ ví' : 'Số tài khoản' }}</p>
-              <p class="m-0 mt-1 break-all font-black text-primary text-[0.9rem]">{{ intent.receiving_account?.account_number || '---' }}</p>
+            <div class="rounded-[16px] col-span-2 bg-white p-3 border border-slate-50">
+              <div class="grid grid-cols-[minmax(0,1fr)_32px] items-center gap-2">
+                <div class="min-w-0">
+                  <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'Địa chỉ ví' : 'Số tài khoản' }}</p>
+                  <p class="m-0 mt-1 break-all font-black text-primary text-[0.9rem]">{{ intent.receiving_account?.account_number || '---' }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="grid h-8 w-8 place-items-center self-center justify-self-end rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
+                  @click="copyIntentValue('account_number', intent.receiving_account?.account_number)"
+                >
+                  <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'account_number' ? 'check' : 'content_copy' }}</span>
+                </button>
+              </div>
             </div>
-            <div v-if="!isUsdtIntent" class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">Nội dung (Quan trọng)</p>
-              <p class="m-0 mt-1 break-all font-black text-[#e64545] text-[1.1rem]">{{ transferContent || 'Không có' }}</p>
+            <div v-if="!isUsdtIntent" class="rounded-[16px] col-span-2 bg-white p-3 border border-slate-50">
+              <div class="grid grid-cols-[minmax(0,1fr)_32px] items-center gap-2">
+                <div class="min-w-0">
+                  <p class="m-0 text-[0.72rem] text-on-surface-variant">Nội dung (Quan trọng)</p>
+                  <p class="m-0 mt-1 break-all font-black text-[#e64545] text-[1.1rem]">{{ transferContent || 'Không có' }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="grid h-8 w-8 place-items-center self-center justify-self-end rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
+                  @click="copyIntentValue('content', transferContent)"
+                >
+                  <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'content' ? 'check' : 'content_copy' }}</span>
+                </button>
+              </div>
             </div>
-            <div class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">Số tiền nạp</p>
-              <p class="m-0 mt-1 font-black text-on-surface text-[0.9rem]">
-                {{ isUsdtIntent ? `${intent.amount} USDT` : formatViMoney(intent.amount, 0) }}
-              </p>
+            <div class="rounded-[16px] bg-white col-span-2 p-3 border border-slate-50">
+              <div class="grid grid-cols-[minmax(0,1fr)_32px] items-center gap-2">
+                <div class="min-w-0">
+                  <p class="m-0 text-[0.72rem] text-on-surface-variant">Số tiền nạp</p>
+                  <p class="m-0 mt-1 font-black text-on-surface text-[0.9rem]">
+                    {{ isUsdtIntent ? `${intent.amount} USDT` : formatViMoney(intent.amount, 0) }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="grid h-8 w-8 place-items-center self-center justify-self-end rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
+                  @click="copyIntentValue('amount', isUsdtIntent ? `${intent.amount} USDT` : formatViMoney(intent.amount, 0))"
+                >
+                  <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'amount' ? 'check' : 'content_copy' }}</span>
+                </button>
+              </div>
             </div>
             <div class="rounded-[16px] bg-white p-3 border border-slate-50">
               <p class="m-0 text-[0.72rem] text-on-surface-variant">Hết hạn sau</p>
@@ -494,27 +511,15 @@ async function logout() {
             </div>
             <div class="rounded-[16px] bg-white p-3 border border-slate-50">
               <p class="m-0 text-[0.72rem] text-on-surface-variant">Trạng thái</p>
-              <p class="m-0 mt-1 font-black" :class="(Number(status?.transaction?.status) === 2 || Number(status?.transaction?.status) === 3) ? 'text-emerald-600' : 'text-primary'">{{ statusLabel }}</p>
+              <p class="m-0 mt-1 font-black" :class="statusToneClass">{{ statusLabel }}</p>
             </div>
           </div>
-        </div>
-
-        <div class="rounded-[20px] bg-gradient-to-br from-[#fff2f1] to-white p-4">
-          <div v-if="(isUsdtIntent ? cryptoQrImageUrl : qrImageUrl)" class="overflow-hidden rounded-[18px] border-4 border-white bg-white p-3 shadow-xl mb-3">
-            <img :src="isUsdtIntent ? cryptoQrImageUrl : qrImageUrl" :alt="isUsdtIntent ? 'USDT QR' : (selectedBank?.short_name || 'VietQR')" class="block w-full rounded-[14px] object-contain" />
-          </div>
-          <p v-else-if="isUsdtIntent && usdtQrLoading" class="m-0 mb-3 rounded-[14px] bg-white px-3 py-4 text-center text-xs font-bold text-on-surface-variant">
-            Đang tạo mã QR USDT...
-          </p>
-          <p class="m-0 text-center text-[0.7rem] font-bold text-on-surface-variant px-2 leading-relaxed italic">
-            {{ isUsdtIntent ? 'Mở ví crypto, quét QR để chuyển USDTTRC20 nhanh và chính xác địa chỉ/memo.' : 'Mở App ngân hàng, chọn Quét mã QR để tự động điền thông tin và nội dung.' }}
-          </p>
         </div>
       </div>
     </section>
 
     <!-- PHƯƠNG THỨC NẠP -->
-    <section class="rounded-[24px] bg-white p-4 shadow-[0_8px_24px_rgba(255,109,102,0.08)] md:p-5">
+    <section v-if="!intent" class="rounded-[24px] bg-white p-4 shadow-[0_8px_24px_rgba(255,109,102,0.08)] md:p-5">
       <div class="grid grid-cols-2 gap-2 rounded-[18px] bg-surface-container p-1.5">
         <button
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
@@ -538,7 +543,7 @@ async function logout() {
     </section>
 
     <!-- CHỌN NGÂN HÀNG -->
-    <section v-if="method === 'vietqr'" class="rounded-[24px] bg-white p-4 shadow-[0_8px_24px_rgba(255,109,102,0.08)] md:p-5">
+    <section v-if="!intent && method === 'vietqr'" class="rounded-[24px] bg-white p-4 shadow-[0_8px_24px_rgba(255,109,102,0.08)] md:p-5">
       <h2 class="m-0 text-base font-black text-on-surface">1. Chọn Ngân hàng nhận</h2>
 
       <div v-if="deposit.banksLoading" class="mt-4 grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-4">
@@ -574,7 +579,7 @@ async function logout() {
     </section>
 
     <!-- NHẬP SỐ TIỀN -->
-    <section class="rounded-[24px] bg-white p-4 shadow-[0_8px_24px_rgba(255,109,102,0.08)] md:p-5">
+    <section v-if="!intent" class="rounded-[24px] bg-white p-4 shadow-[0_8px_24px_rgba(255,109,102,0.08)] md:p-5">
       <h2 class="m-0 text-base font-black text-on-surface">2. Nhập số tiền nạp</h2>
       <form class="mt-4 space-y-4" @submit.prevent="submitDeposit">
         <div class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-inner">

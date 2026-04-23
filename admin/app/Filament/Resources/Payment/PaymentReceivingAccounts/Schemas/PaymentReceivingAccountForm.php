@@ -33,7 +33,7 @@ class PaymentReceivingAccountForm
                             ->options(fn (): array => VietQrBank::query()
                                 ->orderBy('short_name')
                                 ->get()
-                                ->mapWithKeys(fn (VietQrBank $bank): array => [$bank->code => "{$bank->short_name} ({$bank->code})"])
+                                ->mapWithKeys(fn (VietQrBank $bank): array => [$bank->code => "{$bank->short_name} ({$bank->code}) - {$bank->name}"])
                                 ->all())
                             ->searchable()
                             ->preload()
