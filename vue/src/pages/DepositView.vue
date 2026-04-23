@@ -385,7 +385,6 @@ async function refreshStatus() {
 }
 
 async function handleCancel() {
-  if (!window.confirm('Bạn có chắc chắn muốn hủy yêu cầu nạp tiền này không?')) return
   try {
     await deposit.cancelDeposit()
   } catch {
