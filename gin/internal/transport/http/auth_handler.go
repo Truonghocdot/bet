@@ -131,6 +131,28 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	var request auth.ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": message.InvalidChangePasswordPayload})
+		return
+	}
+
+	response, err := h.authService.ChangePassword(r.Context(), claims.UserID, request)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (h *AuthHandler) writeError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, repopg.ErrEmailExists):
@@ -143,6 +165,8 @@ func (h *AuthHandler) writeError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.InvalidSelfReferral})
 	case errors.Is(err, service.ErrInvalidCredentials):
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.InvalidCredentials})
+	case errors.Is(err, service.ErrCurrentPassword):
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.CurrentPasswordInvalid})
 	case errors.Is(err, service.ErrRateLimited):
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"message": message.TooManyRequests})
 	case errors.Is(err, service.ErrLoginLocked):

@@ -9,6 +9,7 @@ import type {
   ForgotPasswordRequest,
   LoginRequest,
   RegisterRequest,
+  ChangePasswordRequest,
   ResetPasswordRequest,
   VerifyForgotOtpRequest,
   VerifyForgotOtpResponse,
@@ -242,6 +243,27 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function changePassword(payload: ChangePasswordRequest) {
+    if (!accessToken.value) {
+      throw new Error('Bạn chưa đăng nhập')
+    }
+
+    loading.value = true
+    error.value = ''
+    try {
+      return await request<{ message: string }>('POST', '/v1/auth/change-password', {
+        body: payload,
+        token: accessToken.value,
+      })
+    } catch (e: any) {
+      const err = e as ApiError
+      error.value = err?.message ?? 'Không thể đổi mật khẩu'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     accessToken,
     expiresAt,
@@ -262,5 +284,6 @@ export const useAuthStore = defineStore('auth', () => {
     forgotPassword,
     verifyForgotOtp,
     resetPassword,
+    changePassword,
   }
 })

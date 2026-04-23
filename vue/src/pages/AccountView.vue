@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
+import type { ApiError } from '@/shared/api/http'
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -18,6 +19,15 @@ const unreadNotifications = computed(() => notifications.unreadCount)
 
 const vndWallet = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
 const usdtWallet = computed(() => wallet.wallets.find((item) => item.unit === 2) ?? null)
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmNewPassword = ref('')
+const passwordFormError = ref('')
+const passwordFormSuccess = ref('')
+const changingPassword = ref(false)
+const showCurrentPassword = ref(false)
+const showNewPassword = ref(false)
+const showConfirmPassword = ref(false)
 
 const walletCards = computed(() => [
   {
@@ -73,6 +83,49 @@ function logout() {
   wallet.reset()
   notifications.reset()
   void router.replace('/auth')
+}
+
+function resetPasswordForm() {
+  currentPassword.value = ''
+  newPassword.value = ''
+  confirmNewPassword.value = ''
+}
+
+async function submitChangePassword() {
+  passwordFormError.value = ''
+  passwordFormSuccess.value = ''
+
+  if (!currentPassword.value || !newPassword.value || !confirmNewPassword.value) {
+    passwordFormError.value = 'Vui lòng nhập đầy đủ mật khẩu cũ, mật khẩu mới và xác nhận mật khẩu mới.'
+    return
+  }
+
+  if (newPassword.value.length < 6) {
+    passwordFormError.value = 'Mật khẩu mới phải từ 6 ký tự trở lên.'
+    return
+  }
+
+  if (newPassword.value !== confirmNewPassword.value) {
+    passwordFormError.value = 'Mật khẩu mới và nhập lại mật khẩu mới chưa khớp.'
+    return
+  }
+
+  changingPassword.value = true
+  try {
+    const response = await auth.changePassword({
+      old_password: currentPassword.value,
+      new_password: newPassword.value,
+    })
+    passwordFormSuccess.value = response.message || 'Đổi mật khẩu thành công'
+    notifications.addLocalNotification('Thành công', passwordFormSuccess.value, 'success')
+    resetPasswordForm()
+  } catch (error) {
+    const apiError = error as ApiError
+    passwordFormError.value = apiError?.message || 'Không thể đổi mật khẩu'
+    notifications.addLocalNotification('Lỗi', passwordFormError.value, 'error')
+  } finally {
+    changingPassword.value = false
+  }
 }
 
 onMounted(() => {
@@ -193,6 +246,85 @@ onMounted(() => {
         <span class="font-extrabold">Thống kê trò</span>
         <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
       </RouterLink>
+    </section>
+
+    <section class="rounded-[22px] bg-white p-[18px] shadow-[0_8px_20px_rgba(255,109,102,0.05)] md:p-5">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="m-0 text-[1rem] font-black text-on-surface">Đổi mật khẩu</h3>
+          <p class="m-0 mt-1 text-[0.78rem] text-on-surface-variant">
+            Người chơi có thể cập nhật lại mật khẩu đăng nhập ngay tại đây.
+          </p>
+        </div>
+        <div class="grid h-11 w-11 place-items-center rounded-2xl bg-primary/10 text-primary">
+          <span class="material-symbols-outlined">lock_reset</span>
+        </div>
+      </div>
+
+      <form class="mt-4 grid gap-3" @submit.prevent="submitChangePassword">
+        <label class="grid gap-1.5">
+          <span class="text-[0.76rem] font-extrabold uppercase tracking-[0.08em] text-on-surface-variant">Mật khẩu cũ</span>
+          <div class="grid grid-cols-[1fr_auto] items-center rounded-[16px] border border-slate-200 bg-slate-50">
+            <input
+              v-model="currentPassword"
+              class="min-w-0 bg-transparent px-4 py-3.5 text-[0.95rem] outline-none"
+              :type="showCurrentPassword ? 'text' : 'password'"
+              autocomplete="current-password"
+              placeholder="Nhập mật khẩu cũ"
+            />
+            <button type="button" class="px-4 text-[0.75rem] font-black text-primary" @click="showCurrentPassword = !showCurrentPassword">
+              {{ showCurrentPassword ? 'Ẩn' : 'Hiện' }}
+            </button>
+          </div>
+        </label>
+
+        <label class="grid gap-1.5">
+          <span class="text-[0.76rem] font-extrabold uppercase tracking-[0.08em] text-on-surface-variant">Mật khẩu mới</span>
+          <div class="grid grid-cols-[1fr_auto] items-center rounded-[16px] border border-slate-200 bg-slate-50">
+            <input
+              v-model="newPassword"
+              class="min-w-0 bg-transparent px-4 py-3.5 text-[0.95rem] outline-none"
+              :type="showNewPassword ? 'text' : 'password'"
+              autocomplete="new-password"
+              placeholder="Nhập mật khẩu mới"
+            />
+            <button type="button" class="px-4 text-[0.75rem] font-black text-primary" @click="showNewPassword = !showNewPassword">
+              {{ showNewPassword ? 'Ẩn' : 'Hiện' }}
+            </button>
+          </div>
+        </label>
+
+        <label class="grid gap-1.5">
+          <span class="text-[0.76rem] font-extrabold uppercase tracking-[0.08em] text-on-surface-variant">Nhập lại mật khẩu mới</span>
+          <div class="grid grid-cols-[1fr_auto] items-center rounded-[16px] border border-slate-200 bg-slate-50">
+            <input
+              v-model="confirmNewPassword"
+              class="min-w-0 bg-transparent px-4 py-3.5 text-[0.95rem] outline-none"
+              :type="showConfirmPassword ? 'text' : 'password'"
+              autocomplete="new-password"
+              placeholder="Nhập lại mật khẩu mới"
+            />
+            <button type="button" class="px-4 text-[0.75rem] font-black text-primary" @click="showConfirmPassword = !showConfirmPassword">
+              {{ showConfirmPassword ? 'Ẩn' : 'Hiện' }}
+            </button>
+          </div>
+        </label>
+
+        <p v-if="passwordFormError" class="rounded-[14px] bg-[rgba(183,18,17,0.08)] px-4 py-3 text-sm font-semibold text-[#e64545]">
+          {{ passwordFormError }}
+        </p>
+        <p v-else-if="passwordFormSuccess" class="rounded-[14px] bg-[rgba(34,197,94,0.12)] px-4 py-3 text-sm font-semibold text-[#15803d]">
+          {{ passwordFormSuccess }}
+        </p>
+
+        <button
+          type="submit"
+          class="grid min-h-14 place-items-center rounded-[18px] bg-gradient-to-br from-primary to-primary-container font-extrabold text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+          :disabled="changingPassword"
+        >
+          {{ changingPassword ? 'Đang cập nhật...' : 'Cập nhật mật khẩu' }}
+        </button>
+      </form>
     </section>
 
     <button class="min-h-14 p-2 rounded-[18px] bg-[rgba(183,18,17,0.1)] font-black text-[#e64545] transition-transform active:scale-95" @click="logout">

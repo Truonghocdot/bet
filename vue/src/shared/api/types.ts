@@ -82,6 +82,11 @@ export type ResetPasswordRequest = {
   new_password: string
 }
 
+export type ChangePasswordRequest = {
+  old_password: string
+  new_password: string
+}
+
 export type ReceivingAccount = {
   id: number
   type: number

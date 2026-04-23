@@ -51,6 +51,11 @@ type ResetPasswordRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
+type ChangePasswordRequest struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
 type RequestMeta struct {
 	IP        string `json:"ip"`
 	UserAgent string `json:"user_agent"`

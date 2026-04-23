@@ -28,6 +28,7 @@ var (
 	ErrUnauthorized       = errors.New(message.Unauthorized)
 	ErrRateLimited        = errors.New(message.TooManyRequests)
 	ErrLoginLocked        = errors.New(message.LoginTemporarilyLocked)
+	ErrCurrentPassword    = errors.New(message.CurrentPasswordInvalid)
 	ErrOTPInvalid         = errors.New(message.OTPInvalid)
 	ErrOTPExpired         = errors.New(message.OTPExpired)
 	ErrOTPLocked          = errors.New(message.OTPLocked)
@@ -323,6 +324,42 @@ func (s *AuthService) ResetPassword(ctx context.Context, request auth.ResetPassw
 	}
 
 	return auth.MessageResponse{Message: message.ResetPasswordSuccess}, nil
+}
+
+func (s *AuthService) ChangePassword(ctx context.Context, userID int64, request auth.ChangePasswordRequest) (auth.MessageResponse, error) {
+	if userID == 0 {
+		return auth.MessageResponse{}, ErrUnauthorized
+	}
+
+	oldPassword := strings.TrimSpace(request.OldPassword)
+	if oldPassword == "" {
+		return auth.MessageResponse{}, fmt.Errorf(message.CurrentPasswordRequired)
+	}
+
+	newPassword := strings.TrimSpace(request.NewPassword)
+	if len(newPassword) < 6 || len(newPassword) > 72 {
+		return auth.MessageResponse{}, fmt.Errorf(message.PasswordInvalid)
+	}
+
+	passwordHash, err := s.repository.FindPasswordHashByUserID(ctx, userID)
+	if err != nil {
+		return auth.MessageResponse{}, err
+	}
+
+	if err := password.Compare(passwordHash, oldPassword); err != nil {
+		return auth.MessageResponse{}, ErrCurrentPassword
+	}
+
+	newPasswordHash, err := password.Hash(newPassword)
+	if err != nil {
+		return auth.MessageResponse{}, err
+	}
+
+	if err := s.repository.UpdatePasswordByUserID(ctx, userID, newPasswordHash); err != nil {
+		return auth.MessageResponse{}, err
+	}
+
+	return auth.MessageResponse{Message: message.ChangePasswordSuccess}, nil
 }
 
 func (s *AuthService) Me(ctx context.Context, userID int64) (auth.UserProfile, error) {

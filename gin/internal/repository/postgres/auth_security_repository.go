@@ -286,6 +286,43 @@ func (r *UserRepository) ResetPasswordWithVerifiedOTP(ctx context.Context, reque
 	return nil
 }
 
+func (r *UserRepository) FindPasswordHashByUserID(ctx context.Context, userID int64) (string, error) {
+	var passwordHash string
+	err := r.db.QueryRowContext(ctx, `
+		select password
+		from users
+		where id = $1
+		limit 1
+	`, userID).Scan(&passwordHash)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrAccountNotFound
+		}
+
+		return "", err
+	}
+
+	return passwordHash, nil
+}
+
+func (r *UserRepository) UpdatePasswordByUserID(ctx context.Context, userID int64, passwordHash string) error {
+	result, err := r.db.ExecContext(ctx, `
+		update users
+		set password = $1, updated_at = $2
+		where id = $3
+	`, passwordHash, clock.Now(), userID)
+	if err != nil {
+		return err
+	}
+
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return ErrAccountNotFound
+	}
+
+	return nil
+}
+
 func scanOTPRequest(row *sql.Row) (OTPRequestRecord, error) {
 	var record OTPRequestRecord
 	err := row.Scan(
