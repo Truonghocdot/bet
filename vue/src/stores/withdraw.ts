@@ -128,7 +128,7 @@ export const useWithdrawStore = defineStore('withdraw', () => {
     }
   }
 
-  async function submitWithdrawal(payload: { account_withdrawal_info_id: number; amount: string }): Promise<boolean> {
+  async function submitWithdrawal(payload: { account_withdrawal_info_id: number; amount: string; password: string }): Promise<boolean> {
     if (!auth.accessToken) return false
     loading.value = true
     error.value = null

@@ -38,6 +38,7 @@ type SetupAccountRequest struct {
 type SubmitWithdrawalRequest struct {
 	Amount                  string `json:"amount" binding:"required"`
 	AccountWithdrawalInfoID int64  `json:"account_withdrawal_info_id" binding:"required"`
+	Password                string `json:"password"`
 }
 
 type DeleteAccountRequest struct {

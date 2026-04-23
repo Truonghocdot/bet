@@ -7,8 +7,10 @@ import (
 	"math/big"
 	"strings"
 
+	"gin/internal/auth/password"
 	"gin/internal/domain/withdrawal"
 	"gin/internal/repository/postgres"
+	"gin/internal/support/message"
 
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -16,6 +18,7 @@ import (
 type WithdrawalService struct {
 	repo       *postgres.WithdrawalRepository
 	walletRepo *postgres.WalletRepository
+	userRepo   *postgres.UserRepository
 	redis      *goredis.Client
 }
 
@@ -23,10 +26,11 @@ const (
 	defaultWithdrawalFee = "0"
 )
 
-func NewWithdrawalService(repo *postgres.WithdrawalRepository, walletRepo *postgres.WalletRepository, redis *goredis.Client) *WithdrawalService {
+func NewWithdrawalService(repo *postgres.WithdrawalRepository, walletRepo *postgres.WalletRepository, userRepo *postgres.UserRepository, redis *goredis.Client) *WithdrawalService {
 	return &WithdrawalService{
 		repo:       repo,
 		walletRepo: walletRepo,
+		userRepo:   userRepo,
 		redis:      redis,
 	}
 }
@@ -44,6 +48,19 @@ func (s *WithdrawalService) DeleteAccount(ctx context.Context, userID int64, id 
 }
 
 func (s *WithdrawalService) SubmitWithdrawalRequest(ctx context.Context, userID int64, req withdrawal.SubmitWithdrawalRequest) (int64, error) {
+	if strings.TrimSpace(req.Password) == "" {
+		return 0, errors.New(message.CurrentPasswordRequired)
+	}
+
+	passwordHash, err := s.userRepo.FindPasswordHashByUserID(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := password.Compare(passwordHash, strings.TrimSpace(req.Password)); err != nil {
+		return 0, errors.New(message.CurrentPasswordInvalid)
+	}
+
 	account, err := s.repo.GetAccount(ctx, userID, req.AccountWithdrawalInfoID)
 	if err != nil {
 		return 0, fmt.Errorf("invalid account: %w", err)

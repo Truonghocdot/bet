@@ -15,6 +15,8 @@ const withdraw = useWithdrawStore()
 
 const method = ref<'vnd' | 'usdt'>('vnd')
 const amount = ref('')
+const password = ref('')
+const showPassword = ref(false)
 const showWithdrawPolicyModal = ref(false)
 
 // Form for adding method
@@ -62,7 +64,7 @@ function handleAmountInput(event: Event) {
 }
 
 const canSubmit = computed(() => {
-  return String(amount.value).trim() !== '' && currentAccount.value !== undefined
+  return String(amount.value).trim() !== '' && String(password.value).trim() !== '' && currentAccount.value !== undefined
 })
 
 onMounted(async () => {
@@ -95,9 +97,11 @@ async function handleWithdraw() {
   const success = await withdraw.submitWithdrawal({
     account_withdrawal_info_id: currentAccount.value.id,
     amount: amount.value,
+    password: password.value,
   })
   if (success) {
     amount.value = ''
+    password.value = ''
     await wallet.fetchSummary()
     router.replace('/home')
   }
@@ -281,6 +285,24 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
           <div>
             <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
               <input v-model="amount" type="text" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold text-lg" :inputmode="amountInputMode" autocomplete="off" placeholder="Nhập số tiền muốn rút" @input="handleAmountInput" />
+            </label>
+          </div>
+
+          <div>
+            <label class="block">
+              <span class="mb-2 block text-xs font-bold text-on-surface-variant">Mật khẩu đăng nhập</span>
+              <div class="grid min-h-[58px] grid-cols-[1fr_auto] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
+                <input
+                  v-model="password"
+                  class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold"
+                  :type="showPassword ? 'text' : 'password'"
+                  autocomplete="current-password"
+                  placeholder="Điền mật khẩu đăng nhập để xác nhận rút"
+                />
+                <button type="button" class="px-4 text-[0.75rem] font-black text-primary" @click="showPassword = !showPassword">
+                  {{ showPassword ? 'Ẩn' : 'Hiện' }}
+                </button>
+              </div>
             </label>
           </div>
 

@@ -98,7 +98,7 @@ func New() (*App, error) {
 	depositService := service.NewDepositService(depositRepository, redisClient, walletService, depositGateway, service.DepositConfig{
 		ReceivingAccountsRedisKey: config.PaymentReceivingAccountsRedisKey,
 	})
-	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository, redisClient)
+	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository, userRepository, redisClient)
 	router := httptransport.NewRouter(config, authService, affiliateService, walletService, notificationService, contentService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, gameRepository, redisClient, config.InternalToken)
 
 	server := &http.Server{

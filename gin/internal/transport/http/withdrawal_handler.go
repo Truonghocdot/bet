@@ -231,6 +231,10 @@ func (h *WithdrawalHandler) handleSubmitWithdrawal(w http.ResponseWriter, r *htt
 		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
 		return
 	}
+	if strings.TrimSpace(req.Password) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": message.CurrentPasswordRequired})
+		return
+	}
 
 	requestID, err := h.withdrawalService.SubmitWithdrawalRequest(r.Context(), claims.UserID, req)
 	if err != nil {
@@ -238,7 +242,7 @@ func (h *WithdrawalHandler) handleSubmitWithdrawal(w http.ResponseWriter, r *htt
 			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
 			return
 		}
-		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Lệnh rút không hợp lệ"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": err.Error()})
 		return
 	}
 
