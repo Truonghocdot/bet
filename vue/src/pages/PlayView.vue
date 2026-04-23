@@ -2720,9 +2720,12 @@
         class="mx-3 mt-2 flex items-center gap-2 rounded-[12px] bg-white px-3 py-2.5 shadow-sm"
       >
         <span class="material-symbols-outlined text-[1rem] text-primary flex-shrink-0">campaign</span>
-        <span class="flex-1 overflow-hidden text-[0.72rem] text-slate-600 whitespace-nowrap truncate">
-          {{ playMarqueeText }}
-        </span>
+        <div class="play-marquee flex-1 overflow-hidden">
+          <div class="play-marquee__track text-[0.72rem] text-slate-600">
+            <span class="play-marquee__item">{{ playMarqueeText }}</span>
+            <span aria-hidden="true" class="play-marquee__item">{{ playMarqueeText }}</span>
+          </div>
+        </div>
         <RouterLink to="/promotion" class="flex-shrink-0 rounded-full bg-primary px-2.5 py-1 text-[0.65rem] font-black text-white">Chi tiết</RouterLink>
       </div>
 
@@ -3626,3 +3629,32 @@
       </Teleport>
     </div>
   </template>
+
+<style scoped>
+.play-marquee {
+  --marquee-gap: 2rem;
+}
+
+.play-marquee__track {
+  display: flex;
+  width: max-content;
+  gap: var(--marquee-gap);
+  white-space: nowrap;
+  will-change: transform;
+  animation: play-marquee-scroll 18s linear infinite;
+}
+
+.play-marquee__item {
+  flex: 0 0 auto;
+}
+
+@keyframes play-marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(calc(-50% - (var(--marquee-gap) / 2)));
+  }
+}
+</style>
