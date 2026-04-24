@@ -250,7 +250,7 @@ onBeforeUnmount(() => {
             </RouterLink>
           </div>
         </div>
-        <div v-if="auth.isAuthenticated" class="mt-3 grid grid-cols-2 gap-2">
+        <div class="mt-3 grid grid-cols-2 gap-2">
           <RouterLink
             v-for="item in historyShortcutItems"
             :key="item.label"
