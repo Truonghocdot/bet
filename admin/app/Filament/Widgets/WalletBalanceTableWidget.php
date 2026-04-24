@@ -95,9 +95,7 @@ class WalletBalanceTableWidget extends TableWidget
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
             ])
-            ->filters([
-                //
-            ]);
+            ->poll(1000);
     }
 
     private function getWalletBalance(User $record, UnitTransaction $unit): string
