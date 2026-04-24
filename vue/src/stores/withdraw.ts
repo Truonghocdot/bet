@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { useAuthStore } from './auth'
 import { useNotificationsStore } from './notifications'
 import { request, type ApiError } from '@/shared/api/http'
-import type { SetupAccountRequest, WithdrawalRequest } from '@/shared/api/types'
+import type { SetupAccountRequest, WithdrawalHistoryResponse, WithdrawalRequest } from '@/shared/api/types'
 import { computed, ref } from 'vue'
 
 export interface WithdrawalAccount {
@@ -16,9 +16,14 @@ export interface WithdrawalAccount {
 export const useWithdrawStore = defineStore('withdraw', () => {
   const auth = useAuthStore()
   const notify = useNotificationsStore()
+  const defaultHistoryPageSize = 10
 
   const accounts = ref<WithdrawalAccount[]>([])
   const history = ref<WithdrawalRequest[]>([])
+  const historyPage = ref(1)
+  const historyPageSize = ref(defaultHistoryPageSize)
+  const historyTotal = ref(0)
+  const historyTotalPages = ref(1)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -164,16 +169,33 @@ export const useWithdrawStore = defineStore('withdraw', () => {
     }
   }
 
-  async function fetchHistory(limit = 20, offset = 0): Promise<any> {
-    if (!auth.accessToken) return
+  async function fetchHistory(page = historyPage.value, pageSize = historyPageSize.value): Promise<WithdrawalHistoryResponse> {
+    if (!auth.accessToken) {
+      history.value = []
+      historyPage.value = 1
+      historyPageSize.value = defaultHistoryPageSize
+      historyTotal.value = 0
+      historyTotalPages.value = 1
+      return {
+        page: 1,
+        page_size: defaultHistoryPageSize,
+        total: 0,
+        total_pages: 1,
+        data: [],
+      }
+    }
     loading.value = true
     error.value = null
 
     try {
-       const res = await request<{ data: WithdrawalRequest[] }>('GET', `/v1/withdrawals?limit=${limit}&offset=${offset}`, {
+       const res = await request<WithdrawalHistoryResponse>('GET', `/v1/withdrawals?page=${page}&page_size=${pageSize}`, {
           token: auth.accessToken
        })
        history.value = res.data || []
+       historyPage.value = res.page || 1
+       historyPageSize.value = res.page_size || defaultHistoryPageSize
+       historyTotal.value = res.total || 0
+       historyTotalPages.value = Math.max(res.total_pages || 1, 1)
        return res
     } catch (e: any) {
        const err = e as ApiError
@@ -181,7 +203,7 @@ export const useWithdrawStore = defineStore('withdraw', () => {
           if (auth.refreshToken) {
              try {
                 await auth.refresh()
-                return await fetchHistory(limit, offset)
+                return await fetchHistory(page, pageSize)
              } catch {
                 auth.logout()
                 throw e
@@ -204,6 +226,10 @@ export const useWithdrawStore = defineStore('withdraw', () => {
     loading,
     error,
     history,
+    historyPage,
+    historyPageSize,
+    historyTotal,
+    historyTotalPages,
     fetchAccounts,
     addAccount,
     deleteAccount,

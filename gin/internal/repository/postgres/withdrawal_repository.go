@@ -217,6 +217,16 @@ func (r *WithdrawalRepository) ListWithdrawalRequests(ctx context.Context, userI
 	return records, rows.Err()
 }
 
+func (r *WithdrawalRepository) CountUserWithdrawalRequests(ctx context.Context, userID int64) (int, error) {
+	var total int
+	err := r.db.QueryRowContext(ctx, `
+		select count(1)
+		from withdrawal_requests
+		where user_id = $1
+	`, userID).Scan(&total)
+	return total, err
+}
+
 func (r *WithdrawalRepository) CountUserWithdrawalRequestsInRange(ctx context.Context, userID int64, from, to time.Time) (int, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx, `

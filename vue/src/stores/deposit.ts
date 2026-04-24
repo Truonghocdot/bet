@@ -5,8 +5,11 @@ import { request, type ApiError } from '@/shared/api/http'
 import { connectEventStream, type StreamConnection } from '@/shared/api/stream'
 import { readJSON, remove, writeJSON } from '@/shared/lib/storage'
 import type {
+  DepositHistoryItem,
+  DepositHistoryResponse,
   DepositInitResponse,
   DepositStatusResponse,
+  DepositTransaction,
   VietQrBankListResponse,
   VietQrBankOption,
 } from '@/shared/api/types'
@@ -18,10 +21,16 @@ type PersistedPendingDeposit = {
 }
 
 const PENDING_STORAGE_KEY = 'ff789:deposit:pending:v1'
+const DEFAULT_HISTORY_PAGE_SIZE = 10
 
 export const useDepositStore = defineStore('deposit', () => {
   const currentIntent = ref<DepositInitResponse | null>(null)
   const currentStatus = ref<DepositStatusResponse | null>(null)
+  const history = ref<DepositHistoryItem[]>([])
+  const historyPage = ref(1)
+  const historyPageSize = ref(DEFAULT_HISTORY_PAGE_SIZE)
+  const historyTotal = ref(0)
+  const historyTotalPages = ref(1)
   const bankOptions = ref<VietQrBankOption[]>([])
   const banksLoading = ref(false)
   const loading = ref(false)
@@ -224,9 +233,65 @@ export const useDepositStore = defineStore('deposit', () => {
     }
   }
 
+  async function fetchHistory(page = historyPage.value, pageSize = historyPageSize.value) {
+    const auth = useAuthStore()
+    if (!auth.accessToken) {
+      history.value = []
+      historyPage.value = 1
+      historyPageSize.value = DEFAULT_HISTORY_PAGE_SIZE
+      historyTotal.value = 0
+      historyTotalPages.value = 1
+      return {
+        page: 1,
+        page_size: DEFAULT_HISTORY_PAGE_SIZE,
+        total: 0,
+        total_pages: 1,
+        data: [],
+      } satisfies DepositHistoryResponse
+    }
+
+    loading.value = true
+    error.value = ''
+    try {
+      const res = await request<DepositHistoryResponse>('GET', `/v1/deposits?page=${page}&page_size=${pageSize}`, {
+        token: auth.accessToken,
+      })
+      history.value = res.data || []
+      historyPage.value = res.page || 1
+      historyPageSize.value = res.page_size || DEFAULT_HISTORY_PAGE_SIZE
+      historyTotal.value = res.total || 0
+      historyTotalPages.value = Math.max(res.total_pages || 1, 1)
+      return res
+    } catch (e: any) {
+      const err = e as ApiError
+      if (err?.status === 401) {
+        if (auth.refreshToken) {
+          try {
+            await auth.refresh()
+            return await fetchHistory(page, pageSize)
+          } catch {
+            auth.logout()
+            throw e
+          }
+        }
+        auth.logout()
+        throw e
+      }
+      error.value = err?.message ?? 'Không thể tải lịch sử nạp tiền'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     currentIntent,
     currentStatus,
+    history,
+    historyPage,
+    historyPageSize,
+    historyTotal,
+    historyTotalPages,
     bankOptions,
     banksLoading,
     loading,
@@ -237,6 +302,7 @@ export const useDepositStore = defineStore('deposit', () => {
     connectStatusStream,
     disconnectStatusStream,
     loadVietQrBanks,
+    fetchHistory,
     restorePending,
     clearPending,
     cancelDeposit,

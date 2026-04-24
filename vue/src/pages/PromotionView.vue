@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { request, type ApiError } from '@/shared/api/http'
 import type { ContentBannerItem, ContentListResponse, ContentNewsItem, ContentPromotionListResponse, ManagedAffiliateUser } from '@/shared/api/types'
 import { stripHtmlTags } from '@/shared/lib/html'
 import { useAuthStore } from '@/stores/auth'
 
 const activeTab = ref<'affiliate' | 'promotion' | 'news'>('affiliate')
+const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
@@ -22,6 +25,8 @@ const becomeAgencyError = ref('')
 
 const isClient = computed(() => auth.user?.role === 2)
 const isAgency = computed(() => auth.user?.role === 4)
+const affiliateTabLabel = computed(() => (isAgency.value ? 'Đại lý' : 'Affiliate'))
+const showAgencyHandshakeIcon = computed(() => activeTab.value === 'affiliate' && isAgency.value)
 
 const affiliateStatusLabel = computed(() => {
   const status = auth.affiliateProfile?.status
@@ -39,10 +44,28 @@ const affiliateCards = computed(() => [
 ])
 
 const tabTitle = computed(() => {
-  if (activeTab.value === 'affiliate') return 'Affiliate'
+  if (activeTab.value === 'affiliate') return affiliateTabLabel.value
   if (activeTab.value === 'promotion') return 'Khuyến mãi'
   return 'Tin tức'
 })
+
+function normalizePromotionTab(value: unknown): 'affiliate' | 'promotion' | 'news' {
+  if (value === 'promotion' || value === 'news') return value
+  return 'affiliate'
+}
+
+function setActiveTab(tab: 'affiliate' | 'promotion' | 'news') {
+  if (activeTab.value === tab && String(route.query.tab ?? 'affiliate') === tab) return
+
+  activeTab.value = tab
+
+  router.replace({
+    query: {
+      ...route.query,
+      tab,
+    },
+  })
+}
 
 async function loadContent() {
   loading.value = true
@@ -144,6 +167,8 @@ async function submitBecomeAgency() {
 }
 
 onMounted(async () => {
+  activeTab.value = normalizePromotionTab(route.query.tab)
+
   if (auth.isAuthenticated && !auth.affiliateProfile) {
     try {
       await auth.fetchMe()
@@ -155,12 +180,32 @@ onMounted(async () => {
   await loadManagedUsers()
   await loadContent()
 })
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    activeTab.value = normalizePromotionTab(tab)
+  },
+)
 </script>
 
 <template>
   <div class="space-y-3 pb-8">
     <div class="flex items-center gap-2 border-b border-slate-100 bg-white px-4 py-4">
-      <span class="material-symbols-outlined text-[1.3rem] text-primary">group</span>
+      <span
+        v-if="showAgencyHandshakeIcon"
+        class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary"
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 24 24" class="h-5 w-5 fill-none stroke-current" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8.5 10.5 11 13a2.1 2.1 0 0 0 3 0l2.4-2.4a2 2 0 0 1 2.8 0l2.3 2.3" />
+          <path d="M2.8 13.2 5 11a2 2 0 0 1 2.8 0l2.7 2.7" />
+          <path d="M2 8.5 5.5 5a2 2 0 0 1 2.8 0l1.7 1.7a3.2 3.2 0 0 0 4.5 0L16.2 5a2 2 0 0 1 2.8 0L22 8.1" />
+          <path d="M4 15.5 7.2 19a2 2 0 0 0 2.8 0l.7-.7" />
+          <path d="M20 15.5 16.8 19a2 2 0 0 1-2.8 0l-.7-.7" />
+        </svg>
+      </span>
+      <span v-else class="material-symbols-outlined text-[1.3rem] text-primary">group</span>
       <h1 class="text-[1rem] font-black text-on-surface">{{ tabTitle }}</h1>
     </div>
 
@@ -169,21 +214,21 @@ onMounted(async () => {
         <button
           class="min-h-10 rounded-[12px] text-[0.78rem] font-black transition-all"
           :class="activeTab === 'affiliate' ? 'bg-primary text-white' : 'text-slate-500'"
-          @click="activeTab = 'affiliate'"
+          @click="setActiveTab('affiliate')"
         >
-          Affiliate
+          {{ affiliateTabLabel }}
         </button>
         <button
           class="min-h-10 rounded-[12px] text-[0.78rem] font-black transition-all"
           :class="activeTab === 'promotion' ? 'bg-primary text-white' : 'text-slate-500'"
-          @click="activeTab = 'promotion'"
+          @click="setActiveTab('promotion')"
         >
           Khuyến mãi
         </button>
         <button
           class="min-h-10 rounded-[12px] text-[0.78rem] font-black transition-all"
           :class="activeTab === 'news' ? 'bg-primary text-white' : 'text-slate-500'"
-          @click="activeTab = 'news'"
+          @click="setActiveTab('news')"
         >
           Tin tức
         </button>

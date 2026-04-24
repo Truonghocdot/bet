@@ -155,6 +155,22 @@ export type DepositStatusResponse = {
   transaction: DepositTransaction
   receiving_account?: ReceivingAccount | null
 }
+
+export type DepositHistoryResponse = {
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  data: DepositHistoryItem[]
+}
+
+export type DepositHistoryItem = {
+  id: number
+  unit: number
+  amount: string
+  status: number
+  created_at?: string | null
+}
 export type SetupAccountRequest = {
   unit: number
   provider_code: string
@@ -171,11 +187,19 @@ export type WithdrawalRequest = {
   net_amount: string
   status: number
   reason_rejected?: string
-  account_withdrawal_info_id: number
-  account_name: string
-  account_number: string
-  provider_code: string
+  account_withdrawal_info_id?: number
+  account_name?: string
+  account_number?: string
+  provider_code?: string
   created_at: string
+}
+
+export type WithdrawalHistoryResponse = {
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  data: WithdrawalRequest[]
 }
 
 export type ExchangeRequest = {

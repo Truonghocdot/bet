@@ -70,27 +70,15 @@ func (h *WithdrawalHandler) handleListHistory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	limit := 20
-	offset := 0
-	if l := r.URL.Query().Get("limit"); l != "" {
-		if val, err := strconv.Atoi(l); err == nil && val > 0 {
-			limit = val
-		}
-	}
-	if o := r.URL.Query().Get("offset"); o != "" {
-		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
-			offset = val
-		}
-	}
-
-	requests, err := h.withdrawalService.ListHistory(r.Context(), claims.UserID, limit, offset)
+	page, pageSize := parseWithdrawalPaginationQuery(r, 10)
+	response, err := h.withdrawalService.ListHistory(r.Context(), claims.UserID, page, pageSize)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
 		return
 	}
 
-	if requests == nil {
-		requests = []withdrawal.WithdrawalRequest{}
+	if response.Data == nil {
+		response.Data = []withdrawal.WithdrawalRequest{}
 	}
 
 	type withdrawalPublic struct {
@@ -104,8 +92,8 @@ func (h *WithdrawalHandler) handleListHistory(w http.ResponseWriter, r *http.Req
 		CreatedAt time.Time `json:"created_at"`
 	}
 
-	out := make([]withdrawalPublic, 0, len(requests))
-	for _, it := range requests {
+	out := make([]withdrawalPublic, 0, len(response.Data))
+	for _, it := range response.Data {
 		out = append(out, withdrawalPublic{
 			ID:        it.ID,
 			Unit:      it.Unit,
@@ -118,7 +106,42 @@ func (h *WithdrawalHandler) handleListHistory(w http.ResponseWriter, r *http.Req
 		})
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": out})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"page":        response.Page,
+		"page_size":   response.PageSize,
+		"total":       response.Total,
+		"total_pages": response.TotalPages,
+		"data":        out,
+	})
+}
+
+func parseWithdrawalPaginationQuery(r *http.Request, defaultPageSize int) (int, int) {
+	page := 1
+	pageSize := defaultPageSize
+
+	if value := strings.TrimSpace(r.URL.Query().Get("page")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+	if value := strings.TrimSpace(r.URL.Query().Get("page_size")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	}
+
+	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	}
+	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed >= 0 && pageSize > 0 {
+			page = (parsed / pageSize) + 1
+		}
+	}
+
+	return page, pageSize
 }
 
 func (h *WithdrawalHandler) handleListAccounts(w http.ResponseWriter, r *http.Request) {

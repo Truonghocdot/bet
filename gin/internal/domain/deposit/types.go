@@ -79,6 +79,14 @@ type DepositStatusResponse struct {
 	ReceivingAccount *ReceivingAccount  `json:"receiving_account,omitempty"`
 }
 
+type DepositHistoryResponse struct {
+	Page       int                  `json:"page"`
+	PageSize   int                  `json:"page_size"`
+	Total      int                  `json:"total"`
+	TotalPages int                  `json:"total_pages"`
+	Data       []DepositTransaction `json:"data"`
+}
+
 type DepositBankOption struct {
 	ProviderCode string `json:"provider_code"`
 	ShortName    string `json:"short_name"`

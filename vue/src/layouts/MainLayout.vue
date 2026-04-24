@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { RouterLink, type RouteLocationRaw, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
 import { formatViMoney } from '@/shared/lib/money'
@@ -17,33 +17,39 @@ const isDrawerOpen = ref(false)
 const currentTitle = computed(() => (route.meta.title as string) ?? 'FF789')
 const isPlayRoute = computed(() => route.path.startsWith('/play/'))
 
-// Bottom nav tabs (exclude center special)
-const navLeft = [
-  { label: 'Trang chủ', icon: 'home', iconFilled: 'home', to: '/home' },
-  { label: 'Hoạt động', icon: 'redeem', iconFilled: 'redeem', to: '/promotion' },
-]
-const navRight = [
-  { label: 'CSKH', icon: 'headphones', iconFilled: 'headphones', to: '/cskh' },
-  { label: 'Tôi', icon: 'person', iconFilled: 'person', to: '/account' },
+const primaryNavItems = [
+  { label: 'Trang chủ', icon: 'home', to: '/home' },
+  { label: 'Đại lý', icon: 'handshake', to: '/promotion', query: { tab: 'affiliate' } },
+  { label: 'Ưu đãi', icon: 'redeem', to: '/promotion', query: { tab: 'promotion' } },
+  { label: 'Vào chơi', icon: 'sports_esports', to: '/play' },
+  { label: 'CSKH', icon: 'support_agent', to: '/cskh' },
 ]
 
-// Sidebar / drawer nav (all items)
-const sidebarItems = [
-  { label: 'Trang chủ', icon: 'home', to: '/home' },
-  { label: 'Hoạt động', icon: 'redeem', to: '/promotion' },
-  { label: 'Phòng chơi', icon: 'casino', to: '/play' },
+const utilityNavItems = [
   { label: 'Nạp tiền', icon: 'add_card', to: '/deposit' },
-  { label: 'CSKH', icon: 'headphones', to: '/cskh' },
-]
-const sidebarBottom = [
   { label: 'Tài khoản', icon: 'manage_accounts', to: '/account' },
   { label: 'Thông báo', icon: 'notifications', to: '/notifications' },
+]
+
+const historyShortcutItems = [
+  { label: 'Lịch sử nạp', icon: 'payments', to: '/deposit', query: { section: 'history' } },
+  { label: 'Lịch sử rút', icon: 'history', to: '/withdraw', query: { section: 'history' } },
 ]
 
 const isActive = (path: string) => {
   if (path === '/home') return route.path === '/home' || route.path === '/'
   if (path === '/play') return route.path.startsWith('/play')
   return route.path.startsWith(path)
+}
+
+const isNavItemActive = (item: { to: string; query?: Record<string, string> }) => {
+  if (!isActive(item.to)) return false
+
+  if (item.to === '/promotion' && item.query?.tab) {
+    return String(route.query.tab ?? 'affiliate') === item.query.tab
+  }
+
+  return true
 }
 
 const vndBalance = computed(() => {
@@ -67,10 +73,10 @@ function copyReferralLink() {
 function openDrawer() { isDrawerOpen.value = true }
 function closeDrawer() { isDrawerOpen.value = false }
 
-function navigateDrawer(path: string) {
+function navigateDrawer(target: RouteLocationRaw) {
   closeDrawer()
   setLoading(true)
-  void router.push(path).finally(() => {
+  void router.push(target).finally(() => {
     setTimeout(() => setLoading(false), 300)
   })
 }
@@ -144,12 +150,13 @@ onBeforeUnmount(() => {
 
       <!-- Main nav -->
       <nav class="sidebar__nav">
+        <p class="sidebar__section-title">Lối tắt chính</p>
         <RouterLink
-          v-for="item in sidebarItems"
-          :key="item.to"
-          :to="item.to"
+          v-for="item in primaryNavItems"
+          :key="`${item.to}-${item.query?.tab ?? 'default'}`"
+          :to="{ path: item.to, query: item.query }"
           class="sidebar__item"
-          :class="{ 'sidebar__item--active': isActive(item.to) }"
+          :class="{ 'sidebar__item--active': isNavItemActive(item) }"
         >
           <span class="material-symbols-outlined sidebar__icon">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
@@ -158,10 +165,11 @@ onBeforeUnmount(() => {
 
       <!-- Bottom links -->
       <div class="sidebar__bottom">
+        <p class="sidebar__section-title">Tiện ích</p>
         <RouterLink
-          v-for="item in sidebarBottom"
+          v-for="item in utilityNavItems"
           :key="item.to"
-          :to="item.to"
+          :to="{ path: item.to }"
           class="sidebar__item"
           :class="{ 'sidebar__item--active': isActive(item.to) }"
         >
@@ -242,6 +250,17 @@ onBeforeUnmount(() => {
             </RouterLink>
           </div>
         </div>
+        <div v-if="auth.isAuthenticated" class="mt-3 grid grid-cols-2 gap-2">
+          <RouterLink
+            v-for="item in historyShortcutItems"
+            :key="item.label"
+            :to="{ path: item.to, query: item.query }"
+            class="flex min-h-10 items-center justify-center gap-1.5 rounded-[14px] bg-white/14 px-3 text-[0.74rem] font-black text-white backdrop-blur-sm transition-transform active:scale-[0.98]"
+          >
+            <span class="material-symbols-outlined text-[1rem]">{{ item.icon }}</span>
+            <span>{{ item.label }}</span>
+          </RouterLink>
+        </div>
       </header>
 
       <!-- ===== PAGE CONTENT ===== -->
@@ -253,43 +272,15 @@ onBeforeUnmount(() => {
 
       <!-- ===== BOTTOM NAV (mobile 5-tab) ===== -->
       <nav class="bottom-nav md:hidden">
-        <!-- Left 2 tabs -->
         <RouterLink
-          v-for="item in navLeft"
-          :key="item.to"
-          :to="item.to"
+          v-for="item in primaryNavItems"
+          :key="`${item.to}-${item.query?.tab ?? 'default'}`"
+          :to="{ path: item.to, query: item.query }"
           class="bottom-nav__item"
-          :class="{ 'is-active': isActive(item.to) }"
+          :class="{ 'is-active': isNavItemActive(item) }"
         >
-          <span class="material-symbols-outlined mb-0.5 text-[1.4rem]">{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
-        </RouterLink>
-
-        <!-- Center special button (Phòng chơi) -->
-        <RouterLink
-          to="/play"
-          class="bottom-nav__item bottom-nav__special-wrap"
-          :class="{ 'is-active': isActive('/play') }"
-          aria-label="Phòng chơi"
-        >
-          <div class="bottom-nav__special" :class="{ 'bottom-nav__special--active': isActive('/play') }">
-            <span class="material-symbols-outlined text-[1.5rem] text-white">casino</span>
-          </div>
-          <span class="mt-1 text-[0.6rem] font-bold" :class="isActive('/play') ? 'text-primary' : 'text-slate-500'">
-            Phòng chơi
-          </span>
-        </RouterLink>
-
-        <!-- Right 2 tabs -->
-        <RouterLink
-          v-for="item in navRight"
-          :key="item.to"
-          :to="item.to"
-          class="bottom-nav__item"
-          :class="{ 'is-active': isActive(item.to) }"
-        >
-          <span class="material-symbols-outlined mb-0.5 text-[1.4rem]">{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
+          <span class="material-symbols-outlined bottom-nav__icon">{{ item.icon }}</span>
+          <span class="bottom-nav__label">{{ item.label }}</span>
         </RouterLink>
       </nav>
     </div>
@@ -327,41 +318,41 @@ onBeforeUnmount(() => {
 
           <!-- Drawer Nav -->
           <div class="drawer__body">
-            <p class="px-4 pt-4 pb-1 text-[0.65rem] font-black uppercase tracking-wider text-slate-400">Menu chính</p>
+            <p class="drawer__section-title">Lối tắt chính</p>
             <button
-              v-for="item in sidebarItems"
-              :key="item.to"
+              v-for="item in primaryNavItems"
+              :key="`${item.to}-${item.query?.tab ?? 'default'}`"
               class="drawer__item"
-              :class="{ 'drawer__item--active': isActive(item.to) }"
-              @click="navigateDrawer(item.to)"
+              :class="{ 'drawer__item--active': isNavItemActive(item) }"
+              @click="navigateDrawer({ path: item.to, query: item.query })"
             >
               <span
                 class="material-symbols-outlined text-[1.2rem]"
-                :class="isActive(item.to) ? 'text-primary' : 'text-slate-400'"
+                :class="isNavItemActive(item) ? 'text-white' : 'text-white/55'"
               >{{ item.icon }}</span>
               <span>{{ item.label }}</span>
-              <span class="material-symbols-outlined ml-auto text-[1rem] text-slate-300">chevron_right</span>
+              <span class="material-symbols-outlined ml-auto text-[1rem] text-white/35">chevron_right</span>
             </button>
 
-            <div class="mx-4 my-3 h-px bg-slate-100" />
+            <div class="drawer__divider" />
 
-            <p class="px-4 pb-1 text-[0.65rem] font-black uppercase tracking-wider text-slate-400">Tài khoản</p>
+            <p class="drawer__section-title">Tiện ích</p>
             <button
-              v-for="item in sidebarBottom"
+              v-for="item in utilityNavItems"
               :key="item.to"
               class="drawer__item"
               :class="{ 'drawer__item--active': isActive(item.to) }"
-              @click="navigateDrawer(item.to)"
+              @click="navigateDrawer({ path: item.to })"
             >
               <span
                 class="material-symbols-outlined text-[1.2rem]"
-                :class="isActive(item.to) ? 'text-primary' : 'text-slate-400'"
+                :class="isActive(item.to) ? 'text-white' : 'text-white/55'"
               >{{ item.icon }}</span>
               <span>{{ item.label }}</span>
-              <span class="material-symbols-outlined ml-auto text-[1rem] text-slate-300">chevron_right</span>
+              <span class="material-symbols-outlined ml-auto text-[1rem] text-white/35">chevron_right</span>
             </button>
 
-            <div class="mx-4 my-3 h-px bg-slate-100" />
+            <div class="drawer__divider" />
 
             <button
               v-if="auth.isAuthenticated"
@@ -373,15 +364,15 @@ onBeforeUnmount(() => {
             </button>
             <template v-else>
               <button
-                class="drawer__item text-primary"
-                @click="navigateDrawer('/auth')"
+              class="drawer__item text-primary"
+                @click="navigateDrawer({ path: '/auth' })"
               >
                 <span class="material-symbols-outlined text-[1.2rem] text-primary">login</span>
                 <span>Đăng nhập</span>
               </button>
               <button
-                class="drawer__item text-primary"
-                @click="navigateDrawer('/register')"
+              class="drawer__item text-primary"
+                @click="navigateDrawer({ path: '/register' })"
               >
                 <span class="material-symbols-outlined text-[1.2rem] text-primary">person_add</span>
                 <span>Đăng ký</span>

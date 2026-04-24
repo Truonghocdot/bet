@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { useDepositStore } from '@/stores/deposit'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
 import { formatViMoney } from '@/shared/lib/money'
 
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const deposit = useDepositStore()
@@ -56,6 +57,7 @@ const intentBank = computed(() => {
   return bankOptions.value.find((bank) => bank.provider_code === providerCode) ?? selectedBank.value
 })
 const copiedField = ref('')
+const historySection = ref<HTMLElement | null>(null)
 
 const statusLabel = computed(() => {
   const value = status.value?.transaction?.status
@@ -151,6 +153,10 @@ function formatPendingDepositAmountForCopy(value: string | number | null | undef
 
 function redirectBack() {
   router.back()
+}
+
+function scrollToHistorySection(behavior: ScrollBehavior = 'smooth') {
+  historySection.value?.scrollIntoView({ behavior, block: 'start' })
 }
 
 async function copyIntentValue(key: string, value: string | null | undefined) {
@@ -255,6 +261,20 @@ async function loadUsdtQrCode() {
   }
 }
 
+async function refreshDepositHistory(page = deposit.historyPage) {
+  await deposit.fetchHistory(page, deposit.historyPageSize)
+}
+
+async function changeDepositHistoryPage(page: number) {
+  if (page < 1 || page > deposit.historyTotalPages || page === deposit.historyPage || deposit.loading) {
+    return
+  }
+
+  await refreshDepositHistory(page)
+  await nextTick()
+  scrollToHistorySection()
+}
+
 watch(
   () => bankOptions.value,
   (banks) => {
@@ -327,6 +347,7 @@ watch(
     if (numStatus === 2 || numStatus === 3) {
       try {
         await wallet.fetchSummary()
+        await deposit.fetchHistory(1, deposit.historyPageSize)
         // Auto reset after success to close the view after 3 seconds
         setTimeout(() => {
           deposit.reset()
@@ -344,11 +365,25 @@ onMounted(async () => {
   }, 1000)
 
   try {
-    await deposit.loadVietQrBanks()
+    await Promise.all([deposit.loadVietQrBanks(), deposit.fetchHistory(1, deposit.historyPageSize)])
   } catch {
     // store keeps its own error state
   }
+
+  if (route.query.section === 'history') {
+    await nextTick()
+    scrollToHistorySection('auto')
+  }
 })
+
+watch(
+  () => route.query.section,
+  async (section) => {
+    if (section !== 'history') return
+    await nextTick()
+    scrollToHistorySection()
+  },
+)
 
 onBeforeUnmount(() => {
   if (countdownTicker) {
@@ -370,19 +405,44 @@ async function submitDeposit() {
   } else {
     await deposit.initUSDT({ amount: amount.value.trim() })
   }
+  await deposit.fetchHistory(1, deposit.historyPageSize)
 }
 
 async function refreshStatus() {
   if (!intent.value?.client_ref) return
   await deposit.getStatus(intent.value.client_ref)
+  await deposit.fetchHistory(1, deposit.historyPageSize)
 }
 
 async function handleCancel() {
   try {
     await deposit.cancelDeposit()
+    await deposit.fetchHistory(1, deposit.historyPageSize)
   } catch {
     // error is handled in store
   }
+}
+
+function depositStatusLabel(statusValue: string | number | null | undefined) {
+  const value = Number(statusValue ?? 0)
+  if (value === 1) return 'Đang chờ'
+  if (value === 2) return 'Đã xác nhận'
+  if (value === 3) return 'Hoàn tất'
+  if (value === 4) return 'Thất bại'
+  if (value === 5) return 'Đã hủy'
+  return 'Không xác định'
+}
+
+function depositStatusClass(statusValue: string | number | null | undefined) {
+  const value = Number(statusValue ?? 0)
+  if (value === 1 || value === 2) return 'bg-amber-100 text-amber-600'
+  if (value === 3) return 'bg-emerald-100 text-emerald-600'
+  if (value === 4 || value === 5) return 'bg-rose-100 text-rose-600'
+  return 'bg-slate-100 text-slate-500'
+}
+
+function depositHistoryTypeLabel(unit: number | string | null | undefined) {
+  return Number(unit) === 2 ? 'Tiền ảo' : 'Ngân hàng'
 }
 
 async function logout() {
@@ -641,6 +701,81 @@ async function logout() {
           {{ isIntentActive ? 'Đang có lệnh mở - vui lòng chờ' : (deposit.loading ? 'Đang tạo giao dịch...' : (method === 'usdt' ? 'Tạo địa chỉ nạp USDT' : 'Tạo mã QR Nạp tiền')) }}
         </button>
       </form>
+    </section>
+
+    <section
+      id="deposit-history"
+      ref="historySection"
+      class="rounded-[24px] bg-white p-4 shadow-[0_8px_24px_rgba(255,109,102,0.08)] md:p-5"
+    >
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="m-0 text-base font-black text-primary">Lịch sử nạp tiền</h2>
+        <button
+          type="button"
+          class="text-xs font-bold uppercase tracking-[0.06em] text-primary"
+          :disabled="deposit.loading"
+          @click="void refreshDepositHistory()"
+        >
+          Làm mới
+        </button>
+      </div>
+
+      <div v-if="deposit.history.length === 0" class="py-10 text-center">
+        <p class="text-xs font-bold text-slate-300">Chưa có giao dịch nạp tiền nào</p>
+      </div>
+
+      <div v-else class="mt-4 space-y-3">
+        <div
+          v-for="item in deposit.history"
+          :key="item.id"
+          class="flex items-center justify-between gap-3 rounded-[18px] border border-slate-100 bg-slate-50 p-3"
+        >
+          <div class="min-w-0">
+            <p class="m-0 text-[0.82rem] font-black text-slate-700">
+              {{ depositHistoryTypeLabel(item.unit) }}
+            </p>
+            <p class="m-0 mt-1 text-[0.74rem] font-semibold text-slate-500">
+              {{ item.unit === 1 ? formatViMoney(item.amount, 0) : `${item.amount} USDT` }}
+            </p>
+            <p class="m-0 mt-1 text-[0.68rem] font-medium text-slate-400">
+              {{ item.created_at?.split('T')[0] || '---' }} {{ item.created_at?.split('T')[1]?.slice(0, 5) || '' }}
+            </p>
+          </div>
+          <span
+            class="shrink-0 rounded-full px-2.5 py-1 text-[0.66rem] font-black uppercase"
+            :class="depositStatusClass(item.status)"
+          >
+            {{ depositStatusLabel(item.status) }}
+          </span>
+        </div>
+      </div>
+
+      <div
+        v-if="deposit.historyTotal > 0"
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] bg-surface-container-low px-3 py-2.5"
+      >
+        <p class="m-0 text-[0.72rem] font-bold text-slate-500">
+          Trang {{ deposit.historyPage }} / {{ deposit.historyTotalPages }} • {{ deposit.historyTotal }} giao dịch
+        </p>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="min-h-9 rounded-[12px] border border-slate-200 px-3 text-[0.72rem] font-black text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="deposit.loading || deposit.historyPage <= 1"
+            @click="void changeDepositHistoryPage(deposit.historyPage - 1)"
+          >
+            Trang trước
+          </button>
+          <button
+            type="button"
+            class="min-h-9 rounded-[12px] border border-slate-200 px-3 text-[0.72rem] font-black text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="deposit.loading || deposit.historyPage >= deposit.historyTotalPages"
+            @click="void changeDepositHistoryPage(deposit.historyPage + 1)"
+          >
+            Trang sau
+          </button>
+        </div>
+      </div>
     </section>
   </div>
 </template>

@@ -77,6 +77,10 @@ type DepositApplyResult struct {
 	WalletBalance string
 }
 
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
 func NewDepositRepository(db *sql.DB) *DepositRepository {
 	return &DepositRepository{db: db}
 }
@@ -256,6 +260,50 @@ func (r *DepositRepository) FindDepositIntentByProviderTxnID(ctx context.Context
 	}
 
 	return record, nil
+}
+
+func (r *DepositRepository) ListUserDeposits(ctx context.Context, userID int64, limit, offset int) ([]DepositTransactionRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		select t.id, t.user_id, t.wallet_id, t.client_ref, t.unit, t.type, t.amount::text, t.net_amount::text,
+		       t.status, t.provider, t.provider_txn_id, t.receiving_account_id, t.meta, t.reason_failed,
+		       t.approved_by, t.approved_at, t.created_at, t.updated_at,
+		       p.id, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
+		       p.status, p.is_default, p.sort_order
+		from transactions t
+		left join payment_receiving_accounts p on p.id = t.receiving_account_id
+		where t.user_id = $1
+		  and t.type = 1
+		  and t.deleted_at is null
+		order by t.created_at desc, t.id desc
+		limit $2 offset $3
+	`, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := make([]DepositTransactionRecord, 0)
+	for rows.Next() {
+		var record DepositTransactionRecord
+		if err := scanDepositTransactionWithAccountScanner(rows, &record); err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+
+	return records, rows.Err()
+}
+
+func (r *DepositRepository) CountUserDeposits(ctx context.Context, userID int64) (int, error) {
+	var total int
+	err := r.db.QueryRowContext(ctx, `
+		select count(1)
+		from transactions
+		where user_id = $1
+		  and type = 1
+		  and deleted_at is null
+	`, userID).Scan(&total)
+	return total, err
 }
 
 var ErrDepositCancelForbidden = errors.New("giao dịch không thể hủy ở trạng thái hiện tại")
@@ -635,6 +683,10 @@ func scanDepositTransaction(row *sql.Row, record *DepositTransactionRecord) erro
 }
 
 func scanDepositTransactionWithAccount(row *sql.Row, record *DepositTransactionRecord) error {
+	return scanDepositTransactionWithAccountScanner(row, record)
+}
+
+func scanDepositTransactionWithAccountScanner(scanner rowScanner, record *DepositTransactionRecord) error {
 	var (
 		account             ReceivingAccountRecord
 		providerTxnID       sql.NullString
@@ -654,7 +706,7 @@ func scanDepositTransactionWithAccount(row *sql.Row, record *DepositTransactionR
 		accountSortOrder    sql.NullInt64
 	)
 
-	if err := row.Scan(
+	if err := scanner.Scan(
 		&record.ID,
 		&record.UserID,
 		&record.WalletID,

@@ -76,6 +76,7 @@ func NewRouter(
 	mux.Handle("POST /v1/play/rooms/{room_code}/bets", authn.Require(http.HandlerFunc(playRoomHandler.PlaceRoomBet)))
 	mux.Handle("GET /v1/games/", authn.Require(http.HandlerFunc(gameHandler.ServeHTTP)))
 	mux.Handle("POST /v1/games/", authn.Require(http.HandlerFunc(gameHandler.ServeHTTP)))
+	mux.Handle("GET /v1/deposits", authn.Require(http.HandlerFunc(depositHandler.ServeHTTP)))
 	mux.Handle("POST /v1/deposits/", authn.Require(http.HandlerFunc(depositHandler.ServeHTTP)))
 	mux.Handle("GET /v1/deposits/", authn.Require(http.HandlerFunc(depositHandler.ServeHTTP)))
 	// Support both trailing-slash and non-trailing-slash variants for withdrawal routes.

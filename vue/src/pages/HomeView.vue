@@ -4,6 +4,11 @@ import { RouterLink, useRoute } from 'vue-router'
 
 import BannerCarousel from '@/components/BannerCarousel.vue'
 import MarqueeBar from '@/components/MarqueeBar.vue'
+import cardsIcon from '@/assets/home-categories/cards.svg'
+import casinoIcon from '@/assets/home-categories/casino.svg'
+import fishingIcon from '@/assets/home-categories/fishing.svg'
+import jackpotIcon from '@/assets/home-categories/jackpot.svg'
+import sportsIcon from '@/assets/home-categories/sports.svg'
 import { request } from '@/shared/api/http'
 import type { ContentBannerItem, ContentHomeResponse, ContentNewsItem } from '@/shared/api/types'
 import { stripHtmlTags } from '@/shared/lib/html'
@@ -69,11 +74,28 @@ const gameCards = [
 ]
 
 const categoryTabs = [
-  { label: 'Xổ số', icon: 'confirmation_number', accent: '#ff6d66' },
-  { label: 'Casino', icon: 'casino', accent: '#f6c32d' },
-  { label: 'Bắn cá', icon: 'skull', accent: '#e64545' },
-  { label: 'Thể thao', icon: 'sports_soccer', accent: '#24b561' },
-  { label: 'Game bài', icon: 'playing_cards', accent: '#8b5cf6' },
+  {
+    label: 'Casino',
+    icon: casinoIcon,
+    badge: 'HOT',
+  },
+  {
+    label: 'Nổ hũ',
+    icon: jackpotIcon,
+    badge: 'HOT',
+  },
+  {
+    label: 'Bắn cá',
+    icon: fishingIcon,
+  },
+  {
+    label: 'Thể thao',
+    icon: sportsIcon,
+  },
+  {
+    label: 'Game bài',
+    icon: cardsIcon,
+  },
 ]
 
 async function fetchHomeContent() {
@@ -106,20 +128,31 @@ onMounted(() => {
     <BannerCarousel :banners="homeBanners" />
 
     <!-- ===== CATEGORY QUICK TABS ===== -->
-    <div class="flex gap-2 overflow-x-auto px-3 py-3 no-scrollbar">
-      <button
-        v-for="tab in categoryTabs"
-        :key="tab.label"
-        class="flex flex-shrink-0 flex-col items-center gap-1.5 rounded-[16px] bg-white px-3 py-2.5 shadow-sm border border-slate-100 transition-transform active:scale-95"
-      >
-        <span
-          class="grid h-9 w-9 place-items-center rounded-full text-xl"
-          :style="{ backgroundColor: `${tab.accent}18`, color: tab.accent }"
-        >
-          <span class="material-symbols-outlined text-[1.1rem]">{{ tab.icon }}</span>
-        </span>
-        <span class="text-[0.65rem] font-bold text-on-surface">{{ tab.label }}</span>
-      </button>
+    <div class="mx-3 my-3 overflow-x-auto no-scrollbar">
+      <div class="flex w-max gap-[1px] rounded-[8px] bg-[#6a6a6a] p-[1px] shadow-[0_10px_22px_rgba(0,0,0,0.18)]">
+          <button
+            v-for="tab in categoryTabs"
+            :key="tab.label"
+            type="button"
+            class="group relative flex h-[88px] w-[76px] flex-shrink-0 flex-col items-center justify-center bg-gradient-to-b from-[#595959] to-[#444444] px-1.5 text-center transition-transform active:scale-[0.97]"
+            :aria-label="tab.label"
+          >
+            <span
+              v-if="tab.badge"
+              class="absolute right-[3px] top-[3px] rounded-[3px] bg-gradient-to-b from-[#ff7848] to-[#de2f1a] px-1 py-[1px] text-[0.46rem] font-black uppercase leading-3 tracking-[0.04em] text-white shadow-[0_4px_8px_rgba(222,47,26,0.35)]"
+            >
+              {{ tab.badge }}
+            </span>
+            <img
+              :src="tab.icon"
+              :alt="tab.label"
+              class="mb-1.5 h-8 w-8 object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]"
+            />
+            <span class="text-[0.65rem] font-semibold uppercase leading-[1.05] tracking-[0.04em] text-white">
+              {{ tab.label }}
+            </span>
+          </button>
+      </div>
     </div>
 
     <!-- ===== WALLET CARD ===== -->

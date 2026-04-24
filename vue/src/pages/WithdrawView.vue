@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
@@ -8,6 +8,7 @@ import { useWalletStore } from '@/stores/wallet'
 import { useWithdrawStore } from '@/stores/withdraw'
 import type { WithdrawalAccount } from '@/stores/withdraw'
 
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const wallet = useWalletStore()
@@ -18,6 +19,7 @@ const amount = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const showWithdrawPolicyModal = ref(false)
+const historySection = ref<HTMLElement | null>(null)
 
 // Form for adding method
 const addProvider = ref('')
@@ -63,6 +65,24 @@ function handleAmountInput(event: Event) {
   amount.value = sanitizeAmountInput(target?.value ?? '', method.value === 'usdt')
 }
 
+function scrollToHistorySection(behavior: ScrollBehavior = 'smooth') {
+  historySection.value?.scrollIntoView({ behavior, block: 'start' })
+}
+
+async function refreshWithdrawHistory(page = withdraw.historyPage) {
+  await withdraw.fetchHistory(page, withdraw.historyPageSize)
+}
+
+async function changeWithdrawHistoryPage(page: number) {
+  if (page < 1 || page > withdraw.historyTotalPages || page === withdraw.historyPage || withdraw.loading) {
+    return
+  }
+
+  await refreshWithdrawHistory(page)
+  await nextTick()
+  scrollToHistorySection()
+}
+
 const canSubmit = computed(() => {
   return String(amount.value).trim() !== '' && String(password.value).trim() !== '' && currentAccount.value !== undefined
 })
@@ -75,8 +95,21 @@ onMounted(async () => {
   } catch {
     showWithdrawPolicyModal.value = true
   }
-  await Promise.all([wallet.fetchSummary(), withdraw.fetchAccounts(), withdraw.fetchHistory()])
+  await Promise.all([wallet.fetchSummary(), withdraw.fetchAccounts(), withdraw.fetchHistory(1, withdraw.historyPageSize)])
+  if (route.query.section === 'history') {
+    await nextTick()
+    scrollToHistorySection('auto')
+  }
 })
+
+watch(
+  () => route.query.section,
+  async (section) => {
+    if (section !== 'history') return
+    await nextTick()
+    scrollToHistorySection()
+  },
+)
 
 // Methods limit helpers
 async function submitSaveMethod() {
@@ -314,10 +347,14 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
     </transition>
 
     <!-- LỊCH SỬ RÚT TIỀN -->
-    <section class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
+    <section
+      id="withdraw-history"
+      ref="historySection"
+      class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]"
+    >
       <div class="flex items-center justify-between mb-4">
          <h2 class="m-0 text-base font-black text-primary">Lịch sử rút tiền</h2>
-         <button @click="() => withdraw.fetchHistory()" class="text-xs font-bold text-blue-500 uppercase tracking-tighter">Làm mới</button>
+         <button @click="() => refreshWithdrawHistory()" class="text-xs font-bold text-blue-500 uppercase tracking-tighter">Làm mới</button>
       </div>
 
       <div class="space-y-3">
@@ -349,6 +386,33 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
                <p v-if="item.reason_rejected" class="m-0 mt-1 text-[9px] font-medium text-rose-400 italic font-mono">{{ item.reason_rejected }}</p>
             </div>
          </div>
+      </div>
+
+      <div
+        v-if="withdraw.historyTotal > 0"
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[18px] bg-surface-container-low px-3 py-2.5"
+      >
+        <p class="m-0 text-[0.72rem] font-bold text-slate-500">
+          Trang {{ withdraw.historyPage }} / {{ withdraw.historyTotalPages }} • {{ withdraw.historyTotal }} giao dịch
+        </p>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="min-h-9 rounded-[12px] border border-slate-200 px-3 text-[0.72rem] font-black text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="withdraw.loading || withdraw.historyPage <= 1"
+            @click="() => changeWithdrawHistoryPage(withdraw.historyPage - 1)"
+          >
+            Trang trước
+          </button>
+          <button
+            type="button"
+            class="min-h-9 rounded-[12px] border border-slate-200 px-3 text-[0.72rem] font-black text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="withdraw.loading || withdraw.historyPage >= withdraw.historyTotalPages"
+            @click="() => changeWithdrawHistoryPage(withdraw.historyPage + 1)"
+          >
+            Trang sau
+          </button>
+        </div>
       </div>
     </section>
   </div>

@@ -100,8 +100,40 @@ func (s *WithdrawalService) SubmitWithdrawalRequest(ctx context.Context, userID 
 	return s.repo.CreateWithdrawalRequest(ctx, userID, wallet.ID, account.ID, account.Unit, amountStr, fee, netAmount)
 }
 
-func (s *WithdrawalService) ListHistory(ctx context.Context, userID int64, limit, offset int) ([]withdrawal.WithdrawalRequest, error) {
-	return s.repo.ListWithdrawalRequests(ctx, userID, limit, offset)
+func (s *WithdrawalService) ListHistory(ctx context.Context, userID int64, page, pageSize int) (withdrawal.WithdrawalHistoryResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+
+	total, err := s.repo.CountUserWithdrawalRequests(ctx, userID)
+	if err != nil {
+		return withdrawal.WithdrawalHistoryResponse{}, err
+	}
+
+	totalPages := 1
+	if total > 0 {
+		totalPages = (total + pageSize - 1) / pageSize
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	offset := (page - 1) * pageSize
+	items, err := s.repo.ListWithdrawalRequests(ctx, userID, pageSize, offset)
+	if err != nil {
+		return withdrawal.WithdrawalHistoryResponse{}, err
+	}
+
+	return withdrawal.WithdrawalHistoryResponse{
+		Page:       page,
+		PageSize:   pageSize,
+		Total:      total,
+		TotalPages: totalPages,
+		Data:       items,
+	}, nil
 }
 
 func parsePositiveOrZero(value string) (*big.Rat, error) {

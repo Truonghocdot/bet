@@ -268,6 +268,47 @@ func (s *DepositService) GetDepositStatus(ctx context.Context, userID int64, cli
 	return response, nil
 }
 
+func (s *DepositService) ListHistory(ctx context.Context, userID int64, page, pageSize int) (deposit.DepositHistoryResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+
+	total, err := s.repository.CountUserDeposits(ctx, userID)
+	if err != nil {
+		return deposit.DepositHistoryResponse{}, err
+	}
+
+	totalPages := 1
+	if total > 0 {
+		totalPages = (total + pageSize - 1) / pageSize
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	offset := (page - 1) * pageSize
+	records, err := s.repository.ListUserDeposits(ctx, userID, pageSize, offset)
+	if err != nil {
+		return deposit.DepositHistoryResponse{}, err
+	}
+
+	items := make([]deposit.DepositTransaction, 0, len(records))
+	for _, record := range records {
+		items = append(items, s.toDomainTransaction(record))
+	}
+
+	return deposit.DepositHistoryResponse{
+		Page:       page,
+		PageSize:   pageSize,
+		Total:      total,
+		TotalPages: totalPages,
+		Data:       items,
+	}, nil
+}
+
 func (s *DepositService) CancelDeposit(ctx context.Context, userID, txnID int64) (deposit.DepositStatusResponse, error) {
 	record, err := s.repository.CancelDeposit(ctx, userID, txnID)
 	if err != nil {

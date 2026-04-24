@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,8 +30,17 @@ func NewDepositHandler(depositService *service.DepositService, internalToken str
 }
 
 func (h *DepositHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/v1/deposits/")
-	parts := strings.Split(strings.Trim(path, "/"), "/")
+	path := strings.TrimPrefix(r.URL.Path, "/v1/deposits")
+	path = strings.Trim(path, "/")
+	parts := make([]string, 0)
+	if path != "" {
+		parts = strings.Split(path, "/")
+	}
+
+	if len(parts) == 0 && r.Method == http.MethodGet {
+		h.handleListHistory(w, r)
+		return
+	}
 
 	if len(parts) == 1 && r.Method == http.MethodGet {
 		h.handleStatus(w, r, parts[0])
@@ -65,6 +75,81 @@ func (h *DepositHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]string{"message": message.RouteNotFound})
 	}
+}
+
+func (h *DepositHandler) handleListHistory(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	page, pageSize := parsePaginationQuery(r, 10)
+	response, err := h.depositService.ListHistory(r.Context(), claims.UserID, page, pageSize)
+	if err != nil {
+		h.writeError(r, w, err, "list_history")
+		return
+	}
+
+	if response.Data == nil {
+		response.Data = []deposit.DepositTransaction{}
+	}
+
+	type depositHistoryPublic struct {
+		ID        int64     `json:"id"`
+		Unit      int       `json:"unit"`
+		Amount    string    `json:"amount"`
+		Status    int       `json:"status"`
+		CreatedAt time.Time `json:"created_at"`
+	}
+
+	out := make([]depositHistoryPublic, 0, len(response.Data))
+	for _, it := range response.Data {
+		out = append(out, depositHistoryPublic{
+			ID:        it.ID,
+			Unit:      it.Unit,
+			Amount:    it.Amount,
+			Status:    it.Status,
+			CreatedAt: it.CreatedAt,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"page":        response.Page,
+		"page_size":   response.PageSize,
+		"total":       response.Total,
+		"total_pages": response.TotalPages,
+		"data":        out,
+	})
+}
+
+func parsePaginationQuery(r *http.Request, defaultPageSize int) (int, int) {
+	page := 1
+	pageSize := defaultPageSize
+
+	if value := strings.TrimSpace(r.URL.Query().Get("page")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+	if value := strings.TrimSpace(r.URL.Query().Get("page_size")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	}
+
+	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	}
+	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed >= 0 && pageSize > 0 {
+			page = (parsed / pageSize) + 1
+		}
+	}
+
+	return page, pageSize
 }
 
 func (h *DepositHandler) Apply(w http.ResponseWriter, r *http.Request) {
@@ -309,7 +394,7 @@ func (h *DepositHandler) writeError(r *http.Request, w http.ResponseWriter, err 
 		err,
 	)
 
-	// Trả về message lỗi chi tiết hơn nếu là môi trường local/dev 
+	// Trả về message lỗi chi tiết hơn nếu là môi trường local/dev
 	// hoặc giúp admin debug nhanh hơn lúc này.
 	finalMessage := messageText
 	if statusCode == http.StatusInternalServerError {

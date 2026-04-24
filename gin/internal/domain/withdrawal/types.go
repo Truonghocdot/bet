@@ -27,6 +27,14 @@ type WithdrawalRequest struct {
 	CreatedAt               time.Time `json:"created_at"`
 }
 
+type WithdrawalHistoryResponse struct {
+	Page       int                 `json:"page"`
+	PageSize   int                 `json:"page_size"`
+	Total      int                 `json:"total"`
+	TotalPages int                 `json:"total_pages"`
+	Data       []WithdrawalRequest `json:"data"`
+}
+
 type SetupAccountRequest struct {
 	Unit          int    `json:"unit" binding:"required,oneof=1 2"`
 	ProviderCode  string `json:"provider_code" binding:"max=50"`
@@ -42,5 +50,5 @@ type SubmitWithdrawalRequest struct {
 }
 
 type DeleteAccountRequest struct {
-    ID int64 `uri:"id" binding:"required,min=1"`
+	ID int64 `uri:"id" binding:"required,min=1"`
 }
