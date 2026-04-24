@@ -30,6 +30,7 @@ class TransactionsTable
                 TextColumn::make('id')->label('ID')->sortable(),
                 TextColumn::make('user_id')->label('ID người dùng')->sortable()->searchable(),
                 TextColumn::make('user.name')->label('Người dùng')->searchable()->sortable(),
+                TextColumn::make('user.phone')->label('SDT')->searchable(),
                 TextColumn::make('agency_id')
                     ->label('ID agency')
                     ->getStateUsing(function ($record): string {
