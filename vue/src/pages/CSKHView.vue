@@ -21,7 +21,13 @@ const faqs = [
   { q: 'Làm thế nào để nạp tiền vào tài khoản?', a: 'Bạn vào mục Nạp tiền, chọn phương thức VietQR hoặc USDT. Hệ thống sẽ hiển thị thông tin thanh toán, bạn thực hiện chuyển khoản và tiền sẽ được cộng tự động.' },
   { q: 'Thời gian rút tiền mất bao lâu?', a: 'Lệnh rút tiền thường được xử lý trong vòng 3-15 phút. Trong một số trường hợp cao điểm có thể mất đến 30 phút.' },
   { q: 'Tôi bị quên mật khẩu phải làm sao?', a: 'Bạn có thể sử dụng tính năng "Quên mật khẩu" tại màn hình đăng nhập hoặc liên hệ trực tiếp với CSKH qua Telegram để được hỗ trợ cấp lại.' },
-  { q: 'Hạn mức giao dịch tối thiểu và tối đa?', a: 'Nạp tiền tối thiểu từ 50,000đ. Rút tiền tối thiểu từ 100,000đ. Hạn mức tối đa tùy thuộc vào cấp độ tài khoản của bạn.' },
+  { q: 'Làm thế nào để đăng ký tài khoản?', a: 'Để đăng ký tài khoản, bạn cần chuẩn bị số điện thoại đang sử dụng, một tài khoản ngân hàng chính chủ và mã giới thiệu từ đại lý. Trong trường hợp chưa có mã giới thiệu, vui lòng liên hệ bộ phận Chăm sóc Khách hàng để được hỗ trợ nhanh chóng. Sau đó, chỉ cần điền đầy đủ thông tin theo hướng dẫn trên hệ thống để hoàn tất đăng ký.' },
+  { q: 'Những phương thức nạp tiền nào được hỗ trợ?', a: 'Hiện tại, hệ thống hỗ trợ nạp tiền qua chuyển khoản ngân hàng và ví điện tử crypto (USDT), giúp người dùng giao dịch nhanh chóng, an toàn và tiện lợi' },
+  { q: 'Có mất phí khi nạp/rút không?', a: 'Mọi giao dịch nạp và rút tiền đều hoàn toàn miễn phí, vì vậy bạn có thể yên tâm tận hưởng những trải nghiệm giải trí hấp dẫn trên sàn.' },
+  { q: 'Vòng cược tính như thế nào?', a: 'Không có yêu cầu vòng cược rườm rà. Bạn chỉ cần chơi đủ số tiền tương ứng với khoản khuyến mãi đã nhận là có thể rút toàn bộ tiền về tài khoản ngân hàng một cách dễ dàng.' },
+  { q: 'Thông tin cá nhân có được bảo mật không?', a: 'Toàn bộ dữ liệu cá nhân của khách hàng được bảo vệ bằng hạ tầng công nghệ tiên tiến, áp dụng các lớp bảo mật và mã hóa hiện đại, đồng thời lưu trữ trên hệ thống điện toán đám mây đạt tiêu chuẩn an toàn cao.đảm bảo tối đa quyền riêng tư và an toàn thông tin cho người dùng.' },
+  { q: 'Liên hệ CSKH bằng cách nào?', a: 'Để liên hệ Chăm sóc Khách hàng, bạn chỉ cần truy cập vào mục ‘Chăm sóc Khách hàng’ trên hệ thống. Đội ngũ hỗ trợ 24/7 luôn sẵn sàng giải đáp mọi thắc mắc, giúp bạn có trải nghiệm tốt nhất.' },
+
 ]
 
 onMounted(() => {
