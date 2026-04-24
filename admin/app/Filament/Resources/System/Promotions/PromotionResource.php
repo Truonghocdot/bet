@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Filament\Resources\System\Banners;
+namespace App\Filament\Resources\System\Promotions;
 
 use App\Filament\Resources\BaseResource;
-use App\Filament\Resources\System\Banners\Pages\CreateBanner;
-use App\Filament\Resources\System\Banners\Pages\EditBanner;
-use App\Filament\Resources\System\Banners\Pages\ListBanners;
 use App\Filament\Resources\System\Banners\Schemas\BannerForm;
 use App\Filament\Resources\System\Banners\Tables\BannersTable;
+use App\Filament\Resources\System\Promotions\Pages\CreatePromotion;
+use App\Filament\Resources\System\Promotions\Pages\EditPromotion;
+use App\Filament\Resources\System\Promotions\Pages\ListPromotions;
 use App\Models\Content\Banner;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,11 +16,11 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use UnitEnum;
 
-class BannerResource extends BaseResource
+class PromotionResource extends BaseResource
 {
     protected static ?string $model = Banner::class;
     protected static UnitEnum|string|null $navigationGroup = 'Thiết lập';
-    protected static ?string $navigationLabel = 'Banner trang chủ';
+    protected static ?string $navigationLabel = 'Khuyến mãi';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedPhoto;
     protected static ?string $recordTitleAttribute = 'id';
 
@@ -31,16 +31,16 @@ class BannerResource extends BaseResource
 
     protected static function abilityPrefix(): string
     {
-        return 'system.banners';
+        return 'system.promotions';
     }
 
     public static function form(Schema $schema): Schema
     {
         return BannerForm::configure(
             $schema,
-            placement: 'home',
-            sectionTitle: 'Banner trang chủ',
-            imageLabel: 'Ảnh banner trang chủ',
+            placement: 'promotion',
+            sectionTitle: 'Hình ảnh khuyến mãi',
+            imageLabel: 'Ảnh khuyến mãi',
         );
     }
 
@@ -48,22 +48,22 @@ class BannerResource extends BaseResource
     {
         return BannersTable::configure(
             $table,
-            imageLabel: 'Banner trang chủ',
-            createLabel: 'Tạo banner trang chủ',
+            imageLabel: 'Ảnh khuyến mãi',
+            createLabel: 'Tạo ảnh khuyến mãi',
         );
     }
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->where('placement', 'home');
+        return parent::getEloquentQuery()->where('placement', 'promotion');
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => ListBanners::route('/'),
-            'create' => CreateBanner::route('/create'),
-            'edit' => EditBanner::route('/{record}/edit'),
+            'index' => ListPromotions::route('/'),
+            'create' => CreatePromotion::route('/create'),
+            'edit' => EditPromotion::route('/{record}/edit'),
         ];
     }
 }

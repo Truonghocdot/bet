@@ -10,7 +10,9 @@ use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 
 class UserForm
@@ -48,14 +50,40 @@ class UserForm
                             ->maxLength(20)
                             ->unique(ignoreRecord: true)
                             ->helperText('Có thể để trống nếu chưa có số điện thoại.'),
+                    ])
+                    ->columns(2),
+                Section::make('Mật khẩu đăng nhập')
+                    ->description('Tạo mới có thể nhập mật khẩu ngay. Khi chỉnh sửa, chỉ cần bật đổi mật khẩu rồi nhập mật khẩu mới.')
+                    ->schema([
+                        Toggle::make('change_password')
+                            ->label('Bật thay đổi mật khẩu')
+                            ->default(false)
+                            ->dehydrated(false)
+                            ->live()
+                            ->visible(fn (string $operation): bool => $operation === 'edit'),
                         TextInput::make('password')
-                            ->label('Mật khẩu')
+                            ->label(fn (string $operation): string => $operation === 'create' ? 'Mật khẩu đăng nhập' : 'Mật khẩu mới')
                             ->password()
                             ->revealable()
-                            ->required(fn (string $operation): bool => $operation === 'create')
-                            ->dehydrated(fn (?string $state): bool => filled($state))
+                            ->autocomplete('new-password')
+                            ->required(fn (Get $get, string $operation): bool => $operation === 'create' || (bool) $get('change_password'))
+                            ->visible(fn (Get $get, string $operation): bool => $operation === 'create' || (bool) $get('change_password'))
+                            ->dehydrated(fn (?string $state, Get $get, string $operation): bool => filled($state) && ($operation === 'create' || (bool) $get('change_password')))
                             ->maxLength(255)
-                            ->helperText('Để trống khi sửa nếu không muốn đổi mật khẩu.'),
+                            ->helperText(fn (string $operation): string => $operation === 'create'
+                                ? 'Nhập mật khẩu ngay khi tạo tài khoản đại lý/người dùng.'
+                                : 'Bật đổi mật khẩu để nhập mật khẩu mới cho tài khoản này.'),
+                        TextInput::make('password_confirmation')
+                            ->label('Nhập lại mật khẩu')
+                            ->password()
+                            ->revealable()
+                            ->autocomplete('new-password')
+                            ->same('password')
+                            ->required(fn (Get $get, string $operation): bool => $operation === 'create' || (bool) $get('change_password'))
+                            ->visible(fn (Get $get, string $operation): bool => $operation === 'create' || (bool) $get('change_password'))
+                            ->dehydrated(false)
+                            ->maxLength(255)
+                            ->helperText('Nhập lại đúng mật khẩu để tránh thao tác nhầm.'),
                     ])
                     ->columns(2),
                 Section::make('Phân quyền')

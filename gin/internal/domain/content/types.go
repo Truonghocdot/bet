@@ -27,12 +27,12 @@ type HomeResponse struct {
 }
 
 type PromotionListResponse struct {
-	Message    string     `json:"message"`
-	Page       int        `json:"page"`
-	PageSize   int        `json:"page_size"`
-	Total      int        `json:"total"`
-	TotalPages int        `json:"total_pages"`
-	Items      []NewsItem `json:"items"`
+	Message    string       `json:"message"`
+	Page       int          `json:"page"`
+	PageSize   int          `json:"page_size"`
+	Total      int          `json:"total"`
+	TotalPages int          `json:"total_pages"`
+	Items      []BannerItem `json:"items"`
 }
 
 type NewsListResponse struct {

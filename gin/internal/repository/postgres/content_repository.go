@@ -19,6 +19,7 @@ type BannerRecord struct {
 	Title     *string
 	ImagePath string
 	LinkURL   *string
+	Placement string
 	SortOrder int
 }
 
@@ -37,7 +38,7 @@ func NewContentRepository(db *sql.DB) *ContentRepository {
 	return &ContentRepository{db: db}
 }
 
-func (r *ContentRepository) ListActiveBanners(ctx context.Context, limit int, now time.Time) ([]BannerRecord, error) {
+func (r *ContentRepository) ListActiveBanners(ctx context.Context, limit int, now time.Time, placement string) ([]BannerRecord, error) {
 	if limit <= 0 {
 		limit = 5
 	}
@@ -48,15 +49,17 @@ func (r *ContentRepository) ListActiveBanners(ctx context.Context, limit int, no
 			title,
 			image_path,
 			link_url,
+			placement,
 			sort_order
 		from banners
 		where deleted_at is null
+		  and placement = $1
 		  and is_active = true
-		  and (start_at is null or start_at <= $1)
-		  and (end_at is null or end_at > $1)
+		  and (start_at is null or start_at <= $2)
+		  and (end_at is null or end_at > $2)
 		order by sort_order asc, id desc
-		limit $2
-	`, now, limit)
+		limit $3
+	`, strings.TrimSpace(placement), now, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +73,7 @@ func (r *ContentRepository) ListActiveBanners(ctx context.Context, limit int, no
 			&item.Title,
 			&item.ImagePath,
 			&item.LinkURL,
+			&item.Placement,
 			&item.SortOrder,
 		); err != nil {
 			return nil, err
@@ -80,16 +84,65 @@ func (r *ContentRepository) ListActiveBanners(ctx context.Context, limit int, no
 	return items, rows.Err()
 }
 
-func (r *ContentRepository) ListPublishedNews(ctx context.Context, page, pageSize int, onlyPromotion bool) ([]NewsRecord, int, error) {
+func (r *ContentRepository) ListActivePromotionBanners(ctx context.Context, page, pageSize int, now time.Time) ([]BannerRecord, int, error) {
 	page, pageSize = normalizePagination(page, pageSize)
-	promoSQL := promotionWhereSQL()
 
-	filter := "true"
-	if onlyPromotion {
-		filter = promoSQL
-	} else {
-		filter = "not (" + promoSQL + ")"
+	var total int
+	if err := r.db.QueryRowContext(ctx, `
+		select count(*)
+		from banners
+		where deleted_at is null
+		  and placement = 'promotion'
+		  and is_active = true
+		  and (start_at is null or start_at <= $1)
+		  and (end_at is null or end_at > $1)
+	`, now).Scan(&total); err != nil {
+		return nil, 0, err
 	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		select
+			id,
+			title,
+			image_path,
+			link_url,
+			placement,
+			sort_order
+		from banners
+		where deleted_at is null
+		  and placement = 'promotion'
+		  and is_active = true
+		  and (start_at is null or start_at <= $1)
+		  and (end_at is null or end_at > $1)
+		order by sort_order asc, id desc
+		limit $2 offset $3
+	`, now, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	items := make([]BannerRecord, 0, pageSize)
+	for rows.Next() {
+		var item BannerRecord
+		if err := rows.Scan(
+			&item.ID,
+			&item.Title,
+			&item.ImagePath,
+			&item.LinkURL,
+			&item.Placement,
+			&item.SortOrder,
+		); err != nil {
+			return nil, 0, err
+		}
+		items = append(items, item)
+	}
+
+	return items, total, rows.Err()
+}
+
+func (r *ContentRepository) ListPublishedNews(ctx context.Context, page, pageSize int) ([]NewsRecord, int, error) {
+	page, pageSize = normalizePagination(page, pageSize)
 
 	var total int
 	countSQL := `
@@ -97,8 +150,7 @@ func (r *ContentRepository) ListPublishedNews(ctx context.Context, page, pageSiz
 		from news_articles
 		where deleted_at is null
 		  and is_published = true
-		  and (published_at is null or published_at <= now())
-		  and ` + filter
+		  and (published_at is null or published_at <= now())`
 	if err := r.db.QueryRowContext(ctx, countSQL).Scan(&total); err != nil {
 		return nil, 0, err
 	}
@@ -117,7 +169,6 @@ func (r *ContentRepository) ListPublishedNews(ctx context.Context, page, pageSiz
 		where deleted_at is null
 		  and is_published = true
 		  and (published_at is null or published_at <= now())
-		  and ` + filter + `
 		order by coalesce(published_at, created_at) desc, id desc
 		limit $1 offset $2
 	`
@@ -280,24 +331,4 @@ func (r *ContentRepository) ListRelatedNews(ctx context.Context, slug string, li
 		items = append(items, item)
 	}
 	return items, rows.Err()
-}
-
-func promotionWhereSQL() string {
-	keywords := []string{
-		"khuyến mãi",
-		"ưu đãi",
-		"thưởng",
-		"hoàn trả",
-		"hoàn tiền",
-		"affiliate",
-		"đại lý",
-		"sự kiện",
-		"bonus",
-	}
-	parts := make([]string, 0, len(keywords))
-	for _, keyword := range keywords {
-		escaped := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(keyword)), "'", "''")
-		parts = append(parts, "lower(coalesce(title, '') || ' ' || coalesce(excerpt, '') || ' ' || coalesce(content, '')) like '%"+escaped+"%'")
-	}
-	return strings.Join(parts, " or ")
 }

@@ -2,22 +2,29 @@
 
 namespace App\Filament\Resources\System\Banners\Schemas;
 
-use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class BannerForm
 {
-    public static function configure(Schema $schema): Schema
+    public static function configure(
+        Schema $schema,
+        string $placement = 'home',
+        string $sectionTitle = 'Thông tin banner',
+        string $imageLabel = 'Ảnh banner',
+    ): Schema
     {
         return $schema->components([
-            Section::make('Thông tin banner')
+            Section::make($sectionTitle)
                 ->schema([
+                    Hidden::make('placement')
+                        ->default($placement)
+                        ->required(),
                     FileUpload::make('image_path')
-                        ->label('Ảnh banner')
+                        ->label($imageLabel)
                         ->disk('public')
                         ->directory('banners')
                         ->image()
@@ -35,4 +42,3 @@ class BannerForm
         ]);
     }
 }
-

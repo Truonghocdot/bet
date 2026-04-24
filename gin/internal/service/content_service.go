@@ -24,7 +24,7 @@ func NewContentService(repository *repopg.ContentRepository, contentAssetBase st
 }
 
 func (s *ContentService) Home(ctx context.Context) (content.HomeResponse, error) {
-	bannerRecords, err := s.repository.ListActiveBanners(ctx, 6, clock.Now())
+	bannerRecords, err := s.repository.ListActiveBanners(ctx, 6, clock.Now(), "home")
 	if err != nil {
 		return content.HomeResponse{}, err
 	}
@@ -56,14 +56,19 @@ func (s *ContentService) Home(ctx context.Context) (content.HomeResponse, error)
 }
 
 func (s *ContentService) Promotions(ctx context.Context, page, pageSize int) (content.PromotionListResponse, error) {
-	records, total, err := s.repository.ListPublishedNews(ctx, page, pageSize, true)
+	records, total, err := s.repository.ListActivePromotionBanners(ctx, page, pageSize, clock.Now())
 	if err != nil {
 		return content.PromotionListResponse{}, err
 	}
 
-	items := make([]content.NewsItem, 0, len(records))
+	items := make([]content.BannerItem, 0, len(records))
 	for _, item := range records {
-		items = append(items, s.toNewsItem(item, true))
+		items = append(items, content.BannerItem{
+			ID:       item.ID,
+			Title:    firstNonEmptyStringPtr(item.Title),
+			ImageURL: s.buildAssetURL(item.ImagePath),
+			LinkURL:  firstNonEmptyStringPtr(item.LinkURL),
+		})
 	}
 
 	return content.PromotionListResponse{
@@ -77,7 +82,7 @@ func (s *ContentService) Promotions(ctx context.Context, page, pageSize int) (co
 }
 
 func (s *ContentService) News(ctx context.Context, page, pageSize int) (content.NewsListResponse, error) {
-	records, total, err := s.repository.ListPublishedNews(ctx, page, pageSize, false)
+	records, total, err := s.repository.ListPublishedNews(ctx, page, pageSize)
 	if err != nil {
 		return content.NewsListResponse{}, err
 	}

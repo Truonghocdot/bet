@@ -14,13 +14,17 @@ use Filament\Tables\Table;
 
 class BannersTable
 {
-    public static function configure(Table $table): Table
+    public static function configure(
+        Table $table,
+        string $imageLabel = 'Banner',
+        string $createLabel = 'Tạo banner',
+    ): Table
     {
         return $table
             ->columns([
                 TextColumn::make('id')->label('ID')->sortable(),
                 ImageColumn::make('image_path')
-                    ->label('Banner')
+                    ->label($imageLabel)
                     ->disk('public')
                     ->square(false)
                     ->height(70),
@@ -34,7 +38,7 @@ class BannersTable
                 EditAction::make(),
             ])
             ->headerActions([
-                CreateAction::make()->label('Tạo banner'),
+                CreateAction::make()->label($createLabel),
             ])
             ->defaultSort('sort_order', 'asc')
             ->toolbarActions([
@@ -44,4 +48,3 @@ class BannersTable
             ]);
     }
 }
-

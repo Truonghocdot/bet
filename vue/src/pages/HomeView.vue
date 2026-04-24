@@ -6,6 +6,7 @@ import BannerCarousel from '@/components/BannerCarousel.vue'
 import MarqueeBar from '@/components/MarqueeBar.vue'
 import { request } from '@/shared/api/http'
 import type { ContentBannerItem, ContentHomeResponse, ContentNewsItem } from '@/shared/api/types'
+import { stripHtmlTags } from '@/shared/lib/html'
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
@@ -24,6 +25,10 @@ const contentError = ref('')
 
 function displayBalance(value: string | number | null | undefined) {
   return formatViMoney(value ?? 0, 0)
+}
+
+function newsPreview(item: ContentNewsItem) {
+  return item.excerpt?.trim() || stripHtmlTags(item.content) || 'Đang cập nhật nội dung...'
 }
 
 const telegramLink = computed(() => wallet.summary?.telegram_cskh_link || 'https://t.me/CSKH_FF789')
@@ -247,7 +252,7 @@ onMounted(() => {
           <div class="flex-1 min-w-0">
             <strong class="line-clamp-1 block text-[0.82rem] font-black text-on-surface">{{ item.title }}</strong>
             <span class="line-clamp-2 text-[0.7rem] text-slate-500">
-              {{ item.excerpt || item.content || 'Đang cập nhật nội dung...' }}
+              {{ newsPreview(item) }}
             </span>
           </div>
           <span class="flex-shrink-0 text-[0.68rem] font-bold text-slate-400">
@@ -256,7 +261,7 @@ onMounted(() => {
         </RouterLink>
         <div v-if="!homeHighlights.length && !contentError" class="px-4 py-3 text-[0.78rem] font-semibold text-slate-500">
           Chưa có tin nổi bật.
-        </div>
+        </div>  
         <div v-if="contentError" class="px-4 py-3 text-[0.78rem] font-semibold text-red-500">
           {{ contentError }}
         </div>
@@ -267,7 +272,7 @@ onMounted(() => {
     <div class="mx-3 mb-4 rounded-[16px] bg-gradient-to-br from-slate-800 to-slate-900 p-4 text-white">
       <p class="text-[0.72rem] text-white/60 mb-2 uppercase tracking-wide font-bold">Thông tin truy cập</p>
       <p class="text-[0.82rem] text-white/90 leading-6">
-        Nếu không truy cập được, hãy thử các domain dự phòng hoặc liên hệ CSKH để được hỗ trợ.
+        Nếu bạn cần hỗ trợ hoặc có bất kỳ thắc mắc nào liên quan đến sàn game, xin đừng ngần ngại liên hệ với bộ phận Chăm Sóc Khách Hàng để được tư vấn nhanh chóng và tận tình. Trân trọng!
       </p>
       <a
         @click="openTelegram()"

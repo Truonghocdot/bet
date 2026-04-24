@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { request, type ApiError } from '@/shared/api/http'
-import type { ContentListResponse, ContentNewsItem, ManagedAffiliateUser } from '@/shared/api/types'
+import type { ContentBannerItem, ContentListResponse, ContentNewsItem, ContentPromotionListResponse, ManagedAffiliateUser } from '@/shared/api/types'
+import { stripHtmlTags } from '@/shared/lib/html'
 import { useAuthStore } from '@/stores/auth'
 
 const activeTab = ref<'affiliate' | 'promotion' | 'news'>('affiliate')
 const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
-const promotionItems = ref<ContentNewsItem[]>([])
+const promotionItems = ref<ContentBannerItem[]>([])
 const newsItems = ref<ContentNewsItem[]>([])
 const invitedUsersCount = ref(0)
 const managedUsers = ref<ManagedAffiliateUser[]>([])
@@ -48,7 +49,7 @@ async function loadContent() {
   error.value = ''
   try {
     const [promotions, news] = await Promise.all([
-      request<ContentListResponse>('GET', '/v1/content/promotions?page=1&page_size=50'),
+      request<ContentPromotionListResponse>('GET', '/v1/content/promotions?page=1&page_size=50'),
       request<ContentListResponse>('GET', '/v1/content/news?page=1&page_size=50'),
     ])
     promotionItems.value = promotions.items || []
@@ -61,6 +62,10 @@ async function loadContent() {
   } finally {
     loading.value = false
   }
+}
+
+function newsPreview(item: ContentNewsItem): string {
+  return item.excerpt?.trim() || stripHtmlTags(item.content) || 'Đang cập nhật nội dung...'
 }
 
 async function loadAffiliateStats() {
@@ -320,29 +325,26 @@ onMounted(async () => {
     </section>
 
     <div class="flex flex-col gap-3 px-3">
-      <div
+      <component
+        :is="item.link_url ? 'a' : 'article'"
         v-if="activeTab === 'promotion'"
         v-for="item in promotionItems"
         :key="item.id"
-        class="flex overflow-hidden rounded-[18px] bg-white shadow-sm border border-slate-100 transition-all active:scale-[0.99] hover:-translate-y-0.5"
+        :href="item.link_url || undefined"
+        :target="item.link_url ? '_blank' : undefined"
+        :rel="item.link_url ? 'noreferrer noopener' : undefined"
+        class="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm transition-all active:scale-[0.99] hover:-translate-y-0.5"
       >
-        <!-- Left accent bar -->
-        <div class="w-1.5 flex-shrink-0 bg-[#e8404a]" />
-        <div class="flex flex-1 gap-3 px-4 py-4">
-          <!-- Icon -->
-          <div class="flex-shrink-0 grid h-11 w-11 place-items-center rounded-[14px] mt-0.5 bg-red-50 text-[#e8404a]">
-            <span class="material-symbols-outlined text-[1.3rem]">campaign</span>
-          </div>
-          <!-- Content -->
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between gap-2">
-              <strong class="text-[0.9rem] font-black text-on-surface leading-snug">{{ item.title }}</strong>
-            </div>
-            <p class="mt-1 text-[0.75rem] leading-5 text-slate-500">{{ item.excerpt || item.content }}</p>
-            <p class="mt-3 text-[0.68rem] font-bold text-slate-400">{{ item.published_at || item.created_at }}</p>
-          </div>
+        <img
+          :src="item.image_url"
+          :alt="item.title || 'Khuyến mãi'"
+          class="h-auto max-h-[320px] w-full object-cover"
+          loading="lazy"
+        >
+        <div v-if="item.title" class="border-t border-slate-100 px-4 py-3">
+          <strong class="text-[0.9rem] font-black text-on-surface">{{ item.title }}</strong>
         </div>
-      </div>
+      </component>
 
       <div
         v-if="activeTab === 'promotion' && !loading && promotionItems.length === 0"
@@ -356,11 +358,20 @@ onMounted(async () => {
         v-for="item in newsItems"
         :key="item.id"
         :to="`/news/${item.slug}`"
-        class="rounded-[18px] border border-slate-100 bg-white p-4 shadow-sm"
+        class="overflow-hidden rounded-[18px] border border-slate-100 bg-white shadow-sm"
       >
-        <h3 class="text-[0.92rem] font-black text-on-surface">{{ item.title }}</h3>
-        <p class="mt-2 text-[0.78rem] leading-5 text-slate-500">{{ item.excerpt || item.content }}</p>
-        <p class="mt-3 text-[0.68rem] font-bold text-slate-400">{{ item.published_at || item.created_at }}</p>
+        <img
+          v-if="item.cover_image_url"
+          :src="item.cover_image_url"
+          :alt="item.title"
+          class="h-40 w-full object-cover"
+          loading="lazy"
+        >
+        <div class="p-4">
+          <h3 class="text-[0.92rem] font-black text-on-surface">{{ item.title }}</h3>
+          <p class="mt-2 text-[0.78rem] leading-5 text-slate-500">{{ newsPreview(item) }}</p>
+          <p class="mt-3 text-[0.68rem] font-bold text-slate-400">{{ item.published_at || item.created_at }}</p>
+        </div>
       </RouterLink>
 
       <div

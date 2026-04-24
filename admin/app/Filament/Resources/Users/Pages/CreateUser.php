@@ -98,6 +98,8 @@ abstract class CreateUser extends CreateRecord
         unset(
             $data['wallet_vnd_balance'],
             $data['wallet_usdt_balance'],
+            $data['change_password'],
+            $data['password_confirmation'],
             $data['withdrawal_vnd_provider_code'],
             $data['withdrawal_vnd_account_name'],
             $data['withdrawal_vnd_account_number'],

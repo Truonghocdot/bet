@@ -392,6 +392,15 @@ export type ContentBannerItem = {
   link_url?: string
 }
 
+export type ContentPromotionListResponse = {
+  message: string
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  items: ContentBannerItem[]
+}
+
 export type ContentNewsItem = {
   id: number
   title: string

@@ -15,6 +15,7 @@ class Banner extends Model
         'title',
         'image_path',
         'link_url',
+        'placement',
         'sort_order',
         'is_active',
         'start_at',
@@ -36,4 +37,3 @@ class Banner extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 }
-

@@ -20,7 +20,7 @@ class NewsArticlesTable
             ->columns([
                 TextColumn::make('id')->label('ID')->sortable(),
                 ImageColumn::make('cover_image_path')
-                    ->label('Ảnh')
+                    ->label('Thumbnail')
                     ->disk('public')
                     ->square()
                     ->height(54),
@@ -47,4 +47,3 @@ class NewsArticlesTable
             ]);
     }
 }
-

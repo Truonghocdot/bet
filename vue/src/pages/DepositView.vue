@@ -127,6 +127,28 @@ function handleAmountInput(event: Event) {
   amount.value = sanitizeAmountInput(target?.value ?? '', method.value === 'usdt')
 }
 
+function formatPendingDepositAmount(value: string | number | null | undefined) {
+  const normalized = String(value ?? '').replace(/[^\d.]/g, '')
+  const numericValue = Number(normalized)
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return '0.0'
+  }
+
+  return numericValue.toFixed(1)
+}
+
+function formatPendingDepositAmountForCopy(value: string | number | null | undefined) {
+  const normalized = String(value ?? '').replace(/[^\d.]/g, '')
+  const numericValue = Number(normalized)
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return '0'
+  }
+
+  return String(Math.trunc(numericValue))
+}
+
 function redirectBack() {
   router.back()
 }
@@ -493,13 +515,13 @@ async function logout() {
                 <div class="min-w-0">
                   <p class="m-0 text-[0.72rem] text-on-surface-variant">Số tiền nạp</p>
                   <p class="m-0 mt-1 font-black text-on-surface text-[0.9rem]">
-                    {{ isUsdtIntent ? `${intent.amount} USDT` : formatViMoney(intent.amount, 0) }}
+                    {{ isUsdtIntent ? `${intent.amount} USDT` : formatPendingDepositAmount(intent.amount) }}
                   </p>
                 </div>
                 <button
                   type="button"
                   class="grid h-8 w-8 place-items-center self-center justify-self-end rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
-                  @click="copyIntentValue('amount', isUsdtIntent ? `${intent.amount} USDT` : formatViMoney(intent.amount, 0))"
+                  @click="copyIntentValue('amount', isUsdtIntent ? `${intent.amount} USDT` : formatPendingDepositAmountForCopy(intent.amount))"
                 >
                   <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'amount' ? 'check' : 'content_copy' }}</span>
                 </button>

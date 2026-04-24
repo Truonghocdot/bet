@@ -5,6 +5,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { request, type ApiError } from '@/shared/api/http'
 import type { ContentDetailResponse, ContentNewsItem } from '@/shared/api/types'
 import { formatViDateTime } from '@/shared/lib/date'
+import { stripHtmlTags } from '@/shared/lib/html'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,12 +15,11 @@ const error = ref('')
 const article = ref<ContentNewsItem | null>(null)
 const relatedArticles = ref<ContentNewsItem[]>([])
 
-const articleParagraphs = computed(() =>
-  String(article.value?.content || '')
-    .split(/\n{2,}/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0),
-)
+const articlePreview = computed(() => stripHtmlTags(article.value?.content))
+
+function relatedPreview(item: ContentNewsItem): string {
+  return item.excerpt?.trim() || stripHtmlTags(item.content) || 'Đang cập nhật nội dung...'
+}
 
 async function loadNewsDetail() {
   const slug = String(route.params.slug ?? '').trim()
@@ -88,11 +88,12 @@ onMounted(() => {
         <h1 class="mt-4 text-[1.65rem] font-black leading-[1.15] md:text-[2rem]">{{ article.title }}</h1>
         <p v-if="article.excerpt" class="mt-3 text-[0.92rem] leading-7 text-on-surface-variant">{{ article.excerpt }}</p>
 
-        <div v-if="articleParagraphs.length" class="mt-5 space-y-4">
-          <p v-for="paragraph in articleParagraphs" :key="paragraph" class="text-[0.92rem] leading-7 text-on-surface">
-            {{ paragraph }}
-          </p>
-        </div>
+        <div
+          v-if="article.content"
+          class="news-content mt-5 text-[0.92rem] leading-7 text-on-surface"
+          v-html="article.content"
+        />
+        <p v-else-if="articlePreview" class="mt-5 text-[0.92rem] leading-7 text-on-surface">{{ articlePreview }}</p>
       </div>
     </section>
 
@@ -119,7 +120,7 @@ onMounted(() => {
           <div class="p-4">
             <p class="m-0 text-[0.66rem] uppercase tracking-[0.08em] text-on-surface-variant">Tin tức</p>
             <h3 class="mt-2 text-[0.92rem] font-black leading-6">{{ related.title }}</h3>
-            <p class="mt-1.5 text-[0.72rem] leading-6 text-on-surface-variant">{{ related.excerpt || related.content }}</p>
+            <p class="mt-1.5 text-[0.72rem] leading-6 text-on-surface-variant">{{ relatedPreview(related) }}</p>
           </div>
         </RouterLink>
       </div>
@@ -136,3 +137,46 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.news-content :deep(p) {
+  margin: 0 0 1rem;
+}
+
+.news-content :deep(h1),
+.news-content :deep(h2),
+.news-content :deep(h3),
+.news-content :deep(h4) {
+  margin: 1.25rem 0 0.75rem;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.news-content :deep(ul),
+.news-content :deep(ol) {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.news-content :deep(li) {
+  margin: 0.25rem 0;
+}
+
+.news-content :deep(a) {
+  color: #ef4444;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.news-content :deep(img) {
+  margin: 1rem 0;
+  border-radius: 18px;
+}
+
+.news-content :deep(blockquote) {
+  margin: 1rem 0;
+  border-left: 4px solid #fecaca;
+  padding-left: 1rem;
+  color: #64748b;
+}
+</style>
