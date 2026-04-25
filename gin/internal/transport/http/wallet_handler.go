@@ -30,13 +30,12 @@ func (h *WalletHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, ok := authmiddleware.CurrentClaims(r.Context())
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
-		return
+	var userID int64
+	if claims, ok := authmiddleware.CurrentClaims(r.Context()); ok {
+		userID = claims.UserID
 	}
 
-	response, err := h.walletService.Summary(r.Context(), claims.UserID)
+	response, err := h.walletService.Summary(r.Context(), userID)
 	if err != nil {
 		h.writeError(w, err)
 		return

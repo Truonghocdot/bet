@@ -17,16 +17,11 @@ export const useWalletStore = defineStore('wallet', () => {
   async function fetchSummary() {
     const auth = useAuthStore()
 
-    if (!auth.accessToken) {
-      summary.value = null
-      return null
-    }
-
     loading.value = true
     error.value = ''
     try {
       const res = await request<WalletSummaryResponse>('GET', '/v1/wallets/summary', {
-        token: auth.accessToken,
+        token: auth.accessToken || undefined,
       })
       summary.value = res
       return res

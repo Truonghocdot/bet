@@ -3,6 +3,7 @@
 namespace App\Filament\Pages\System\Schemas;
 
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -157,16 +158,44 @@ class ExchangeRatePageForm
             Section::make('Popup thông báo')
                 ->description('Cấu hình 2 popup riêng biệt hiển thị trên app.')
                 ->schema([
-                    Textarea::make('popup_message')
+                    RichEditor::make('popup_message')
                         ->label('Popup thông báo')
-                        ->rows(8)
+                        ->toolbarButtons([
+                            'blockquote',
+                            'bold',
+                            'bulletList',
+                            'h2',
+                            'h3',
+                            'italic',
+                            'link',
+                            'orderedList',
+                            'redo',
+                            'strike',
+                            'underline',
+                            'undo',
+                        ])
                         ->placeholder("Chào mừng bạn đến với FF789.\nLiên hệ CSKH nếu cần hỗ trợ đổi cổng nạp.")
-                        ->helperText('Nội dung popup thông báo chung. Để trống nếu không hiển thị.'),
-                    Textarea::make('latest_news_popup')
+                        ->helperText('Nội dung popup thông báo chung. Hỗ trợ định dạng trực quan và sẽ hiển thị đúng trên app.')
+                        ->columnSpanFull(),
+                    RichEditor::make('latest_news_popup')
                         ->label('Tin tức popup mới nhất')
-                        ->rows(8)
+                        ->toolbarButtons([
+                            'blockquote',
+                            'bold',
+                            'bulletList',
+                            'h2',
+                            'h3',
+                            'italic',
+                            'link',
+                            'orderedList',
+                            'redo',
+                            'strike',
+                            'underline',
+                            'undo',
+                        ])
                         ->placeholder("Sự kiện hoàn trả cuối tuần đang diễn ra.\nCập nhật ưu đãi mới nhất tại FF789.")
-                        ->helperText('Nội dung popup dành cho tin tức mới nhất. Để trống nếu không hiển thị.'),
+                        ->helperText('Popup tin tức mới nhất. Hỗ trợ định dạng trực quan và sẽ hiển thị đúng trên app.')
+                        ->columnSpanFull(),
                 ])
                 ->columns(2),
         ]);

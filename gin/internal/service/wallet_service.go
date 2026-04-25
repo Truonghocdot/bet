@@ -36,42 +36,41 @@ func NewWalletService(repository *repopg.WalletRepository, broker *realtime.Brok
 }
 
 func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.WalletSummaryResponse, error) {
-	if userID == 0 {
-		return wallet.WalletSummaryResponse{}, ErrUnauthorized
-	}
-
-	records, err := s.repository.ListByUserID(ctx, userID)
-	if err != nil {
-		return wallet.WalletSummaryResponse{}, err
-	}
-
-	items := make([]wallet.WalletBalance, 0, len(records))
-	for _, record := range records {
-		unitCode, unitLabel := walletUnitLabel(record.Unit)
-		withdrawCreditLimit, creditErr := s.repository.GetLatestSuccessfulDepositAmount(ctx, userID, record.Unit)
-		if creditErr != nil {
-			return wallet.WalletSummaryResponse{}, creditErr
-		}
-		withdrawAvailable, availableErr := repopg.AddNumeric(record.Balance, withdrawCreditLimit)
-		if availableErr != nil {
-			return wallet.WalletSummaryResponse{}, availableErr
-		}
-		items = append(items, wallet.WalletBalance{
-			ID:                  record.ID,
-			Unit:                record.Unit,
-			UnitCode:            unitCode,
-			UnitLabel:           unitLabel,
-			Balance:             record.Balance,
-			LockedBalance:       record.LockedBalance,
-			WithdrawCreditLimit: withdrawCreditLimit,
-			WithdrawAvailable:   withdrawAvailable,
-			Status:              record.Status,
-			CreatedAt:           record.CreatedAt,
-			UpdatedAt:           record.UpdatedAt,
-		})
-	}
-
 	snapshot := s.getSnapshot(ctx)
+	items := make([]wallet.WalletBalance, 0)
+
+	if userID != 0 {
+		records, err := s.repository.ListByUserID(ctx, userID)
+		if err != nil {
+			return wallet.WalletSummaryResponse{}, err
+		}
+
+		items = make([]wallet.WalletBalance, 0, len(records))
+		for _, record := range records {
+			unitCode, unitLabel := walletUnitLabel(record.Unit)
+			withdrawCreditLimit, creditErr := s.repository.GetLatestSuccessfulDepositAmount(ctx, userID, record.Unit)
+			if creditErr != nil {
+				return wallet.WalletSummaryResponse{}, creditErr
+			}
+			withdrawAvailable, availableErr := repopg.AddNumeric(record.Balance, withdrawCreditLimit)
+			if availableErr != nil {
+				return wallet.WalletSummaryResponse{}, availableErr
+			}
+			items = append(items, wallet.WalletBalance{
+				ID:                  record.ID,
+				Unit:                record.Unit,
+				UnitCode:            unitCode,
+				UnitLabel:           unitLabel,
+				Balance:             record.Balance,
+				LockedBalance:       record.LockedBalance,
+				WithdrawCreditLimit: withdrawCreditLimit,
+				WithdrawAvailable:   withdrawAvailable,
+				Status:              record.Status,
+				CreatedAt:           record.CreatedAt,
+				UpdatedAt:           record.UpdatedAt,
+			})
+		}
+	}
 
 	return wallet.WalletSummaryResponse{
 		Message:          message.WalletSummarySuccess,

@@ -56,7 +56,7 @@ func NewRouter(
 	mux.Handle("GET /v1/affiliate/summary", authn.Require(http.HandlerFunc(affiliateHandler.Summary)))
 	mux.Handle("GET /v1/affiliate/managed-users", authn.Require(http.HandlerFunc(affiliateHandler.ManagedUsers)))
 	mux.Handle("POST /v1/affiliate/become-agency", authn.Require(http.HandlerFunc(affiliateHandler.BecomeAgency)))
-	mux.Handle("GET /v1/wallets/summary", authn.Require(http.HandlerFunc(walletHandler.ServeHTTP)))
+	mux.Handle("GET /v1/wallets/summary", authn.Optional(http.HandlerFunc(walletHandler.ServeHTTP)))
 	mux.Handle("POST /v1/wallets/exchange", authn.Require(http.HandlerFunc(walletHandler.Exchange)))
 	mux.Handle("GET /v1/wallets/stream", authn.Require(http.HandlerFunc(walletHandler.Stream)))
 	mux.Handle("GET /v1/notifications", authn.Require(http.HandlerFunc(notificationHandler.List)))

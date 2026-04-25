@@ -26,14 +26,15 @@ const currentTitle = computed(() => (route.meta.title as string) ?? 'FF789')
 const isPlayRoute = computed(() => route.path.startsWith('/play/'))
 const activePopup = computed(() => popupQueue.value[0] ?? null)
 const isLatestNewsPopup = computed(() => activePopup.value?.slot === 'latest_news')
-const activePopupLines = computed(() => {
+const activePopupHtml = computed(() => {
   const content = normalizePopupContent(activePopup.value?.content)
-  if (!content) return []
+  if (!content) return ''
 
-  return content
-    .split(/\r\n|\r|\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+  if (/<\/?[a-z][\s\S]*>/i.test(content)) {
+    return content
+  }
+
+  return escapeHtml(content).replace(/\r\n|\r|\n/g, '<br>')
 })
 
 const primaryNavItems = [
@@ -116,6 +117,15 @@ function normalizePopupContent(value: string | null | undefined): string {
   return String(value ?? '').trim()
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 function popupSignature(item: PopupItem): string {
   return `${item.slot}:${item.content}`
 }
@@ -145,11 +155,6 @@ function buildPopupQueue(): PopupItem[] {
 }
 
 function syncPopupQueue() {
-  if (!auth.isAuthenticated) {
-    popupQueue.value = []
-    return
-  }
-
   const nextQueue = buildPopupQueue()
   const currentSignature = popupQueue.value.map(popupSignature).join('|')
   const nextSignature = nextQueue.map(popupSignature).join('|')
@@ -188,18 +193,17 @@ async function handleLogout() {
 }
 
 async function syncRealtimeState() {
-  if (!auth.isAuthenticated) {
-    wallet.disconnectStream()
-    wallet.reset()
-    return
-  }
+  wallet.disconnectStream()
 
   try {
     await wallet.fetchSummary()
   } catch {
     // wallet store keeps the current error
   }
-  wallet.connectStream()
+
+  if (auth.isAuthenticated) {
+    wallet.connectStream()
+  }
 }
 
 watch(
@@ -252,80 +256,78 @@ onBeforeUnmount(() => {
     <Transition name="fade">
       <div v-if="activePopup" class="fixed inset-0 z-[90] grid place-items-center bg-black/45 px-4 backdrop-blur-sm">
         <div
-          v-if="isLatestNewsPopup"
-          class="w-full max-w-[360px] overflow-hidden rounded-[6px] border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.25)]"
+          :class="[
+            'w-full overflow-hidden bg-white shadow-[0_20px_60px_rgba(15,23,42,0.25)]',
+            isLatestNewsPopup
+              ? 'max-w-[360px] rounded-[6px] border border-slate-200'
+              : 'max-w-[540px] rounded-[24px]',
+          ]"
         >
-          <div class="relative border-b border-slate-200 px-5 py-4">
-            <h3 class="text-center text-[1.05rem] font-black uppercase tracking-[0.04em] text-slate-800">
+          <div
+            :class="[
+              'relative',
+              isLatestNewsPopup ? 'border-b border-slate-200 px-5 py-4' : 'flex items-start justify-between gap-4 p-5',
+            ]"
+          >
+            <div v-if="!isLatestNewsPopup">
+              <p class="text-[0.72rem] font-black uppercase tracking-[0.12em] text-primary/70">{{ activePopup.title }}</p>
+              <h3 class="mt-1 text-[1.1rem] font-black text-on-surface">FF789</h3>
+            </div>
+            <h3
+              v-else
+              class="text-center text-[1.05rem] font-black uppercase tracking-[0.04em] text-slate-800"
+            >
               {{ activePopup.title }}
             </h3>
             <button
               type="button"
-              class="absolute right-2 top-2 grid h-8 w-8 place-items-center text-slate-300 transition-transform active:scale-95"
+              :class="[
+                'grid place-items-center transition-transform active:scale-95',
+                isLatestNewsPopup
+                  ? 'absolute right-2 top-2 h-8 w-8 text-slate-300'
+                  : 'h-10 w-10 rounded-full bg-slate-100 text-slate-500',
+              ]"
               @click="closeActivePopup"
             >
-              <span class="material-symbols-outlined text-[1rem]">close</span>
+              <span class="material-symbols-outlined" :class="isLatestNewsPopup ? 'text-[1rem]' : 'text-[1.1rem]'">close</span>
             </button>
           </div>
 
-          <div class="max-h-[58vh] overflow-y-auto px-3 py-3">
+          <div
+            :class="[
+              'max-h-[58vh] overflow-y-auto',
+              isLatestNewsPopup ? 'px-3 py-3' : 'px-5 pb-5',
+            ]"
+          >
             <div
-              v-for="(line, index) in activePopupLines"
-              :key="`${activePopup?.slot}-${index}-${line}`"
-              class="border-b border-slate-200 py-2 last:border-b-0"
+              :class="[
+                'popup-html text-slate-700',
+                isLatestNewsPopup
+                  ? 'rounded-[4px] border border-slate-200 bg-white px-3 py-2 text-[0.88rem] leading-6 [&_*]:break-words [&_a]:font-semibold [&_a]:text-primary [&_img]:my-2 [&_img]:w-full [&_img]:rounded-[4px]'
+                  : 'rounded-[20px] bg-gradient-to-br from-primary/8 to-primary/3 p-4 text-[0.9rem] leading-6 [&_*]:break-words [&_a]:font-semibold [&_a]:text-primary [&_img]:my-3 [&_img]:w-full [&_img]:rounded-[14px] [&_ol]:pl-5 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:pl-5',
+              ]"
+              v-html="activePopupHtml"
+            />
+
+            <div
+              :class="[
+                'flex',
+                isLatestNewsPopup ? 'justify-end border-t border-slate-200 bg-slate-50 px-0 pb-0 pt-3' : 'mt-5 justify-end',
+              ]"
             >
-              <p
-                class="m-0 text-[0.88rem] leading-6 text-slate-800"
+              <button
+                type="button"
                 :class="[
-                  /^(https?:\/\/|www\.|❌|x\s)/i.test(line) ? 'font-semibold' : '',
-                  /\(.*\)$/.test(line) ? 'pl-8 text-[0.82rem] font-medium text-slate-700' : '',
-                  index === 0 ? 'font-black uppercase' : '',
+                  'transition-transform active:scale-95',
+                  isLatestNewsPopup
+                    ? 'min-h-10 rounded-[6px] border border-slate-300 bg-white px-4 text-[0.8rem] font-bold text-slate-700'
+                    : 'min-h-11 rounded-[14px] bg-primary px-5 text-[0.82rem] font-black text-white',
                 ]"
+                @click="closeActivePopup"
               >
-                {{ line }}
-              </p>
+                {{ isLatestNewsPopup ? 'Đóng' : 'Đã hiểu' }}
+              </button>
             </div>
-          </div>
-
-          <div class="flex justify-end border-t border-slate-200 bg-slate-50 px-3 py-3">
-            <button
-              type="button"
-              class="min-h-10 rounded-[6px] border border-slate-300 bg-white px-4 text-[0.8rem] font-bold text-slate-700 transition-transform active:scale-95"
-              @click="closeActivePopup"
-            >
-              Đóng
-            </button>
-          </div>
-        </div>
-
-        <div
-          v-else
-          class="w-full max-w-[540px] rounded-[24px] bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.25)]"
-        >
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <p class="text-[0.72rem] font-black uppercase tracking-[0.12em] text-primary/70">{{ activePopup.title }}</p>
-              <h3 class="mt-1 text-[1.1rem] font-black text-on-surface">FF789</h3>
-            </div>
-            <button
-              type="button"
-              class="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-500 transition-transform active:scale-95"
-              @click="closeActivePopup"
-            >
-              <span class="material-symbols-outlined text-[1.1rem]">close</span>
-            </button>
-          </div>
-          <div class="mt-4 rounded-[20px] bg-gradient-to-br from-primary/8 to-primary/3 p-4">
-            <p class="whitespace-pre-line text-[0.9rem] leading-6 text-slate-700">{{ activePopup.content }}</p>
-          </div>
-          <div class="mt-5 flex justify-end">
-            <button
-              type="button"
-              class="min-h-11 rounded-[14px] bg-primary px-5 text-[0.82rem] font-black text-white transition-transform active:scale-95"
-              @click="closeActivePopup"
-            >
-              Đã hiểu
-            </button>
           </div>
         </div>
       </div>
