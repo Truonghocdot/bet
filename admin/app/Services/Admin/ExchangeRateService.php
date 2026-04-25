@@ -275,7 +275,17 @@ class ExchangeRateService
 
         $normalized = trim($value);
 
-        return $normalized === '' ? null : $normalized;
+        if ($normalized === '') {
+            return null;
+        }
+
+        $plainText = trim(html_entity_decode(strip_tags(str_replace('&nbsp;', ' ', $normalized))));
+
+        if (($plainText === '') && (! str_contains($normalized, '<img'))) {
+            return null;
+        }
+
+        return $normalized;
     }
 
     private function extractRateFromPayload(array|string $payload): float

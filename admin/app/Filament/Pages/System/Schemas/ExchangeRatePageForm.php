@@ -160,6 +160,11 @@ class ExchangeRatePageForm
                 ->schema([
                     RichEditor::make('popup_message')
                         ->label('Popup thông báo')
+                        ->afterStateHydrated(static function (RichEditor $component, string | array | null $rawState): void {
+                            if (! is_array($rawState)) {
+                                $component->state($rawState);
+                            }
+                        })
                         ->toolbarButtons([
                             'blockquote',
                             'bold',
@@ -179,6 +184,11 @@ class ExchangeRatePageForm
                         ->columnSpanFull(),
                     RichEditor::make('latest_news_popup')
                         ->label('Tin tức popup mới nhất')
+                        ->afterStateHydrated(static function (RichEditor $component, string | array | null $rawState): void {
+                            if (! is_array($rawState)) {
+                                $component->state($rawState);
+                            }
+                        })
                         ->toolbarButtons([
                             'blockquote',
                             'bold',
