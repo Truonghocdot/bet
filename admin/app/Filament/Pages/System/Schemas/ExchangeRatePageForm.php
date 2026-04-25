@@ -153,6 +153,22 @@ class ExchangeRatePageForm
                         ->helperText('Mỗi dòng tương ứng một câu chạy trong marquee.'),
                 ])
                 ->columns(2),
+
+            Section::make('Popup thông báo')
+                ->description('Cấu hình 2 popup riêng biệt hiển thị trên app.')
+                ->schema([
+                    Textarea::make('popup_message')
+                        ->label('Popup thông báo')
+                        ->rows(8)
+                        ->placeholder("Chào mừng bạn đến với FF789.\nLiên hệ CSKH nếu cần hỗ trợ đổi cổng nạp.")
+                        ->helperText('Nội dung popup thông báo chung. Để trống nếu không hiển thị.'),
+                    Textarea::make('latest_news_popup')
+                        ->label('Tin tức popup mới nhất')
+                        ->rows(8)
+                        ->placeholder("Sự kiện hoàn trả cuối tuần đang diễn ra.\nCập nhật ưu đãi mới nhất tại FF789.")
+                        ->helperText('Nội dung popup dành cho tin tức mới nhất. Để trống nếu không hiển thị.'),
+                ])
+                ->columns(2),
         ]);
     }
 }

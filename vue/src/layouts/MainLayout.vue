@@ -13,9 +13,28 @@ const wallet = useWalletStore()
 const { isLoading, setLoading } = useLoading()
 
 const isDrawerOpen = ref(false)
+type PopupSlot = 'message' | 'latest_news'
+type PopupItem = {
+  slot: PopupSlot
+  title: string
+  content: string
+}
+
+const popupQueue = ref<PopupItem[]>([])
 
 const currentTitle = computed(() => (route.meta.title as string) ?? 'FF789')
 const isPlayRoute = computed(() => route.path.startsWith('/play/'))
+const activePopup = computed(() => popupQueue.value[0] ?? null)
+const isLatestNewsPopup = computed(() => activePopup.value?.slot === 'latest_news')
+const activePopupLines = computed(() => {
+  const content = normalizePopupContent(activePopup.value?.content)
+  if (!content) return []
+
+  return content
+    .split(/\r\n|\r|\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+})
 
 const primaryNavItems = [
   { label: 'Trang chủ', icon: 'home', to: '/home' },
@@ -73,6 +92,87 @@ function copyReferralLink() {
 function openDrawer() { isDrawerOpen.value = true }
 function closeDrawer() { isDrawerOpen.value = false }
 
+function popupStorageKey(slot: PopupSlot): string {
+  return `ff789:popup:dismissed:${auth.user?.id ?? 0}:${slot}`
+}
+
+function readDismissedPopup(slot: PopupSlot): string {
+  try {
+    return window.sessionStorage.getItem(popupStorageKey(slot)) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function saveDismissedPopup(slot: PopupSlot, content: string) {
+  try {
+    window.sessionStorage.setItem(popupStorageKey(slot), content)
+  } catch {
+    // no-op
+  }
+}
+
+function normalizePopupContent(value: string | null | undefined): string {
+  return String(value ?? '').trim()
+}
+
+function popupSignature(item: PopupItem): string {
+  return `${item.slot}:${item.content}`
+}
+
+function buildPopupQueue(): PopupItem[] {
+  const nextQueue: PopupItem[] = []
+  const message = normalizePopupContent(wallet.summary?.popup?.message)
+  const latestNews = normalizePopupContent(wallet.summary?.popup?.latest_news)
+
+  if (message && readDismissedPopup('message') !== message) {
+    nextQueue.push({
+      slot: 'message',
+      title: 'Thông báo',
+      content: message,
+    })
+  }
+
+  if (latestNews && readDismissedPopup('latest_news') !== latestNews) {
+    nextQueue.push({
+      slot: 'latest_news',
+      title: 'Tin tức mới nhất',
+      content: latestNews,
+    })
+  }
+
+  return nextQueue
+}
+
+function syncPopupQueue() {
+  if (!auth.isAuthenticated) {
+    popupQueue.value = []
+    return
+  }
+
+  const nextQueue = buildPopupQueue()
+  const currentSignature = popupQueue.value.map(popupSignature).join('|')
+  const nextSignature = nextQueue.map(popupSignature).join('|')
+
+  if (currentSignature === nextSignature || activePopup.value) {
+    return
+  }
+
+  popupQueue.value = nextQueue
+}
+
+function closeActivePopup() {
+  const popup = activePopup.value
+  if (!popup) return
+
+  saveDismissedPopup(popup.slot, popup.content)
+  popupQueue.value.shift()
+
+  if (!popupQueue.value.length) {
+    syncPopupQueue()
+  }
+}
+
 function navigateDrawer(target: RouteLocationRaw) {
   closeDrawer()
   setLoading(true)
@@ -106,6 +206,15 @@ watch(
   () => auth.isAuthenticated,
   () => {
     void syncRealtimeState()
+    syncPopupQueue()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => [wallet.summary?.popup?.message, wallet.summary?.popup?.latest_news] as const,
+  () => {
+    syncPopupQueue()
   },
   { immediate: true },
 )
@@ -135,6 +244,88 @@ onBeforeUnmount(() => {
             <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary" />
             <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:0.2s]" />
             <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:0.4s]" />
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="fade">
+      <div v-if="activePopup" class="fixed inset-0 z-[90] grid place-items-center bg-black/45 px-4 backdrop-blur-sm">
+        <div
+          v-if="isLatestNewsPopup"
+          class="w-full max-w-[360px] overflow-hidden rounded-[6px] border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.25)]"
+        >
+          <div class="relative border-b border-slate-200 px-5 py-4">
+            <h3 class="text-center text-[1.05rem] font-black uppercase tracking-[0.04em] text-slate-800">
+              {{ activePopup.title }}
+            </h3>
+            <button
+              type="button"
+              class="absolute right-2 top-2 grid h-8 w-8 place-items-center text-slate-300 transition-transform active:scale-95"
+              @click="closeActivePopup"
+            >
+              <span class="material-symbols-outlined text-[1rem]">close</span>
+            </button>
+          </div>
+
+          <div class="max-h-[58vh] overflow-y-auto px-3 py-3">
+            <div
+              v-for="(line, index) in activePopupLines"
+              :key="`${activePopup?.slot}-${index}-${line}`"
+              class="border-b border-slate-200 py-2 last:border-b-0"
+            >
+              <p
+                class="m-0 text-[0.88rem] leading-6 text-slate-800"
+                :class="[
+                  /^(https?:\/\/|www\.|❌|x\s)/i.test(line) ? 'font-semibold' : '',
+                  /\(.*\)$/.test(line) ? 'pl-8 text-[0.82rem] font-medium text-slate-700' : '',
+                  index === 0 ? 'font-black uppercase' : '',
+                ]"
+              >
+                {{ line }}
+              </p>
+            </div>
+          </div>
+
+          <div class="flex justify-end border-t border-slate-200 bg-slate-50 px-3 py-3">
+            <button
+              type="button"
+              class="min-h-10 rounded-[6px] border border-slate-300 bg-white px-4 text-[0.8rem] font-bold text-slate-700 transition-transform active:scale-95"
+              @click="closeActivePopup"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+
+        <div
+          v-else
+          class="w-full max-w-[540px] rounded-[24px] bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.25)]"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-[0.72rem] font-black uppercase tracking-[0.12em] text-primary/70">{{ activePopup.title }}</p>
+              <h3 class="mt-1 text-[1.1rem] font-black text-on-surface">FF789</h3>
+            </div>
+            <button
+              type="button"
+              class="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-500 transition-transform active:scale-95"
+              @click="closeActivePopup"
+            >
+              <span class="material-symbols-outlined text-[1.1rem]">close</span>
+            </button>
+          </div>
+          <div class="mt-4 rounded-[20px] bg-gradient-to-br from-primary/8 to-primary/3 p-4">
+            <p class="whitespace-pre-line text-[0.9rem] leading-6 text-slate-700">{{ activePopup.content }}</p>
+          </div>
+          <div class="mt-5 flex justify-end">
+            <button
+              type="button"
+              class="min-h-11 rounded-[14px] bg-primary px-5 text-[0.82rem] font-black text-white transition-transform active:scale-95"
+              @click="closeActivePopup"
+            >
+              Đã hiểu
+            </button>
           </div>
         </div>
       </div>

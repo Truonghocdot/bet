@@ -41,6 +41,8 @@ class ExchangeRateService
                     'Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!',
                     'FF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
                 ]),
+                'popup_message' => null,
+                'latest_news_popup' => null,
                 'withdraw_policy_enabled' => true,
                 'withdraw_fee_percent' => 0,
                 'withdraw_required_bet_volume' => 0,
@@ -70,6 +72,8 @@ class ExchangeRateService
                 'telegram_cskh_link' => $data['telegram_cskh_link'] ?? null,
                 'marquee_enabled' => (bool) ($data['marquee_enabled'] ?? true),
                 'marquee_messages' => $this->normalizeMarqueeMessages($data['marquee_messages'] ?? null),
+                'popup_message' => $this->normalizePopupText($data['popup_message'] ?? null),
+                'latest_news_popup' => $this->normalizePopupText($data['latest_news_popup'] ?? null),
                 'withdraw_policy_enabled' => (bool) ($data['withdraw_policy_enabled'] ?? true),
                 'withdraw_fee_percent' => $data['withdraw_fee_percent'] ?? 0,
                 'withdraw_required_bet_volume' => $data['withdraw_required_bet_volume'] ?? 0,
@@ -220,6 +224,8 @@ class ExchangeRateService
             'marquee_enabled' => (bool) ($setting->marquee_enabled ?? true),
             'marquee_messages' => $setting->marquee_messages,
             'marquee_messages_list' => $this->parseMarqueeMessages($setting->marquee_messages),
+            'popup_message' => $setting->popup_message,
+            'latest_news_popup' => $setting->latest_news_popup,
             'withdraw_policy_enabled' => (bool) ($setting->withdraw_policy_enabled ?? true),
             'withdraw_fee_percent' => (string) ($setting->withdraw_fee_percent ?? '0'),
             'withdraw_required_bet_volume' => (string) ($setting->withdraw_required_bet_volume ?? '0'),
@@ -259,6 +265,17 @@ class ExchangeRateService
         $lines = $this->parseMarqueeMessages($value);
 
         return $lines === [] ? null : implode("\n", $lines);
+    }
+
+    private function normalizePopupText(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        return $normalized === '' ? null : $normalized;
     }
 
     private function extractRateFromPayload(array|string $payload): float

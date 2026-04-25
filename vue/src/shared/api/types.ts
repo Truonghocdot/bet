@@ -393,11 +393,17 @@ export type MarqueeDisplay = {
   messages: string[]
 }
 
+export type PopupDisplay = {
+  message?: string | null
+  latest_news?: string | null
+}
+
 export type WalletSummaryResponse = {
   message: string
   exchange_rate: string
   telegram_cskh_link?: string | null
   marquee?: MarqueeDisplay
+  popup?: PopupDisplay
   withdraw_policy?: {
     enabled: boolean
     fee_percent: string

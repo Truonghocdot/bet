@@ -81,6 +81,10 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 			Enabled:  snapshot.MarqueeEnabled != nil && *snapshot.MarqueeEnabled,
 			Messages: snapshot.MarqueeMessages,
 		},
+		Popup: wallet.PopupDisplay{
+			Message:    stringPtrOrNil(snapshot.PopupMessage),
+			LatestNews: stringPtrOrNil(snapshot.LatestNewsPopup),
+		},
 		WithdrawPolicy: wallet.WithdrawPolicyDisplay{
 			Enabled:           snapshot.WithdrawPolicyEnabled != nil && *snapshot.WithdrawPolicyEnabled,
 			FeePercent:        snapshot.WithdrawFeePercent,
@@ -169,6 +173,8 @@ type systemSnapshot struct {
 	TelegramCskhLink      string   `json:"telegram_cskh_link"`
 	MarqueeEnabled        *bool    `json:"marquee_enabled"`
 	MarqueeMessages       []string `json:"marquee_messages_list"`
+	PopupMessage          string   `json:"popup_message"`
+	LatestNewsPopup       string   `json:"latest_news_popup"`
 	WithdrawPolicyEnabled *bool    `json:"withdraw_policy_enabled"`
 	WithdrawFeePercent    string   `json:"withdraw_fee_percent"`
 	WithdrawRequiredBet   string   `json:"withdraw_required_bet_volume"`

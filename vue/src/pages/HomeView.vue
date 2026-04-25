@@ -9,6 +9,9 @@ import casinoIcon from '@/assets/home-categories/casino.svg'
 import fishingIcon from '@/assets/home-categories/fishing.svg'
 import jackpotIcon from '@/assets/home-categories/jackpot.svg'
 import sportsIcon from '@/assets/home-categories/sports.svg'
+import aceForcesLogo from '@/assets/supporter/aceforces.jpg'
+import macjbeliLogo from '@/assets/supporter/macjbeli.jpg'
+import pieExglnLogo from '@/assets/supporter/pie.exgln.png'
 import { request } from '@/shared/api/http'
 import type { ContentBannerItem, ContentHomeResponse, ContentNewsItem } from '@/shared/api/types'
 import { stripHtmlTags } from '@/shared/lib/html'
@@ -95,6 +98,21 @@ const categoryTabs = [
   {
     label: 'Game bài',
     icon: cardsIcon,
+  },
+]
+
+const supporterLogos = [
+  {
+    name: 'PIE.EXGLN',
+    image: pieExglnLogo,
+  },
+  {
+    name: 'ACE-FORCES',
+    image: aceForcesLogo,
+  },
+  {
+    name: 'MACJBELI',
+    image: macjbeliLogo,
   },
 ]
 
@@ -301,20 +319,69 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- ===== DOMAIN ACCESS LINKS ===== -->
-    <div class="mx-3 mb-4 rounded-[16px] bg-gradient-to-br from-slate-800 to-slate-900 p-4 text-white">
-      <p class="text-[0.72rem] text-white/60 mb-2 uppercase tracking-wide font-bold">Thông tin truy cập</p>
-      <p class="text-[0.82rem] text-white/90 leading-6">
-        Nếu bạn cần hỗ trợ hoặc có bất kỳ thắc mắc nào liên quan đến sàn game, xin đừng ngần ngại liên hệ với bộ phận Chăm Sóc Khách Hàng để được tư vấn nhanh chóng và tận tình. Trân trọng!
-      </p>
-      <a
-        @click="openTelegram()"
-        class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[0.78rem] font-black text-white active:scale-95 transition-transform"
-      >
-        <span class="material-symbols-outlined text-[0.9rem]">headphones</span>
-        Liên hệ CSKH
-      </a>
-    </div>
+    <!-- ===== CORPORATE FOOTER ===== -->
+    <section class="mx-3 mb-5 rounded-[24px] bg-[#f6ede7] px-4 py-4 shadow-[0_10px_30px_rgba(83,55,44,0.08)]">
+      <div class="rounded-[20px] bg-[#14233f] px-4 py-4 text-white shadow-[0_12px_24px_rgba(20,35,63,0.25)]">
+        <p class="text-[0.72rem] font-black uppercase tracking-[0.08em] text-white/62">Thông tin truy cập</p>
+        <p class="mt-2 text-[0.88rem] font-semibold leading-7 text-white/92">
+          Nếu không truy cập được, hãy thử các domain dự phòng hoặc liên hệ CSKH để được hỗ trợ.
+        </p>
+        <button
+          type="button"
+          class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#ff7d73] to-[#ff625f] px-4 py-2.5 text-[0.8rem] font-black text-white shadow-[0_10px_20px_rgba(255,98,95,0.28)] transition-transform active:scale-95"
+          @click="openTelegram()"
+        >
+          <span class="material-symbols-outlined text-[1rem]">headset_mic</span>
+          Liên hệ CSKH
+        </button>
+      </div>
+
+      <div class="px-2 pb-1 pt-5 text-center text-[#2b211f]">
+        <p class="text-[0.92rem] leading-8">
+          Trụ sở chính đặt tại KL The ASPIAL rd No.27, tọa lạc trong khu vực hành chính District Murai Ri.ts, thuộc Commune Bukit Ain. Street name Pulau Pte, Hamlet P.U Amo, trực thuộc vùng quản lý Conscious Nicomay.
+        </p>
+
+        <p class="mt-4 text-[1rem] leading-8">
+          Quỹ vận hành Coin 1.524.597.982,241 $
+        </p>
+
+        <p class="mt-2 text-[0.92rem] leading-8">
+          <span class="font-black uppercase tracking-[0.04em]">Lĩnh vực bảo hộ & hợp tác</span>
+          bởi PIE.EXGLN, MACJBELI và ACE-FORCES which are responsible for strategic security, intellectual property protection, and safe operations. This collaboration includes comprehensive risk prevention measures, 24/7 operational monitoring, and strict internal compliance policies to ensure continuous and stable operations.
+        </p>
+      </div>
+
+      <div class="pt-6">
+        <h3 class="text-center text-[1.42rem] font-black uppercase tracking-[0.04em] text-[#201816]">
+          Nhà bảo hộ & hợp tác
+        </h3>
+
+        <div class="mt-5 grid grid-cols-3 gap-3">
+          <div
+            v-for="supporter in supporterLogos"
+            :key="supporter.name"
+            class="flex flex-col items-center gap-2"
+          >
+            <div class="overflow-hidden rounded-[18px] bg-white shadow-[0_8px_18px_rgba(23,199,111,0.12)]">
+              <img
+                :src="supporter.image"
+                :alt="supporter.name"
+                class="h-[84px] w-full object-cover"
+              />
+            </div>
+            <div class="text-center">
+              <p class="text-[0.84rem] font-black tracking-[0.04em] text-[#1c1c1c]">{{ supporter.name }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 flex items-center justify-center gap-6 border-t border-[#e3d8d0] pt-4 text-[1rem] text-[#2b211f]">
+          <span class="font-medium">Trợ giúp</span>
+          <span class="font-medium">Quyền riêng tư</span>
+          <span class="font-medium">Điều khoản</span>
+        </div>
+      </div>
+    </section>
 
   </div>
 </template>

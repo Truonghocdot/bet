@@ -30,11 +30,17 @@ type MarqueeDisplay struct {
 	Messages []string `json:"messages"`
 }
 
+type PopupDisplay struct {
+	Message    *string `json:"message,omitempty"`
+	LatestNews *string `json:"latest_news,omitempty"`
+}
+
 type WalletSummaryResponse struct {
 	Message          string                `json:"message"`
 	ExchangeRate     string                `json:"exchange_rate"`
 	TelegramCskhLink string                `json:"telegram_cskh_link,omitempty"`
 	Marquee          MarqueeDisplay        `json:"marquee"`
+	Popup            PopupDisplay          `json:"popup"`
 	WithdrawPolicy   WithdrawPolicyDisplay `json:"withdraw_policy"`
 	Wallets          []WalletBalance       `json:"wallets"`
 }

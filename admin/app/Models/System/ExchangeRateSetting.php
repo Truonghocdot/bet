@@ -33,6 +33,8 @@ class ExchangeRateSetting extends Model
         'telegram_cskh_link',
         'marquee_enabled',
         'marquee_messages',
+        'popup_message',
+        'latest_news_popup',
         'withdraw_policy_enabled',
         'withdraw_fee_percent',
         'withdraw_required_bet_volume',
