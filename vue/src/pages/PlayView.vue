@@ -1,5 +1,5 @@
   <script setup lang="ts">
-  import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+  import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
   import { RouterLink, useRoute, useRouter } from 'vue-router'
 
   import { env } from '@/shared/config/env'
@@ -16,9 +16,9 @@
   import { useAuthStore } from '@/stores/auth'
   import { useWalletStore } from '@/stores/wallet'
   import { useLoading } from '@/shared/lib/loading'
-  import PlayHistorySection from '@/components/PlayHistorySection.vue'
 
   const { setLoading } = useLoading()
+  const PlayHistorySection = defineAsyncComponent(() => import('@/components/PlayHistorySection.vue'))
 
   const route = useRoute()
   const router = useRouter()
@@ -2503,8 +2503,8 @@
         maybeAutoJoinRoom()
       } finally {
         if (!isCurrentRoomStateGeneration(generation, roomCode)) return
-        // Small delay to ensure smooth transition
-        setTimeout(() => setLoading(false), 300)
+        // Keep the transition smooth without holding the game screen longer than needed.
+        setTimeout(() => setLoading(false), 120)
       }
     },
     { immediate: true },

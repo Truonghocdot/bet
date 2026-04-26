@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 import { playCategories, playRooms } from '@/data/play'
 
 const activeCategory = ref<string>('Tất cả')
 const route = useRoute()
+let playRoutePrefetched = false
+
+type IdleScheduler = (callback: () => void, options?: { timeout?: number }) => number
 
 const filteredRooms = computed(() => {
   if (activeCategory.value === 'Tất cả') return playRooms
@@ -29,6 +32,34 @@ function formatRoomVariants(roomCode: string) {
   const room = playRooms.find((item) => item.code === roomCode)
   return room?.variants.slice(0, 4).map((variant) => variant.durationLabel) ?? []
 }
+
+function prefetchPlayRoute() {
+  if (playRoutePrefetched) return
+
+  playRoutePrefetched = true
+  void import('@/pages/PlayView.vue').catch(() => {
+    playRoutePrefetched = false
+  })
+}
+
+function prefetchPlayRouteSoon() {
+  const requestIdleCallback = (window as Window & { requestIdleCallback?: IdleScheduler }).requestIdleCallback
+
+  if (requestIdleCallback) {
+    requestIdleCallback(() => prefetchPlayRoute(), { timeout: 1800 })
+    return
+  }
+
+  window.setTimeout(() => prefetchPlayRoute(), 700)
+}
+
+function maybePrefetchRoom(roomStatus: string) {
+  if (roomStatus === 'OPEN') prefetchPlayRoute()
+}
+
+onMounted(() => {
+  prefetchPlayRouteSoon()
+})
 </script>
 
 <template>
@@ -172,6 +203,9 @@ function formatRoomVariants(roomCode: string) {
           <RouterLink
           :to="room.status === 'OPEN' ? { path: `/play/${room.code}`, query: { from: route.fullPath } } : '/promotion'"
           class="inline-flex min-h-12 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-primary-container px-4 text-[0.82rem] font-black text-white transition-transform active:scale-95"
+          @pointerenter="maybePrefetchRoom(room.status)"
+          @focus="maybePrefetchRoom(room.status)"
+          @touchstart.passive="maybePrefetchRoom(room.status)"
         >
             {{ room.status === 'OPEN' ? 'Vào chơi' : 'Chờ mở' }}
           </RouterLink>

@@ -37,6 +37,9 @@ import thumbNohu from '@/assets/game_thumbs/optimized/nohu_jackpot.webp'
 import thumbBanCa from '@/assets/game_thumbs/optimized/bancan.webp'
 import thumbTheThao from '@/assets/game_thumbs/optimized/thethao.webp'
 import thumbGameBai from '@/assets/game_thumbs/optimized/gambai.webp'
+import casinoSexyGame from '@/assets/category_game/casino_sexy/custom_VND (5).avif'
+import huntFishGame from '@/assets/category_game/hunt_fish/hunt_fish2.avif'
+import jackpotFcGame from '@/assets/category_game/jackpot/optimized/fc.webp'
 
 const auth = useAuthStore()
 const wallet = useWalletStore()
@@ -69,6 +72,9 @@ const telegramLink = computed(() => wallet.summary?.telegram_cskh_link || 'https
 function openTelegram() { window.open(telegramLink.value, '_blank') }
 
 const activeCategory = ref('Phổ biến')
+let playRoutePrefetched = false
+
+type IdleScheduler = (callback: () => void, options?: { timeout?: number }) => number
 
 const categorySidebar = [
   { label: 'Phổ biến', icon: catHot },
@@ -81,32 +87,57 @@ const categorySidebar = [
   { label: 'Đá gà', icon: catChicken },
 ]
 
-const mainGameBanners = [
-  { name: 'Win Go', route: '/play/wingo', image: bannerWingo },
-  { name: 'K3 Lotre', route: '/play/k3', image: bannerK3 },
-  { name: '5D Lottery', route: '/play/lottery', image: banner5D },
-]
-
 interface GameItem {
   name: string
   image: string
   category: string[]
   route?: string
   maintenance?: boolean
+  featured?: boolean
+}
+
+function prefetchPlayRoute() {
+  if (playRoutePrefetched) return
+
+  playRoutePrefetched = true
+  void Promise.all([
+    import('@/pages/PlayView.vue'),
+    import('@/data/play'),
+  ]).catch(() => {
+    playRoutePrefetched = false
+  })
+}
+
+function prefetchPlayRouteSoon() {
+  const requestIdleCallback = (window as Window & { requestIdleCallback?: IdleScheduler }).requestIdleCallback
+
+  if (requestIdleCallback) {
+    requestIdleCallback(() => prefetchPlayRoute(), { timeout: 2500 })
+    return
+  }
+
+  window.setTimeout(() => prefetchPlayRoute(), 900)
+}
+
+function maybePrefetchGameRoute(game: GameItem) {
+  if (game.route) prefetchPlayRoute()
 }
 
 const allGames: GameItem[] = [
   // Xổ số - có route thật
-  { name: 'Win Go', image: bannerWingo, category: ['Phổ biến', 'Xổ số'], route: '/play/wingo' },
+  { name: 'Win Go', image: bannerWingo, category: ['Phổ biến', 'Xổ số'], route: '/play/wingo', featured: true },
   { name: 'K3', image: bannerK3, category: ['Phổ biến', 'Xổ số'], route: '/play/k3' },
   { name: '5D Lottery', image: banner5D, category: ['Phổ biến', 'Xổ số'], route: '/play/lottery' },
   // Casino - bảo trì
+  { name: 'Sexy Casino', image: casinoSexyGame, category: ['Phổ biến', 'Casino'], maintenance: true, featured: true },
   { name: 'Baccarat', image: thumbBaccarat, category: ['Phổ biến', 'Casino'], maintenance: true },
   { name: 'Rồng Hổ', image: thumbDragonTiger, category: ['Casino'], maintenance: true },
   // Nổ hũ
+  { name: 'Nổ Hũ FC', image: jackpotFcGame, category: ['Phổ biến', 'Nổ hũ'], maintenance: true, featured: true },
   { name: 'Siêu Jackpot', image: thumbNohu, category: ['Phổ biến', 'Nổ hũ'], maintenance: true },
   { name: 'Nổ Hũ Vàng', image: thumbNohu, category: ['Nổ hũ'], maintenance: true },
   // Bắn cá
+  { name: 'Hunt Fish', image: huntFishGame, category: ['Phổ biến', 'Bắn cá'], maintenance: true, featured: true },
   { name: 'Bắn Cá Vương', image: thumbBanCa, category: ['Phổ biến', 'Bắn cá'], maintenance: true },
   { name: 'Đại Chiến Biển', image: thumbBanCa, category: ['Bắn cá'], maintenance: true },
   // Thể thao
@@ -123,6 +154,17 @@ const allGames: GameItem[] = [
 const filteredGames = computed(() =>
   allGames.filter(g => g.category.includes(activeCategory.value))
 )
+
+const categoryBannerGames = computed(() => {
+  const games = filteredGames.value
+
+  if (activeCategory.value === 'Phổ biến') {
+    const featuredGames = games.filter(game => game.featured)
+    return (featuredGames.length ? featuredGames : games).slice(0, 3)
+  }
+
+  return games.slice(0, 3)
+})
 
 const supporterLogos = [
   { name: 'PIE.EXGLN', image: pieExglnLogo },
@@ -144,6 +186,7 @@ async function fetchHomeContent() {
 }
 
 onMounted(() => {
+  prefetchPlayRouteSoon()
   void wallet.fetchSummary()
   void fetchHomeContent()
 })
@@ -193,16 +236,22 @@ onMounted(() => {
 
       <!-- Game Banners: 3 banners stacked -->
       <div class="flex min-w-0 flex-1 flex-col gap-2 pl-1 pr-2 md:gap-3 md:p-0">
-        <RouterLink
-          v-for="(game, index) in mainGameBanners"
+        <component
+          :is="game.route ? RouterLink : 'button'"
+          v-for="(game, index) in categoryBannerGames"
           :key="game.name"
-          :to="{ path: game.route, query: { from: route.fullPath } }"
+          v-bind="game.route ? { to: { path: game.route, query: { from: route.fullPath } } } : { type: 'button' }"
           class="group relative block overflow-hidden rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.12)] transition-all duration-300 active:scale-[0.98] md:rounded-[20px] md:shadow-[0_12px_26px_rgba(15,23,42,0.12)] md:hover:-translate-y-0.5"
+          @pointerenter="maybePrefetchGameRoute(game)"
+          @focus="maybePrefetchGameRoute(game)"
+          @touchstart.passive="maybePrefetchGameRoute(game)"
+          @click="game.maintenance ? openMaintenance(game.name) : undefined"
         >
           <img
             :src="game.image"
             :alt="game.name"
-            class="block aspect-[2.6/1] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03] md:aspect-auto md:h-[156px] lg:h-[176px] xl:h-[190px]"
+            class="block w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+            :class="game.route ? 'aspect-[3/1] md:h-[156px] lg:h-[176px] xl:h-[190px]' : 'aspect-[2.55/1] md:h-[156px] lg:h-[176px] xl:h-[190px]'"
             decoding="async"
             :fetchpriority="index === 0 ? 'high' : 'low'"
             :loading="index === 0 ? 'eager' : 'lazy'"
@@ -211,13 +260,15 @@ onMounted(() => {
           <div class="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 md:px-4 md:py-3">
             <div>
               <h4 class="text-[0.78rem] font-black tracking-wide text-white drop-shadow md:text-[1rem]">{{ game.name }}</h4>
-              <p class="text-[0.55rem] font-semibold text-white/70 md:text-[0.72rem]">Vào chơi ngay</p>
+              <p class="text-[0.55rem] font-semibold text-white/70 md:text-[0.72rem]">
+                {{ game.maintenance ? 'Đang bảo trì' : 'Vào chơi ngay' }}
+              </p>
             </div>
             <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/20 backdrop-blur-md md:h-9 md:w-9">
               <span class="material-symbols-outlined text-[0.9rem] text-white md:text-[1.1rem]">arrow_forward</span>
             </div>
           </div>
-        </RouterLink>
+        </component>
       </div>
 
       <aside class="hidden min-w-0 flex-col gap-4 md:flex">
@@ -303,12 +354,16 @@ onMounted(() => {
           :key="game.name"
           v-bind="game.route ? { to: { path: game.route, query: { from: route.fullPath } } } : { type: 'button' }"
           class="group relative block w-full overflow-hidden rounded-[16px] text-left shadow-[0_4px_14px_rgba(0,0,0,0.10)] transition-all duration-200 active:scale-[0.97] md:rounded-[18px] md:hover:-translate-y-0.5 md:hover:shadow-[0_14px_26px_rgba(15,23,42,0.12)]"
+          @pointerenter="maybePrefetchGameRoute(game)"
+          @focus="maybePrefetchGameRoute(game)"
+          @touchstart.passive="maybePrefetchGameRoute(game)"
           @click="game.maintenance ? openMaintenance(game.name) : undefined"
         >
           <img
             :src="game.image"
             :alt="game.name"
-            class="aspect-[16/9] w-full object-cover transition-transform duration-500 group-hover:scale-[1.04] md:aspect-[4/3]"
+            class="w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            :class="game.route ? 'aspect-[3/1] md:aspect-[3/1]' : 'aspect-[4/3] md:aspect-[4/3]'"
             loading="lazy"
             decoding="async"
           />
