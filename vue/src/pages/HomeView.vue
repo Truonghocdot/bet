@@ -151,20 +151,17 @@ const allGames: GameItem[] = [
   { name: 'Đá Gà Live', image: thumbDragonTiger, category: ['Đá gà'], maintenance: true },
 ]
 
-const filteredGames = computed(() =>
-  allGames.filter(g => g.category.includes(activeCategory.value))
-)
+const activePlayableGames = computed(() => allGames.filter(game => game.route))
 
-const categoryBannerGames = computed(() => {
-  const games = filteredGames.value
-
+const filteredGames = computed(() => {
   if (activeCategory.value === 'Phổ biến') {
-    const featuredGames = games.filter(game => game.featured)
-    return (featuredGames.length ? featuredGames : games).slice(0, 3)
+    return activePlayableGames.value
   }
 
-  return games.slice(0, 3)
+  return allGames.filter(g => g.category.includes(activeCategory.value))
 })
+
+const categoryBannerGames = computed(() => filteredGames.value.slice(0, 3))
 
 const supporterLogos = [
   { name: 'PIE.EXGLN', image: pieExglnLogo },
