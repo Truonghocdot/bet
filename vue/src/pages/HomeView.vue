@@ -26,17 +26,17 @@ import catPoker from '@/assets/category_game/poker.avif'
 import catChicken from '@/assets/category_game/chicken.avif'
 
 // Main Game Banners
-import bannerWingo from '@/assets/lottery_banner/wingo.png'
-import bannerK3 from '@/assets/lottery_banner/k3.png'
-import banner5D from '@/assets/lottery_banner/5d.png'
+import bannerWingo from '@/assets/lottery_banner/optimized/wingo.webp'
+import bannerK3 from '@/assets/lottery_banner/optimized/k3.webp'
+import banner5D from '@/assets/lottery_banner/optimized/5d.webp'
 
 // Game Thumbnails
-import thumbBaccarat from '@/assets/game_thumbs/baccarat.png'
-import thumbDragonTiger from '@/assets/game_thumbs/dragon_tiger.png'
-import thumbNohũ from '@/assets/game_thumbs/nohũ_jackpot.png'
-import thumbBanCa from '@/assets/game_thumbs/bancan.png'
-import thumbTheThao from '@/assets/game_thumbs/thethao.png'
-import thumbGameBai from '@/assets/game_thumbs/gambai.png'
+import thumbBaccarat from '@/assets/game_thumbs/optimized/baccarat.webp'
+import thumbDragonTiger from '@/assets/game_thumbs/optimized/dragon_tiger.webp'
+import thumbNohu from '@/assets/game_thumbs/optimized/nohu_jackpot.webp'
+import thumbBanCa from '@/assets/game_thumbs/optimized/bancan.webp'
+import thumbTheThao from '@/assets/game_thumbs/optimized/thethao.webp'
+import thumbGameBai from '@/assets/game_thumbs/optimized/gambai.webp'
 
 const auth = useAuthStore()
 const wallet = useWalletStore()
@@ -104,8 +104,8 @@ const allGames: GameItem[] = [
   { name: 'Baccarat', image: thumbBaccarat, category: ['Phổ biến', 'Casino'], maintenance: true },
   { name: 'Rồng Hổ', image: thumbDragonTiger, category: ['Casino'], maintenance: true },
   // Nổ hũ
-  { name: 'Siêu Jackpot', image: thumbNohũ, category: ['Phổ biến', 'Nổ hũ'], maintenance: true },
-  { name: 'Nổ Hũ Vàng', image: thumbNohũ, category: ['Nổ hũ'], maintenance: true },
+  { name: 'Siêu Jackpot', image: thumbNohu, category: ['Phổ biến', 'Nổ hũ'], maintenance: true },
+  { name: 'Nổ Hũ Vàng', image: thumbNohu, category: ['Nổ hũ'], maintenance: true },
   // Bắn cá
   { name: 'Bắn Cá Vương', image: thumbBanCa, category: ['Phổ biến', 'Bắn cá'], maintenance: true },
   { name: 'Đại Chiến Biển', image: thumbBanCa, category: ['Bắn cá'], maintenance: true },
@@ -194,7 +194,7 @@ onMounted(() => {
       <!-- Game Banners: 3 banners stacked -->
       <div class="flex min-w-0 flex-1 flex-col gap-2 pl-1 pr-2 md:gap-3 md:p-0">
         <RouterLink
-          v-for="game in mainGameBanners"
+          v-for="(game, index) in mainGameBanners"
           :key="game.name"
           :to="{ path: game.route, query: { from: route.fullPath } }"
           class="group relative block overflow-hidden rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.12)] transition-all duration-300 active:scale-[0.98] md:rounded-[20px] md:shadow-[0_12px_26px_rgba(15,23,42,0.12)] md:hover:-translate-y-0.5"
@@ -203,6 +203,9 @@ onMounted(() => {
             :src="game.image"
             :alt="game.name"
             class="block aspect-[2.6/1] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03] md:aspect-auto md:h-[156px] lg:h-[176px] xl:h-[190px]"
+            decoding="async"
+            :fetchpriority="index === 0 ? 'high' : 'low'"
+            :loading="index === 0 ? 'eager' : 'lazy'"
           />
           <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
           <div class="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 md:px-4 md:py-3">
@@ -306,6 +309,8 @@ onMounted(() => {
             :src="game.image"
             :alt="game.name"
             class="aspect-[16/9] w-full object-cover transition-transform duration-500 group-hover:scale-[1.04] md:aspect-[4/3]"
+            loading="lazy"
+            decoding="async"
           />
           <!-- Overlay -->
           <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
@@ -345,6 +350,8 @@ onMounted(() => {
             :src="item.cover_image_url"
             :alt="item.title"
             class="h-12 w-12 rounded-[10px] object-cover flex-shrink-0 border border-slate-100"
+            loading="lazy"
+            decoding="async"
           />
           <div
             v-else
@@ -408,7 +415,7 @@ onMounted(() => {
             class="flex flex-col items-center gap-2"
           >
             <div class="overflow-hidden rounded-[18px] bg-white shadow-[0_8px_18px_rgba(23,199,111,0.12)]">
-              <img :src="supporter.image" :alt="supporter.name" class="h-[84px] w-full object-cover" />
+              <img :src="supporter.image" :alt="supporter.name" class="h-[84px] w-full object-cover" loading="lazy" decoding="async" />
             </div>
             <p class="text-[0.84rem] font-black tracking-[0.04em] text-[#1c1c1c]">{{ supporter.name }}</p>
           </div>
