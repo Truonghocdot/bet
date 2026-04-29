@@ -196,11 +196,11 @@ onMounted(() => {
     <BannerCarousel :banners="homeBanners" />
 
     <!-- ===== MAIN BODY: CATEGORY SIDEBAR + GAME BANNERS ===== -->
-    <div class="flex items-start gap-0 pb-1 pt-2.5 md:mx-3 md:mt-3 md:grid md:grid-cols-[124px_minmax(0,1fr)_300px] md:gap-4 md:rounded-[24px] md:bg-white/55 md:p-4 md:shadow-[0_16px_42px_rgba(255,109,102,0.10)] md:backdrop-blur">
+    <div class="flex items-start gap-0 pb-1 pt-2.5 md:mx-3 md:mt-3 md:grid md:grid-cols-[124px_minmax(0,1fr)_300px] md:gap-4 md:rounded-[24px] md:bg-black/20 md:p-4 md:shadow-[0_16px_42px_rgba(0,0,0,0.3)] md:backdrop-blur-md md:border md:border-white/10">
 
       <!-- Category Sidebar -->
       <div
-        class="flex w-[68px] flex-shrink-0 flex-col justify-between self-stretch px-1 py-0.5 md:sticky md:top-4 md:w-full md:justify-start md:gap-2 md:rounded-[20px] md:bg-white md:p-2 md:shadow-[0_10px_24px_rgba(15,23,42,0.06)]"
+        class="flex w-[68px] flex-shrink-0 flex-col justify-between self-stretch px-1 py-0.5 md:sticky md:top-4 md:w-full md:justify-start md:gap-2 md:rounded-[20px] md:bg-white/10 md:backdrop-blur-sm md:p-2 md:shadow-[0_10px_24px_rgba(0,0,0,0.2)]"
       >
         <button
           v-for="cat in categorySidebar"
@@ -208,8 +208,8 @@ onMounted(() => {
           type="button"
           class="group relative flex flex-col items-center justify-center rounded-[12px] px-0.5 py-1 transition-all duration-200 md:flex-row md:justify-start md:gap-2.5 md:rounded-[14px] md:px-2.5 md:py-2.5"
           :class="activeCategory === cat.label
-            ? 'bg-white shadow-[0_3px_12px_rgba(255,109,102,0.20)] ring-1 ring-primary/15 md:bg-primary md:text-white md:ring-0'
-            : 'bg-transparent md:hover:bg-slate-50'"
+            ? 'bg-white shadow-[0_3px_12px_rgba(218,37,29,0.20)] ring-1 ring-red-500/20 md:bg-primary/90 md:backdrop-blur md:text-yellow-50 md:ring-1 md:ring-yellow-400/50 md:shadow-[0_4px_15px_rgba(255,204,0,0.25)]'
+            : 'bg-transparent md:hover:bg-white/15 text-slate-500 md:text-white/80'"
           @click="activeCategory = cat.label"
         >
           <span
@@ -224,7 +224,7 @@ onMounted(() => {
           </div>
           <span
             class="mt-0.5 text-center text-[0.55rem] font-black uppercase leading-tight transition-colors md:mt-0 md:text-left md:text-[0.74rem] md:normal-case md:leading-4"
-            :class="activeCategory === cat.label ? 'text-primary md:text-white' : 'text-slate-500'"
+            :class="activeCategory === cat.label ? 'text-primary md:text-white' : 'text-slate-500 md:text-white/80'"
           >
             {{ cat.label }}
           </span>
@@ -269,14 +269,14 @@ onMounted(() => {
       </div>
 
       <aside class="hidden min-w-0 flex-col gap-4 md:flex">
-        <div class="relative overflow-hidden rounded-[20px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-4 text-white shadow-[0_12px_30px_rgba(255,109,102,0.20)]">
-          <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.25),transparent_32%)]" />
+        <div class="relative overflow-hidden rounded-[20px] bg-gradient-to-br from-red-700/80 via-red-600/80 to-red-800/80 p-4 text-white shadow-[0_12px_30px_rgba(0,0,0,0.3)] border border-red-400/30 backdrop-blur-md">
+          <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(255,204,0,0.15),transparent_32%)]" />
           <div class="relative">
-            <p class="text-[0.7rem] font-black uppercase tracking-[0.12em] text-white/72">Số dư ví VND</p>
-            <strong class="mt-1 block break-words text-[1.55rem] font-black leading-tight">
+            <p class="text-[0.7rem] font-black uppercase tracking-[0.12em] text-yellow-100/70">Số dư ví VND</p>
+            <strong class="mt-1 block break-words text-[1.55rem] font-black leading-tight text-yellow-400 drop-shadow-sm">
               {{ vndWallet ? displayBalance(vndWallet.balance) : '0' }}đ
             </strong>
-            <p class="mt-1 text-[0.72rem] font-semibold text-white/72">Chào {{ greetingName }}</p>
+            <p class="mt-1 text-[0.72rem] font-semibold text-white/90">Chào {{ greetingName }}</p>
             <div class="mt-4 grid grid-cols-2 gap-2">
               <RouterLink
                 to="/account"
@@ -286,7 +286,7 @@ onMounted(() => {
               </RouterLink>
               <RouterLink
                 to="/deposit"
-                class="flex min-h-10 items-center justify-center gap-1 rounded-[12px] bg-white px-2 text-[0.75rem] font-black text-primary shadow-md transition-transform active:scale-95"
+                class="flex min-h-10 items-center justify-center gap-1 rounded-[12px] bg-gradient-to-r from-yellow-400 to-yellow-500 px-2 text-[0.75rem] font-black text-red-900 shadow-md transition-transform active:scale-95"
               >
                 Nạp tiền
               </RouterLink>
@@ -294,25 +294,25 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="rounded-[20px] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+        <div class="rounded-[20px] bg-white/10 backdrop-blur-md border border-white/15 p-4 shadow-[0_10px_24px_rgba(0,0,0,0.15)]">
           <div class="flex items-center justify-between">
-            <p class="text-[0.8rem] font-black text-on-surface">Danh mục đang xem</p>
-            <span class="rounded-full bg-primary/10 px-2 py-1 text-[0.66rem] font-black text-primary">{{ filteredGames.length }} trò</span>
+            <p class="text-[0.8rem] font-black text-white/90">Danh mục đang xem</p>
+            <span class="rounded-full bg-yellow-400/20 px-2 py-1 text-[0.66rem] font-black text-yellow-300">{{ filteredGames.length }} trò</span>
           </div>
-          <p class="mt-2 text-[1.25rem] font-black text-on-surface">{{ activeCategory }}</p>
+          <p class="mt-2 text-[1.25rem] font-black text-white">{{ activeCategory }}</p>
         </div>
       </aside>
     </div>
 
     <!-- ===== WALLET CARD ===== -->
-    <div class="relative mx-3 mt-2 overflow-hidden rounded-[20px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-4 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)] md:hidden">
-      <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_26%)]" />
+    <div class="relative mx-3 mt-2 overflow-hidden rounded-[20px] bg-gradient-to-br from-red-700 via-red-600 to-red-800 p-4 text-white shadow-[0_12px_30px_rgba(218,37,29,0.3)] border border-red-500/30 md:hidden">
+      <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(255,204,0,0.15),transparent_26%)]" />
       <div class="relative">
-        <p class="text-[0.7rem] uppercase tracking-[0.12em] text-white/72">Số dư ví VND</p>
-        <strong class="mt-1 block text-[1.6rem] font-black">
+        <p class="text-[0.7rem] uppercase tracking-[0.12em] text-yellow-100/70">Số dư ví VND</p>
+        <strong class="mt-1 block text-[1.6rem] font-black text-yellow-400 drop-shadow-sm">
           {{ vndWallet ? displayBalance(vndWallet.balance) : '0' }}đ
         </strong>
-        <p class="text-[0.68rem] text-white/70 mt-0.5">Chào {{ greetingName }} 👋</p>
+        <p class="text-[0.68rem] text-white/90 mt-0.5">Chào {{ greetingName }} 👋</p>
         <div class="mt-3 grid grid-cols-2 gap-2">
           <RouterLink
             to="/account"
@@ -323,7 +323,7 @@ onMounted(() => {
           </RouterLink>
           <RouterLink
             to="/deposit"
-            class="flex items-center justify-center gap-1.5 rounded-full bg-white py-2.5 text-[0.82rem] font-black text-primary shadow-md active:scale-95 transition-transform"
+            class="flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 py-2.5 text-[0.82rem] font-black text-red-900 shadow-[0_4px_12px_rgba(255,204,0,0.3)] active:scale-95 transition-transform"
           >
             <span class="material-symbols-outlined text-[1rem]">add_circle</span>
             Nạp tiền
@@ -335,12 +335,12 @@ onMounted(() => {
     <!-- ===== GAME GRID (filtered by active category) ===== -->
     <div class="mt-4 px-3 md:mt-5">
       <!-- Section header -->
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center justify-between mb-3 md:bg-black/20 md:backdrop-blur-sm md:px-4 md:py-2.5 md:rounded-[14px] md:border md:border-white/10">
         <div class="flex items-center gap-2">
-          <span class="w-1 h-5 rounded-full bg-primary block" />
-          <h2 class="text-[0.92rem] font-black text-on-surface">{{ activeCategory }}</h2>
+          <span class="w-1 h-5 rounded-full bg-primary md:bg-yellow-400 block" />
+          <h2 class="text-[0.92rem] font-black text-on-surface md:text-white">{{ activeCategory }}</h2>
         </div>
-        <span class="text-[0.72rem] font-bold text-slate-400">{{ filteredGames.length }} trò chơi</span>
+        <span class="text-[0.72rem] font-bold text-slate-400 md:text-white/70">{{ filteredGames.length }} trò chơi</span>
       </div>
 
       <!-- 2-column grid -->
@@ -385,17 +385,17 @@ onMounted(() => {
     </div>
 
     <!-- ===== NEWS HIGHLIGHTS ===== -->
-    <div class="mx-3 mt-4 mb-2 overflow-hidden rounded-[20px] bg-white shadow-[0_8px_18px_rgba(255,109,102,0.06)] border border-slate-100">
-      <div class="flex items-center gap-2 border-b border-slate-100 px-4 py-3.5">
+    <div class="mx-3 mt-4 mb-2 overflow-hidden rounded-[20px] bg-white/90 md:bg-black/30 md:backdrop-blur-md shadow-[0_8px_18px_rgba(0,0,0,0.1)] border border-slate-100 md:border-white/10">
+      <div class="flex items-center gap-2 border-b border-slate-100 md:border-white/10 px-4 py-3.5">
         <span class="text-[1.1rem]">📰</span>
-        <span class="text-[0.9rem] font-black text-on-surface">Tin nổi bật</span>
+        <span class="text-[0.9rem] font-black text-on-surface md:text-white">Tin nổi bật</span>
       </div>
-      <div class="divide-y divide-slate-50">
+      <div class="divide-y divide-slate-50 md:divide-white/5">
         <RouterLink
           v-for="item in homeHighlights"
           :key="item.id"
           :to="`/news/${item.slug}`"
-          class="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
+          class="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 md:hover:bg-white/10 transition-colors"
         >
           <img
             v-if="item.cover_image_url"
@@ -412,10 +412,10 @@ onMounted(() => {
             <span class="material-symbols-outlined text-[1.1rem]">newspaper</span>
           </div>
           <div class="flex-1 min-w-0">
-            <strong class="line-clamp-1 block text-[0.82rem] font-black text-on-surface">{{ item.title }}</strong>
-            <span class="line-clamp-2 text-[0.7rem] text-slate-500">{{ newsPreview(item) }}</span>
+            <strong class="line-clamp-1 block text-[0.82rem] font-black text-on-surface md:text-white/90">{{ item.title }}</strong>
+            <span class="line-clamp-2 text-[0.7rem] text-slate-500 md:text-white/60">{{ newsPreview(item) }}</span>
           </div>
-          <span class="flex-shrink-0 text-[0.68rem] font-bold text-slate-400">
+          <span class="flex-shrink-0 text-[0.68rem] font-bold text-slate-400 md:text-white/40">
             {{ item.published_at || item.created_at }}
           </span>
         </RouterLink>
@@ -430,14 +430,14 @@ onMounted(() => {
 
     <!-- ===== CORPORATE FOOTER ===== -->
     <section class="mx-3 mb-5 rounded-[24px] bg-[#f6ede7] px-4 py-4 shadow-[0_10px_30px_rgba(83,55,44,0.08)]">
-      <div class="rounded-[20px] bg-[#14233f] px-4 py-4 text-white shadow-[0_12px_24px_rgba(20,35,63,0.25)]">
-        <p class="text-[0.72rem] font-black uppercase tracking-[0.08em] text-white/62">Thông tin truy cập</p>
+      <div class="rounded-[20px] bg-red-950 px-4 py-4 text-white shadow-[0_12px_24px_rgba(218,37,29,0.25)] border border-red-900/50">
+        <p class="text-[0.72rem] font-black uppercase tracking-[0.08em] text-yellow-500/90">Thông tin truy cập</p>
         <p class="mt-2 text-[0.88rem] font-semibold leading-7 text-white/92">
           Nếu không truy cập được, hãy thử các domain dự phòng hoặc liên hệ CSKH để được hỗ trợ.
         </p>
         <button
           type="button"
-          class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#ff7d73] to-[#ff625f] px-4 py-2.5 text-[0.8rem] font-black text-white shadow-[0_10px_20px_rgba(255,98,95,0.28)] transition-transform active:scale-95"
+          class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 px-4 py-2.5 text-[0.8rem] font-black text-red-900 shadow-[0_10px_20px_rgba(255,204,0,0.25)] transition-transform active:scale-95"
           @click="openTelegram()"
         >
           <span class="material-symbols-outlined text-[1rem]">headset_mic</span>
@@ -490,11 +490,11 @@ onMounted(() => {
         >
           <div class="w-full max-w-[320px] rounded-[24px] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.25)] overflow-hidden">
             <!-- Top graphic -->
-            <div class="bg-gradient-to-br from-amber-400 to-orange-500 px-6 py-8 flex flex-col items-center gap-3">
-              <div class="w-16 h-16 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
-                <span class="material-symbols-outlined text-white text-[2.2rem]">construction</span>
+            <div class="bg-gradient-to-br from-red-600 to-red-800 px-6 py-8 flex flex-col items-center gap-3">
+              <div class="w-16 h-16 rounded-full bg-white/10 backdrop-blur flex items-center justify-center ring-2 ring-yellow-400/50">
+                <span class="material-symbols-outlined text-yellow-400 text-[2.2rem]">construction</span>
               </div>
-              <h3 class="text-white text-[1.1rem] font-black text-center">Đang Bảo Trì</h3>
+              <h3 class="text-yellow-400 text-[1.1rem] font-black text-center">Đang Bảo Trì</h3>
             </div>
             <!-- Content -->
             <div class="px-6 py-5 text-center">
@@ -509,7 +509,7 @@ onMounted(() => {
               </div>
               <button
                 type="button"
-                class="mt-4 w-full rounded-[14px] bg-gradient-to-r from-primary to-[#ff4f4f] py-3 text-[0.88rem] font-black text-white shadow-[0_8px_20px_rgba(255,109,102,0.3)] active:scale-95 transition-transform"
+                class="mt-4 w-full rounded-[14px] bg-gradient-to-r from-red-600 to-red-700 py-3 text-[0.88rem] font-black text-yellow-400 shadow-[0_8px_20px_rgba(218,37,29,0.3)] active:scale-95 transition-transform border border-red-500"
                 @click="closeMaintenance"
               >
                 Đã hiểu

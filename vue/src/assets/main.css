@@ -8,9 +8,9 @@
   --color-surface-container-low: #fff6f4;
   --color-surface-container-high: #ffd1cc;
   --color-surface-container-lowest: #ffffff;
-  --color-primary: #ff6d66;
-  --color-primary-dim: #f44f49;
-  --color-primary-container: #ffd4d0;
+  --color-primary: #da251d;
+  --color-primary-dim: #b91c1c;
+  --color-primary-container: #fecaca;
   --color-secondary: #24b561;
   --color-tertiary: #f6c32d;
   --color-on-surface: #2c2f33;
@@ -36,11 +36,8 @@
 
   body {
     min-width: 320px;
-    @apply bg-background text-on-surface antialiased;
-    background:
-      radial-gradient(circle at top right, rgba(255, 145, 134, 0.22), transparent 28%),
-      radial-gradient(circle at left center, rgba(255, 109, 102, 0.1), transparent 24%),
-      #fff6f4;
+    @apply text-on-surface antialiased;
+    background-color: #fff9f9;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
   }
@@ -77,6 +74,26 @@
   .app-shell {
     @apply relative min-h-dvh overflow-x-hidden;
     @apply md:h-dvh md:overflow-hidden;
+    background-color: #fff9f9;
+    background-image:
+      radial-gradient(circle at top right, rgba(255, 204, 0, 0.25), transparent 40%),
+      radial-gradient(circle at bottom left, rgba(218, 37, 29, 0.25), transparent 40%),
+      url('@/assets/background-30-4.webp');
+    background-size: auto, auto, cover;
+    background-position: center, center, center;
+    background-attachment: fixed, fixed, fixed;
+    background-repeat: no-repeat, no-repeat, no-repeat;
+  }
+
+  @media (min-width: 768px) {
+    .app-shell {
+      background-image:
+        radial-gradient(circle at top right, rgba(255, 204, 0, 0.15), transparent 40%),
+        radial-gradient(circle at bottom left, rgba(218, 37, 29, 0.15), transparent 40%),
+        url('@/assets/background-30-4-desktop.webp');
+      background-size: auto, auto, cover;
+      background-position: center, center, center;
+    }
   }
 
   .app-shell__decor {
@@ -92,7 +109,7 @@
     right: -10%;
     width: 38%;
     height: 22%;
-    background: rgba(255, 145, 134, 0.3);
+    background: rgba(255, 204, 0, 0.25);
   }
 
   .app-shell__blur--two {
@@ -100,7 +117,7 @@
     left: -16%;
     width: 52%;
     height: 34%;
-    background: rgba(255, 109, 102, 0.14);
+    background: rgba(218, 37, 29, 0.12);
   }
 
   .app-main-col {
@@ -182,8 +199,8 @@
 
   .glass-bar {
     @apply border-b border-white/20 bg-white/20 backdrop-blur-xl;
-    background: linear-gradient(180deg, rgba(255, 126, 117, 0.98), rgba(255, 110, 103, 0.95));
-    box-shadow: 0 8px 24px rgba(255, 109, 102, 0.18);
+    background: linear-gradient(180deg, rgba(218, 37, 29, 0.95), rgba(185, 28, 28, 0.98));
+    box-shadow: 0 8px 24px rgba(218, 37, 29, 0.25);
   }
 
   .topbar-inner {
