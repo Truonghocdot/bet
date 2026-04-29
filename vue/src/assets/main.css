@@ -74,6 +74,10 @@
   .app-shell {
     @apply relative min-h-dvh overflow-x-hidden;
     @apply md:h-dvh md:overflow-hidden;
+  }
+
+  .app-shell__decor {
+    @apply pointer-events-none fixed inset-0 z-0;
     background-color: #fff9f9;
     background-image:
       radial-gradient(circle at top right, rgba(255, 204, 0, 0.25), transparent 40%),
@@ -81,23 +85,16 @@
       url('@/assets/background-30-4.webp');
     background-size: auto, auto, cover;
     background-position: center, center, center;
-    background-attachment: fixed, fixed, fixed;
     background-repeat: no-repeat, no-repeat, no-repeat;
   }
 
   @media (min-width: 768px) {
-    .app-shell {
+    .app-shell__decor {
       background-image:
         radial-gradient(circle at top right, rgba(255, 204, 0, 0.15), transparent 40%),
         radial-gradient(circle at bottom left, rgba(218, 37, 29, 0.15), transparent 40%),
         url('@/assets/background-30-4-desktop.webp');
-      background-size: auto, auto, cover;
-      background-position: center, center, center;
     }
-  }
-
-  .app-shell__decor {
-    @apply pointer-events-none fixed inset-0 z-0;
   }
 
   .app-shell__blur {
