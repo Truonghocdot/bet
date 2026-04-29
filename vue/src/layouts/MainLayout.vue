@@ -418,8 +418,10 @@ onBeforeUnmount(() => {
           <!-- Logo (show on mobile, hidden on md because sidebar has it) -->
           <RouterLink
             to="/home"
-            class="text-[1.25rem] font-black italic tracking-[-0.06em] text-white md:hidden"
-          >FF789</RouterLink>
+            class="flex items-center md:hidden"
+          >
+            <img src="@/assets/logo-mobile.webp" alt="FF789" class="h-8 w-auto object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
+          </RouterLink>
 
           <!-- Page title on desktop -->
           <span class="hidden md:block text-[1rem] font-black text-white">{{ currentTitle }}</span>
