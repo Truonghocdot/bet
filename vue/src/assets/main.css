@@ -37,7 +37,10 @@
   body {
     min-width: 320px;
     @apply text-on-surface antialiased;
-    background-color: #fff9f9;
+    background:
+      radial-gradient(circle at top right, rgba(255, 204, 0, 0.15), transparent 28%),
+      radial-gradient(circle at left center, rgba(218, 37, 29, 0.1), transparent 24%),
+      #fff9f9;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
   }
@@ -78,23 +81,6 @@
 
   .app-shell__decor {
     @apply pointer-events-none fixed inset-0 z-0;
-    background-color: #fff9f9;
-    background-image:
-      radial-gradient(circle at top right, rgba(255, 204, 0, 0.25), transparent 40%),
-      radial-gradient(circle at bottom left, rgba(218, 37, 29, 0.25), transparent 40%),
-      url('@/assets/background-30-4.webp');
-    background-size: auto, auto, cover;
-    background-position: center, center, center;
-    background-repeat: no-repeat, no-repeat, no-repeat;
-  }
-
-  @media (min-width: 768px) {
-    .app-shell__decor {
-      background-image:
-        radial-gradient(circle at top right, rgba(255, 204, 0, 0.15), transparent 40%),
-        radial-gradient(circle at bottom left, rgba(218, 37, 29, 0.15), transparent 40%),
-        url('@/assets/background-30-4-desktop.webp');
-    }
   }
 
   .app-shell__blur {
