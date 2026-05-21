@@ -16,7 +16,7 @@ import type {
 } from '@/shared/api/types'
 import { readJSON, remove, writeJSON } from '@/shared/lib/storage'
 
-const STORAGE_KEY = 'ff789:auth:v1'
+const STORAGE_KEY = 'fh88u:auth:v1'
 
 type PersistedAuth = {
   accessToken: string
@@ -88,7 +88,9 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = res.access_token
     expiresAt.value = Date.now() + Number(res.expires_in ?? 0) * 1000
     refreshToken.value = res.refresh_token ?? ''
-    refreshExpiresAt.value = res.refresh_expires_in ? (Date.now() + Number(res.refresh_expires_in) * 1000) : 0
+    refreshExpiresAt.value = res.refresh_expires_in
+      ? Date.now() + Number(res.refresh_expires_in) * 1000
+      : 0
     user.value = res.user
     affiliateProfile.value = res.affiliate_profile ?? null
     persist()
@@ -129,9 +131,13 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchMe() {
     if (!accessToken.value) return null
     try {
-      const res = await request<{ user: AuthUser; affiliate_profile?: AffiliateProfile | null }>('GET', '/v1/auth/me', {
-        token: accessToken.value,
-      })
+      const res = await request<{ user: AuthUser; affiliate_profile?: AffiliateProfile | null }>(
+        'GET',
+        '/v1/auth/me',
+        {
+          token: accessToken.value,
+        },
+      )
       user.value = res.user
       affiliateProfile.value = res.affiliate_profile ?? null
       persist()
@@ -141,13 +147,13 @@ export const useAuthStore = defineStore('auth', () => {
       if (err?.status === 401) {
         // Try refresh if possible
         if (refreshToken.value) {
-           try {
-              await refresh()
-              return await fetchMe()
-           } catch {
-              clear()
-              return null
-           }
+          try {
+            await refresh()
+            return await fetchMe()
+          } catch {
+            clear()
+            return null
+          }
         }
         clear()
         return null
@@ -187,7 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
     clear()
     error.value = reason
     try {
-      window.sessionStorage.setItem('ff789:forced-logout-reason', reason)
+      window.sessionStorage.setItem('fh88u:forced-logout-reason', reason)
     } catch {
       // no-op
     }
@@ -197,15 +203,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Hook up global session invalidate
   setSessionInvalidatedCallback(() => {
-    forcedLogout('Tài khoản của bạn đã được đăng nhập từ một thiết bị khác. Vui lòng đăng nhập lại.')
+    forcedLogout(
+      'Tài khoản của bạn đã được đăng nhập từ một thiết bị khác. Vui lòng đăng nhập lại.',
+    )
   })
-
 
   async function forgotPassword(payload: ForgotPasswordRequest) {
     loading.value = true
     error.value = ''
     try {
-      return await request<{ message: string }>('POST', '/v1/auth/forgot-password', { body: payload })
+      return await request<{ message: string }>('POST', '/v1/auth/forgot-password', {
+        body: payload,
+      })
     } catch (e: any) {
       const err = e as ApiError
       error.value = err?.message ?? 'Không thể gửi yêu cầu quên mật khẩu'
@@ -219,7 +228,9 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = ''
     try {
-      return await request<VerifyForgotOtpResponse>('POST', '/v1/auth/forgot-password/verify-otp', { body: payload })
+      return await request<VerifyForgotOtpResponse>('POST', '/v1/auth/forgot-password/verify-otp', {
+        body: payload,
+      })
     } catch (e: any) {
       const err = e as ApiError
       error.value = err?.message ?? 'OTP không hợp lệ'
@@ -233,7 +244,9 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = ''
     try {
-      return await request<{ message: string }>('POST', '/v1/auth/reset-password', { body: payload })
+      return await request<{ message: string }>('POST', '/v1/auth/reset-password', {
+        body: payload,
+      })
     } catch (e: any) {
       const err = e as ApiError
       error.value = err?.message ?? 'Không thể đổi mật khẩu'

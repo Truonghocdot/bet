@@ -4,7 +4,7 @@ import { defineStore } from 'pinia'
 import { request, type ApiError } from '@/shared/api/http'
 import type { AffiliateProfile, AuthResponse, AuthUser } from '@/shared/api/types'
 
-const ADMIN_STORAGE_KEY = 'ff789:admin-auth:v1'
+const ADMIN_STORAGE_KEY = 'fh88u:admin-auth:v1'
 
 type PersistedAdminAuth = {
   accessToken: string
@@ -95,7 +95,9 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
     accessToken.value = res.access_token
     expiresAt.value = Date.now() + Number(res.expires_in ?? 0) * 1000
     refreshToken.value = res.refresh_token ?? ''
-    refreshExpiresAt.value = res.refresh_expires_in ? (Date.now() + Number(res.refresh_expires_in) * 1000) : 0
+    refreshExpiresAt.value = res.refresh_expires_in
+      ? Date.now() + Number(res.refresh_expires_in) * 1000
+      : 0
     user.value = res.user
     affiliateProfile.value = res.affiliate_profile ?? null
     persist()
@@ -104,9 +106,13 @@ export const useAdminAuthStore = defineStore('admin-auth', () => {
   async function fetchMe() {
     if (!accessToken.value) return null
     try {
-      const res = await request<{ user: AuthUser; affiliate_profile?: AffiliateProfile | null }>('GET', '/v1/auth/me', {
-        token: accessToken.value,
-      })
+      const res = await request<{ user: AuthUser; affiliate_profile?: AffiliateProfile | null }>(
+        'GET',
+        '/v1/auth/me',
+        {
+          token: accessToken.value,
+        },
+      )
       user.value = res.user
       affiliateProfile.value = res.affiliate_profile ?? null
       persist()

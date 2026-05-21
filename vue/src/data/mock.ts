@@ -21,10 +21,35 @@ export type NotificationPreview = {
 }
 
 export const featuredGames: GameCard[] = [
-  { code: 'wingo', title: 'Win Go', subtitle: 'Dự đoán màu sắc, nhận thưởng lớn mỗi phút', accent: '#ff6d66', symbol: 'rocket_launch' },
-  { code: 'k3', title: 'K3', subtitle: 'Xúc xắc may mắn, tỉ lệ thắng cực cao', accent: '#e64545', symbol: 'casino' },
-  { code: 'lottery', title: '5D Lotre', subtitle: 'Chọn số trúng vàng, vinh quang gõ cửa', accent: '#f6c32d', symbol: 'looks_5' },
-  { code: 'trx_win', title: 'Trx Win', subtitle: 'Khai thác tiền số, bùng nổ lợi nhuận', accent: '#24b561', symbol: 'currency_bitcoin', enabled: false },
+  {
+    code: 'wingo',
+    title: 'Win Go',
+    subtitle: 'Dự đoán màu sắc, nhận thưởng lớn mỗi phút',
+    accent: '#ff6d66',
+    symbol: 'rocket_launch',
+  },
+  {
+    code: 'k3',
+    title: 'K3',
+    subtitle: 'Xúc xắc may mắn, tỉ lệ thắng cực cao',
+    accent: '#e64545',
+    symbol: 'casino',
+  },
+  {
+    code: 'lottery',
+    title: '5D Lotre',
+    subtitle: 'Chọn số trúng vàng, vinh quang gõ cửa',
+    accent: '#f6c32d',
+    symbol: 'looks_5',
+  },
+  {
+    code: 'trx_win',
+    title: 'Trx Win',
+    subtitle: 'Khai thác tiền số, bùng nổ lợi nhuận',
+    accent: '#24b561',
+    symbol: 'currency_bitcoin',
+    enabled: false,
+  },
 ]
 
 export const quickCategories = [
@@ -36,9 +61,24 @@ export const quickCategories = [
 ]
 
 export const homeWinningFeed: HomeWinningItem[] = [
-  { displayName: 'User***821', description: 'Vừa rút tiền thành công', amount: '+25,000,000đ', tag: 'Win Go 1m' },
-  { displayName: 'Linh***9x', description: 'K3 Sicbo Master', amount: '+8,400,000đ', tag: 'K3 Lotre' },
-  { displayName: 'Tuan***_pro', description: 'Jackpot Thể Thao', amount: '+102,000,000đ', tag: 'SABA Sport' },
+  {
+    displayName: 'User***821',
+    description: 'Vừa rút tiền thành công',
+    amount: '+25,000,000đ',
+    tag: 'Win Go 1m',
+  },
+  {
+    displayName: 'Linh***9x',
+    description: 'K3 Sicbo Master',
+    amount: '+8,400,000đ',
+    tag: 'K3 Lotre',
+  },
+  {
+    displayName: 'Tuan***_pro',
+    description: 'Jackpot Thể Thao',
+    amount: '+102,000,000đ',
+    tag: 'SABA Sport',
+  },
 ]
 
 export const accountNotifications: NotificationPreview = {
@@ -91,5 +131,5 @@ export const promotionCards = [
 
 export const promotionTerms = [
   'Các chương trình khuyến mãi chỉ áp dụng cho một tài khoản duy nhất trên mỗi địa chỉ IP hoặc thiết bị.',
-  'FF789 có quyền thay đổi hoặc chấm dứt khuyến mãi mà không cần thông báo trước trong trường hợp gian lận.',
+  'fh88u có quyền thay đổi hoặc chấm dứt khuyến mãi mà không cần thông báo trước trong trường hợp gian lận.',
 ]

@@ -16,7 +16,7 @@ const showPassword = ref(false)
 
     <section class="text-center">
       <div class="mx-auto mb-4 grid h-[72px] w-[72px] place-items-center rounded-[20px] bg-white shadow-[0_10px_24px_rgba(255,109,102,0.12)]">
-        <span class="text-[1.1rem] font-black italic tracking-[-0.06em] text-primary">ff789</span>
+        <span class="text-[1.1rem] font-black italic tracking-[-0.06em] text-primary">fh88u</span>
       </div>
       <h2 class="m-0 text-[1.55rem] font-black">Tạo tài khoản mới</h2>
       <p class="mt-1.5 text-sm text-on-surface-variant">Đăng ký nhanh bằng số điện thoại</p>

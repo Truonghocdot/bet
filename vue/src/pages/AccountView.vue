@@ -332,7 +332,7 @@ onMounted(() => {
     </button>
 
     <p class="mt-3 text-center text-[0.66rem] font-bold uppercase tracking-[0.18em] text-[#abadb2]">
-      Phiên bản 2.4.0 • FF789 Gaming Ecosystem
+      Phiên bản 2.4.0 • fh88u Gaming Ecosystem
     </p>
   </div>
 </template>

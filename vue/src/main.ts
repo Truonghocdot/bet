@@ -25,7 +25,8 @@ if (adminAuthStore.accessToken) {
 router.beforeEach(async (to) => {
   const requiresAuth = Boolean(to.meta.requiresAuth)
   const requiresAdminAuth = Boolean(to.meta.requiresAdminAuth)
-  const isClientAuthPage = to.name === 'auth' || to.name === 'register' || to.name === 'forgot-password'
+  const isClientAuthPage =
+    to.name === 'auth' || to.name === 'register' || to.name === 'forgot-password'
 
   if (requiresAuth && !authStore.isAuthenticated) {
     return { path: '/auth', query: { next: to.fullPath } }
@@ -46,7 +47,7 @@ router.beforeEach(async (to) => {
 router.afterEach((to, from) => {
   if (typeof window === 'undefined') return
   if (!from.fullPath || from.fullPath === to.fullPath) return
-  window.sessionStorage.setItem('ff789:last-route', from.fullPath === '/' ? '/' : from.fullPath)
+  window.sessionStorage.setItem('fh88u:last-route', from.fullPath === '/' ? '/' : from.fullPath)
 })
 
 app.use(pinia)

@@ -151,7 +151,7 @@ router.beforeEach((to, from, next) => {
 
   // Title update
   if (to.meta.title) {
-    document.title = `${to.meta.title} - ff789`
+    document.title = `${to.meta.title} - fh88u`
   }
 
   // Client auth check

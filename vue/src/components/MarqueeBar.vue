@@ -8,7 +8,7 @@ const walletStore = useWalletStore()
 const fallbackMessages = [
   'Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.',
   'Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!',
-  'FF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
+  'fh88u - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
 ]
 
 const marqueeEnabled = computed(() => walletStore.summary?.marquee?.enabled ?? true)

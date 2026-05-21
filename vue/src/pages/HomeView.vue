@@ -68,7 +68,7 @@ function newsPreview(item: ContentNewsItem) {
   return item.excerpt?.trim() || stripHtmlTags(item.content) || 'Đang cập nhật nội dung...'
 }
 
-const telegramLink = computed(() => wallet.summary?.telegram_cskh_link || 'https://t.me/CSKH_FF789')
+const telegramLink = computed(() => wallet.summary?.telegram_cskh_link || 'https://t.me/CSKH_FH88U')
 function openTelegram() { window.open(telegramLink.value, '_blank') }
 
 const activeCategory = ref('Phổ biến')

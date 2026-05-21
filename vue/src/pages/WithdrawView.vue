@@ -90,7 +90,7 @@ const canSubmit = computed(() => {
 onMounted(async () => {
   if (!auth.isAuthenticated) return router.replace('/auth')
   try {
-    const dismissed = window.localStorage.getItem('ff789:withdraw-policy-dismissed')
+    const dismissed = window.localStorage.getItem('fh88u:withdraw-policy-dismissed')
     showWithdrawPolicyModal.value = dismissed !== '1'
   } catch {
     showWithdrawPolicyModal.value = true
@@ -143,7 +143,7 @@ async function handleWithdraw() {
 function closeWithdrawPolicyModal() {
   showWithdrawPolicyModal.value = false
   try {
-    window.localStorage.setItem('ff789:withdraw-policy-dismissed', '1')
+    window.localStorage.setItem('fh88u:withdraw-policy-dismissed', '1')
   } catch {
     // no-op
   }

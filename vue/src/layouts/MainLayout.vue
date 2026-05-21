@@ -22,7 +22,7 @@ type PopupItem = {
 
 const popupQueue = ref<PopupItem[]>([])
 
-const currentTitle = computed(() => (route.meta.title as string) ?? 'FF789')
+const currentTitle = computed(() => (route.meta.title as string) ?? 'fh88u')
 const isPlayRoute = computed(() => route.path.startsWith('/play/'))
 const activePopup = computed(() => popupQueue.value[0] ?? null)
 const isLatestNewsPopup = computed(() => activePopup.value?.slot === 'latest_news')
@@ -94,7 +94,7 @@ function openDrawer() { isDrawerOpen.value = true }
 function closeDrawer() { isDrawerOpen.value = false }
 
 function popupStorageKey(slot: PopupSlot): string {
-  return `ff789:popup:dismissed:${auth.user?.id ?? 0}:${slot}`
+  return `fh88u:popup:dismissed:${auth.user?.id ?? 0}:${slot}`
 }
 
 function readDismissedPopup(slot: PopupSlot): string {
@@ -271,7 +271,7 @@ onBeforeUnmount(() => {
           >
             <div v-if="!isLatestNewsPopup">
               <p class="text-[0.72rem] font-black uppercase tracking-[0.12em] text-primary/70">{{ activePopup.title }}</p>
-              <h3 class="mt-1 text-[1.1rem] font-black text-on-surface">FF789</h3>
+              <h3 class="mt-1 text-[1.1rem] font-black text-on-surface">fh88u</h3>
             </div>
             <h3
               v-else
@@ -337,8 +337,8 @@ onBeforeUnmount(() => {
     <aside class="sidebar hidden md:flex">
       <!-- Logo -->
       <RouterLink to="/home" class="sidebar__logo" @click="closeDrawer">
-        <img src="/favicon.png" alt="FF789" class="h-9 w-9 rounded-[10px]" />
-        <span class="text-[1.3rem] font-black italic tracking-tight text-white">FF789</span>
+        <img src="/favicon.png" alt="fh88u" class="h-9 w-9 rounded-[10px]" />
+        <span class="text-[1.3rem] font-black italic tracking-tight text-white">fh88u</span>
       </RouterLink>
 
       <!-- Main nav -->
@@ -420,7 +420,7 @@ onBeforeUnmount(() => {
             to="/home"
             class="flex items-center md:hidden"
           >
-            <img src="@/assets/logo-mobile.webp" alt="FF789" class="h-8 w-auto object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
+            <img src="@/assets/logo-mobile.webp" alt="fh88u" class="h-8 w-auto object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
           </RouterLink>
 
           <!-- Page title on desktop -->

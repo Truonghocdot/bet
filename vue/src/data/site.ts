@@ -66,7 +66,7 @@ export const homeMetrics: HomeMetric[] = [
   },
   {
     title: 'Tài khoản mời',
-    value: 'REF FF789A1',
+    value: 'REF FH88UA1',
     description: 'Mã giới thiệu hiện tại của bạn.',
     icon: 'group_add',
     accent: '#f6c32d',
@@ -160,9 +160,30 @@ export const gameRooms: GameRoom[] = [
 ]
 
 export const homeActivities: HomeActivity[] = [
-  { title: 'Rút thưởng thành công', subtitle: 'User***821 vừa rút tiền về tài khoản', amount: '+25,000,000đ', tag: 'Win Go 1m', symbol: 'payments', tone: 'success' },
-  { title: 'K3 nổ lớn', subtitle: 'Linh***9x chốt trúng một ván rất đẹp', amount: '+8,400,000đ', tag: 'K3 Sicbo', symbol: 'casino', tone: 'info' },
-  { title: 'Jackpot bất ngờ', subtitle: 'Tuan***_pro nhận thưởng trong phiên chiều', amount: '+102,000,000đ', tag: 'Lô tô', symbol: 'verified', tone: 'warning' },
+  {
+    title: 'Rút thưởng thành công',
+    subtitle: 'User***821 vừa rút tiền về tài khoản',
+    amount: '+25,000,000đ',
+    tag: 'Win Go 1m',
+    symbol: 'payments',
+    tone: 'success',
+  },
+  {
+    title: 'K3 nổ lớn',
+    subtitle: 'Linh***9x chốt trúng một ván rất đẹp',
+    amount: '+8,400,000đ',
+    tag: 'K3 Sicbo',
+    symbol: 'casino',
+    tone: 'info',
+  },
+  {
+    title: 'Jackpot bất ngờ',
+    subtitle: 'Tuan***_pro nhận thưởng trong phiên chiều',
+    amount: '+102,000,000đ',
+    tag: 'Lô tô',
+    symbol: 'verified',
+    tone: 'warning',
+  },
 ]
 
 export const newsArticles: NewsArticle[] = [
@@ -174,7 +195,7 @@ export const newsArticles: NewsArticle[] = [
     category: 'Khuyến mãi',
     publishedAt: '2026-04-11T08:15:00+07:00',
     readTime: '2 phút',
-    author: 'Hệ thống FF789',
+    author: 'Hệ thống fh88u',
     tags: ['newbie', 'bonus', 'deposit'],
     featured: true,
     content: [
@@ -207,7 +228,7 @@ export const newsArticles: NewsArticle[] = [
     category: 'VIP Club',
     publishedAt: '2026-04-09T13:30:00+07:00',
     readTime: '2 phút',
-    author: 'Hệ thống FF789',
+    author: 'Hệ thống fh88u',
     tags: ['vip', 'cashback', 'reward'],
     content: [
       'Khi đạt mốc VIP, người chơi sẽ mở thêm các quyền lợi hoàn trả và ưu đãi riêng.',
@@ -245,7 +266,7 @@ export const notificationItems: NotificationItem[] = [
   {
     id: 2,
     title: 'Bài tin mới đã được đăng',
-    body: 'FF789 vừa cập nhật chương trình thưởng nạp lần đầu.',
+    body: 'fh88u vừa cập nhật chương trình thưởng nạp lần đầu.',
     category: 'Tin tức',
     createdAt: '2026-04-11T06:55:00+07:00',
     unread: true,

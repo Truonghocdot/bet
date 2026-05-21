@@ -6,7 +6,7 @@ import { useWalletStore } from '@/stores/wallet'
 const router = useRouter()
 const walletStore = useWalletStore()
 
-const telegramLink = computed(() => walletStore.summary?.telegram_cskh_link || 'https://t.me/CSKH_FF789')
+const telegramLink = computed(() => walletStore.summary?.telegram_cskh_link || 'https://t.me/CSKH_FH88U')
 
 function openTelegram() {
   window.open(telegramLink.value, '_blank')
@@ -56,7 +56,7 @@ onMounted(() => {
       <div class="bg-gradient-to-br from-primary to-[#ff8a00] p-6 text-white overflow-hidden relative">
         <div class="relative z-10">
           <h2 class="text-[1.25rem] font-black leading-tight italic">Chúng tôi có thể giúp gì cho bạn?</h2>
-          <p class="mt-2 text-[0.75rem] text-white/80 max-w-[200px]">Đội ngũ hỗ trợ FF789 luôn sẵn sàng giải đáp mọi thắc mắc của bạn 24/7.</p>
+          <p class="mt-2 text-[0.75rem] text-white/80 max-w-[200px]">Đội ngũ hỗ trợ fh88u luôn sẵn sàng giải đáp mọi thắc mắc của bạn 24/7.</p>
         </div>
         <span class="material-symbols-outlined absolute -right-4 -bottom-4 text-[120px] text-white/10 rotate-12">support_agent</span>
       </div>

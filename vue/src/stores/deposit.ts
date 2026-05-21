@@ -20,7 +20,7 @@ type PersistedPendingDeposit = {
   intent: DepositInitResponse
 }
 
-const PENDING_STORAGE_KEY = 'ff789:deposit:pending:v1'
+const PENDING_STORAGE_KEY = 'fh88u:deposit:pending:v1'
 const DEFAULT_HISTORY_PAGE_SIZE = 10
 
 export const useDepositStore = defineStore('deposit', () => {
@@ -44,7 +44,10 @@ export const useDepositStore = defineStore('deposit', () => {
   }
 
   function persistPending(method: 'vietqr' | 'usdt', intent: DepositInitResponse) {
-    writeJSON(`${pendingStorageKey()}:${method}`, { method, intent } satisfies PersistedPendingDeposit)
+    writeJSON(`${pendingStorageKey()}:${method}`, {
+      method,
+      intent,
+    } satisfies PersistedPendingDeposit)
   }
 
   function restorePending(method: 'vietqr' | 'usdt'): PersistedPendingDeposit | null {
@@ -117,9 +120,13 @@ export const useDepositStore = defineStore('deposit', () => {
   async function getStatus(clientRef: string) {
     const auth = useAuthStore()
     try {
-      const res = await request<DepositStatusResponse>('GET', `/v1/deposits/${encodeURIComponent(clientRef)}`, {
-        token: auth.accessToken,
-      })
+      const res = await request<DepositStatusResponse>(
+        'GET',
+        `/v1/deposits/${encodeURIComponent(clientRef)}`,
+        {
+          token: auth.accessToken,
+        },
+      )
       currentStatus.value = res
       const status = res.transaction?.status
       if (status === 2 || status === 3 || status === 4) {
@@ -195,9 +202,13 @@ export const useDepositStore = defineStore('deposit', () => {
     loading.value = true
     error.value = ''
     try {
-      const res = await request<DepositStatusResponse>('POST', `/v1/deposits/${currentIntent.value.transaction.id}/cancel`, {
-        token: auth.accessToken,
-      })
+      const res = await request<DepositStatusResponse>(
+        'POST',
+        `/v1/deposits/${currentIntent.value.transaction.id}/cancel`,
+        {
+          token: auth.accessToken,
+        },
+      )
       reset()
       return res
     } catch (e: any) {
@@ -253,9 +264,13 @@ export const useDepositStore = defineStore('deposit', () => {
     loading.value = true
     error.value = ''
     try {
-      const res = await request<DepositHistoryResponse>('GET', `/v1/deposits?page=${page}&page_size=${pageSize}`, {
-        token: auth.accessToken,
-      })
+      const res = await request<DepositHistoryResponse>(
+        'GET',
+        `/v1/deposits?page=${page}&page_size=${pageSize}`,
+        {
+          token: auth.accessToken,
+        },
+      )
       history.value = res.data || []
       historyPage.value = res.page || 1
       historyPageSize.value = res.page_size || DEFAULT_HISTORY_PAGE_SIZE

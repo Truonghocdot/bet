@@ -63,8 +63,8 @@
   const countdownTargetPeriodNo = ref('')
   const stableCountdownPeriodKey = ref('')
   const stableRemainingSeconds = ref(0)
-  const roomStateCachePrefix = 'ff789:play-room-state:'
-  const settlementHandledCachePrefix = 'ff789:play-settlement-handled:'
+  const roomStateCachePrefix = 'fh88u:play-room-state:'
+  const settlementHandledCachePrefix = 'fh88u:play-settlement-handled:'
   const enableRealtimeDebug = import.meta.env.DEV
   let roomStateGeneration = 0
 
@@ -232,7 +232,7 @@
 
   const backTarget = computed(() => {
     const from = typeof route.query.from === 'string' ? route.query.from.trim() : ''
-    const cached = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('ff789:last-route') ?? '' : ''
+    const cached = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('fh88u:last-route') ?? '' : ''
     const candidate = from || cached || '/play'
     if (!candidate || candidate === '/') return '/'
     if (candidate === '/auth' || candidate.startsWith('/auth?')) return '/'
@@ -266,7 +266,7 @@
     const target = backTarget.value
     const hasRealHistory = typeof window !== 'undefined' && window.history.length > 1
 
-    if (route.query.from || sessionStorage.getItem('ff789:last-route')) {
+    if (route.query.from || sessionStorage.getItem('fh88u:last-route')) {
       void router.push(target)
       return
     }
@@ -283,7 +283,7 @@
   const playMarqueeFallbackMessages = [
     'Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.',
     'Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!',
-    'FF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
+    'fh88u - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
   ]
   const playMarqueeEnabled = computed(() => wallet.summary?.marquee?.enabled ?? true)
   const playMarqueeText = computed(() => {

@@ -36,11 +36,11 @@ const account = computed(() => {
 
 onMounted(async () => {
   const sessionInvalidated = route.query.session_invalidated === '1'
-  const storedReason = window.sessionStorage.getItem('ff789:forced-logout-reason') || ''
+  const storedReason = window.sessionStorage.getItem('fh88u:forced-logout-reason') || ''
   if (sessionInvalidated || storedReason) {
     showToast(storedReason || 'Tài khoản của bạn đã đăng nhập ở thiết bị khác. Vui lòng đăng nhập lại.')
     if (storedReason) {
-      window.sessionStorage.removeItem('ff789:forced-logout-reason')
+      window.sessionStorage.removeItem('fh88u:forced-logout-reason')
     }
     const nextQuery = { ...route.query }
     delete nextQuery.session_invalidated
@@ -57,7 +57,7 @@ async function handleLogin() {
     if (!remember.value) {
       // Keep in-memory session but avoid persistence.
       // Simplest behavior: just clear persistence data.
-      localStorage.removeItem('ff789:auth:v1')
+      localStorage.removeItem('fh88u:auth:v1')
     }
 
     const next = typeof route.query.next === 'string' ? route.query.next : '/'
@@ -89,7 +89,7 @@ async function handleLogin() {
 
     <section class="text-center">
       <div class="mx-auto mb-4 grid h-[72px] w-[72px] place-items-center rounded-[20px] bg-white shadow-[0_10px_24px_rgba(255,109,102,0.12)]">
-        <span class="text-[1.1rem] font-black italic tracking-[-0.06em] text-primary">ff789</span>
+        <span class="text-[1.1rem] font-black italic tracking-[-0.06em] text-primary">fh88u</span>
       </div>
       <h2 class="m-0 text-[1.55rem] font-black">Chào mừng trở lại</h2>
       <p class="mt-1.5 text-sm text-on-surface-variant">Vui lòng đăng nhập để tiếp tục</p>
