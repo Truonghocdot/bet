@@ -11,6 +11,8 @@ use App\Models\Transaction\Transaction;
 use App\Models\Transaction\WithdrawalRequest;
 use App\Models\Wallet\Wallet;
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -20,7 +22,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
 use RuntimeException;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, SoftDeletes;
@@ -60,6 +62,17 @@ class User extends Authenticatable
             'role' => RoleUser::class,
             'status' => UserStatus::class,
         ];
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->deleted_at === null
+            && $this->status === UserStatus::ACTIVE
+            && in_array($this->role, [
+                RoleUser::SUPER_ADMIN,
+                RoleUser::ADMIN,
+                RoleUser::STAFF,
+            ], true);
     }
 
     public function wallets(): HasMany
