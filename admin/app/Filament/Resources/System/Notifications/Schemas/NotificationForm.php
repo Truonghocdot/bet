@@ -53,7 +53,7 @@ class NotificationForm
                         ->seconds(false),
                     Select::make('targetUsers')
                         ->label('Người dùng chỉ định')
-                        ->relationship('targetUsers', 'name')
+                        ->relationship('targetUsers', 'phone')
                         ->multiple()
                         ->searchable()
                         ->preload()

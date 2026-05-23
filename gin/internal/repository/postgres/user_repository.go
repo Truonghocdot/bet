@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -426,35 +428,50 @@ func (r *UserRepository) insertUser(ctx context.Context, tx *sql.Tx, params Regi
 		emailVal = &trimmed
 	}
 
-	row := tx.QueryRowContext(ctx, `
-		insert into users (name, email, phone, password, role, status, created_at, updated_at)
-		values ($1, $2, $3, $4, $5, $6, now(), now())
-		returning id, name, email, phone, role, status, email_verified_at, phone_verified_at, last_login_at, created_at, updated_at
-	`, params.Name, emailVal, params.Phone, params.PasswordHash, user.RoleClient, user.StatusActive)
+	for attempt := 0; attempt < 50; attempt++ {
+		candidateID, err := r.generateUniqueSixDigitUserID(ctx, tx)
+		if err != nil {
+			return auth.User{}, err
+		}
 
-	var result auth.User
-	var email sql.NullString
-	err := row.Scan(
-		&result.ID,
-		&result.Name,
-		&email,
-		&result.Phone,
-		&result.Role,
-		&result.Status,
-		&result.EmailVerifiedAt,
-		&result.PhoneVerifiedAt,
-		&result.LastLoginAt,
-		&result.CreatedAt,
-		&result.UpdatedAt,
-	)
-	if email.Valid {
-		result.Email = email.String
-	}
-	if err != nil {
+		row := tx.QueryRowContext(ctx, `
+			insert into users (id, name, email, phone, password, role, status, created_at, updated_at)
+			values ($1, $2, $3, $4, $5, $6, $7, now(), now())
+			returning id, name, email, phone, role, status, email_verified_at, phone_verified_at, last_login_at, created_at, updated_at
+		`, candidateID, params.Name, emailVal, params.Phone, params.PasswordHash, user.RoleClient, user.StatusActive)
+
+		var result auth.User
+		var email sql.NullString
+		err = row.Scan(
+			&result.ID,
+			&result.Name,
+			&email,
+			&result.Phone,
+			&result.Role,
+			&result.Status,
+			&result.EmailVerifiedAt,
+			&result.PhoneVerifiedAt,
+			&result.LastLoginAt,
+			&result.CreatedAt,
+			&result.UpdatedAt,
+		)
+		if err == nil {
+			if email.Valid {
+				result.Email = email.String
+			}
+
+			return result, nil
+		}
+
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "users_pkey" {
+			continue
+		}
+
 		return auth.User{}, err
 	}
 
-	return result, nil
+	return auth.User{}, fmt.Errorf("không thể tạo user ID 6 số duy nhất")
 }
 
 func (r *UserRepository) insertDefaultWallets(ctx context.Context, tx *sql.Tx, userID int64) error {
@@ -507,6 +524,8 @@ func (r *UserRepository) insertAffiliateProfile(ctx context.Context, tx *sql.Tx,
 }
 
 func (r *UserRepository) insertAffiliateReferral(ctx context.Context, tx *sql.Tx, refCode string, referredUserID int64) error {
+	refCode = strings.ToUpper(strings.TrimSpace(refCode))
+
 	var affiliateProfileID int64
 	var referrerUserID int64
 
@@ -541,6 +560,27 @@ func (r *UserRepository) insertAffiliateReferral(ctx context.Context, tx *sql.Tx
 	`, affiliateProfileID, referrerUserID, referredUserID, user.AffiliateReferralStatusPending)
 
 	return err
+}
+
+func (r *UserRepository) generateUniqueSixDigitUserID(ctx context.Context, tx *sql.Tx) (int64, error) {
+	for attempt := 0; attempt < 50; attempt++ {
+		randomValue, err := rand.Int(rand.Reader, big.NewInt(900000))
+		if err != nil {
+			return 0, err
+		}
+
+		candidate := int64(100000 + randomValue.Int64())
+
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `select exists(select 1 from users where id = $1)`, candidate).Scan(&exists); err != nil {
+			return 0, err
+		}
+		if !exists {
+			return candidate, nil
+		}
+	}
+
+	return 0, fmt.Errorf("không thể sinh user ID 6 số")
 }
 
 func (r *UserRepository) updateLastLoginAt(ctx context.Context, tx *sql.Tx, userID int64, at time.Time) error {

@@ -8,75 +8,79 @@ Tài liệu này ghi lại luồng nghiệp vụ cho:
 - nạp VietQR qua Sepay
 - webhook nạp tiền ở `gate` không cần xác thực
 
-## 0. Domain & Ownership (ff789)
+## 0. Domain & Ownership (fh88u)
 
 Domain chính:
 
-- `ff789.club`: site FE chính (Vue)
-- `api.ff789.club`: API chính (service `gin`)
-- `admin.ff789.club`: ERP/Backoffice (Laravel `admin`)
-- `gate.ff789.club`: gateway nhận webhook thanh toán và forward nội bộ
-- (planned) 1 site Vue để control kết quả: subdomain TBD (ví dụ `control.ff789.club`)
+- `fh88u.club`: site FE chính (Vue)
+- `api.fh88u.club`: API chính (service `gin`)
+- `admin.fh88u.club`: ERP/Backoffice (Laravel `admin`)
+- `gate.fh88u.club`: gateway nhận webhook thanh toán và forward nội bộ
+- (planned) 1 site Vue để control kết quả: subdomain TBD (ví dụ `control.fh88u.club`)
 
 Phân tách cấu hình payment trong ERP (source of truth):
 
 - NowPayments:
-  - nơi cấu hình: màn setting schema
-    - `/home/truonghocdot/study/practice/admin/app/Filament/Pages/System/Schemas/ExchangeRatePageForm.php`
-  - ý nghĩa: chứa thông tin kết nối/credential cho luồng nạp USDT tự động qua NOWPayments
+    - nơi cấu hình: màn setting schema
+        - `/home/truonghocdot/study/practice/admin/app/Filament/Pages/System/Schemas/ExchangeRatePageForm.php`
+    - ý nghĩa: chứa thông tin kết nối/credential cho luồng nạp USDT tự động qua NOWPayments
 - Sepay:
-  - nơi cấu hình danh sách tài khoản nhận tiền:
-    - `/home/truonghocdot/study/practice/admin/app/Filament/Resources/Payment/PaymentReceivingAccounts`
-  - **chỉ** dùng cho Sepay (VietQR), không trộn NowPayments vào bảng này
+    - nơi cấu hình danh sách tài khoản nhận tiền:
+        - `/home/truonghocdot/study/practice/admin/app/Filament/Resources/Payment/PaymentReceivingAccounts`
+    - **chỉ** dùng cho Sepay (VietQR), không trộn NowPayments vào bảng này
 
 Webhook:
 
-- `gate.ff789.club` là nơi **nhận webhook thanh toán** và forward sang `api.ff789.club` (gin).
+- `gate.fh88u.club` là nơi **nhận webhook thanh toán** và forward sang `api.fh88u.club` (gin).
 - Sepay và NOWPayments đều đi qua `gate` trước khi vào `gin`.
 - Webhook inbound ở `gate` không cần xác thực (public callback), nhưng forward nội bộ từ `gate -> gin` nên có token nội bộ.
 
 ## 1. Auth end-user
 
 ### Đăng ký
+
 - User tự đăng ký ở FE.
 - Input tối thiểu:
-  - `name`
-  - `email`
-  - `phone` nếu có
-  - `password`
-  - `ref_code` tùy chọn
+    - `name`
+    - `email`
+    - `phone` nếu có
+    - `password`
+    - `ref_code` tùy chọn
 - Khi đăng ký thành công:
-  - tạo `users`
-  - tạo `wallets` mặc định cho `VND` và `USDT`
-  - tạo `affiliate_profiles`
-  - nếu có `ref_code` hợp lệ thì tạo `affiliate_referrals`
+    - tạo `users`
+    - tạo `wallets` mặc định cho `VND` và `USDT`
+    - tạo `affiliate_profiles`
+    - nếu có `ref_code` hợp lệ thì tạo `affiliate_referrals`
 
 ### Đăng nhập
+
 - Hỗ trợ 2 tab:
-  - đăng nhập bằng `số điện thoại`
-  - đăng nhập bằng `email`
+    - đăng nhập bằng `số điện thoại`
+    - đăng nhập bằng `email`
 - Backend dùng chung endpoint login, frontend chỉ đổi cách nhập.
 
 ## 2. Nạp tiền
 
 ### Nạp USDT
+
 - User gọi `POST /v1/deposits/usdt/init` vào `gin`.
 - `gin` tạo `client_ref` và gọi nội bộ sang `gate` để tạo payment NOWPayments.
 - `gate` gọi `POST /v1/payment` của NOWPayments và trả về:
-  - `payment_id`
-  - `pay_address`
-  - `pay_amount`
-  - `pay_currency`
-  - `invoice_url`
+    - `payment_id`
+    - `pay_address`
+    - `pay_amount`
+    - `pay_currency`
+    - `invoice_url`
 - `gin` tạo `transactions` trạng thái `PENDING` với provider `nowpayments_usdt`.
 - Khi NOWPayments callback:
-  - `gate` verify IPN signature (`x-nowpayments-sig`)
-  - map payload sang request apply
-  - forward `POST /internal/v1/deposits/apply` vào `gin`
-  - `gin` cập nhật trạng thái giao dịch và cộng ví tự động
+    - `gate` verify IPN signature (`x-nowpayments-sig`)
+    - map payload sang request apply
+    - forward `POST /internal/v1/deposits/apply` vào `gin`
+    - `gin` cập nhật trạng thái giao dịch và cộng ví tự động
 - Luồng này **không dùng ví cố định** từ `payment_receiving_accounts`.
 
 ### Nạp VietQR qua Sepay
+
 - User nhập số tiền VND.
 - Hệ thống lấy ngẫu nhiên 1 tài khoản nhận tiền `BANK/VND` đang `ACTIVE`.
 - `gin` tạo transaction `PENDING` với `client_ref`.
@@ -90,16 +94,16 @@ Webhook:
 - Chỉ account `ACTIVE` mới được hiển thị.
 - Mỗi lần user mở màn nạp, hệ thống chọn ngẫu nhiên 1 account phù hợp theo `unit` và `type`.
 - Cache runtime:
-  - Redis shared key: `shared:payment:receiving-accounts:v1`
-  - snapshot source: bảng `payment_receiving_accounts` (chỉ dùng cho Sepay/VietQR)
+    - Redis shared key: `shared:payment:receiving-accounts:v1`
+    - snapshot source: bảng `payment_receiving_accounts` (chỉ dùng cho Sepay/VietQR)
 
 ## 4. Webhook
 
 - Webhook inbound ở `gate` **không cần xác thực**.
 - Gate chỉ đóng vai trò:
-  - nhận callback từ provider
-  - chuẩn hóa payload
-  - chuyển sang `gin`
+    - nhận callback từ provider
+    - chuẩn hóa payload
+    - chuyển sang `gin`
 - Endpoint internal giữa `gate` và `gin` có thể dùng token nội bộ.
 
 ## 5. Setup tối thiểu
@@ -107,27 +111,27 @@ Webhook:
 1. Admin tạo `payment_receiving_accounts` (Sepay/VietQR).
 2. Admin cấu hình NowPayments ở `ExchangeRatePageForm`.
 3. Chạy command prime cache account nhận tiền:
-   - `php artisan payment:prime-receiving-accounts`
+    - `php artisan payment:prime-receiving-accounts`
 4. Set Redis shared DB giống giữa `admin` và `gin`.
-   - `gin` nên dùng `REDIS_DB=2` để đọc key `shared:payment:receiving-accounts:v1`
+    - `gin` nên dùng `REDIS_DB=2` để đọc key `shared:payment:receiving-accounts:v1`
 5. Cấu hình `gate` trỏ về `gin` internal endpoint.
-   - `GIN_INTERNAL_BASE_URL=http://localhost:8081`
-   - `GIN_INTERNAL_TOKEN=<secret>`
+    - `GIN_INTERNAL_BASE_URL=http://localhost:8081`
+    - `GIN_INTERNAL_TOKEN=<secret>`
 6. Cấu hình `Sepay webhook` trỏ về `gate`.
-   - webhook inbound không cần xác thực
+    - webhook inbound không cần xác thực
 
 ## 6. Checklist triển khai
 
 - Đã migrate bảng `transactions` với:
-  - `client_ref`
-  - `receiving_account_id`
-  - `meta`
+    - `client_ref`
+    - `receiving_account_id`
+    - `meta`
 - Đã tạo seed/config cho `payment_receiving_accounts` (Sepay)
 - Đã cấu hình NowPayments ở ERP (`ExchangeRatePageForm`)
 - Đã prime Redis shared key `shared:payment:receiving-accounts:v1`
 - `gin` đã có:
-  - `POST /v1/deposits/vietqr/init`
-  - `POST /v1/deposits/usdt/init`
-  - `GET /v1/deposits/{client_ref}`
-  - `POST /internal/v1/deposits/apply`
+    - `POST /v1/deposits/vietqr/init`
+    - `POST /v1/deposits/usdt/init`
+    - `GET /v1/deposits/{client_ref}`
+    - `POST /internal/v1/deposits/apply`
 - `gate` đã có webhook deposit public và forward nội bộ sang `gin`

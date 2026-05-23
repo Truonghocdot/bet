@@ -25,7 +25,7 @@ const becomeAgencyError = ref('')
 
 const isClient = computed(() => auth.user?.role === 2)
 const isAgency = computed(() => auth.user?.role === 4)
-const affiliateTabLabel = computed(() => (isAgency.value ? 'Đại lý' : 'Affiliate'))
+const affiliateTabLabel = computed(() => 'Đại lý')
 const showAgencyHandshakeIcon = computed(() => activeTab.value === 'affiliate' && isAgency.value)
 
 const affiliateStatusLabel = computed(() => {
@@ -209,15 +209,8 @@ watch(
       <h1 class="text-[1rem] font-black text-on-surface">{{ tabTitle }}</h1>
     </div>
 
-    <section class="px-3">
-      <div class="grid grid-cols-3 gap-2 rounded-[18px] bg-white p-1.5 shadow-sm border border-slate-100">
-        <button
-          class="min-h-10 rounded-[12px] text-[0.78rem] font-black transition-all"
-          :class="activeTab === 'affiliate' ? 'bg-primary text-white' : 'text-slate-500'"
-          @click="setActiveTab('affiliate')"
-        >
-          {{ affiliateTabLabel }}
-        </button>
+    <section v-if="activeTab !== 'affiliate'" class="px-3">
+      <div class="grid grid-cols-2 gap-2 rounded-[18px] border border-slate-100 bg-white p-1.5 shadow-sm">
         <button
           class="min-h-10 rounded-[12px] text-[0.78rem] font-black transition-all"
           :class="activeTab === 'promotion' ? 'bg-primary text-white' : 'text-slate-500'"
@@ -238,7 +231,7 @@ watch(
     <section v-if="activeTab === 'affiliate'" class="flex flex-col gap-3 px-3">
       <div class="rounded-[18px] bg-gradient-to-br from-[#ff6d66] to-[#ff9f98] p-4 text-white">
         <p class="m-0 text-[0.7rem] uppercase tracking-[0.08em] text-white/80">
-          {{ isAgency ? 'Khu vực Đại lý' : 'Chương trình Affiliate' }}
+          {{ isAgency ? 'Khu vực Đại lý' : 'Chương trình Đại lý' }}
         </p>
         <h2 class="mt-2 text-[1.15rem] font-black">
           {{ isAgency ? 'Thống kê đại lý' : 'Mời bạn bè, nhận hoa hồng theo doanh thu' }}

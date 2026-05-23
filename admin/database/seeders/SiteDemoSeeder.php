@@ -51,7 +51,7 @@ class SiteDemoSeeder extends Seeder
     {
         DB::transaction(function (): void {
             $admin = $this->upsertUser([
-                'email' => 'admin@ff789.club',
+                'email' => 'admin@fh88u.club',
             ], [
                 'name' => 'Administrator',
                 'phone' => '0901000001',
@@ -63,7 +63,7 @@ class SiteDemoSeeder extends Seeder
             ]);
 
             $staff = $this->upsertUser([
-                'email' => 'ops@ff789.club',
+                'email' => 'ops@fh88u.club',
             ], [
                 'name' => 'Nhân sự vận hành',
                 'phone' => '0901000002',
@@ -75,7 +75,7 @@ class SiteDemoSeeder extends Seeder
             ]);
 
             $agency = $this->upsertUser([
-                'email' => 'agency@ff789.club',
+                'email' => 'agency@fh88u.club',
             ], [
                 'name' => 'Agency Demo',
                 'phone' => '0901000003',
@@ -86,7 +86,7 @@ class SiteDemoSeeder extends Seeder
                 'phone_verified_at' => now(),
             ]);
 
-            $alpha = $this->upsertUser(['email' => 'player.alpha@ff789.club'], [
+            $alpha = $this->upsertUser(['email' => 'player.alpha@fh88u.club'], [
                 'name' => 'Player Alpha',
                 'phone' => '0901000101',
                 'password' => Hash::make('password'),
@@ -95,7 +95,7 @@ class SiteDemoSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
 
-            $beta = $this->upsertUser(['email' => 'player.beta@ff789.club'], [
+            $beta = $this->upsertUser(['email' => 'player.beta@fh88u.club'], [
                 'name' => 'Player Beta',
                 'phone' => '0901000102',
                 'password' => Hash::make('password'),
@@ -104,7 +104,7 @@ class SiteDemoSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
 
-            $gamma = $this->upsertUser(['email' => 'player.gamma@ff789.club'], [
+            $gamma = $this->upsertUser(['email' => 'player.gamma@fh88u.club'], [
                 'name' => 'Player Gamma',
                 'phone' => '0901000103',
                 'password' => Hash::make('password'),
@@ -113,7 +113,7 @@ class SiteDemoSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
 
-            $delta = $this->upsertUser(['email' => 'player.delta@ff789.club'], [
+            $delta = $this->upsertUser(['email' => 'player.delta@fh88u.club'], [
                 'name' => 'Player Delta',
                 'phone' => '0901000104',
                 'password' => Hash::make('password'),
@@ -122,7 +122,7 @@ class SiteDemoSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
 
-            $echo = $this->upsertUser(['email' => 'player.echo@ff789.club'], [
+            $echo = $this->upsertUser(['email' => 'player.echo@fh88u.club'], [
                 'name' => 'Player Echo',
                 'phone' => '0901000105',
                 'password' => Hash::make('password'),
@@ -165,7 +165,7 @@ class SiteDemoSeeder extends Seeder
                     'type' => PaymentReceivingAccountType::BANK,
                     'unit' => UnitTransaction::VND,
                     'provider_code' => $bank?->code ?? 'VCB',
-                    'account_name' => 'CONG TY FF789',
+                    'account_name' => 'CONG TY fh88u',
                     'account_number' => '1900100008888',
                     'status' => PaymentReceivingAccountStatus::ACTIVE,
                     'is_default' => true,

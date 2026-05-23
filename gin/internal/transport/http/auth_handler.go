@@ -159,6 +159,8 @@ func (h *AuthHandler) writeError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.EmailExists})
 	case errors.Is(err, repopg.ErrPhoneExists):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.PhoneExists})
+	case err != nil && err.Error() == message.ReferralCodeRequired:
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.ReferralCodeRequired})
 	case errors.Is(err, repopg.ErrRefCodeNotFound):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": message.ReferralCodeNotFound})
 	case errors.Is(err, repopg.ErrInvalidSelfReferral):

@@ -65,6 +65,7 @@ class AuthServiceProvider extends ServiceProvider
             'payment.payment-receiving-accounts.manage' => [RoleUser::ADMIN],
             'affiliate.affiliate-reward-settings.manage' => [RoleUser::ADMIN],
             'system.exchange-rate-settings.manage' => [RoleUser::ADMIN],
+            'agency.backoffice.view' => [RoleUser::ADMIN, RoleUser::STAFF],
         ];
 
         foreach ($abilities as $ability => $allowedRoles) {

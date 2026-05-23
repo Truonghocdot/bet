@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
+use RuntimeException;
 
 class User extends Authenticatable
 {
@@ -37,6 +38,17 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $user): void {
+            if (filled($user->getKey())) {
+                return;
+            }
+
+            $user->setAttribute($user->getKeyName(), static::generateUniqueSixDigitId());
+        });
+    }
 
     protected function casts(): array
     {
@@ -129,5 +141,23 @@ class User extends Authenticatable
     public function referralLogs(): HasMany
     {
         return $this->hasMany(\App\Models\Affiliate\AffiliateRewardLog::class, 'referrer_user_id');
+    }
+
+    public static function generateUniqueSixDigitId(?int $exceptId = null): int
+    {
+        for ($attempt = 0; $attempt < 50; $attempt++) {
+            $candidate = random_int(100000, 999999);
+
+            $exists = static::query()
+                ->when($exceptId !== null, fn ($query) => $query->whereKeyNot($exceptId))
+                ->whereKey($candidate)
+                ->exists();
+
+            if (! $exists) {
+                return $candidate;
+            }
+        }
+
+        throw new RuntimeException('Không thể tạo user ID 6 số duy nhất.');
     }
 }

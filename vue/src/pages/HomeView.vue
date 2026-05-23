@@ -433,7 +433,8 @@ onMounted(() => {
       <div class="rounded-[20px] bg-red-950 px-4 py-4 text-white shadow-[0_12px_24px_rgba(218,37,29,0.25)] border border-red-900/50">
         <p class="text-[0.72rem] font-black uppercase tracking-[0.08em] text-yellow-500/90">Thông tin truy cập</p>
         <p class="mt-2 text-[0.88rem] font-semibold leading-7 text-white/92">
-          Nếu không truy cập được, hãy thử các domain dự phòng hoặc liên hệ CSKH để được hỗ trợ.
+          <b>FH88U.COM </b>
+Được biết đến là cổng Game giải trí trực tuyến chất lượng dành cho người chơi tại Châu Á. Tại đây hội tụ nhiều sản phẩm nổi bật và nhiều trò chơi hấp dẫn. Đơn vị luôn ưu tiên bảo vệ dữ liệu người dùng, hỗ trợ khách hàng nhanh chóng và không ngừng nâng cao chất lượng dịch vụ để mang lại trải nghiệm tốt nhất. Hãy liên hệ chúng tôi để được hỗ trợ những thắc mắc.
         </p>
         <button
           type="button"

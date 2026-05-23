@@ -150,7 +150,7 @@ class ExchangeRatePageForm
                         ->label('Danh sách thông báo')
                         ->rows(6)
                         ->columnSpanFull()
-                        ->placeholder("Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.\nKhi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!\nFF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.")
+                        ->placeholder("Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.\nKhi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!\nFH88U - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.")
                         ->helperText('Mỗi dòng tương ứng một câu chạy trong marquee.'),
                 ])
                 ->columns(2),
@@ -179,7 +179,7 @@ class ExchangeRatePageForm
                             'underline',
                             'undo',
                         ])
-                        ->placeholder("Chào mừng bạn đến với FF789.\nLiên hệ CSKH nếu cần hỗ trợ đổi cổng nạp.")
+                        ->placeholder("Chào mừng bạn đến với fh88u.\nLiên hệ CSKH nếu cần hỗ trợ đổi cổng nạp.")
                         ->helperText('Nội dung popup thông báo chung. Hỗ trợ định dạng trực quan và sẽ hiển thị đúng trên app.')
                         ->columnSpanFull(),
                     RichEditor::make('latest_news_popup')
@@ -203,7 +203,7 @@ class ExchangeRatePageForm
                             'underline',
                             'undo',
                         ])
-                        ->placeholder("Sự kiện hoàn trả cuối tuần đang diễn ra.\nCập nhật ưu đãi mới nhất tại FF789.")
+                        ->placeholder("Sự kiện hoàn trả cuối tuần đang diễn ra.\nCập nhật ưu đãi mới nhất tại fh88u.")
                         ->helperText('Popup tin tức mới nhất. Hỗ trợ định dạng trực quan và sẽ hiển thị đúng trên app.')
                         ->columnSpanFull(),
                 ])

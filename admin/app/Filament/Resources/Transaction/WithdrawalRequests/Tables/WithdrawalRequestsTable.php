@@ -39,6 +39,7 @@ class WithdrawalRequestsTable
             ->columns([
                 TextColumn::make('id')->label('ID')->sortable(),
                 TextColumn::make('user.name')->label('Người dùng')->searchable()->sortable(),
+                TextColumn::make('user.phone'),
                 TextColumn::make('wallet.id')->label('Ví')->sortable(),
                 TextColumn::make('accountWithdrawalInfo.account_number')->label('Tài khoản rút')->searchable(),
                 TextColumn::make('unit')

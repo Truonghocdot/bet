@@ -14,7 +14,7 @@ Màn hình: **Trang chủ** (end-user, mobile). Tài liệu này mô tả nghi�
 Hiển thị:
 
 - icon `menu`: mở navigation drawer (front-end).
-- `brand`: FF789.
+- `brand`: fh88u.
 - số dư nhanh: `VNĐ 1,250,000`.
 - icon `send`: hành vi chưa định nghĩa trong thiết kế (tạm coi là "chia sẻ" hoặc "gửi liên hệ").
 
@@ -89,10 +89,10 @@ Yêu cầu dữ liệu:
 
 - danh sách featured games (server có thể trả để điều khiển thứ tự/ẩn hiện).
 - mapping `game_code`:
-  - `wingo` (đã có trong `gin`)
-  - `k3` (đã có trong `gin`)
-  - `lottery` hoặc `5d_lottery` (cần chốt naming)
-  - `trx_win` (chưa có trong enum hiện tại; nếu chưa làm thì để `coming soon`)
+    - `wingo` (đã có trong `gin`)
+    - `k3` (đã có trong `gin`)
+    - `lottery` hoặc `5d_lottery` (cần chốt naming)
+    - `trx_win` (chưa có trong enum hiện tại; nếu chưa làm thì để `coming soon`)
 
 Rule:
 
@@ -117,9 +117,9 @@ Nguồn dữ liệu (đề xuất):
 
 - Phase đầu: data "curated" (seed/cấu hình) để tránh kéo phức tạp settlement.
 - Phase sau: generate từ `bet_settlements` hoặc `withdrawal_requests PAID` nhưng phải:
-  - mask username
-  - giới hạn số record
-  - không lộ user_id/email/phone
+    - mask username
+    - giới hạn số record
+    - không lộ user_id/email/phone
 
 Rule:
 
@@ -159,17 +159,17 @@ Backend: không yêu cầu.
 Response gợi ý:
 
 - `auth`:
-  - `is_authenticated` boolean
+    - `is_authenticated` boolean
 - `wallet` (nếu auth):
-  - `vnd_balance`
+    - `vnd_balance`
 - `hero_banner`:
-  - `title`, `subtitle`, `image_url`, `cta`
+    - `title`, `subtitle`, `image_url`, `cta`
 - `categories`:
-  - list `{ key, title, icon, route, enabled }`
+    - list `{ key, title, icon, route, enabled }`
 - `featured_games`:
-  - list `{ game_code, title, subtitle, enabled, maintenance_message? }`
+    - list `{ game_code, title, subtitle, enabled, maintenance_message? }`
 - `winning_feed`:
-  - list `{ display_name, avatar_url?, description, amount, tag }`
+    - list `{ display_name, avatar_url?, description, amount, tag }`
 
 Caching:
 
@@ -179,10 +179,9 @@ Caching:
 ## 3) Ràng buộc và TODO
 
 - Naming game codes cần chốt để khớp `gin`:
-  - `wingo`, `k3`, `lottery` đã có
-  - `5D Lotre` và `Trx Win` hiện chỉ là UI; nếu muốn backend thật cần enum + period/settlement riêng
+    - `wingo`, `k3`, `lottery` đã có
+    - `5D Lotre` và `Trx Win` hiện chỉ là UI; nếu muốn backend thật cần enum + period/settlement riêng
 - Promotions/banners chưa có schema trong DB hiện tại -> cần thiết kế bảng `promotions/banners` sau.
 - Winning feed:
-  - phase đầu nên curated/cached
-  - phase sau mới derive từ settlement/withdrawal và phải ẩn danh + giới hạn hiển thị
-
+    - phase đầu nên curated/cached
+    - phase sau mới derive từ settlement/withdrawal và phải ẩn danh + giới hạn hiển thị

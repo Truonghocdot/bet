@@ -1,7 +1,7 @@
 # ===== 1. Vue Frontend SPA =====
 server {
     listen 80;
-    server_name ff789.biz www.ff789.biz;
+    server_name fh88u.biz www.fh88u.biz;
 
     root /app/vue/dist;
     index index.html;
@@ -21,7 +21,7 @@ server {
 # ===== 2. Gin API =====
 server {
     listen 80;
-    server_name api.ff789.biz;
+    server_name api.fh88u.biz;
 
     # Regular API requests
     location / {
@@ -60,7 +60,7 @@ server {
 # ===== 3. Laravel Admin Panel =====
 server {
     listen 80;
-    server_name admin.ff789.biz;
+    server_name admin.fh88u.biz;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -75,7 +75,7 @@ server {
 # ===== 4. Gate (Payment Webhooks) =====
 server {
     listen 80;
-    server_name gate.ff789.biz;
+    server_name gate.fh88u.biz;
 
     location / {
         proxy_pass http://127.0.0.1:8082;
@@ -93,7 +93,7 @@ server {
 apt install -y certbot python3-certbot-nginx
 # Cấp SSL cho tất cả subdomains cùng lúc
 certbot --nginx \
-  -d ff789.biz -d www.ff789.biz \
-  -d api.ff789.biz \
-  -d admin.ff789.biz \
-  -d gate.ff789.biz
+  -d fh88u.biz -d www.fh88u.biz \
+  -d api.fh88u.biz \
+  -d admin.fh88u.biz \
+  -d gate.fh88u.biz

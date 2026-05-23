@@ -112,6 +112,11 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 		return auth.AuthResponse{}, fmt.Errorf(message.PasswordInvalid)
 	}
 
+	refCode := strings.ToUpper(strings.TrimSpace(request.RefCode))
+	if refCode == "" {
+		return auth.AuthResponse{}, fmt.Errorf(message.ReferralCodeRequired)
+	}
+
 	hash, err := password.Hash(passwordRaw)
 	if err != nil {
 		return auth.AuthResponse{}, err
@@ -122,7 +127,7 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 		Email:        email,
 		Phone:        phoneNumber,
 		PasswordHash: hash,
-		RefCode:      strings.TrimSpace(request.RefCode),
+		RefCode:      refCode,
 		RegisterURL:  s.config.RegisterURL,
 	})
 	if err != nil {
@@ -177,7 +182,6 @@ func (s *AuthService) LoginByUserID(ctx context.Context, userID int64) (auth.Aut
 
 	return s.newAuthResponse(ctx, profile, auth.RequestMeta{})
 }
-
 
 func (s *AuthService) ForgotPassword(ctx context.Context, request auth.ForgotPasswordRequest, _ auth.RequestMeta) (auth.MessageResponse, error) {
 	channel, channelDBValue, err := s.parseChannel(request.Channel)
@@ -376,7 +380,7 @@ func (s *AuthService) Me(ctx context.Context, userID int64) (auth.UserProfile, e
 	if profile.AffiliateProfile != nil {
 		baseURL := strings.TrimSpace(s.config.RegisterURL)
 		if baseURL == "" {
-			baseURL = "https://ff789.biz/register"
+			baseURL = "https://fh88u.biz/register"
 		}
 		profile.AffiliateProfile.RefLink = fmt.Sprintf("%s?ref_code=%s", strings.TrimRight(baseURL, "/"), profile.AffiliateProfile.RefCode)
 	}
@@ -648,7 +652,7 @@ func (s *AuthService) newAuthResponse(ctx context.Context, profile auth.UserProf
 		affiliate := *profile.AffiliateProfile
 		baseURL := strings.TrimSpace(s.config.RegisterURL)
 		if baseURL == "" {
-			baseURL = "https://ff789.biz/register"
+			baseURL = "https://fh88u.biz/register"
 		}
 		affiliate.RefLink = fmt.Sprintf("%s?ref_code=%s", strings.TrimRight(baseURL, "/"), affiliate.RefCode)
 		affiliateProfile = &affiliate

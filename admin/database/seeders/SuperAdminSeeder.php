@@ -14,7 +14,7 @@ class SuperAdminSeeder extends Seeder
     {
         User::query()->updateOrCreate(
             [
-                'email' => 'superadmin@ff789.club',
+                'email' => 'superadmin@fh88u.club',
             ],
             [
                 'name' => 'Super Admin',

@@ -39,7 +39,7 @@ class ExchangeRateService
                 'marquee_messages' => implode("\n", [
                     'Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.',
                     'Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!',
-                    'FF789 - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
+                    'fh88u - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.',
                 ]),
                 'popup_message' => null,
                 'latest_news_popup' => null,
@@ -254,8 +254,8 @@ class ExchangeRateService
         }
 
         return collect(preg_split('/\r\n|\r|\n/', $value) ?: [])
-            ->map(fn (mixed $line): string => trim((string) $line))
-            ->filter(fn (string $line): bool => $line !== '')
+            ->map(fn(mixed $line): string => trim((string) $line))
+            ->filter(fn(string $line): bool => $line !== '')
             ->values()
             ->all();
     }

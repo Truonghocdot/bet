@@ -16,7 +16,7 @@ const refCode = ref(typeof route.query.ref_code === 'string' ? route.query.ref_c
 const submitError = ref('')
 const showPassword = ref(false)
 
-const canSubmit = computed(() => Boolean(name.value && phone.value && password.value))
+const canSubmit = computed(() => Boolean(name.value && phone.value && password.value && refCode.value.trim()))
 
 async function handleRegister() {
   submitError.value = ''
@@ -25,7 +25,7 @@ async function handleRegister() {
       name: name.value.trim(),
       phone: normalizeVNPhone(phone.value),
       password: password.value,
-      ref_code: refCode.value.trim() || undefined,
+      ref_code: refCode.value.trim(),
       register_url: window.location.href,
     })
 
@@ -82,7 +82,7 @@ async function handleRegister() {
       </label>
 
       <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
-        <input v-model="refCode" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="text" placeholder="Mã giới thiệu (không bắt buộc)" />
+        <input v-model="refCode" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="text" placeholder="Mã giới thiệu bắt buộc" />
       </label>
 
       <div class="flex flex-row w-full items-center justify-center">
@@ -107,4 +107,3 @@ async function handleRegister() {
     </section>
   </div>
 </template>
-

@@ -20,6 +20,7 @@ const (
 	EmailExists                    = "Email đã tồn tại"
 	PhoneExists                    = "Số điện thoại đã tồn tại"
 	AccountNotFound                = "Không tìm thấy tài khoản"
+	ReferralCodeRequired           = "Vui lòng nhập mã giới thiệu"
 	ReferralCodeNotFound           = "Mã giới thiệu không tồn tại"
 	StaffInviteCodeInvalid         = "Mã mời nhân viên không hợp lệ"
 	ReferralAlreadyUsed            = "Bạn đã nhập mã mời trước đó"

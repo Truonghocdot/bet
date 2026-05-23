@@ -698,7 +698,7 @@ async function logout() {
           type="submit"
           :disabled="isIntentActive || deposit.loading || !isAmountValid || (method === 'vietqr' && !selectedBankCode)"
         >
-          {{ isIntentActive ? 'Đang có lệnh mở - vui lòng chờ' : (deposit.loading ? 'Đang tạo giao dịch...' : (method === 'usdt' ? 'Tạo địa chỉ nạp USDT' : 'Tạo mã QR Nạp tiền')) }}
+          {{ isIntentActive ? 'Đang có lệnh mở - vui lòng chờ' : (deposit.loading ? 'Đang tạo giao dịch...' : (method === 'usdt' ? 'Tạo địa chỉ nạp USDT' : 'Tạo đơn Nạp tiền')) }}
         </button>
       </form>
     </section>

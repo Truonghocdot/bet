@@ -48,7 +48,7 @@ class WalletBalancePage extends Page
 
     public function getSubheading(): string | Htmlable | null
     {
-        return 'Danh sách người dùng và số dư ví khả dụng để điều chỉnh nhanh VND / USDT.';
+        return 'Danh sách người dùng và số dư ví khả dụng. Có thể nhập trực tiếp số dư cuối hoặc ô chênh lệch dạng +1000 / -500 để cộng trừ nhanh.';
     }
 
     protected function getHeaderWidgets(): array

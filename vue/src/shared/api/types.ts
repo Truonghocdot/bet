@@ -51,7 +51,7 @@ export type RegisterRequest = {
   email?: string
   phone?: string
   password: string
-  ref_code?: string
+  ref_code: string
   register_url?: string
 }
 

@@ -281,11 +281,11 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
         
         <form class="mt-4 space-y-3" @submit.prevent="submitSaveMethod">
           <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Tên Ngân hàng (VD: MBBank, VCB)' : 'Mạng lưới (VD: TRC20, ERC20)' }}</span>
+            <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Tên Ngân hàng' : 'Mạng lưới (VD: TRC20, ERC20)' }}</span>
             <input v-model="addProvider" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none" :required="method === 'usdt'" :placeholder="method === 'vnd' ? 'Điền Tên Ngân Hàng' : ''" />
           </label>
           <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Chủ tài khoản (Không dấu)' : 'Nhãn ghi nhớ' }}</span>
+            <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Chủ tài khoản' : 'Nhãn ghi nhớ' }}</span>
             <input v-model="addHolder" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none uppercase" required :placeholder="method === 'vnd' ? 'Điền Tên Chủ Tài Khoản' : ''" />
           </label>
           <label class="block">

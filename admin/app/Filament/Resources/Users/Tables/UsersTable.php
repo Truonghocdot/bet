@@ -13,6 +13,7 @@ use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class UsersTable
 {
@@ -32,6 +33,29 @@ class UsersTable
                     ->searchable()
                     ->copyable()
                     ->toggleable(),
+                TextColumn::make('agency_name')
+                    ->label('Thuộc đại lý')
+                    ->visible($fixedRole === RoleUser::CLIENT)
+                    ->getStateUsing(function ($record): string {
+                        $agency = $record->referredByReferral?->referrerUser;
+
+                        if (! $agency || $agency->role !== RoleUser::AGENCY) {
+                            return '—';
+                        }
+
+                        return ($agency->name ?: 'Agency').' (#'.$agency->id.')';
+                    })
+                    ->searchable(query: function (Builder $query, string $search): void {
+                        $query->whereHas('referredByReferral.referrerUser', function (Builder $agencyQuery) use ($search): void {
+                            $agencyQuery
+                                ->where('role', RoleUser::AGENCY->value)
+                                ->where(function (Builder $innerQuery) use ($search): void {
+                                    $innerQuery
+                                        ->where('name', 'like', '%'.$search.'%')
+                                        ->orWhere('id', 'like', '%'.$search.'%');
+                                });
+                        });
+                    }),
                 TextColumn::make('role')
                     ->label('Vai trò')
                     ->badge()
