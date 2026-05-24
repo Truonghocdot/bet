@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { request, type ApiError } from '@/shared/api/http'
 import type { ContentBannerItem, ContentListResponse, ContentNewsItem, ContentPromotionListResponse, ManagedAffiliateUser } from '@/shared/api/types'
+import { formatViDateTime } from '@/shared/lib/date'
 import { stripHtmlTags } from '@/shared/lib/html'
 import { useAuthStore } from '@/stores/auth'
 
@@ -408,7 +409,7 @@ watch(
         <div class="p-4">
           <h3 class="text-[0.92rem] font-black text-on-surface">{{ item.title }}</h3>
           <p class="mt-2 text-[0.78rem] leading-5 text-slate-500">{{ newsPreview(item) }}</p>
-          <p class="mt-3 text-[0.68rem] font-bold text-slate-400">{{ item.published_at || item.created_at }}</p>
+          <p class="mt-3 text-[0.68rem] font-bold text-slate-400">{{ formatViDateTime(item.published_at || item.created_at) }}</p>
         </div>
       </RouterLink>
 

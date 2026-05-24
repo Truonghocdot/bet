@@ -10,6 +10,7 @@ import macjbeliLogo from '@/assets/supporter/macjbeli.jpg'
 import pieExglnLogo from '@/assets/supporter/pie.exgln.png'
 import { request } from '@/shared/api/http'
 import type { ContentBannerItem, ContentHomeResponse, ContentNewsItem } from '@/shared/api/types'
+import { formatViDateTime } from '@/shared/lib/date'
 import { stripHtmlTags } from '@/shared/lib/html'
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
@@ -416,7 +417,7 @@ onMounted(() => {
             <span class="line-clamp-2 text-[0.7rem] text-slate-500 md:text-white/60">{{ newsPreview(item) }}</span>
           </div>
           <span class="flex-shrink-0 text-[0.68rem] font-bold text-slate-400 md:text-white/40">
-            {{ item.published_at || item.created_at }}
+            {{ formatViDateTime(item.published_at || item.created_at) }}
           </span>
         </RouterLink>
         <div v-if="!homeHighlights.length && !contentError" class="px-4 py-3 text-[0.78rem] font-semibold text-slate-500">
