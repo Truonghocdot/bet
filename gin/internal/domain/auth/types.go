@@ -57,8 +57,9 @@ type ChangePasswordRequest struct {
 }
 
 type RequestMeta struct {
-	IP        string `json:"ip"`
-	UserAgent string `json:"user_agent"`
+	IP          string `json:"ip"`
+	UserAgent   string `json:"user_agent"`
+	ClientScope string `json:"client_scope"`
 }
 
 type MessageResponse struct {

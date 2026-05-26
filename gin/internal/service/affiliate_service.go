@@ -42,6 +42,24 @@ type ManagedAffiliateUsersResponse struct {
 	Items   []ManagedAffiliateUser `json:"items"`
 }
 
+type ManagedAffiliateUserTransaction struct {
+	ID            int64     `json:"id"`
+	Unit          int       `json:"unit"`
+	Direction     int       `json:"direction"`
+	Amount        string    `json:"amount"`
+	BalanceBefore string    `json:"balance_before"`
+	BalanceAfter  string    `json:"balance_after"`
+	ReferenceType string    `json:"reference_type"`
+	ReferenceID   *int64    `json:"reference_id,omitempty"`
+	Note          string    `json:"note"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type ManagedAffiliateUserTransactionsResponse struct {
+	Message string                            `json:"message"`
+	Items   []ManagedAffiliateUserTransaction `json:"items"`
+}
+
 func (s *AffiliateService) Summary(ctx context.Context, userID int64) (AffiliateSummary, error) {
 	count, err := s.userRepo.CountInvitedUsers(ctx, userID)
 	if err != nil {
@@ -77,6 +95,46 @@ func (s *AffiliateService) ManagedUsers(ctx context.Context, userID int64, role 
 	return ManagedAffiliateUsersResponse{
 		Message: "Lấy danh sách user trực thuộc thành công",
 		Items:   result,
+	}, nil
+}
+
+func (s *AffiliateService) ManagedUserTransactions(ctx context.Context, referrerUserID int64, role int, managedUserID int64) (ManagedAffiliateUserTransactionsResponse, error) {
+	if role != user.RoleAgency {
+		return ManagedAffiliateUserTransactionsResponse{}, ErrUnauthorized
+	}
+
+	allowed, err := s.userRepo.IsManagedAffiliateUser(ctx, referrerUserID, managedUserID)
+	if err != nil {
+		return ManagedAffiliateUserTransactionsResponse{}, err
+	}
+	if !allowed {
+		return ManagedAffiliateUserTransactionsResponse{}, ErrUnauthorized
+	}
+
+	records, err := s.userRepo.ListManagedAffiliateUserTransactions(ctx, managedUserID, 100)
+	if err != nil {
+		return ManagedAffiliateUserTransactionsResponse{}, err
+	}
+
+	items := make([]ManagedAffiliateUserTransaction, 0, len(records))
+	for _, record := range records {
+		items = append(items, ManagedAffiliateUserTransaction{
+			ID:            record.ID,
+			Unit:          record.Unit,
+			Direction:     record.Direction,
+			Amount:        record.Amount,
+			BalanceBefore: record.BalanceBefore,
+			BalanceAfter:  record.BalanceAfter,
+			ReferenceType: record.ReferenceType,
+			ReferenceID:   record.ReferenceID,
+			Note:          record.Note,
+			CreatedAt:     record.CreatedAt,
+		})
+	}
+
+	return ManagedAffiliateUserTransactionsResponse{
+		Message: "Lấy giao dịch người chơi thành công",
+		Items:   items,
 	}, nil
 }
 

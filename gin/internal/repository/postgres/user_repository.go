@@ -53,11 +53,12 @@ type RegisterUserParams struct {
 }
 
 type CreateRefreshTokenParams struct {
-	UserID    int64
-	Token     string
-	ExpiresAt time.Time
-	IP        string
-	UserAgent string
+	UserID      int64
+	Token       string
+	ExpiresAt   time.Time
+	IP          string
+	UserAgent   string
+	ClientScope string
 }
 
 type userRecord struct {
@@ -258,6 +259,19 @@ type ManagedAffiliateUserRecord struct {
 	FirstDepositTransactionNo string
 }
 
+type ManagedAffiliateUserTransactionRecord struct {
+	ID            int64
+	Unit          int
+	Direction     int
+	Amount        string
+	BalanceBefore string
+	BalanceAfter  string
+	ReferenceType string
+	ReferenceID   *int64
+	Note          string
+	CreatedAt     time.Time
+}
+
 func (r *UserRepository) ListManagedAffiliateUsers(ctx context.Context, referrerUserID int64, limit int) ([]ManagedAffiliateUserRecord, error) {
 	if limit <= 0 {
 		limit = 100
@@ -306,6 +320,73 @@ func (r *UserRepository) ListManagedAffiliateUsers(ctx context.Context, referrer
 	return items, rows.Err()
 }
 
+func (r *UserRepository) IsManagedAffiliateUser(ctx context.Context, referrerUserID, managedUserID int64) (bool, error) {
+	var exists bool
+	err := r.db.QueryRowContext(ctx, `
+		select exists(
+			select 1
+			from affiliate_referrals
+			where referrer_user_id = $1 and referred_user_id = $2
+		)
+	`, referrerUserID, managedUserID).Scan(&exists)
+	return exists, err
+}
+
+func (r *UserRepository) ListManagedAffiliateUserTransactions(ctx context.Context, managedUserID int64, limit int) ([]ManagedAffiliateUserTransactionRecord, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		select
+			l.id,
+			w.unit,
+			l.direction,
+			l.amount::text,
+			l.balance_before::text,
+			l.balance_after::text,
+			coalesce(l.reference_type, '') as reference_type,
+			l.reference_id,
+			coalesce(l.note, '') as note,
+			l.created_at
+		from wallet_ledger_entries l
+		inner join wallets w on w.id = l.wallet_id
+		where l.user_id = $1
+		order by l.created_at desc, l.id desc
+		limit $2
+	`, managedUserID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]ManagedAffiliateUserTransactionRecord, 0)
+	for rows.Next() {
+		var item ManagedAffiliateUserTransactionRecord
+		var referenceID sql.NullInt64
+		if err := rows.Scan(
+			&item.ID,
+			&item.Unit,
+			&item.Direction,
+			&item.Amount,
+			&item.BalanceBefore,
+			&item.BalanceAfter,
+			&item.ReferenceType,
+			&referenceID,
+			&item.Note,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if referenceID.Valid {
+			item.ReferenceID = &referenceID.Int64
+		}
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}
+
 func (r *UserRepository) FindProfileByUserID(ctx context.Context, userID int64) (auth.UserProfile, error) {
 	record, err := r.findUserRecordByID(ctx, userID)
 	if err != nil {
@@ -335,26 +416,27 @@ func (r *UserRepository) CreateRefreshToken(ctx context.Context, params CreateRe
 	_, err := r.db.ExecContext(ctx, `
 		insert into auth_refresh_tokens (user_id, token, expires_at, ip, user_agent, created_at, updated_at)
 		values ($1, $2, $3, $4, $5, now(), now())
-	`, params.UserID, params.Token, params.ExpiresAt, params.IP, params.UserAgent)
+	`, params.UserID, params.TokenWithScope(), params.ExpiresAt, params.IP, params.UserAgent)
 	return err
 }
 
-func (r *UserRepository) FindRefreshToken(ctx context.Context, token string) (int64, time.Time, error) {
+func (r *UserRepository) FindRefreshToken(ctx context.Context, token string) (int64, time.Time, string, error) {
 	var userID int64
 	var expiresAt time.Time
+	var storedToken string
 	err := r.db.QueryRowContext(ctx, `
-		select user_id, expires_at
+		select user_id, expires_at, token
 		from auth_refresh_tokens
 		where token = $1
 		limit 1
-	`, token).Scan(&userID, &expiresAt)
+	`, token).Scan(&userID, &expiresAt, &storedToken)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, time.Time{}, errors.New(message.Unauthorized)
+			return 0, time.Time{}, "", errors.New(message.Unauthorized)
 		}
-		return 0, time.Time{}, err
+		return 0, time.Time{}, "", err
 	}
-	return userID, expiresAt, nil
+	return userID, expiresAt, extractRefreshTokenScope(storedToken), nil
 }
 
 func (r *UserRepository) DeleteRefreshToken(ctx context.Context, token string) error {
@@ -365,6 +447,33 @@ func (r *UserRepository) DeleteRefreshToken(ctx context.Context, token string) e
 func (r *UserRepository) DeleteRefreshTokensByUserID(ctx context.Context, userID int64) error {
 	_, err := r.db.ExecContext(ctx, `delete from auth_refresh_tokens where user_id = $1`, userID)
 	return err
+}
+
+func (r *UserRepository) DeleteRefreshTokensByUserIDAndScope(ctx context.Context, userID int64, scope string) error {
+	normalizedScope := normalizeClientScope(scope)
+	_, err := r.db.ExecContext(ctx, `delete from auth_refresh_tokens where user_id = $1 and token like $2`, userID, normalizedScope+":%")
+	return err
+}
+
+func (p CreateRefreshTokenParams) TokenWithScope() string {
+	return normalizeClientScope(p.ClientScope) + ":" + strings.TrimSpace(p.Token)
+}
+
+func extractRefreshTokenScope(token string) string {
+	parts := strings.SplitN(strings.TrimSpace(token), ":", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
+		return "main"
+	}
+	return normalizeClientScope(parts[0])
+}
+
+func normalizeClientScope(scope string) string {
+	switch strings.ToLower(strings.TrimSpace(scope)) {
+	case "agency":
+		return "agency"
+	default:
+		return "main"
+	}
 }
 
 func (r *UserRepository) findUserRecordByAccount(ctx context.Context, account string) (userRecord, error) {

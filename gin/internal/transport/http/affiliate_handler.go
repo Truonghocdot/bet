@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	authmiddleware "gin/internal/auth/middleware"
 	repopg "gin/internal/repository/postgres"
@@ -46,6 +47,32 @@ func (h *AffiliateHandler) ManagedUsers(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		if errors.Is(err, service.ErrUnauthorized) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không có quyền xem danh sách user trực thuộc"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (h *AffiliateHandler) ManagedUserTransactions(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	userID, err := strconv.ParseInt(r.PathValue("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Mã người chơi không hợp lệ"})
+		return
+	}
+
+	res, err := h.affiliateService.ManagedUserTransactions(r.Context(), claims.UserID, claims.Role, userID)
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorized) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không có quyền xem giao dịch của người chơi này"})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})

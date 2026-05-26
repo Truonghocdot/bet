@@ -10,8 +10,9 @@ import (
 
 func extractRequestMeta(r *http.Request) auth.RequestMeta {
 	return auth.RequestMeta{
-		IP:        clientIP(r),
-		UserAgent: strings.TrimSpace(r.UserAgent()),
+		IP:          clientIP(r),
+		UserAgent:   strings.TrimSpace(r.UserAgent()),
+		ClientScope: strings.TrimSpace(r.Header.Get("X-Client-Scope")),
 	}
 }
 

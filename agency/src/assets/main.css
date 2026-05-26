@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --agency-ink: #0f172a;
+  --agency-muted: #516074;
+  --agency-line: rgba(15, 23, 42, 0.08);
+  --agency-panel: rgba(255, 255, 255, 0.84);
+  --agency-accent: #d9485f;
+  --agency-accent-2: #f59e0b;
+  --agency-bg-1: #f6efe7;
+  --agency-bg-2: #f3d8cf;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  color: var(--agency-ink);
+  background:
+    radial-gradient(circle at top left, rgba(245, 158, 11, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(217, 72, 95, 0.22), transparent 24%),
+    linear-gradient(135deg, var(--agency-bg-1), #fffaf6 42%, var(--agency-bg-2));
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 1, "wght" 600, "GRAD" 0, "opsz" 24;
+}

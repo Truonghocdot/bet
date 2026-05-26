@@ -401,7 +401,8 @@ func (s *AuthService) VerifySession(ctx context.Context, userID int64, sessionID
 	if sessionID == "" {
 		return false
 	}
-	key := fmt.Sprintf("user:session:%d", userID)
+	scope := sessionScopeFromID(sessionID)
+	key := fmt.Sprintf("user:session:%s:%d", scope, userID)
 	latest, err := s.redis.Get(ctx, key).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -419,9 +420,13 @@ func (s *AuthService) VerifySession(ctx context.Context, userID int64, sessionID
 }
 
 func (s *AuthService) Refresh(ctx context.Context, request auth.RefreshTokenRequest, meta auth.RequestMeta) (auth.AuthResponse, error) {
-	userID, expiresAt, err := s.repository.FindRefreshToken(ctx, request.RefreshToken)
+	userID, expiresAt, storedScope, err := s.repository.FindRefreshToken(ctx, withClientScopeToken(meta.ClientScope, request.RefreshToken))
 	if err != nil {
 		return auth.AuthResponse{}, err
+	}
+
+	if normalizeClientScope(meta.ClientScope) != storedScope {
+		return auth.AuthResponse{}, errors.New(message.Unauthorized)
 	}
 
 	if clock.Now().After(expiresAt) {
@@ -435,7 +440,7 @@ func (s *AuthService) Refresh(ctx context.Context, request auth.RefreshTokenRequ
 	}
 
 	// Rotate token: delete old one
-	_ = s.repository.DeleteRefreshToken(ctx, request.RefreshToken)
+	_ = s.repository.DeleteRefreshToken(ctx, withClientScopeToken(meta.ClientScope, request.RefreshToken))
 
 	return s.newAuthResponse(ctx, profile, meta)
 }
@@ -602,17 +607,18 @@ func normalizeLoginAccount(account string) string {
 func (s *AuthService) newAuthResponse(ctx context.Context, profile auth.UserProfile, meta auth.RequestMeta) (auth.AuthResponse, error) {
 	issuedAt := clock.Now()
 	expiresAt := issuedAt.Add(s.tokenSigner.TTL())
+	clientScope := normalizeClientScope(meta.ClientScope)
 
 	// Single device login: Generate and store session ID
-	sessionID := id.New() // Using a short unique ID for session
+	sessionID := clientScope + ":" + id.New()
 	if s.redis != nil {
-		sessionKey := fmt.Sprintf("user:session:%d", profile.User.ID)
+		sessionKey := fmt.Sprintf("user:session:%s:%d", clientScope, profile.User.ID)
 		// Store with a TTL slightly longer than the Access Token
 		_ = s.redis.Set(ctx, sessionKey, sessionID, s.tokenSigner.TTL()+1*time.Hour).Err()
 	}
 
-	// Single device login: thu hồi toàn bộ refresh token cũ trước khi cấp token mới.
-	if err := s.repository.DeleteRefreshTokensByUserID(ctx, profile.User.ID); err != nil {
+	// Single device login per client scope.
+	if err := s.repository.DeleteRefreshTokensByUserIDAndScope(ctx, profile.User.ID, clientScope); err != nil {
 		log.Printf("[auth][refresh_token.revoke.warn] user_id=%d err=%v", profile.User.ID, err)
 	}
 
@@ -636,11 +642,12 @@ func (s *AuthService) newAuthResponse(ctx context.Context, profile auth.UserProf
 	refreshExpiresAt := issuedAt.Add(refreshTTL)
 
 	err = s.repository.CreateRefreshToken(ctx, repopg.CreateRefreshTokenParams{
-		UserID:    profile.User.ID,
-		Token:     refreshTokenValue,
-		ExpiresAt: refreshExpiresAt,
-		IP:        meta.IP,
-		UserAgent: meta.UserAgent,
+		UserID:      profile.User.ID,
+		Token:       refreshTokenValue,
+		ExpiresAt:   refreshExpiresAt,
+		IP:          meta.IP,
+		UserAgent:   meta.UserAgent,
+		ClientScope: clientScope,
 	})
 	if err != nil {
 		return auth.AuthResponse{}, err
@@ -667,4 +674,25 @@ func (s *AuthService) newAuthResponse(ctx context.Context, profile auth.UserProf
 		ExpiresIn:        int64(time.Until(expiresAt).Seconds()),
 		RefreshExpiresIn: int64(time.Until(refreshExpiresAt).Seconds()),
 	}, nil
+}
+
+func normalizeClientScope(scope string) string {
+	switch strings.ToLower(strings.TrimSpace(scope)) {
+	case "agency":
+		return "agency"
+	default:
+		return "main"
+	}
+}
+
+func sessionScopeFromID(sessionID string) string {
+	parts := strings.SplitN(strings.TrimSpace(sessionID), ":", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
+		return "main"
+	}
+	return normalizeClientScope(parts[0])
+}
+
+func withClientScopeToken(scope string, token string) string {
+	return normalizeClientScope(scope) + ":" + strings.TrimSpace(token)
 }

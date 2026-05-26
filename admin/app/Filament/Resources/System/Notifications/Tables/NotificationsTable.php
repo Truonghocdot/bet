@@ -43,10 +43,19 @@ class NotificationsTable
                     ->label('Đã đọc')
                     ->counts('reads')
                     ->sortable(),
-                TextColumn::make('publish_at')->label('Phát hành')->dateTime()->sortable(),
-                TextColumn::make('expires_at')->label('Hết hạn')->dateTime()->toggleable(),
+                TextColumn::make('publish_at')
+                    ->label('Phát hành')
+                    ->dateTime('d/m/Y H:i', 'Asia/Ho_Chi_Minh')
+                    ->sortable(),
+                TextColumn::make('expires_at')
+                    ->label('Hết hạn')
+                    ->dateTime('d/m/Y H:i', 'Asia/Ho_Chi_Minh')
+                    ->toggleable(),
                 TextColumn::make('createdBy.name')->label('Tạo bởi')->toggleable(),
-                TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
+                TextColumn::make('created_at')
+                    ->label('Tạo lúc')
+                    ->dateTime('d/m/Y H:i', 'Asia/Ho_Chi_Minh')
+                    ->sortable(),
             ])
             ->filters([
                 SelectFilter::make('status')
