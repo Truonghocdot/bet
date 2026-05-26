@@ -4,6 +4,7 @@ namespace App\Filament\Resources\System\Notifications\Tables;
 
 use App\Enum\Notification\NotificationStatus;
 use App\Support\Filament\EnumPresenter;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -28,13 +29,13 @@ class NotificationsTable
                 TextColumn::make('status')
                     ->label('Trạng thái')
                     ->badge()
-                    ->formatStateUsing(fn ($state): string => EnumPresenter::label(NotificationStatus::class, $state))
-                    ->color(fn ($state): string => EnumPresenter::color(NotificationStatus::class, $state)),
+                    ->formatStateUsing(fn($state): string => EnumPresenter::label(NotificationStatus::class, $state))
+                    ->color(fn($state): string => EnumPresenter::color(NotificationStatus::class, $state)),
                 TextColumn::make('audience')
                     ->label('Đối tượng')
                     ->badge()
-                    ->formatStateUsing(fn ($state): string => EnumPresenter::label(\App\Enum\Notification\NotificationAudience::class, $state))
-                    ->color(fn ($state): string => EnumPresenter::color(\App\Enum\Notification\NotificationAudience::class, $state)),
+                    ->formatStateUsing(fn($state): string => EnumPresenter::label(\App\Enum\Notification\NotificationAudience::class, $state))
+                    ->color(fn($state): string => EnumPresenter::color(\App\Enum\Notification\NotificationAudience::class, $state)),
                 TextColumn::make('target_users_count')
                     ->label('User đích')
                     ->counts('targetUsers')
@@ -45,7 +46,9 @@ class NotificationsTable
                     ->sortable(),
                 TextColumn::make('publish_at')
                     ->label('Phát hành')
-                    ->dateTime(format: 'd/m/Y H:i', timezone: 'Asia/Ho_Chi_Minh')
+                    ->formatStateUsing(fn($state) => Carbon::parse($state)
+                        ->addHours(7)
+                        ->format('d/m/Y H:i'))
                     ->sortable(),
                 TextColumn::make('expires_at')
                     ->label('Hết hạn')
@@ -71,7 +74,7 @@ class NotificationsTable
                     ->icon('heroicon-m-paper-airplane')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->visible(fn ($record): bool => $record->status !== NotificationStatus::PUBLISHED)
+                    ->visible(fn($record): bool => $record->status !== NotificationStatus::PUBLISHED)
                     ->action(function ($record): void {
                         $record->status = NotificationStatus::PUBLISHED;
                         if (blank($record->publish_at)) {
@@ -84,7 +87,7 @@ class NotificationsTable
                     ->icon('heroicon-m-archive-box')
                     ->color('warning')
                     ->requiresConfirmation()
-                    ->visible(fn ($record): bool => $record->status !== NotificationStatus::ARCHIVED)
+                    ->visible(fn($record): bool => $record->status !== NotificationStatus::ARCHIVED)
                     ->action(function ($record): void {
                         $record->status = NotificationStatus::ARCHIVED;
                         $record->save();
