@@ -47,10 +47,12 @@ class NotificationForm
                         ->live(),
                     DateTimePicker::make('publish_at')
                         ->label('Thời gian phát hành')
-                        ->seconds(false),
+                        ->seconds(false)
+                        ->timezone(config('app.timezone', 'Asia/Ho_Chi_Minh')),
                     DateTimePicker::make('expires_at')
                         ->label('Hết hạn lúc')
-                        ->seconds(false),
+                        ->seconds(false)
+                        ->timezone(config('app.timezone', 'Asia/Ho_Chi_Minh')),
                     Select::make('targetUsers')
                         ->label('Người dùng chỉ định')
                         ->relationship('targetUsers', 'phone')
@@ -65,4 +67,3 @@ class NotificationForm
         ]);
     }
 }
-
