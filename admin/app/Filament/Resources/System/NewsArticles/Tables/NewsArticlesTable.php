@@ -27,8 +27,14 @@ class NewsArticlesTable
                 TextColumn::make('title')->label('Tiêu đề')->searchable()->limit(80),
                 TextColumn::make('slug')->label('Slug')->toggleable(),
                 IconColumn::make('is_published')->label('Phát hành')->boolean(),
-                TextColumn::make('published_at')->label('Phát hành lúc')->dateTime()->sortable(),
-                TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
+                TextColumn::make('published_at')
+                    ->label('Phát hành lúc')
+                    ->dateTime(format: 'd/m/Y H:i', timezone: 'Asia/Ho_Chi_Minh')
+                    ->sortable(),
+                TextColumn::make('created_at')
+                    ->label('Tạo lúc')
+                    ->dateTime(format: 'd/m/Y H:i', timezone: 'Asia/Ho_Chi_Minh')
+                    ->sortable(),
             ])
             ->filters([
                 TernaryFilter::make('is_published')->label('Đã phát hành'),

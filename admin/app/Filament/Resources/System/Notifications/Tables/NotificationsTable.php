@@ -45,16 +45,16 @@ class NotificationsTable
                     ->sortable(),
                 TextColumn::make('publish_at')
                     ->label('Phát hành')
-                    ->dateTime('d/m/Y H:i', 'Asia/Ho_Chi_Minh')
+                    ->dateTime(format: 'd/m/Y H:i', timezone: 'Asia/Ho_Chi_Minh')
                     ->sortable(),
                 TextColumn::make('expires_at')
                     ->label('Hết hạn')
-                    ->dateTime('d/m/Y H:i', 'Asia/Ho_Chi_Minh')
+                    ->dateTime(format: 'd/m/Y H:i', timezone: 'Asia/Ho_Chi_Minh')
                     ->toggleable(),
                 TextColumn::make('createdBy.name')->label('Tạo bởi')->toggleable(),
                 TextColumn::make('created_at')
                     ->label('Tạo lúc')
-                    ->dateTime('d/m/Y H:i', 'Asia/Ho_Chi_Minh')
+                    ->dateTime(format: 'd/m/Y H:i', timezone: 'Asia/Ho_Chi_Minh')
                     ->sortable(),
             ])
             ->filters([

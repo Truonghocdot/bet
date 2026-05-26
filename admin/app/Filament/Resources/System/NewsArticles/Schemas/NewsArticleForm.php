@@ -69,7 +69,8 @@ class NewsArticleForm
                         ->default(false),
                     DateTimePicker::make('published_at')
                         ->label('Thời gian phát hành')
-                        ->seconds(false),
+                        ->seconds(false)
+                        ->timezone(config('app.timezone', 'Asia/Ho_Chi_Minh')),
                 ])
                 ->columns(2),
         ]);
