@@ -43,9 +43,20 @@ const status = computed(() => {
 })
 const isUsdtIntent = computed(() => intent.value?.method === 'usdt')
 const activeNetworkLabel = computed(() => {
-  const provider = intent.value?.receiving_account?.provider_code?.trim()
-  if (!provider) return 'USDTTRC20'
-  return provider.toUpperCase()
+  const provider = intent.value?.receiving_account?.provider_code?.trim().toUpperCase()
+  if (!provider || provider === 'USDT') return 'USDT TRC20'
+  return provider
+})
+const usdtQrPayload = computed(() => {
+  if (!isUsdtIntent.value) return ''
+
+  const qrContent = (intent.value?.qr_content || '').trim()
+  if (qrContent) return qrContent
+
+  const payUrl = (intent.value?.pay_url || '').trim()
+  if (payUrl) return payUrl
+
+  return (intent.value?.receiving_account?.account_number || '').trim()
 })
 const bankOptions = computed(() => deposit.bankOptions)
 const selectedBank = computed(
@@ -192,6 +203,7 @@ const depositCountdown = computed(() => {
 
 const transferContent = computed(() => {
   if (isUsdtIntent.value && usdtPaymentUri.value) return usdtPaymentUri.value
+  if (isUsdtIntent.value) return usdtQrPayload.value
   if (!intent.value) return ''
   const clientRef = intent.value.client_ref?.trim()
   if (clientRef) {
@@ -201,6 +213,43 @@ const transferContent = computed(() => {
   return qrContent.startsWith('DEP-') ? qrContent.slice(4) : qrContent
 })
 
+const activeQrImage = computed(() => {
+  if (!intent.value) return ''
+
+  if (isUsdtIntent.value) {
+    const explicitQrCodeUrl = (intent.value.qr_code_url || '').trim()
+    if (explicitQrCodeUrl) return explicitQrCodeUrl
+    return usdtQrDataUri.value
+  }
+
+  const providerCode = (intent.value.receiving_account?.provider_code || '').trim()
+  const accountNumber = (intent.value.receiving_account?.account_number || '').trim()
+  const amountValue = Math.round(Number(intent.value.amount || 0))
+  const addInfo = transferContent.value.trim()
+
+  if (!providerCode || !accountNumber || !Number.isFinite(amountValue) || amountValue <= 0) {
+    return ''
+  }
+
+  return `https://img.vietqr.io/image/${encodeURIComponent(providerCode.toLowerCase())}-${encodeURIComponent(accountNumber)}-compact2.jpg?amount=${encodeURIComponent(String(amountValue))}&addInfo=${encodeURIComponent(addInfo)}`
+})
+
+const qrPanelTitle = computed(() => {
+  if (!intent.value) return ''
+  return isUsdtIntent.value ? `Quét mã QR để nạp ${activeNetworkLabel.value}` : 'Quét mã QR để chuyển khoản'
+})
+
+const qrPanelHint = computed(() => {
+  if (!intent.value) return ''
+  if (!isUsdtIntent.value) {
+    return 'Mở app ngân hàng, quét mã QR và chuyển đúng số tiền cùng nội dung hệ thống yêu cầu để đối soát tự động.'
+  }
+
+  return activeQrImage.value
+    ? `Mở app ví hoặc sàn hỗ trợ ${activeNetworkLabel.value}, quét mã QR và chuyển đúng số tiền hệ thống yêu cầu.`
+    : `Không tạo được QR tự động. Hãy copy địa chỉ ví và chọn đúng mạng ${activeNetworkLabel.value} để nạp thủ công.`
+})
+
 async function loadUsdtQrCode() {
   if (!intent.value || !isUsdtIntent.value) {
     usdtQrDataUri.value = ''
@@ -208,9 +257,10 @@ async function loadUsdtQrCode() {
     return
   }
 
+  const qrPayload = usdtQrPayload.value
   const address = (intent.value.receiving_account?.account_number || '').trim()
   const rawAmount = Number(intent.value.amount || 0)
-  if (!address || !Number.isFinite(rawAmount) || rawAmount <= 0) {
+  if (!qrPayload || !address || !Number.isFinite(rawAmount) || rawAmount <= 0) {
     usdtQrDataUri.value = ''
     usdtPaymentUri.value = ''
     return
@@ -247,11 +297,11 @@ async function loadUsdtQrCode() {
     }
 
     usdtQrDataUri.value = `data:image/png;base64,${payload.qr_code}`
-    usdtPaymentUri.value = (payload.payment_uri || '').trim()
+    usdtPaymentUri.value = (payload.payment_uri || '').trim() || qrPayload
   } catch {
     if (!controller.signal.aborted) {
-      usdtQrDataUri.value = ''
-      usdtPaymentUri.value = ''
+      usdtQrDataUri.value = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrPayload)}`
+      usdtPaymentUri.value = qrPayload
     }
   } finally {
     if (usdtQrAbortController === controller) {
@@ -494,6 +544,31 @@ async function logout() {
 
       <div class="mt-4">
         <div class="space-y-3 rounded-[20px] bg-surface-container-low p-4">
+          <div class="rounded-[18px] bg-white p-4 text-center shadow-sm border border-slate-50">
+            <p class="m-0 text-sm font-black text-on-surface">{{ qrPanelTitle }}</p>
+            <div class="mx-auto mt-3 grid min-h-[220px] w-full max-w-[260px] place-items-center rounded-[20px] bg-slate-50 p-3">
+              <div
+                v-if="isUsdtIntent && usdtQrLoading"
+                class="grid h-[200px] w-[200px] place-items-center rounded-[16px] bg-white text-xs font-black text-slate-400"
+              >
+                Đang tạo QR...
+              </div>
+              <img
+                v-else-if="activeQrImage"
+                :src="activeQrImage"
+                :alt="qrPanelTitle"
+                class="h-full max-h-[230px] w-full max-w-[230px] rounded-[16px] bg-white object-contain"
+              />
+              <div
+                v-else
+                class="grid h-[200px] w-[200px] place-items-center rounded-[16px] bg-white px-4 text-center text-xs font-bold leading-5 text-slate-400"
+              >
+                Không thể tạo mã QR tự động
+              </div>
+            </div>
+            <p class="m-0 mt-3 text-xs font-semibold leading-5 text-on-surface-variant">{{ qrPanelHint }}</p>
+          </div>
+
           <div class="flex items-center gap-3">
             <div class="flex h-12 w-12 items-center justify-center rounded-[16px] bg-white shadow-sm border border-slate-100">
               <img
@@ -581,7 +656,7 @@ async function logout() {
                 <button
                   type="button"
                   class="grid h-8 w-8 place-items-center self-center justify-self-end rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
-                  @click="copyIntentValue('amount', isUsdtIntent ? `${intent.amount} USDT` : formatPendingDepositAmountForCopy(intent.amount))"
+                  @click="copyIntentValue('amount', isUsdtIntent ? intent.amount : formatPendingDepositAmountForCopy(intent.amount))"
                 >
                   <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'amount' ? 'check' : 'content_copy' }}</span>
                 </button>

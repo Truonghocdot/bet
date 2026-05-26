@@ -70,6 +70,12 @@ type DepositTransactionRecord struct {
 	ReceivingAccount   *ReceivingAccountRecord
 }
 
+type USDTGatewayConfigRecord struct {
+	NowpaymentsAPIKey       string
+	NowpaymentsIPNSecret    string
+	NowpaymentsPayoutWallet string
+}
+
 type DepositApplyResult struct {
 	Transaction   DepositTransactionRecord
 	Applied       bool
@@ -83,6 +89,46 @@ type rowScanner interface {
 
 func NewDepositRepository(db *sql.DB) *DepositRepository {
 	return &DepositRepository{db: db}
+}
+
+func (r *DepositRepository) GetManualUSDTAddress(ctx context.Context) (string, error) {
+	config, err := r.GetUSDTGatewayConfig(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return config.NowpaymentsPayoutWallet, nil
+}
+
+func (r *DepositRepository) GetUSDTGatewayConfig(ctx context.Context) (USDTGatewayConfigRecord, error) {
+	var apiKey, ipnSecret, wallet sql.NullString
+
+	err := r.db.QueryRowContext(ctx, `
+		select nowpayments_api_key, nowpayments_ipn_secret, nowpayments_payout_wallet
+		from exchange_rate_settings
+		where code = $1
+		limit 1
+	`, "USDT_VND").Scan(&apiKey, &ipnSecret, &wallet)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return USDTGatewayConfigRecord{}, nil
+		}
+
+		return USDTGatewayConfigRecord{}, err
+	}
+
+	record := USDTGatewayConfigRecord{}
+	if apiKey.Valid {
+		record.NowpaymentsAPIKey = strings.TrimSpace(apiKey.String)
+	}
+	if ipnSecret.Valid {
+		record.NowpaymentsIPNSecret = strings.TrimSpace(ipnSecret.String)
+	}
+	if wallet.Valid {
+		record.NowpaymentsPayoutWallet = strings.TrimSpace(wallet.String)
+	}
+
+	return record, nil
 }
 
 func (r *DepositRepository) ListActiveReceivingAccounts(ctx context.Context) ([]ReceivingAccountRecord, error) {
@@ -628,6 +674,7 @@ func (r *DepositRepository) qualifyReferral(ctx context.Context, tx *sql.Tx, use
 
 func scanDepositTransaction(row *sql.Row, record *DepositTransactionRecord) error {
 	var (
+		clientRef          sql.NullString
 		providerTxnID      sql.NullString
 		receivingAccountID sql.NullInt64
 		metaJSON           []byte
@@ -640,7 +687,7 @@ func scanDepositTransaction(row *sql.Row, record *DepositTransactionRecord) erro
 		&record.ID,
 		&record.UserID,
 		&record.WalletID,
-		&record.ClientRef,
+		&clientRef,
 		&record.Unit,
 		&record.Type,
 		&record.Amount,
@@ -659,6 +706,9 @@ func scanDepositTransaction(row *sql.Row, record *DepositTransactionRecord) erro
 		return err
 	}
 
+	if clientRef.Valid {
+		record.ClientRef = clientRef.String
+	}
 	if providerTxnID.Valid {
 		record.ProviderTxnID = &providerTxnID.String
 	}
@@ -689,6 +739,7 @@ func scanDepositTransactionWithAccount(row *sql.Row, record *DepositTransactionR
 func scanDepositTransactionWithAccountScanner(scanner rowScanner, record *DepositTransactionRecord) error {
 	var (
 		account             ReceivingAccountRecord
+		clientRef           sql.NullString
 		providerTxnID       sql.NullString
 		receivingAccountID  sql.NullInt64
 		metaJSON            []byte
@@ -710,7 +761,7 @@ func scanDepositTransactionWithAccountScanner(scanner rowScanner, record *Deposi
 		&record.ID,
 		&record.UserID,
 		&record.WalletID,
-		&record.ClientRef,
+		&clientRef,
 		&record.Unit,
 		&record.Type,
 		&record.Amount,
@@ -738,6 +789,9 @@ func scanDepositTransactionWithAccountScanner(scanner rowScanner, record *Deposi
 		return err
 	}
 
+	if clientRef.Valid {
+		record.ClientRef = clientRef.String
+	}
 	if providerTxnID.Valid {
 		record.ProviderTxnID = &providerTxnID.String
 	}

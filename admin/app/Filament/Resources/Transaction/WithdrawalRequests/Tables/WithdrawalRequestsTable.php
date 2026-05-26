@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Transaction\WithdrawalRequests\Tables;
 use App\Enum\Wallet\LedgerDirection;
 use App\Enum\Wallet\UnitTransaction;
 use App\Enum\Transaction\WithdrawalStatus;
+use App\Enum\User\RoleUser;
 use App\Models\Transaction\WithdrawalRequest;
 use App\Models\Wallet\WalletLedgerEntry;
 use App\Services\Admin\WithdrawalWorkflowService;
@@ -40,7 +41,35 @@ class WithdrawalRequestsTable
                 TextColumn::make('id')->label('ID')->sortable(),
                 TextColumn::make('user.name')->label('Người dùng')->searchable()->sortable(),
                 TextColumn::make('user.phone'),
+                TextColumn::make('agency_id')
+                    ->label('ID agency')
+                    ->getStateUsing(function ($record): string {
+                        $agency = $record->user?->referredByReferral?->referrerUser;
+                        if (! $agency || $agency->role !== RoleUser::AGENCY) {
+                            return '—';
+                        }
+
+                        return (string) $agency->id;
+                    }),
+                TextColumn::make('agency_name')
+                    ->label('Thuộc agency')
+                    ->getStateUsing(function ($record): string {
+                        $agency = $record->user?->referredByReferral?->referrerUser;
+                        if (! $agency || $agency->role !== RoleUser::AGENCY) {
+                            return '—';
+                        }
+
+                        return $agency->name ?: ('Agency #'.$agency->id);
+                    })
+                    ->searchable(query: function ($query, string $search): void {
+                        $query->whereHas('user.referredByReferral.referrerUser', function ($agencyQuery) use ($search): void {
+                            $agencyQuery
+                                ->where('role', RoleUser::AGENCY->value)
+                                ->where('name', 'like', '%'.$search.'%');
+                        });
+                    }),
                 TextColumn::make('wallet.id')->label('Ví')->sortable(),
+                
                 TextColumn::make('accountWithdrawalInfo.account_number')->label('Tài khoản rút')->searchable(),
                 TextColumn::make('unit')
                     ->label('Đơn vị')
