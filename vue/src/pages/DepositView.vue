@@ -544,7 +544,7 @@ async function logout() {
 
       <div class="mt-4">
         <div class="space-y-3 rounded-[20px] bg-surface-container-low p-4">
-          <div class="rounded-[18px] bg-white p-4 text-center shadow-sm border border-slate-50">
+          <div v-if="isUsdtIntent" class="rounded-[18px] bg-white p-4 text-center shadow-sm border border-slate-50">
             <p class="m-0 text-sm font-black text-on-surface">{{ qrPanelTitle }}</p>
             <div class="mx-auto mt-3 grid min-h-[220px] w-full max-w-[260px] place-items-center rounded-[20px] bg-slate-50 p-3">
               <div
