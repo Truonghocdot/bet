@@ -88,7 +88,6 @@ func New() (*App, error) {
 		RegisterLimitPhone:    config.RegisterLimitPhone,
 		RefreshTokenTTL:       config.AuthRefreshTTL,
 	})
-	affiliateService := service.NewAffiliateService(userRepository, authService)
 	walletService := service.NewWalletService(walletRepository, broker, redisClient)
 	notificationService := service.NewNotificationService(notificationRepository)
 	contentService := service.NewContentService(contentRepository, config.ContentAssetBaseURL)
@@ -99,6 +98,7 @@ func New() (*App, error) {
 		ReceivingAccountsRedisKey: config.PaymentReceivingAccountsRedisKey,
 	})
 	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository, userRepository, redisClient)
+	affiliateService := service.NewAffiliateService(userRepository, authService, depositService, withdrawalService)
 	router := httptransport.NewRouter(config, authService, affiliateService, walletService, notificationService, contentService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, gameRepository, redisClient, config.InternalToken)
 
 	server := &http.Server{

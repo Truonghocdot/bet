@@ -49,3 +49,61 @@ export type ManagedAffiliateUserTransaction = {
   note: string
   created_at: string
 }
+
+export type AgencyManagedUserDeposit = {
+  id: number
+  client_ref: string
+  provider: string
+  provider_txn_id?: string | null
+  unit: number
+  type: number
+  amount: string
+  net_amount: string
+  status: number
+  meta?: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+  approved_at?: string | null
+  receiving_account?: {
+    id: number
+    type: number
+    unit: number
+    provider_code?: string | null
+    account_name?: string | null
+    account_number?: string | null
+    status: number
+    is_default: boolean
+    sort_order: number
+  } | null
+}
+
+export type AgencyManagedUserDepositHistoryResponse = {
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  data: AgencyManagedUserDeposit[]
+}
+
+export type AgencyManagedUserWithdrawal = {
+  id: number
+  unit: number
+  amount: string
+  fee: string
+  net_amount: string
+  status: number
+  reason_rejected?: string
+  account_withdrawal_info_id: number
+  account_name: string
+  account_number: string
+  provider_code: string
+  created_at: string
+}
+
+export type AgencyManagedUserWithdrawalHistoryResponse = {
+  page: number
+  page_size: number
+  total: number
+  total_pages: number
+  data: AgencyManagedUserWithdrawal[]
+}

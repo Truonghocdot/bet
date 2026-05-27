@@ -20,7 +20,7 @@ const navigationItems = computed(() => [
     label: 'Người chơi',
     icon: 'group',
     to: { name: 'agency-users' },
-    active: route.name === 'agency-users' || route.name === 'agency-user-stats',
+    active: route.name === 'agency-users' || route.name === 'agency-user-stats' || route.name === 'agency-user-deposits' || route.name === 'agency-user-withdrawals',
   },
 ])
 

@@ -33,6 +33,18 @@ const router = createRouter({
       component: () => import('@/views/AgencyUserStatsView.vue'),
       meta: { requiresAuth: true, title: 'Thống kê người chơi', layout: 'panel' },
     },
+    {
+      path: '/users/:userId/deposits',
+      name: 'agency-user-deposits',
+      component: () => import('@/views/AgencyUserDepositsView.vue'),
+      meta: { requiresAuth: true, title: 'Giao dịch nạp tiền', layout: 'panel' },
+    },
+    {
+      path: '/users/:userId/withdrawals',
+      name: 'agency-user-withdrawals',
+      component: () => import('@/views/AgencyUserWithdrawalsView.vue'),
+      meta: { requiresAuth: true, title: 'Giao dịch rút tiền', layout: 'panel' },
+    },
   ],
 })
 

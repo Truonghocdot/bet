@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	authmiddleware "gin/internal/auth/middleware"
 	repopg "gin/internal/repository/postgres"
@@ -82,6 +83,60 @@ func (h *AffiliateHandler) ManagedUserTransactions(w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, res)
 }
 
+func (h *AffiliateHandler) ManagedUserDeposits(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	userID, err := strconv.ParseInt(r.PathValue("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Mã người chơi không hợp lệ"})
+		return
+	}
+
+	page, pageSize := readAffiliatePagination(r, 10)
+	res, err := h.affiliateService.ManagedUserDeposits(r.Context(), claims.UserID, claims.Role, userID, page, pageSize)
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorized) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không có quyền xem lịch sử nạp của người chơi này"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (h *AffiliateHandler) ManagedUserWithdrawals(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	userID, err := strconv.ParseInt(r.PathValue("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Mã người chơi không hợp lệ"})
+		return
+	}
+
+	page, pageSize := readAffiliatePagination(r, 10)
+	res, err := h.affiliateService.ManagedUserWithdrawals(r.Context(), claims.UserID, claims.Role, userID, page, pageSize)
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorized) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không có quyền xem lịch sử rút của người chơi này"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, res)
+}
+
 type becomeAgencyRequest struct {
 	StaffRefCode string `json:"staff_ref_code"`
 }
@@ -121,4 +176,22 @@ func (h *AffiliateHandler) BecomeAgency(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, res)
+}
+
+func readAffiliatePagination(r *http.Request, defaultPageSize int) (int, int) {
+	page := 1
+	pageSize := defaultPageSize
+
+	if value := strings.TrimSpace(r.URL.Query().Get("page")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+	if value := strings.TrimSpace(r.URL.Query().Get("page_size")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	}
+
+	return page, pageSize
 }

@@ -5,20 +5,31 @@ import (
 	"strings"
 	"time"
 
+	"gin/internal/domain/deposit"
+	"gin/internal/domain/withdrawal"
 	"gin/internal/domain/auth"
 	"gin/internal/domain/user"
 	repopg "gin/internal/repository/postgres"
 )
 
 type AffiliateService struct {
-	userRepo    *repopg.UserRepository
-	authService *AuthService
+	userRepo          *repopg.UserRepository
+	authService       *AuthService
+	depositService    *DepositService
+	withdrawalService *WithdrawalService
 }
 
-func NewAffiliateService(userRepo *repopg.UserRepository, authService *AuthService) *AffiliateService {
+func NewAffiliateService(
+	userRepo *repopg.UserRepository,
+	authService *AuthService,
+	depositService *DepositService,
+	withdrawalService *WithdrawalService,
+) *AffiliateService {
 	return &AffiliateService{
-		userRepo:    userRepo,
-		authService: authService,
+		userRepo:          userRepo,
+		authService:       authService,
+		depositService:    depositService,
+		withdrawalService: withdrawalService,
 	}
 }
 
@@ -136,6 +147,52 @@ func (s *AffiliateService) ManagedUserTransactions(ctx context.Context, referrer
 		Message: "Lấy giao dịch người chơi thành công",
 		Items:   items,
 	}, nil
+}
+
+func (s *AffiliateService) ManagedUserDeposits(
+	ctx context.Context,
+	referrerUserID int64,
+	role int,
+	managedUserID int64,
+	page int,
+	pageSize int,
+) (deposit.DepositHistoryResponse, error) {
+	if role != user.RoleAgency {
+		return deposit.DepositHistoryResponse{}, ErrUnauthorized
+	}
+
+	allowed, err := s.userRepo.IsManagedAffiliateUser(ctx, referrerUserID, managedUserID)
+	if err != nil {
+		return deposit.DepositHistoryResponse{}, err
+	}
+	if !allowed {
+		return deposit.DepositHistoryResponse{}, ErrUnauthorized
+	}
+
+	return s.depositService.ListHistory(ctx, managedUserID, page, pageSize)
+}
+
+func (s *AffiliateService) ManagedUserWithdrawals(
+	ctx context.Context,
+	referrerUserID int64,
+	role int,
+	managedUserID int64,
+	page int,
+	pageSize int,
+) (withdrawal.WithdrawalHistoryResponse, error) {
+	if role != user.RoleAgency {
+		return withdrawal.WithdrawalHistoryResponse{}, ErrUnauthorized
+	}
+
+	allowed, err := s.userRepo.IsManagedAffiliateUser(ctx, referrerUserID, managedUserID)
+	if err != nil {
+		return withdrawal.WithdrawalHistoryResponse{}, err
+	}
+	if !allowed {
+		return withdrawal.WithdrawalHistoryResponse{}, ErrUnauthorized
+	}
+
+	return s.withdrawalService.ListHistory(ctx, managedUserID, page, pageSize)
 }
 
 func (s *AffiliateService) BecomeAgency(ctx context.Context, userID int64, role int, staffRefCode string) (auth.AuthResponse, error) {
