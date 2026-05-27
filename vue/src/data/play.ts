@@ -517,10 +517,10 @@ export const playRooms: PlayRoom[] = [
     status: 'OPEN',
     featured: true,
     variants: [
-      buildWingoVariant('30s', 'Win Go 30 giây', '30 giây', 28),
-      buildWingoVariant('1m', 'Win Go 1 phút', '1 phút', 58),
-      buildWingoVariant('3m', 'Win Go 3 phút', '3 phút', 178),
-      buildWingoVariant('5m', 'Win Go 5 phút', '5 phút', 298),
+      buildWingoVariant('30s', 'Win Go 30 giây', '30 giây', 30),
+      buildWingoVariant('1m', 'Win Go 1 phút', '1 phút', 60),
+      buildWingoVariant('3m', 'Win Go 3 phút', '3 phút', 180),
+      buildWingoVariant('5m', 'Win Go 5 phút', '5 phút', 300),
     ],
     rules: [
       'Không đặt 2 bên đối lập trong cùng kỳ.',

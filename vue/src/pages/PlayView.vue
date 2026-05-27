@@ -2552,11 +2552,10 @@
         return
       }
 
-      if (stableRemainingSeconds.value === 0 && rawRemaining > 0) {
-        return
-      }
-
       if (rawRemaining > stableRemainingSeconds.value) {
+        if (stableRemainingSeconds.value === 0) {
+          stableRemainingSeconds.value = rawRemaining
+        }
         return
       }
 
@@ -2597,6 +2596,15 @@
         periodRollForwardTimer = window.setTimeout(() => {
           periodRollForwardTimer = undefined
           requestRoomStateSnapshot()
+          if (remainingSeconds.value === 0 && currentPeriod.value) {
+            const currentStatus = String(currentPeriod.value.status ?? '').toUpperCase()
+            if (currentStatus === 'OPEN' || currentStatus === 'LOCKED') {
+              periodRollForwardTimer = window.setTimeout(() => {
+                periodRollForwardTimer = undefined
+                requestRoomStateSnapshot()
+              }, 1200)
+            }
+          }
         }, 1200)
       }
     }
