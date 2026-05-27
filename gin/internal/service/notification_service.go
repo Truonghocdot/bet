@@ -2,11 +2,9 @@ package service
 
 import (
 	"context"
-	"time"
 
 	"gin/internal/domain/notification"
 	repopg "gin/internal/repository/postgres"
-	"gin/internal/support/clock"
 	"gin/internal/support/message"
 )
 
@@ -46,11 +44,11 @@ func (s *NotificationService) List(ctx context.Context, userID int64, page, page
 			Body:      record.Body,
 			Status:    record.Status,
 			Audience:  record.Audience,
-			PublishAt: normalizeNotificationTimePtr(record.PublishAt),
-			ExpiresAt: normalizeNotificationTimePtr(record.ExpiresAt),
-			CreatedAt: normalizeNotificationTime(record.CreatedAt),
+			PublishAt: record.PublishAt,
+			ExpiresAt: record.ExpiresAt,
+			CreatedAt: record.CreatedAt,
 			IsRead:    record.ReadAt != nil,
-			ReadAt:    normalizeNotificationTimePtr(record.ReadAt),
+			ReadAt:    record.ReadAt,
 		})
 	}
 
@@ -77,7 +75,7 @@ func (s *NotificationService) MarkRead(ctx context.Context, userID, notification
 	return notification.MarkReadResponse{
 		Message: message.NotificationReadSuccess,
 		ID:      notificationID,
-		ReadAt:  normalizeNotificationTime(readAt),
+		ReadAt:  readAt,
 	}, nil
 }
 
@@ -93,17 +91,4 @@ func calcNotificationTotalPages(total, pageSize int) int {
 		pages = 1
 	}
 	return pages
-}
-
-func normalizeNotificationTime(value time.Time) time.Time {
-	return value.In(clock.Location())
-}
-
-func normalizeNotificationTimePtr(value *time.Time) *time.Time {
-	if value == nil {
-		return nil
-	}
-
-	normalized := value.In(clock.Location())
-	return &normalized
 }

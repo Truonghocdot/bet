@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"gin/internal/domain/content"
 	repopg "gin/internal/repository/postgres"
@@ -132,8 +131,8 @@ func (s *ContentService) toNewsItem(record repopg.NewsRecord, includeContent boo
 		Slug:        record.Slug,
 		Excerpt:     firstNonEmptyStringPtr(record.Excerpt),
 		CoverImage:  s.buildAssetURL(firstNonEmptyStringPtr(record.CoverImage)),
-		PublishedAt: normalizeTimePtr(record.PublishedAt),
-		CreatedAt:   normalizeTime(record.CreatedAt),
+		PublishedAt: record.PublishedAt,
+		CreatedAt:   record.CreatedAt,
 	}
 	if includeContent {
 		item.Content = record.Content
@@ -188,17 +187,4 @@ func firstNonEmptyStringPtr(value *string) string {
 
 func IsContentNewsNotFound(err error) bool {
 	return errors.Is(err, repopg.ErrContentNewsNotFound)
-}
-
-func normalizeTime(value time.Time) time.Time {
-	return value.In(clock.Location())
-}
-
-func normalizeTimePtr(value *time.Time) *time.Time {
-	if value == nil {
-		return nil
-	}
-
-	normalized := value.In(clock.Location())
-	return &normalized
 }
