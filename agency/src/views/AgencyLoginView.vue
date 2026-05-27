@@ -13,7 +13,7 @@ const showPassword = ref(false)
 async function submit() {
   try {
     await auth.login(account.value.trim(), password.value)
-    await router.replace({ name: 'agency-dashboard' })
+    await router.replace({ name: 'agency-overview' })
   } catch {
     // error in store
   }
