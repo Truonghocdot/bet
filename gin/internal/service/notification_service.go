@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"gin/internal/domain/notification"
 	repopg "gin/internal/repository/postgres"
@@ -44,11 +45,11 @@ func (s *NotificationService) List(ctx context.Context, userID int64, page, page
 			Body:      record.Body,
 			Status:    record.Status,
 			Audience:  record.Audience,
-			PublishAt: record.PublishAt,
-			ExpiresAt: record.ExpiresAt,
-			CreatedAt: record.CreatedAt,
+			PublishAt: formatNullableNotificationTime(record.PublishAt),
+			ExpiresAt: formatNullableNotificationTime(record.ExpiresAt),
+			CreatedAt: formatNotificationTime(record.CreatedAt),
 			IsRead:    record.ReadAt != nil,
-			ReadAt:    record.ReadAt,
+			ReadAt:    formatNullableNotificationTime(record.ReadAt),
 		})
 	}
 
@@ -75,7 +76,7 @@ func (s *NotificationService) MarkRead(ctx context.Context, userID, notification
 	return notification.MarkReadResponse{
 		Message: message.NotificationReadSuccess,
 		ID:      notificationID,
-		ReadAt:  readAt,
+		ReadAt:  formatNotificationTime(readAt),
 	}, nil
 }
 
@@ -91,4 +92,20 @@ func calcNotificationTotalPages(total, pageSize int) int {
 		pages = 1
 	}
 	return pages
+}
+
+func formatNotificationTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.Format(dbDateTimeLayout)
+}
+
+func formatNullableNotificationTime(value *time.Time) *string {
+	if value == nil || value.IsZero() {
+		return nil
+	}
+
+	formatted := value.Format(dbDateTimeLayout)
+	return &formatted
 }

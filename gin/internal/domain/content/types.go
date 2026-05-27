@@ -1,7 +1,5 @@
 package content
 
-import "time"
-
 type BannerItem struct {
 	ID       int64  `json:"id"`
 	Title    string `json:"title"`
@@ -10,14 +8,14 @@ type BannerItem struct {
 }
 
 type NewsItem struct {
-	ID          int64      `json:"id"`
-	Title       string     `json:"title"`
-	Slug        string     `json:"slug"`
-	Excerpt     string     `json:"excerpt,omitempty"`
-	Content     string     `json:"content,omitempty"`
-	CoverImage  string     `json:"cover_image_url,omitempty"`
-	PublishedAt *time.Time `json:"published_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID          int64   `json:"id"`
+	Title       string  `json:"title"`
+	Slug        string  `json:"slug"`
+	Excerpt     string  `json:"excerpt,omitempty"`
+	Content     string  `json:"content,omitempty"`
+	CoverImage  string  `json:"cover_image_url,omitempty"`
+	PublishedAt *string `json:"published_at,omitempty"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 type HomeResponse struct {
