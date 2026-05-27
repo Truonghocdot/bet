@@ -8,21 +8,56 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAgencyAuthStore()
 const copied = ref(false)
+const currentManagedUserId = computed(() => {
+  const raw = Number(route.params.userId || 0)
+  return Number.isFinite(raw) && raw > 0 ? raw : 0
+})
 
-const navigationItems = computed(() => [
-  {
-    label: 'Tổng quan',
-    icon: 'dashboard',
-    to: { name: 'agency-overview' },
-    active: route.name === 'agency-overview',
-  },
-  {
-    label: 'Người chơi',
-    icon: 'group',
-    to: { name: 'agency-users' },
-    active: route.name === 'agency-users' || route.name === 'agency-user-stats' || route.name === 'agency-user-deposits' || route.name === 'agency-user-withdrawals',
-  },
-])
+type NavigationItem = {
+  label: string
+  icon: string
+  to: {
+    name: string
+    params?: Record<string, string | number>
+  }
+  active: boolean
+}
+
+const navigationItems = computed(() => {
+  const items: NavigationItem[] = [
+    {
+      label: 'Tổng quan',
+      icon: 'dashboard',
+      to: { name: 'agency-overview' },
+      active: route.name === 'agency-overview',
+    },
+    {
+      label: 'Người chơi',
+      icon: 'group',
+      to: { name: 'agency-users' },
+      active: route.name === 'agency-users' || route.name === 'agency-user-stats' || route.name === 'agency-user-deposits' || route.name === 'agency-user-withdrawals',
+    },
+  ]
+
+  if (currentManagedUserId.value > 0) {
+    items.push(
+      {
+        label: 'GD nạp tiền',
+        icon: 'payments',
+        to: { name: 'agency-user-deposits', params: { userId: currentManagedUserId.value } },
+        active: route.name === 'agency-user-deposits',
+      },
+      {
+        label: 'GD rút tiền',
+        icon: 'account_balance_wallet',
+        to: { name: 'agency-user-withdrawals', params: { userId: currentManagedUserId.value } },
+        active: route.name === 'agency-user-withdrawals',
+      },
+    )
+  }
+
+  return items
+})
 
 async function logout() {
   auth.logout()
