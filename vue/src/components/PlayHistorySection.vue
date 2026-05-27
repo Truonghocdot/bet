@@ -345,6 +345,16 @@ function parseTimeMs(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function parsePeriodNoUnixMs(periodNo: string | null | undefined) {
+  const raw = String(periodNo ?? '').trim()
+  const match = raw.match(/_(\d{10})(?:\D*)$/)
+  if (!match) return 0
+
+  const seconds = Number(match[1])
+  if (!Number.isFinite(seconds) || seconds <= 0) return 0
+  return seconds * 1000
+}
+
 function formatClockMs(ms: number) {
   if (!Number.isFinite(ms) || ms <= 0) return '—'
   return new Intl.DateTimeFormat('vi-VN', {
@@ -354,12 +364,12 @@ function formatClockMs(ms: number) {
   }).format(new Date(ms))
 }
 
-function formatDrawClock(drawAt: string | null | undefined, createdAt?: string | null | undefined) {
+function formatDrawClock(drawAt: string | null | undefined, createdAt?: string | null | undefined, periodNo?: string | null | undefined) {
+  const periodNoMs = parsePeriodNoUnixMs(periodNo)
   const drawMs = parseTimeMs(drawAt)
   const createdMs = parseTimeMs(createdAt)
 
-  // Server đã đúng múi giờ Asia/Ho_Chi_Minh, draw_at tin cậy được.
-  // Không cần workaround bù lệch 7h nữa.
+  if (periodNoMs > 0) return formatClockMs(periodNoMs)
   if (drawMs > 0) return formatClockMs(drawMs)
   if (createdMs > 0) return formatClockMs(createdMs)
   return '—'
@@ -661,7 +671,7 @@ function historySecondaryBadgeClass(row: PlayRoomHistoryResponse['items'][number
                 :style="props.isK3 || props.isLottery ? {} : resultBadgeStyle(row.color)">
             {{ historySecondaryLabel(row) }}
           </span>
-          <span class="text-right text-[0.66rem] font-semibold text-slate-500">{{ formatDrawClock(row.draw_at, row.created_at) }}</span>
+          <span class="text-right text-[0.66rem] font-semibold text-slate-500">{{ formatDrawClock(row.draw_at, row.created_at, row.period_no) }}</span>
         </div>
         <div v-if="!visibleHistoryRows.length" class="flex flex-col items-center gap-2 py-8 text-slate-300">
           <span class="material-symbols-outlined text-[2rem]">history</span>
