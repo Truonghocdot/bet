@@ -37,24 +37,23 @@ const navigationItems = computed(() => {
       to: { name: 'agency-users' },
       active: route.name === 'agency-users' || route.name === 'agency-user-stats' || route.name === 'agency-user-deposits' || route.name === 'agency-user-withdrawals',
     },
+    {
+      label: 'GD nạp tiền',
+      icon: 'payments',
+      to: currentManagedUserId.value > 0
+        ? { name: 'agency-user-deposits', params: { userId: currentManagedUserId.value } }
+        : { name: 'agency-users' },
+      active: route.name === 'agency-user-deposits',
+    },
+    {
+      label: 'GD rút tiền',
+      icon: 'account_balance_wallet',
+      to: currentManagedUserId.value > 0
+        ? { name: 'agency-user-withdrawals', params: { userId: currentManagedUserId.value } }
+        : { name: 'agency-users' },
+      active: route.name === 'agency-user-withdrawals',
+    },
   ]
-
-  if (currentManagedUserId.value > 0) {
-    items.push(
-      {
-        label: 'GD nạp tiền',
-        icon: 'payments',
-        to: { name: 'agency-user-deposits', params: { userId: currentManagedUserId.value } },
-        active: route.name === 'agency-user-deposits',
-      },
-      {
-        label: 'GD rút tiền',
-        icon: 'account_balance_wallet',
-        to: { name: 'agency-user-withdrawals', params: { userId: currentManagedUserId.value } },
-        active: route.name === 'agency-user-withdrawals',
-      },
-    )
-  }
 
   return items
 })
