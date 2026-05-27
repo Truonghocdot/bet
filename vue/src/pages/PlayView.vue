@@ -880,6 +880,9 @@
     return Number.isFinite(parsed) ? parsed : 0
   }
 
+  // Parse timestamp từ server thành milliseconds.
+  // Server đã đúng múi giờ Asia/Ho_Chi_Minh (+07), chỉ cần normalize
+  // dấu cách thành 'T' để new Date() parse được, không cần bù offset thủ công.
   function parseVietnamWallClockMs(value: string | null | undefined) {
     const raw = String(value ?? '').trim()
     if (!raw) return 0
@@ -887,20 +890,6 @@
     const normalized = raw.includes(' ') && !raw.includes('T')
       ? raw.replace(' ', 'T')
       : raw
-
-    const wallClockMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/)
-    if (wallClockMatch) {
-      const [, year, month, day, hour, minute, second = '00'] = wallClockMatch
-      const parsed = Date.UTC(
-        Number(year),
-        Number(month) - 1,
-        Number(day),
-        Number(hour) - 7,
-        Number(minute),
-        Number(second),
-      )
-      return Number.isFinite(parsed) ? parsed : 0
-    }
 
     const parsed = new Date(normalized).getTime()
     return Number.isFinite(parsed) ? parsed : 0

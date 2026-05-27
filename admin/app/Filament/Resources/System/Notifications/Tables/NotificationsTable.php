@@ -4,7 +4,6 @@ namespace App\Filament\Resources\System\Notifications\Tables;
 
 use App\Enum\Notification\NotificationStatus;
 use App\Support\Filament\EnumPresenter;
-use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -46,18 +45,16 @@ class NotificationsTable
                     ->sortable(),
                 TextColumn::make('publish_at')
                     ->label('Phát hành')
-                    ->formatStateUsing(fn($state) => Carbon::parse($state)
-                        ->addHours(7)
-                        ->format('d/m/Y H:i'))
+                    ->dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))
                     ->sortable(),
                 TextColumn::make('expires_at')
                     ->label('Hết hạn')
-                    ->dateTime(format: 'd/m/Y H:i', timezone: 'Asia/Ho_Chi_Minh')
+                    ->dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))
                     ->toggleable(),
                 TextColumn::make('createdBy.name')->label('Tạo bởi')->toggleable(),
                 TextColumn::make('created_at')
                     ->label('Tạo lúc')
-                    ->dateTime(format: 'd/m/Y H:i', timezone: 'Asia/Ho_Chi_Minh')
+                    ->  dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))
                     ->sortable(),
             ])
             ->filters([

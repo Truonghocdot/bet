@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\System\NewsArticles\Tables;
 
-use Carbon\Carbon;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteBulkAction;
@@ -30,16 +29,11 @@ class NewsArticlesTable
                 IconColumn::make('is_published')->label('Phát hành')->boolean(),
                 TextColumn::make('published_at')
                     ->label('Phát hành lúc')
-                    ->formatStateUsing(fn($state) => Carbon::parse($state)
-                        ->addHours(7)
-                        ->format('d/m/Y H:i'))
+                    ->dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))
                     ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Tạo lúc')
-                    ->formatStateUsing(fn($state) => Carbon::parse($state)
-                        ->addHours(7)
-                        ->format('d/m/Y H:i'))
-
+                    ->dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))
                     ->sortable(),
             ])
             ->filters([

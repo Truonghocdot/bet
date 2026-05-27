@@ -358,15 +358,8 @@ function formatDrawClock(drawAt: string | null | undefined, createdAt?: string |
   const drawMs = parseTimeMs(drawAt)
   const createdMs = parseTimeMs(createdAt)
 
-  // Backend dữ liệu lịch sử hiện có room trả draw_at lệch đúng ~7h so với created_at.
-  // Khi phát hiện mẫu lệch này, ưu tiên created_at để hiển thị giờ quay thực tế.
-  if (drawMs > 0 && createdMs > 0) {
-    const deltaMs = Math.abs(drawMs - createdMs)
-    if (Math.abs(deltaMs - 7 * 60 * 60 * 1000) <= 2 * 60 * 1000) {
-      return formatClockMs(createdMs)
-    }
-  }
-
+  // Server đã đúng múi giờ Asia/Ho_Chi_Minh, draw_at tin cậy được.
+  // Không cần workaround bù lệch 7h nữa.
   if (drawMs > 0) return formatClockMs(drawMs)
   if (createdMs > 0) return formatClockMs(createdMs)
   return '—'

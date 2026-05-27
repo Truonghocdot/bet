@@ -98,8 +98,8 @@ class TransactionsTable
                     ->formatStateUsing(fn ($state): string => EnumPresenter::label(TransactionStatus::class, $state))
                     ->color(fn ($state): string => EnumPresenter::color(TransactionStatus::class, $state)),
                 TextColumn::make('provider')->label('Nhà cung cấp')->toggleable(),
-                TextColumn::make('approved_at')->label('Duyệt lúc')->dateTime()->toggleable(),
-                TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
+                TextColumn::make('approved_at')->label('Duyệt lúc')->dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))->toggleable(),
+                TextColumn::make('created_at')->label('Tạo lúc')->dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))->sortable(),
             ])
             ->defaultSort('id', 'desc')
             ->poll(2000)

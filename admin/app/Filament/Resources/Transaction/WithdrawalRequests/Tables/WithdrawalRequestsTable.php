@@ -84,10 +84,10 @@ class WithdrawalRequestsTable
                     ->badge()
                     ->formatStateUsing(fn ($state): string => EnumPresenter::label(WithdrawalStatus::class, $state))
                     ->color(fn ($state): string => EnumPresenter::color(WithdrawalStatus::class, $state)),
-                TextColumn::make('reviewed_at')->label('Duyệt lúc')->dateTime()->toggleable(),
-                TextColumn::make('paid_at')->label('Chi trả lúc')->dateTime()->toggleable(),
+                TextColumn::make('reviewed_at')->label('Duyệt lúc')->dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))->toggleable(),
+                TextColumn::make('paid_at')->label('Chi trả lúc')->dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))->toggleable(),
                 TextColumn::make('transfer_reference')->label('Mã tham chiếu')->toggleable(),
-                TextColumn::make('created_at')->label('Tạo lúc')->dateTime()->sortable(),
+                TextColumn::make('created_at')->label('Tạo lúc')->dateTime(format: 'd/m/Y H:i', timezone: config('app.timezone', 'Asia/Ho_Chi_Minh'))->sortable(),
             ])
             ->filters([
                 TrashedFilter::make(),
@@ -157,7 +157,7 @@ class WithdrawalRequestsTable
                             ->content(fn ($record): string => EnumPresenter::label(UnitTransaction::class, $record->unit)),
                         Placeholder::make('withdrawal_created_at')
                             ->label('Thời gian tạo')
-                            ->content(fn ($record): string => $record->created_at?->format('d/m/Y H:i:s') ?? '—'),
+                            ->content(fn ($record): string => $record->created_at?->setTimezone(config('app.timezone', 'Asia/Ho_Chi_Minh'))->format('d/m/Y H:i:s') ?? '—'),
                         Placeholder::make('withdrawal_payout_info')
                             ->label('Thông tin nhận')
                             ->content(fn ($record): HtmlString => new HtmlString(self::buildPayoutPreview($record)))
