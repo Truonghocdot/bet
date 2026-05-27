@@ -1,5 +1,5 @@
   <script setup lang="ts">
-  import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+  import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from 'vue'
   import { RouterLink, useRoute, useRouter } from 'vue-router'
 
   import { env } from '@/shared/config/env'
@@ -59,13 +59,19 @@
   const lastSettledPeriodId = ref<number | null>(null)
   const seenSettlementPeriods = new Set<string>()
   const settlementTargets = new Map<string, string>()
-  const countdownTargetMs = ref(0)
-  const countdownTargetPeriodNo = ref('')
   const stableCountdownPeriodKey = ref('')
   const stableRemainingSeconds = ref(0)
   const roomStateCachePrefix = 'fh88u:play-room-state:'
   const settlementHandledCachePrefix = 'fh88u:play-settlement-handled:'
-  const enableRealtimeDebug = import.meta.env.DEV
+  const enableRealtimeDebug = computed(() => {
+    if (import.meta.env.DEV) return true
+    if (route.query.debugPlay === '1') return true
+    try {
+      return localStorage.getItem('fh88u:play-debug') === '1'
+    } catch {
+      return false
+    }
+  })
   let roomStateGeneration = 0
 
   // Bet modal state
@@ -307,16 +313,9 @@
     }
     return clockTick.value
   })
-  const expectedPeriodSeconds = computed(() => selectedVariant.value?.countdownSeconds ?? 0)
   const currentPeriodBetLockAtMs = computed(() => parsePeriodTimeMs(currentPeriod.value?.bet_lock_at))
   const activeCountdownTargetMs = computed(() => {
-    const currentPeriodNo = String(currentPeriod.value?.period_no ?? '')
-    if (!currentPeriodNo) return 0
-    const baseTargetMs = countdownTargetPeriodNo.value === currentPeriodNo && countdownTargetMs.value > 0
-      ? countdownTargetMs.value
-      : parsePeriodTimeMs(currentPeriod.value?.draw_at)
-    if (!Number.isFinite(baseTargetMs) || baseTargetMs <= 0) return 0
-    return baseTargetMs
+    return resolvePeriodDrawAtMs(currentPeriod.value).targetMs
   })
   const visibleBetMessage = computed(() => {
     if (!betMessage.value) return ''
@@ -339,8 +338,6 @@
 
   function resetRoomStateSession() {
     roomState.value = null
-    countdownTargetMs.value = 0
-    countdownTargetPeriodNo.value = ''
     stableCountdownPeriodKey.value = ''
     stableRemainingSeconds.value = 0
     serverClockAnchorMs.value = 0
@@ -396,8 +393,17 @@
   }
 
   function logRealtimeEvent(event: string, payload: Record<string, unknown> = {}) {
-    if (!enableRealtimeDebug) return
-    console.debug(`[play.sync] ${event}`, payload)
+    if (!enableRealtimeDebug.value) return
+    const entry = {
+      at: new Date().toISOString(),
+      event,
+      payload,
+    }
+    const debugWindow = window as typeof window & {
+      __FH88U_PLAY_DEBUG__?: Array<typeof entry>
+    }
+    debugWindow.__FH88U_PLAY_DEBUG__ = [...(debugWindow.__FH88U_PLAY_DEBUG__ ?? []), entry].slice(-100)
+    console.log(`[play.sync] ${event}`, payload)
   }
 
   function roomStateCacheKey(roomCode: string) {
@@ -459,7 +465,6 @@
       applyServerClock(cached.response.server_time, cached.savedAt)
     }
 
-    syncCountdownTarget(cached.response.current_period, Date.now(), true)
     return true
   }
 
@@ -528,51 +533,6 @@
     return generation === roomStateGeneration && roomCode === selectedRoomCode.value
   }
 
-  function syncCountdownTarget(period: PlayRoomStateResponse['current_period'] | null, nowMs = Date.now(), force = false) {
-    if (!period) {
-      countdownTargetMs.value = 0
-      countdownTargetPeriodNo.value = ''
-      return
-    }
-
-    const periodNo = String(period.period_no ?? '')
-    const rawBetLockAtMs = parsePeriodTimeMs(period.bet_lock_at)
-    const rawDrawAtMs = parsePeriodTimeMs(period.draw_at)
-    const expectedSeconds = Math.max(1, expectedPeriodSeconds.value || 30)
-    const periodMs = expectedSeconds * 1000
-    const fallbackTargetMs = nowMs + expectedSeconds * 1000
-    const maxReasonableMs = nowMs + Math.max(expectedSeconds * 3, 30) * 1000
-
-    // Play view must match admin timing:
-    // countdown runs to draw_at, while bet lock is enforced separately.
-    const preferredTargetMs = Number.isFinite(rawDrawAtMs) && rawDrawAtMs > 0
-      ? rawDrawAtMs
-      : rawBetLockAtMs
-
-    if (!periodNo) {
-      countdownTargetMs.value = fallbackTargetMs
-      countdownTargetPeriodNo.value = ''
-      return
-    }
-
-    if (!force && countdownTargetPeriodNo.value === periodNo && countdownTargetMs.value > 0) {
-      return
-    }
-
-    if (Number.isFinite(preferredTargetMs) && preferredTargetMs > 0 && preferredTargetMs <= maxReasonableMs) {
-      countdownTargetMs.value = preferredTargetMs
-    } else if (Number.isFinite(preferredTargetMs) && preferredTargetMs > maxReasonableMs) {
-      // Nếu backend trả mốc quá xa tương lai (cache/period drift), chuẩn hoá theo chu kỳ room
-      // để giữ đồng hồ mượt và không reset cứng về 28/58.
-      const delta = preferredTargetMs - nowMs
-      const remainder = ((delta % periodMs) + periodMs) % periodMs
-      countdownTargetMs.value = nowMs + (remainder === 0 ? periodMs : remainder)
-    } else {
-      countdownTargetMs.value = fallbackTargetMs
-    }
-    countdownTargetPeriodNo.value = periodNo
-  }
-
   function applyHistoryFromRecentResults(page = historyPage.value) {
     const results = roomState.value?.recent_results ?? []
     const totalPages = Math.max(1, Math.ceil(results.length / tablePageSize))
@@ -619,12 +579,56 @@
     const total = remainingSeconds.value
     const minutes = Math.floor(total / 60)
     const seconds = total % 60
+    if (enableRealtimeDebug.value && minutes >= 100) {
+      console.log('[play.sync] countdown.parts.overflow', {
+        total,
+        minutes,
+        seconds,
+        periodId: currentPeriod.value?.id ?? null,
+        periodNo: currentPeriod.value?.period_no ?? '',
+        serverTime: debugTimeSnapshot(roomState.value?.server_time),
+        drawAt: debugTimeSnapshot(currentPeriod.value?.draw_at),
+        periodNoUnixMs: parsePeriodNoUnixMs(currentPeriod.value?.period_no),
+        drawTarget: resolvePeriodDrawAtMs(currentPeriod.value),
+        syncedNowMs: syncedNow.value,
+        rawRemainingSeconds: rawRemainingSeconds.value,
+        stableRemainingSeconds: stableRemainingSeconds.value,
+      })
+    }
     return {
       m0: String(Math.floor(minutes / 10)),
       m1: String(minutes % 10),
       s0: String(Math.floor(seconds / 10)),
       s1: String(seconds % 10),
     }
+  })
+
+  watchEffect(() => {
+    if (!enableRealtimeDebug.value || !currentPeriod.value) return
+    const expectedSeconds = Math.max(30, Number(selectedVariant.value?.countdownSeconds ?? 0))
+    const suspiciousThreshold = expectedSeconds + 60
+    if (remainingSeconds.value <= suspiciousThreshold) return
+
+    logRealtimeEvent('countdown.suspicious_ui_value', {
+      display: `${countdownParts.value.m0}${countdownParts.value.m1}:${countdownParts.value.s0}${countdownParts.value.s1}`,
+      remainingSeconds: remainingSeconds.value,
+      expectedSeconds,
+      suspiciousThreshold,
+      roomCode: selectedRoomCode.value,
+      variantCode: selectedVariant.value?.code ?? '',
+      periodId: currentPeriod.value.id,
+      periodNo: currentPeriod.value.period_no,
+      status: currentPeriod.value.status,
+      serverTime: debugTimeSnapshot(roomState.value?.server_time),
+      drawAt: debugTimeSnapshot(currentPeriod.value.draw_at),
+      periodNoUnixMs: parsePeriodNoUnixMs(currentPeriod.value.period_no),
+      drawTarget: resolvePeriodDrawAtMs(currentPeriod.value),
+      betLockAt: debugTimeSnapshot(currentPeriod.value.bet_lock_at),
+      activeCountdownTargetMs: activeCountdownTargetMs.value,
+      syncedNowMs: syncedNow.value,
+      rawRemainingSeconds: rawRemainingSeconds.value,
+      stableCountdownPeriodKey: stableCountdownPeriodKey.value,
+    })
   })
 
   const roomStatusLabel = computed(() => {
@@ -870,26 +874,35 @@
     return formatViMoney(value ?? 0, fractionDigits)
   }
 
-  function parseServerTimeMs(value: string | null | undefined) {
+  function normalizeVietnamTimestamp(value: string | null | undefined) {
     const raw = String(value ?? '').trim()
-    if (!raw) return 0
+    if (!raw) return ''
+
     const normalized = raw.includes(' ') && !raw.includes('T')
       ? raw.replace(' ', 'T')
       : raw
+
+    if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(normalized)) {
+      return normalized
+    }
+
+    return `${normalized}+07:00`
+  }
+
+  function parseServerTimeMs(value: string | null | undefined) {
+    const normalized = normalizeVietnamTimestamp(value)
+    if (!normalized) return 0
+
     const parsed = new Date(normalized).getTime()
     return Number.isFinite(parsed) ? parsed : 0
   }
 
   // Parse timestamp từ server thành milliseconds.
-  // Server đã đúng múi giờ Asia/Ho_Chi_Minh (+07), chỉ cần normalize
-  // dấu cách thành 'T' để new Date() parse được, không cần bù offset thủ công.
+  // Timestamp thiếu offset được coi là wall-clock Asia/Ho_Chi_Minh (+07)
+  // để tránh browser parse theo múi giờ local và làm countdown lệch 7 giờ.
   function parseVietnamWallClockMs(value: string | null | undefined) {
-    const raw = String(value ?? '').trim()
-    if (!raw) return 0
-
-    const normalized = raw.includes(' ') && !raw.includes('T')
-      ? raw.replace(' ', 'T')
-      : raw
+    const normalized = normalizeVietnamTimestamp(value)
+    if (!normalized) return 0
 
     const parsed = new Date(normalized).getTime()
     return Number.isFinite(parsed) ? parsed : 0
@@ -897,6 +910,43 @@
 
   function parsePeriodTimeMs(value: string | null | undefined) {
     return parseVietnamWallClockMs(value)
+  }
+
+  function parsePeriodNoUnixMs(periodNo: string | null | undefined) {
+    const raw = String(periodNo ?? '').trim()
+    const match = raw.match(/_(\d{10})(?:\D*)$/)
+    if (!match) return 0
+
+    const seconds = Number(match[1])
+    if (!Number.isFinite(seconds) || seconds <= 0) return 0
+    return seconds * 1000
+  }
+
+  function resolvePeriodDrawAtMs(period: PlayRoomStateResponse['current_period'] | null | undefined) {
+    const periodNoMs = parsePeriodNoUnixMs(period?.period_no)
+    if (periodNoMs > 0) {
+      return {
+        source: 'period_no',
+        targetMs: periodNoMs,
+      }
+    }
+
+    return {
+      source: 'draw_at',
+      targetMs: parsePeriodTimeMs(period?.draw_at),
+    }
+  }
+
+  function debugTimeSnapshot(value: string | null | undefined) {
+    const raw = String(value ?? '').trim()
+    const normalized = normalizeVietnamTimestamp(raw)
+    const parsedMs = normalized ? new Date(normalized).getTime() : 0
+    return {
+      raw,
+      normalized,
+      parsedMs: Number.isFinite(parsedMs) ? parsedMs : 0,
+      iso: Number.isFinite(parsedMs) && parsedMs > 0 ? new Date(parsedMs).toISOString() : '',
+    }
   }
 
   function formatSignedMoney(value: string | number | null | undefined) {
@@ -1376,13 +1426,35 @@
 
     const serverNowMs = parseServerTimeMs(response.server_time)
     const stableNowMs = Number.isFinite(serverNowMs) && serverNowMs > 0 ? serverNowMs : syncedNow.value
-    syncCountdownTarget(response.current_period, stableNowMs, shouldRebaseClock)
+    const drawTarget = resolvePeriodDrawAtMs(response.current_period)
+    const drawAtMs = drawTarget.targetMs
+    const betLockAtMs = parsePeriodTimeMs(response.current_period?.bet_lock_at)
+    const nextStableRemainingSeconds = Math.max(0, Math.ceil((drawAtMs - stableNowMs) / 1000))
+    stableRemainingSeconds.value = nextStableRemainingSeconds
     logRealtimeEvent('room.state.applied', {
       roomCode: responseRoomCode,
       previousPeriodNo,
       nextPeriodNo,
       status: String(response.current_period?.status ?? ''),
       shouldRebaseClock,
+      periodId: response.current_period?.id ?? null,
+      periodIndex: response.current_period?.period_index ?? null,
+      serverTime: debugTimeSnapshot(response.server_time),
+      drawAt: debugTimeSnapshot(response.current_period?.draw_at),
+      periodNoUnixMs: parsePeriodNoUnixMs(response.current_period?.period_no),
+      drawTarget,
+      betLockAt: debugTimeSnapshot(response.current_period?.bet_lock_at),
+      localNowMs: Date.now(),
+      syncedNowMs: syncedNow.value,
+      serverNowMs,
+      stableNowMs,
+      drawAtMs,
+      betLockAtMs,
+      secondsToDraw: Math.ceil((drawAtMs - stableNowMs) / 1000),
+      secondsToBetLock: Math.ceil((betLockAtMs - stableNowMs) / 1000),
+      nextStableRemainingSeconds,
+      rawRemainingSeconds: rawRemainingSeconds.value,
+      stableRemainingSeconds: stableRemainingSeconds.value,
     })
     await maybeShowSettlementModal(previousPeriod, response.current_period)
 
@@ -2528,11 +2600,17 @@
     (current, previous) => {
       const [periodID] = current
       const [previousPeriodID] = previous ?? []
-      syncCountdownTarget(
-        currentPeriod.value,
-        syncedNow.value,
-        String(periodID ?? '') !== String(previousPeriodID ?? ''),
-      )
+      if (String(periodID ?? '') !== String(previousPeriodID ?? '')) {
+        stableRemainingSeconds.value = rawRemainingSeconds.value
+        logRealtimeEvent('countdown.period.changed', {
+          periodId: periodID ?? null,
+          previousPeriodId: previousPeriodID ?? null,
+          drawAt: debugTimeSnapshot(currentPeriod.value?.draw_at),
+          syncedNowMs: syncedNow.value,
+          rawRemainingSeconds: rawRemainingSeconds.value,
+          stableRemainingSeconds: stableRemainingSeconds.value,
+        })
+      }
     },
     { immediate: true },
   )
@@ -2543,23 +2621,51 @@
       if (!periodKey) {
         stableCountdownPeriodKey.value = ''
         stableRemainingSeconds.value = 0
+        logRealtimeEvent('countdown.reset.no_period', {
+          rawRemaining,
+        })
         return
       }
 
       if (stableCountdownPeriodKey.value !== periodKey) {
         stableCountdownPeriodKey.value = periodKey
         stableRemainingSeconds.value = rawRemaining
+        logRealtimeEvent('countdown.period.keyed', {
+          periodKey,
+          rawRemaining,
+          stableRemainingSeconds: stableRemainingSeconds.value,
+          targetMs: activeCountdownTargetMs.value,
+          syncedNowMs: syncedNow.value,
+        })
         return
       }
 
       if (rawRemaining > stableRemainingSeconds.value) {
         if (stableRemainingSeconds.value === 0) {
           stableRemainingSeconds.value = rawRemaining
+          logRealtimeEvent('countdown.restarted_from_zero', {
+            periodKey,
+            rawRemaining,
+            stableRemainingSeconds: stableRemainingSeconds.value,
+          })
+        } else {
+          logRealtimeEvent('countdown.prevented_increase', {
+            periodKey,
+            rawRemaining,
+            stableRemainingSeconds: stableRemainingSeconds.value,
+            targetMs: activeCountdownTargetMs.value,
+            syncedNowMs: syncedNow.value,
+          })
         }
         return
       }
 
       stableRemainingSeconds.value = rawRemaining
+      logRealtimeEvent('countdown.tick', {
+        periodKey,
+        rawRemaining,
+        stableRemainingSeconds: stableRemainingSeconds.value,
+      })
     },
     { immediate: true },
   )
