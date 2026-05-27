@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
 	"time"
@@ -434,7 +435,7 @@ func (r *UserRepository) ListManagedAffiliateDeposits(ctx context.Context, refer
 			u.id as user_id,
 			u.name,
 			coalesce(u.phone, '') as phone,
-			t.client_ref,
+			coalesce(t.client_ref, '') as client_ref,
 			coalesce(t.provider, '') as provider,
 			t.provider_txn_id,
 			t.unit,
@@ -460,6 +461,7 @@ func (r *UserRepository) ListManagedAffiliateDeposits(ctx context.Context, refer
 		limit $2 offset $3
 	`, referrerUserID, limit, offset)
 	if err != nil {
+		log.Printf("[affiliate][repo.managed_deposits.query.error] referrer_user_id=%d limit=%d offset=%d err=%v", referrerUserID, limit, offset, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -488,12 +490,18 @@ func (r *UserRepository) ListManagedAffiliateDeposits(ctx context.Context, refer
 			&item.AccountName,
 			&item.AccountNumber,
 		); err != nil {
+			log.Printf("[affiliate][repo.managed_deposits.scan.error] referrer_user_id=%d err=%v", referrerUserID, err)
 			return nil, err
 		}
 		items = append(items, item)
 	}
 
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		log.Printf("[affiliate][repo.managed_deposits.rows.error] referrer_user_id=%d err=%v", referrerUserID, err)
+		return nil, err
+	}
+
+	return items, nil
 }
 
 func (r *UserRepository) CountManagedAffiliateDeposits(ctx context.Context, referrerUserID int64) (int, error) {
@@ -506,6 +514,9 @@ func (r *UserRepository) CountManagedAffiliateDeposits(ctx context.Context, refe
 		  and t.type = 1
 		  and t.deleted_at is null
 	`, referrerUserID).Scan(&total)
+	if err != nil {
+		log.Printf("[affiliate][repo.managed_deposits.count.error] referrer_user_id=%d err=%v", referrerUserID, err)
+	}
 	return total, err
 }
 
@@ -536,6 +547,7 @@ func (r *UserRepository) ListManagedAffiliateWithdrawals(ctx context.Context, re
 		limit $2 offset $3
 	`, referrerUserID, limit, offset)
 	if err != nil {
+		log.Printf("[affiliate][repo.managed_withdrawals.query.error] referrer_user_id=%d limit=%d offset=%d err=%v", referrerUserID, limit, offset, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -560,12 +572,18 @@ func (r *UserRepository) ListManagedAffiliateWithdrawals(ctx context.Context, re
 			&item.ProviderCode,
 			&item.CreatedAt,
 		); err != nil {
+			log.Printf("[affiliate][repo.managed_withdrawals.scan.error] referrer_user_id=%d err=%v", referrerUserID, err)
 			return nil, err
 		}
 		items = append(items, item)
 	}
 
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		log.Printf("[affiliate][repo.managed_withdrawals.rows.error] referrer_user_id=%d err=%v", referrerUserID, err)
+		return nil, err
+	}
+
+	return items, nil
 }
 
 func (r *UserRepository) CountManagedAffiliateWithdrawals(ctx context.Context, referrerUserID int64) (int, error) {
@@ -576,6 +594,9 @@ func (r *UserRepository) CountManagedAffiliateWithdrawals(ctx context.Context, r
 		inner join affiliate_referrals ar on ar.referred_user_id = r.user_id
 		where ar.referrer_user_id = $1
 	`, referrerUserID).Scan(&total)
+	if err != nil {
+		log.Printf("[affiliate][repo.managed_withdrawals.count.error] referrer_user_id=%d err=%v", referrerUserID, err)
+	}
 	return total, err
 }
 

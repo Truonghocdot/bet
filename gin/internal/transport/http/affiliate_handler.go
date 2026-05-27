@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -144,8 +145,10 @@ func (h *AffiliateHandler) ManagedDeposits(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	page, pageSize := readAffiliatePagination(r, 10)
+	log.Printf("[affiliate][handler.managed_deposits] actor_user_id=%d role=%d page=%d page_size=%d", claims.UserID, claims.Role, page, pageSize)
 	res, err := h.affiliateService.ManagedDeposits(r.Context(), claims.UserID, claims.Role, page, pageSize)
 	if err != nil {
+		log.Printf("[affiliate][handler.managed_deposits.error] actor_user_id=%d role=%d page=%d page_size=%d err=%v", claims.UserID, claims.Role, page, pageSize, err)
 		if errors.Is(err, service.ErrUnauthorized) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không có quyền xem giao dịch nạp của agency"})
 			return
@@ -163,8 +166,10 @@ func (h *AffiliateHandler) ManagedWithdrawals(w http.ResponseWriter, r *http.Req
 		return
 	}
 	page, pageSize := readAffiliatePagination(r, 10)
+	log.Printf("[affiliate][handler.managed_withdrawals] actor_user_id=%d role=%d page=%d page_size=%d", claims.UserID, claims.Role, page, pageSize)
 	res, err := h.affiliateService.ManagedWithdrawals(r.Context(), claims.UserID, claims.Role, page, pageSize)
 	if err != nil {
+		log.Printf("[affiliate][handler.managed_withdrawals.error] actor_user_id=%d role=%d page=%d page_size=%d err=%v", claims.UserID, claims.Role, page, pageSize, err)
 		if errors.Is(err, service.ErrUnauthorized) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không có quyền xem giao dịch rút của agency"})
 			return

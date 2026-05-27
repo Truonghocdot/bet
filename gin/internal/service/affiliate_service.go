@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
@@ -213,6 +214,7 @@ func (s *AffiliateService) ManagedDeposits(ctx context.Context, referrerUserID i
 	if role != user.RoleAgency {
 		return ManagedAffiliateDepositsResponse{}, ErrUnauthorized
 	}
+	log.Printf("[affiliate][service.managed_deposits.start] referrer_user_id=%d role=%d page=%d page_size=%d", referrerUserID, role, page, pageSize)
 	if page < 1 {
 		page = 1
 	}
@@ -225,6 +227,7 @@ func (s *AffiliateService) ManagedDeposits(ctx context.Context, referrerUserID i
 
 	total, err := s.userRepo.CountManagedAffiliateDeposits(ctx, referrerUserID)
 	if err != nil {
+		log.Printf("[affiliate][service.managed_deposits.count.error] referrer_user_id=%d err=%v", referrerUserID, err)
 		return ManagedAffiliateDepositsResponse{}, err
 	}
 	totalPages := 1
@@ -237,6 +240,7 @@ func (s *AffiliateService) ManagedDeposits(ctx context.Context, referrerUserID i
 
 	records, err := s.userRepo.ListManagedAffiliateDeposits(ctx, referrerUserID, pageSize, (page-1)*pageSize)
 	if err != nil {
+		log.Printf("[affiliate][service.managed_deposits.list.error] referrer_user_id=%d page=%d page_size=%d err=%v", referrerUserID, page, pageSize, err)
 		return ManagedAffiliateDepositsResponse{}, err
 	}
 	items := make([]ManagedAffiliateDeposit, 0, len(records))
@@ -259,6 +263,7 @@ func (s *AffiliateService) ManagedDeposits(ctx context.Context, referrerUserID i
 		}
 		items = append(items, item)
 	}
+	log.Printf("[affiliate][service.managed_deposits.ok] referrer_user_id=%d total=%d page=%d page_size=%d items=%d", referrerUserID, total, page, pageSize, len(items))
 	return ManagedAffiliateDepositsResponse{Message: "Lấy giao dịch nạp agency thành công", Page: page, PageSize: pageSize, Total: total, TotalPages: totalPages, Data: items}, nil
 }
 
@@ -266,6 +271,7 @@ func (s *AffiliateService) ManagedWithdrawals(ctx context.Context, referrerUserI
 	if role != user.RoleAgency {
 		return ManagedAffiliateWithdrawalsResponse{}, ErrUnauthorized
 	}
+	log.Printf("[affiliate][service.managed_withdrawals.start] referrer_user_id=%d role=%d page=%d page_size=%d", referrerUserID, role, page, pageSize)
 	if page < 1 {
 		page = 1
 	}
@@ -277,6 +283,7 @@ func (s *AffiliateService) ManagedWithdrawals(ctx context.Context, referrerUserI
 	}
 	total, err := s.userRepo.CountManagedAffiliateWithdrawals(ctx, referrerUserID)
 	if err != nil {
+		log.Printf("[affiliate][service.managed_withdrawals.count.error] referrer_user_id=%d err=%v", referrerUserID, err)
 		return ManagedAffiliateWithdrawalsResponse{}, err
 	}
 	totalPages := 1
@@ -288,6 +295,7 @@ func (s *AffiliateService) ManagedWithdrawals(ctx context.Context, referrerUserI
 	}
 	records, err := s.userRepo.ListManagedAffiliateWithdrawals(ctx, referrerUserID, pageSize, (page-1)*pageSize)
 	if err != nil {
+		log.Printf("[affiliate][service.managed_withdrawals.list.error] referrer_user_id=%d page=%d page_size=%d err=%v", referrerUserID, page, pageSize, err)
 		return ManagedAffiliateWithdrawalsResponse{}, err
 	}
 	items := make([]ManagedAffiliateWithdrawal, 0, len(records))
@@ -299,6 +307,7 @@ func (s *AffiliateService) ManagedWithdrawals(ctx context.Context, referrerUserI
 			AccountName: record.AccountName, AccountNumber: record.AccountNumber, ProviderCode: record.ProviderCode, CreatedAt: record.CreatedAt,
 		})
 	}
+	log.Printf("[affiliate][service.managed_withdrawals.ok] referrer_user_id=%d total=%d page=%d page_size=%d items=%d", referrerUserID, total, page, pageSize, len(items))
 	return ManagedAffiliateWithdrawalsResponse{Message: "Lấy giao dịch rút agency thành công", Page: page, PageSize: pageSize, Total: total, TotalPages: totalPages, Data: items}, nil
 }
 
