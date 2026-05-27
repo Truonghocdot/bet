@@ -71,6 +71,66 @@ type ManagedAffiliateUserTransactionsResponse struct {
 	Items   []ManagedAffiliateUserTransaction `json:"items"`
 }
 
+type ManagedAffiliateDeposit struct {
+	ID            int64   `json:"id"`
+	UserID        int64   `json:"user_id"`
+	UserName      string  `json:"user_name"`
+	UserPhone     string  `json:"user_phone"`
+	ClientRef     string  `json:"client_ref"`
+	Provider      string  `json:"provider"`
+	ProviderTxnID *string `json:"provider_txn_id,omitempty"`
+	Unit          int     `json:"unit"`
+	Type          int     `json:"type"`
+	Amount        string  `json:"amount"`
+	NetAmount     string  `json:"net_amount"`
+	Status        int     `json:"status"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	ApprovedAt    *time.Time `json:"approved_at,omitempty"`
+	ReceivingAccount *struct {
+		ID            int64   `json:"id"`
+		ProviderCode  *string `json:"provider_code,omitempty"`
+		AccountName   *string `json:"account_name,omitempty"`
+		AccountNumber *string `json:"account_number,omitempty"`
+	} `json:"receiving_account,omitempty"`
+}
+
+type ManagedAffiliateDepositsResponse struct {
+	Message    string                   `json:"message"`
+	Page       int                      `json:"page"`
+	PageSize   int                      `json:"page_size"`
+	Total      int                      `json:"total"`
+	TotalPages int                      `json:"total_pages"`
+	Data       []ManagedAffiliateDeposit `json:"data"`
+}
+
+type ManagedAffiliateWithdrawal struct {
+	ID            int64  `json:"id"`
+	UserID        int64  `json:"user_id"`
+	UserName      string `json:"user_name"`
+	UserPhone     string `json:"user_phone"`
+	Unit          int    `json:"unit"`
+	Amount        string `json:"amount"`
+	Fee           string `json:"fee"`
+	NetAmount     string `json:"net_amount"`
+	Status        int    `json:"status"`
+	ReasonRejected string `json:"reason_rejected,omitempty"`
+	AccountWithdrawalInfoID int64 `json:"account_withdrawal_info_id"`
+	AccountName    string `json:"account_name"`
+	AccountNumber  string `json:"account_number"`
+	ProviderCode   string `json:"provider_code"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type ManagedAffiliateWithdrawalsResponse struct {
+	Message    string                      `json:"message"`
+	Page       int                         `json:"page"`
+	PageSize   int                         `json:"page_size"`
+	Total      int                         `json:"total"`
+	TotalPages int                         `json:"total_pages"`
+	Data       []ManagedAffiliateWithdrawal `json:"data"`
+}
+
 func (s *AffiliateService) Summary(ctx context.Context, userID int64) (AffiliateSummary, error) {
 	count, err := s.userRepo.CountInvitedUsers(ctx, userID)
 	if err != nil {
@@ -147,6 +207,99 @@ func (s *AffiliateService) ManagedUserTransactions(ctx context.Context, referrer
 		Message: "Lấy giao dịch người chơi thành công",
 		Items:   items,
 	}, nil
+}
+
+func (s *AffiliateService) ManagedDeposits(ctx context.Context, referrerUserID int64, role int, page int, pageSize int) (ManagedAffiliateDepositsResponse, error) {
+	if role != user.RoleAgency {
+		return ManagedAffiliateDepositsResponse{}, ErrUnauthorized
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+
+	total, err := s.userRepo.CountManagedAffiliateDeposits(ctx, referrerUserID)
+	if err != nil {
+		return ManagedAffiliateDepositsResponse{}, err
+	}
+	totalPages := 1
+	if total > 0 {
+		totalPages = (total + pageSize - 1) / pageSize
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	records, err := s.userRepo.ListManagedAffiliateDeposits(ctx, referrerUserID, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return ManagedAffiliateDepositsResponse{}, err
+	}
+	items := make([]ManagedAffiliateDeposit, 0, len(records))
+	for _, record := range records {
+		item := ManagedAffiliateDeposit{
+			ID: record.ID, UserID: record.UserID, UserName: record.UserName, UserPhone: record.UserPhone,
+			ClientRef: record.ClientRef, Provider: record.Provider, ProviderTxnID: record.ProviderTxnID,
+			Unit: record.Unit, Type: record.Type, Amount: record.Amount, NetAmount: record.NetAmount,
+			Status: record.Status, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt, ApprovedAt: record.ApprovedAt,
+		}
+		if record.ReceivingAccountID != nil {
+			item.ReceivingAccount = &struct {
+				ID            int64   `json:"id"`
+				ProviderCode  *string `json:"provider_code,omitempty"`
+				AccountName   *string `json:"account_name,omitempty"`
+				AccountNumber *string `json:"account_number,omitempty"`
+			}{
+				ID: *record.ReceivingAccountID, ProviderCode: record.ProviderCode, AccountName: record.AccountName, AccountNumber: record.AccountNumber,
+			}
+		}
+		items = append(items, item)
+	}
+	return ManagedAffiliateDepositsResponse{Message: "Lấy giao dịch nạp agency thành công", Page: page, PageSize: pageSize, Total: total, TotalPages: totalPages, Data: items}, nil
+}
+
+func (s *AffiliateService) ManagedWithdrawals(ctx context.Context, referrerUserID int64, role int, page int, pageSize int) (ManagedAffiliateWithdrawalsResponse, error) {
+	if role != user.RoleAgency {
+		return ManagedAffiliateWithdrawalsResponse{}, ErrUnauthorized
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	total, err := s.userRepo.CountManagedAffiliateWithdrawals(ctx, referrerUserID)
+	if err != nil {
+		return ManagedAffiliateWithdrawalsResponse{}, err
+	}
+	totalPages := 1
+	if total > 0 {
+		totalPages = (total + pageSize - 1) / pageSize
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	records, err := s.userRepo.ListManagedAffiliateWithdrawals(ctx, referrerUserID, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return ManagedAffiliateWithdrawalsResponse{}, err
+	}
+	items := make([]ManagedAffiliateWithdrawal, 0, len(records))
+	for _, record := range records {
+		items = append(items, ManagedAffiliateWithdrawal{
+			ID: record.ID, UserID: record.UserID, UserName: record.UserName, UserPhone: record.UserPhone,
+			Unit: record.Unit, Amount: record.Amount, Fee: record.Fee, NetAmount: record.NetAmount,
+			Status: record.Status, ReasonRejected: record.ReasonRejected, AccountWithdrawalInfoID: record.AccountWithdrawalInfoID,
+			AccountName: record.AccountName, AccountNumber: record.AccountNumber, ProviderCode: record.ProviderCode, CreatedAt: record.CreatedAt,
+		})
+	}
+	return ManagedAffiliateWithdrawalsResponse{Message: "Lấy giao dịch rút agency thành công", Page: page, PageSize: pageSize, Total: total, TotalPages: totalPages, Data: items}, nil
 }
 
 func (s *AffiliateService) ManagedUserDeposits(

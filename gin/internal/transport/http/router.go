@@ -55,6 +55,8 @@ func NewRouter(
 	mux.Handle("POST /v1/auth/change-password", authn.Require(http.HandlerFunc(authHandler.ChangePassword)))
 	mux.Handle("GET /v1/affiliate/summary", authn.Require(http.HandlerFunc(affiliateHandler.Summary)))
 	mux.Handle("GET /v1/affiliate/managed-users", authn.Require(http.HandlerFunc(affiliateHandler.ManagedUsers)))
+	mux.Handle("GET /v1/affiliate/managed-deposits", authn.Require(http.HandlerFunc(affiliateHandler.ManagedDeposits)))
+	mux.Handle("GET /v1/affiliate/managed-withdrawals", authn.Require(http.HandlerFunc(affiliateHandler.ManagedWithdrawals)))
 	mux.Handle("GET /v1/affiliate/managed-users/{user_id}/transactions", authn.Require(http.HandlerFunc(affiliateHandler.ManagedUserTransactions)))
 	mux.Handle("GET /v1/affiliate/managed-users/{user_id}/deposits", authn.Require(http.HandlerFunc(affiliateHandler.ManagedUserDeposits)))
 	mux.Handle("GET /v1/affiliate/managed-users/{user_id}/withdrawals", authn.Require(http.HandlerFunc(affiliateHandler.ManagedUserWithdrawals)))

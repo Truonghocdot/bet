@@ -137,6 +137,44 @@ func (h *AffiliateHandler) ManagedUserWithdrawals(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, res)
 }
 
+func (h *AffiliateHandler) ManagedDeposits(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+	page, pageSize := readAffiliatePagination(r, 10)
+	res, err := h.affiliateService.ManagedDeposits(r.Context(), claims.UserID, claims.Role, page, pageSize)
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorized) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không có quyền xem giao dịch nạp của agency"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (h *AffiliateHandler) ManagedWithdrawals(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+	page, pageSize := readAffiliatePagination(r, 10)
+	res, err := h.affiliateService.ManagedWithdrawals(r.Context(), claims.UserID, claims.Role, page, pageSize)
+	if err != nil {
+		if errors.Is(err, service.ErrUnauthorized) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"message": "Bạn không có quyền xem giao dịch rút của agency"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
 type becomeAgencyRequest struct {
 	StaffRefCode string `json:"staff_ref_code"`
 }

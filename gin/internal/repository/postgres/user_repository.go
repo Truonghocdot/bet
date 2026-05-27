@@ -272,6 +272,46 @@ type ManagedAffiliateUserTransactionRecord struct {
 	CreatedAt     time.Time
 }
 
+type ManagedAffiliateDepositRecord struct {
+	ID                 int64
+	UserID             int64
+	UserName           string
+	UserPhone          string
+	ClientRef          string
+	Provider           string
+	ProviderTxnID      *string
+	Unit               int
+	Type               int
+	Amount             string
+	NetAmount          string
+	Status             int
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	ApprovedAt         *time.Time
+	ReceivingAccountID *int64
+	ProviderCode       *string
+	AccountName        *string
+	AccountNumber      *string
+}
+
+type ManagedAffiliateWithdrawalRecord struct {
+	ID                      int64
+	UserID                  int64
+	UserName                string
+	UserPhone               string
+	Unit                    int
+	Amount                  string
+	Fee                     string
+	NetAmount               string
+	Status                  int
+	ReasonRejected          string
+	AccountWithdrawalInfoID int64
+	AccountName             string
+	AccountNumber           string
+	ProviderCode            string
+	CreatedAt               time.Time
+}
+
 func (r *UserRepository) ListManagedAffiliateUsers(ctx context.Context, referrerUserID int64, limit int) ([]ManagedAffiliateUserRecord, error) {
 	if limit <= 0 {
 		limit = 100
@@ -385,6 +425,158 @@ func (r *UserRepository) ListManagedAffiliateUserTransactions(ctx context.Contex
 	}
 
 	return items, rows.Err()
+}
+
+func (r *UserRepository) ListManagedAffiliateDeposits(ctx context.Context, referrerUserID int64, limit, offset int) ([]ManagedAffiliateDepositRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		select
+			t.id,
+			u.id as user_id,
+			u.name,
+			coalesce(u.phone, '') as phone,
+			t.client_ref,
+			coalesce(t.provider, '') as provider,
+			t.provider_txn_id,
+			t.unit,
+			t.type,
+			t.amount::text,
+			t.net_amount::text,
+			t.status,
+			t.created_at,
+			t.updated_at,
+			t.approved_at,
+			t.receiving_account_id,
+			p.provider_code,
+			p.account_name,
+			p.account_number
+		from transactions t
+		inner join affiliate_referrals ar on ar.referred_user_id = t.user_id
+		inner join users u on u.id = t.user_id
+		left join payment_receiving_accounts p on p.id = t.receiving_account_id
+		where ar.referrer_user_id = $1
+		  and t.type = 1
+		  and t.deleted_at is null
+		order by t.created_at desc, t.id desc
+		limit $2 offset $3
+	`, referrerUserID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]ManagedAffiliateDepositRecord, 0)
+	for rows.Next() {
+		var item ManagedAffiliateDepositRecord
+		if err := rows.Scan(
+			&item.ID,
+			&item.UserID,
+			&item.UserName,
+			&item.UserPhone,
+			&item.ClientRef,
+			&item.Provider,
+			&item.ProviderTxnID,
+			&item.Unit,
+			&item.Type,
+			&item.Amount,
+			&item.NetAmount,
+			&item.Status,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+			&item.ApprovedAt,
+			&item.ReceivingAccountID,
+			&item.ProviderCode,
+			&item.AccountName,
+			&item.AccountNumber,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}
+
+func (r *UserRepository) CountManagedAffiliateDeposits(ctx context.Context, referrerUserID int64) (int, error) {
+	var total int
+	err := r.db.QueryRowContext(ctx, `
+		select count(1)
+		from transactions t
+		inner join affiliate_referrals ar on ar.referred_user_id = t.user_id
+		where ar.referrer_user_id = $1
+		  and t.type = 1
+		  and t.deleted_at is null
+	`, referrerUserID).Scan(&total)
+	return total, err
+}
+
+func (r *UserRepository) ListManagedAffiliateWithdrawals(ctx context.Context, referrerUserID int64, limit, offset int) ([]ManagedAffiliateWithdrawalRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		select
+			r.id,
+			u.id as user_id,
+			u.name,
+			coalesce(u.phone, '') as phone,
+			r.unit,
+			r.amount::text,
+			r.fee::text,
+			r.net_amount::text,
+			r.status,
+			coalesce(r.reason_rejected, '') as reason_rejected,
+			r.account_withdrawal_info_id,
+			a.account_name,
+			a.account_number,
+			coalesce(a.provider_code, '') as provider_code,
+			r.created_at
+		from withdrawal_requests r
+		inner join affiliate_referrals ar on ar.referred_user_id = r.user_id
+		inner join users u on u.id = r.user_id
+		inner join account_withdrawal_infos a on a.id = r.account_withdrawal_info_id
+		where ar.referrer_user_id = $1
+		order by r.created_at desc, r.id desc
+		limit $2 offset $3
+	`, referrerUserID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]ManagedAffiliateWithdrawalRecord, 0)
+	for rows.Next() {
+		var item ManagedAffiliateWithdrawalRecord
+		if err := rows.Scan(
+			&item.ID,
+			&item.UserID,
+			&item.UserName,
+			&item.UserPhone,
+			&item.Unit,
+			&item.Amount,
+			&item.Fee,
+			&item.NetAmount,
+			&item.Status,
+			&item.ReasonRejected,
+			&item.AccountWithdrawalInfoID,
+			&item.AccountName,
+			&item.AccountNumber,
+			&item.ProviderCode,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}
+
+func (r *UserRepository) CountManagedAffiliateWithdrawals(ctx context.Context, referrerUserID int64) (int, error) {
+	var total int
+	err := r.db.QueryRowContext(ctx, `
+		select count(1)
+		from withdrawal_requests r
+		inner join affiliate_referrals ar on ar.referred_user_id = r.user_id
+		where ar.referrer_user_id = $1
+	`, referrerUserID).Scan(&total)
+	return total, err
 }
 
 func (r *UserRepository) FindProfileByUserID(ctx context.Context, userID int64) (auth.UserProfile, error) {

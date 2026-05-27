@@ -52,6 +52,9 @@ export type ManagedAffiliateUserTransaction = {
 
 export type AgencyManagedUserDeposit = {
   id: number
+  user_id: number
+  user_name: string
+  user_phone: string
   client_ref: string
   provider: string
   provider_txn_id?: string | null
@@ -87,6 +90,9 @@ export type AgencyManagedUserDepositHistoryResponse = {
 
 export type AgencyManagedUserWithdrawal = {
   id: number
+  user_id: number
+  user_name: string
+  user_phone: string
   unit: number
   amount: string
   fee: string

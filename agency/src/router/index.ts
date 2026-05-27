@@ -34,14 +34,14 @@ const router = createRouter({
       meta: { requiresAuth: true, title: 'Thống kê người chơi', layout: 'panel' },
     },
     {
-      path: '/users/:userId/deposits',
-      name: 'agency-user-deposits',
+      path: '/deposits',
+      name: 'agency-deposits',
       component: () => import('@/views/AgencyUserDepositsView.vue'),
       meta: { requiresAuth: true, title: 'Giao dịch nạp tiền', layout: 'panel' },
     },
     {
-      path: '/users/:userId/withdrawals',
-      name: 'agency-user-withdrawals',
+      path: '/withdrawals',
+      name: 'agency-withdrawals',
       component: () => import('@/views/AgencyUserWithdrawalsView.vue'),
       meta: { requiresAuth: true, title: 'Giao dịch rút tiền', layout: 'panel' },
     },

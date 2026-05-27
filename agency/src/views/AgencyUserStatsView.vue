@@ -89,13 +89,13 @@ onMounted(async () => {
 
         <div class="flex flex-wrap gap-3">
           <RouterLink
-            :to="{ name: 'agency-user-deposits', params: { userId: userId } }"
+            :to="{ name: 'agency-deposits' }"
             class="inline-flex min-h-11 items-center rounded-xl border border-black/8 bg-white px-4 text-sm font-bold text-slate-700"
           >
             Giao dịch nạp
           </RouterLink>
           <RouterLink
-            :to="{ name: 'agency-user-withdrawals', params: { userId: userId } }"
+            :to="{ name: 'agency-withdrawals' }"
             class="inline-flex min-h-11 items-center rounded-xl border border-black/8 bg-white px-4 text-sm font-bold text-slate-700"
           >
             Giao dịch rút
@@ -184,7 +184,7 @@ onMounted(async () => {
 
       <section class="grid gap-4 md:grid-cols-2">
         <RouterLink
-          :to="{ name: 'agency-user-deposits', params: { userId: userId } }"
+          :to="{ name: 'agency-deposits' }"
           class="rounded-[26px] border border-white/60 bg-[rgba(255,255,255,0.88)] p-5 shadow-[0_20px_60px_rgba(15,23,42,0.1)]"
         >
           <p class="text-xs uppercase tracking-[0.16em] text-slate-400">Chi tiết tài chính</p>
@@ -192,7 +192,7 @@ onMounted(async () => {
           <p class="mt-2 text-sm text-slate-500">Xem trạng thái nạp, mã giao dịch, nhà cung cấp và thông tin tài khoản nhận tiền.</p>
         </RouterLink>
         <RouterLink
-          :to="{ name: 'agency-user-withdrawals', params: { userId: userId } }"
+          :to="{ name: 'agency-withdrawals' }"
           class="rounded-[26px] border border-white/60 bg-[rgba(255,255,255,0.88)] p-5 shadow-[0_20px_60px_rgba(15,23,42,0.1)]"
         >
           <p class="text-xs uppercase tracking-[0.16em] text-slate-400">Chi tiết tài chính</p>
