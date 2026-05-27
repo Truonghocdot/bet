@@ -395,29 +395,31 @@ onMounted(() => {
           v-for="item in homeHighlights"
           :key="item.id"
           :to="`/news/${item.slug}`"
-          class="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 md:hover:bg-white/10 transition-colors"
+          class="grid grid-cols-[48px_minmax(0,1fr)] gap-3 px-4 py-3 transition-colors hover:bg-slate-50 md:flex md:items-start md:hover:bg-white/10"
         >
           <img
             v-if="item.cover_image_url"
             :src="item.cover_image_url"
             :alt="item.title"
-            class="h-12 w-12 rounded-[10px] object-cover flex-shrink-0 border border-slate-100"
+            class="h-12 w-12 rounded-[10px] border border-slate-100 object-cover"
             loading="lazy"
             decoding="async"
           />
           <div
             v-else
-            class="grid h-12 w-12 flex-shrink-0 place-items-center rounded-[10px] bg-[#ffefef] text-primary border border-[#ffd8d8]"
+            class="grid h-12 w-12 place-items-center rounded-[10px] border border-[#ffd8d8] bg-[#ffefef] text-primary"
           >
             <span class="material-symbols-outlined text-[1.1rem]">newspaper</span>
           </div>
-          <div class="flex-1 min-w-0">
-            <strong class="line-clamp-1 block text-[0.82rem] font-black text-on-surface md:text-white/90">{{ item.title }}</strong>
-            <span class="line-clamp-2 text-[0.7rem] text-slate-500 md:text-white/60">{{ newsPreview(item) }}</span>
+          <div class="min-w-0 md:flex-1">
+            <div class="flex flex-col gap-1 md:flex-row md:items-start md:justify-between md:gap-3">
+              <strong class="line-clamp-2 block text-[0.82rem] font-black text-on-surface md:line-clamp-1 md:text-white/90">{{ item.title }}</strong>
+              <span class="text-[0.64rem] font-bold text-slate-400 md:flex-shrink-0 md:text-[0.68rem] md:text-white/40">
+                {{ item.published_at || item.created_at || '—' }}
+              </span>
+            </div>
+            <span class="mt-1 line-clamp-2 block text-[0.7rem] leading-5 text-slate-500 md:text-white/60">{{ newsPreview(item) }}</span>
           </div>
-          <span class="flex-shrink-0 text-[0.68rem] font-bold text-slate-400 md:text-white/40">
-            {{ item.published_at || item.created_at || '—' }}
-          </span>
         </RouterLink>
         <div v-if="!homeHighlights.length && !contentError" class="px-4 py-3 text-[0.78rem] font-semibold text-slate-500">
           Chưa có tin nổi bật.
