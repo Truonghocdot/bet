@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import { formatAgencyDateTime } from '@/shared/lib/date'
 import { useAgencyPlayersStore } from '@/stores/players'
 
 const players = useAgencyPlayersStore()
@@ -92,7 +91,7 @@ onMounted(() => {
                   <span class="mt-1 block text-xs text-slate-500">{{ item.phone || 'Chưa cập nhật số điện thoại' }}</span>
                 </td>
                 <td class="px-4 py-4 align-top text-xs font-semibold text-slate-500">
-                  {{ formatAgencyDateTime(item.created_at) }}
+                  {{ item.created_at || '—' }}
                 </td>
                 <td class="px-4 py-4 align-top">
                   <span

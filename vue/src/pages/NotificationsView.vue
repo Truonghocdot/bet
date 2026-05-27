@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import { formatViDateTime } from '@/shared/lib/date'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const tabs = ['Tất cả', 'Chưa đọc', 'Đã đọc'] as const
@@ -162,7 +161,7 @@ onBeforeUnmount(() => {
             </div>
             <p class="mt-1.5 text-[0.76rem] leading-6 text-on-surface-variant">{{ item.body }}</p>
             <div class="mt-3 flex flex-wrap items-center gap-2 text-[0.68rem] text-on-surface-variant">
-              <span>{{ formatViDateTime(item.publish_at || item.created_at) }}</span>
+              <span>{{ item.publish_at || item.created_at || '—' }}</span>
             </div>
             <button
               v-if="!item.is_read"

@@ -4,7 +4,6 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { request, type ApiError } from '@/shared/api/http'
 import type { ContentDetailResponse, ContentNewsItem } from '@/shared/api/types'
-import { formatViDateTime } from '@/shared/lib/date'
 import { stripHtmlTags } from '@/shared/lib/html'
 
 const route = useRoute()
@@ -82,7 +81,7 @@ onMounted(() => {
       <div class="p-5 md:p-6">
         <div class="flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.08em] text-on-surface-variant">
           <span class="rounded-full bg-surface-container-low px-3 py-1 font-bold">Tin tức</span>
-          <span>{{ formatViDateTime(article.published_at || article.created_at) }}</span>
+          <span>{{ article.published_at || article.created_at || '—' }}</span>
         </div>
 
         <h1 class="mt-4 text-[1.65rem] font-black leading-[1.15] md:text-[2rem]">{{ article.title }}</h1>

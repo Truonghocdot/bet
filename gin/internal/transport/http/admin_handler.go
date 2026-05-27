@@ -38,8 +38,8 @@ type adminPeriodDetail struct {
 	ID           int64   `json:"id"`
 	PeriodNo     string  `json:"period_no"`
 	PeriodIndex  int64   `json:"period_index"`
-	DrawAt       string  `json:"draw_at"`
-	BetLockAt    string  `json:"bet_lock_at"`
+	DrawAt       time.Time `json:"draw_at"`
+	BetLockAt    time.Time `json:"bet_lock_at"`
 	Status       int     `json:"status"`
 	ManualResult *string `json:"manual_result"`
 }
@@ -99,8 +99,8 @@ func toAdminPeriod(record *repopg.GamePeriodRecord) *adminPeriodDetail {
 		ID:           record.ID,
 		PeriodNo:     record.PeriodNo,
 		PeriodIndex:  record.PeriodIndex,
-		DrawAt:       record.DrawAt.Format(time.RFC3339),
-		BetLockAt:    record.BetLockAt.Format(time.RFC3339),
+		DrawAt:       record.DrawAt,
+		BetLockAt:    record.BetLockAt,
 		Status:       record.Status,
 		ManualResult: manual,
 	}
@@ -356,8 +356,8 @@ func (h *AdminHandler) loadPeriodFromRoomStateCache(r *http.Request, roomCode st
 		ID:           cached.Payload.CurrentPeriod.ID,
 		PeriodNo:     cached.Payload.CurrentPeriod.PeriodNo,
 		PeriodIndex:  cached.Payload.CurrentPeriod.PeriodIndex,
-		DrawAt:       cached.Payload.CurrentPeriod.DrawAt.Format(time.RFC3339),
-		BetLockAt:    cached.Payload.CurrentPeriod.BetLockAt.Format(time.RFC3339),
+		DrawAt:       cached.Payload.CurrentPeriod.DrawAt,
+		BetLockAt:    cached.Payload.CurrentPeriod.BetLockAt,
 		Status:       toPeriodStatusCode(cached.Payload.CurrentPeriod.Status),
 		ManualResult: nil,
 	}

@@ -4,7 +4,6 @@ import { RouterLink } from 'vue-router'
 
 import { request, type ApiError } from '@/shared/api/http'
 import type { PlayRoomBetHistoryResponse, PlayRoomItem } from '@/shared/api/types'
-import { formatViDateTime } from '@/shared/lib/date'
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
 
@@ -185,9 +184,8 @@ onMounted(() => {
         <span :class="row.profitSample >= 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold'">
           {{ row.profitSample >= 0 ? '+' : '' }}{{ formatViMoney(row.profitSample) }}
         </span>
-        <span class="text-on-surface-variant">{{ row.lastBetAt ? formatViDateTime(row.lastBetAt) : '—' }}</span>
+        <span class="text-on-surface-variant">{{ row.lastBetAt || '—' }}</span>
       </div>
     </section>
   </div>
 </template>
-

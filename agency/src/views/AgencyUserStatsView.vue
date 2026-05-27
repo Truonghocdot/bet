@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { request, type ApiError } from '@/shared/api/http'
-import { formatAgencyDateTime } from '@/shared/lib/date'
 import type { ManagedAffiliateUserTransaction } from '@/shared/api/types'
 import { useAgencyPlayersStore } from '@/stores/players'
 import { useAgencyAuthStore } from '@/stores/auth'
@@ -117,7 +116,7 @@ onMounted(async () => {
         </article>
         <article class="rounded-[28px] bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
           <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Thời gian tham gia</p>
-          <strong class="mt-3 block text-2xl text-slate-950">{{ formatAgencyDateTime(player.created_at) }}</strong>
+          <strong class="mt-3 block text-2xl text-slate-950">{{ player.created_at || '—' }}</strong>
         </article>
         <article class="rounded-[28px] bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
           <p class="text-xs uppercase tracking-[0.18em] text-slate-400">First deposit</p>
@@ -143,7 +142,7 @@ onMounted(async () => {
             </article>
             <article class="rounded-[22px] bg-slate-50 p-4">
               <p class="m-0 text-xs uppercase tracking-[0.14em] text-slate-400">Ngày tạo</p>
-              <strong class="mt-2 block text-lg text-slate-950">{{ formatAgencyDateTime(player.created_at) }}</strong>
+              <strong class="mt-2 block text-lg text-slate-950">{{ player.created_at || '—' }}</strong>
             </article>
             <article class="rounded-[22px] bg-slate-50 p-4">
               <p class="m-0 text-xs uppercase tracking-[0.14em] text-slate-400">Referral status</p>
@@ -217,7 +216,7 @@ onMounted(async () => {
                   class="border-t border-black/6"
                 >
                   <td class="px-4 py-4 align-top text-xs font-semibold text-slate-500">
-                    {{ formatAgencyDateTime(item.created_at) }}
+                    {{ item.created_at || '—' }}
                   </td>
                   <td class="px-4 py-4 align-top">
                     <div class="font-bold text-slate-950">{{ shortReference(item.reference_type) }}</div>

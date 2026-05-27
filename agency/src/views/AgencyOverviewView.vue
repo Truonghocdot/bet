@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 
-import { formatAgencyDateTime } from '@/shared/lib/date'
 import { useAgencyAuthStore } from '@/stores/auth'
 import { useAgencyPlayersStore } from '@/stores/players'
 
@@ -130,7 +129,7 @@ onMounted(() => {
                   <strong class="block text-slate-950">{{ item.name || `User #${item.user_id}` }}</strong>
                   <span class="mt-1 block text-xs text-slate-500">{{ item.phone || 'Chưa cập nhật số điện thoại' }}</span>
                 </div>
-                <span class="text-xs font-semibold text-slate-400">{{ formatAgencyDateTime(item.created_at) }}</span>
+                <span class="text-xs font-semibold text-slate-400">{{ item.created_at || '—' }}</span>
               </div>
             </article>
           </div>
@@ -164,7 +163,7 @@ onMounted(() => {
               </span>
             </div>
             <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
-              <span>Tạo lúc {{ formatAgencyDateTime(item.created_at) }}</span>
+              <span>Tạo lúc {{ item.created_at || '—' }}</span>
               <span>First deposit {{ Number(item.first_deposit_amount || 0).toLocaleString('vi-VN') }}</span>
             </div>
           </article>
