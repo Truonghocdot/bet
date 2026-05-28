@@ -975,7 +975,7 @@ func settlementOddsForItem(optionType, optionKey string) *big.Rat {
 	case key == "serial_any":
 		return big.NewRat(216, 25)
 	case strings.HasPrefix(key, "diff_"):
-		return big.NewRat(864, 25)
+		return big.NewRat(6, 1)
 	case strings.HasPrefix(key, "sum_"):
 		if odds := sumOddsForKey(key); odds != nil {
 			return odds
@@ -1011,7 +1011,7 @@ func settlementOddsForItem(optionType, optionKey string) *big.Rat {
 			return big.NewRat(216, 25)
 		}
 		if strings.HasPrefix(key, "diff_") {
-			return big.NewRat(864, 25)
+			return big.NewRat(6, 1)
 		}
 	}
 

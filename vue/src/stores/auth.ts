@@ -17,6 +17,7 @@ import type {
 import { readJSON, remove, writeJSON } from '@/shared/lib/storage'
 
 const STORAGE_KEY = 'fh88u:auth:v1'
+const WITHDRAW_POLICY_DISMISSED_KEY = 'fh88u:withdraw-policy-dismissed'
 
 type PersistedAuth = {
   accessToken: string
@@ -66,6 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = ''
     loading.value = false
     remove(STORAGE_KEY)
+    remove(WITHDRAW_POLICY_DISMISSED_KEY)
   }
 
   function hydrate() {

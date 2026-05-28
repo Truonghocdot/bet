@@ -27,7 +27,8 @@
 
   const activeVariantCode = ref('')
   const activeHistoryTab = ref<'history' | 'chart' | 'mine'>('history')
-  const activeK3SubTab = ref('Tổng số')
+  const primaryK3SubTab = 'Lớn / Nhỏ / Chẵn / Lẻ'
+  const activeK3SubTab = ref(primaryK3SubTab)
   const activeLotterySubTab = ref('A')
   const connectionId = ref('')
   const joinLoading = ref(false)
@@ -666,6 +667,11 @@
     }
     return tabs
   })
+
+  function resolveDefaultK3SubTab() {
+    const tabs = k3SubTabs.value
+    return tabs.includes(primaryK3SubTab) ? primaryK3SubTab : tabs[0] ?? primaryK3SubTab
+  }
 
   // K3 active groups filtered by sub-tab
   const activeK3Groups = computed(() => {
@@ -2517,8 +2523,7 @@
         return
       }
       activeVariantCode.value = resolveVariantCode(room.value, route.query.variant)
-      // Reset K3 sub-tab to first
-      if (isK3.value) activeK3SubTab.value = 'Tổng số'
+      if (isK3.value) activeK3SubTab.value = resolveDefaultK3SubTab()
       if (isLottery.value) activeLotterySubTab.value = 'A'
       await nextTick()
       ensureDefaultSelections(selectedVariant.value)
@@ -2580,6 +2585,9 @@
       }
       if (isLottery.value) {
         activeLotterySubTab.value = lotterySubTabs.value[0] ?? 'A'
+      }
+      if (isK3.value && !k3SubTabs.value.includes(activeK3SubTab.value)) {
+        activeK3SubTab.value = resolveDefaultK3SubTab()
       }
       ensureDefaultSelections(selectedVariant.value)
     },
