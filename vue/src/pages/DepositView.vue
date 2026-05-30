@@ -153,13 +153,16 @@ function formatPendingDepositAmount(value: string | number | null | undefined) {
 
 function formatPendingDepositAmountForCopy(value: string | number | null | undefined) {
   const normalized = String(value ?? '').replace(/[^\d.]/g, '')
-  const numericValue = Number(normalized)
-
-  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+  if (!normalized) {
     return '0'
   }
 
-  return String(Math.trunc(numericValue))
+  const [rawInteger = '0', rawFraction = ''] = normalized.split('.')
+  const integer = rawInteger.replace(/^0+(?=\d)/, '') || '0'
+  const fraction = rawFraction.replace(/0+$/, '')
+  if (!fraction) return integer
+
+  return `${integer}.${fraction}`
 }
 
 function redirectBack() {
@@ -529,6 +532,16 @@ async function logout() {
           <p class="m-0 mt-1 text-xs text-on-surface-variant italic">
             {{ isUsdtIntent ? 'Vui lòng quét mã QR hoặc chuyển USDT đúng địa chỉ/memo bên dưới:' : 'Vui lòng quét mã QR hoặc chuyển khoản theo thông tin:' }}
           </p>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <div class="rounded-[16px] bg-surface-container-low p-3 border border-slate-100">
+              <p class="m-0 text-[0.72rem] text-on-surface-variant">Hết hạn sau</p>
+              <p class="m-0 mt-1 font-black text-on-surface-variant">{{ depositCountdown }}</p>
+            </div>
+            <div class="rounded-[16px] bg-surface-container-low p-3 border border-slate-100">
+              <p class="m-0 text-[0.72rem] text-on-surface-variant">Trạng thái</p>
+              <p class="m-0 mt-1 font-black" :class="statusToneClass">{{ statusLabel }}</p>
+            </div>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <button class="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-black text-on-surface-variant flex items-center gap-1 transition-transform active:scale-95" type="button" :disabled="deposit.loading" @click="handleCancel">
@@ -661,14 +674,6 @@ async function logout() {
                   <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'amount' ? 'check' : 'content_copy' }}</span>
                 </button>
               </div>
-            </div>
-            <div class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">Hết hạn sau</p>
-              <p class="m-0 mt-1 font-black text-on-surface-variant">{{ depositCountdown }}</p>
-            </div>
-            <div class="rounded-[16px] bg-white p-3 border border-slate-50">
-              <p class="m-0 text-[0.72rem] text-on-surface-variant">Trạng thái</p>
-              <p class="m-0 mt-1 font-black" :class="statusToneClass">{{ statusLabel }}</p>
             </div>
           </div>
         </div>

@@ -314,10 +314,24 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
           </div>
         </div>
 
-        <form @submit.prevent="handleWithdraw" class="space-y-4">
+        <form autocomplete="off" @submit.prevent="handleWithdraw" class="space-y-4">
+          <input class="hidden" tabindex="-1" autocomplete="username" name="withdraw-decoy-username" type="text" />
+          <input class="hidden" tabindex="-1" autocomplete="current-password" name="withdraw-decoy-password" type="password" />
           <div>
             <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
-              <input v-model="amount" type="text" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold text-lg" :inputmode="amountInputMode" autocomplete="off" placeholder="Nhập số tiền muốn rút" @input="handleAmountInput" />
+              <input
+                v-model="amount"
+                type="text"
+                name="withdraw-request-amount"
+                class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold text-lg"
+                :inputmode="amountInputMode"
+                autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="Nhập số tiền muốn rút"
+                @input="handleAmountInput"
+              />
             </label>
           </div>
 
@@ -328,8 +342,12 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
                 <input
                   v-model="password"
                   class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold"
+                  name="withdraw-confirm-password"
                   :type="showPassword ? 'text' : 'password'"
-                  autocomplete="current-password"
+                  autocomplete="new-password"
+                  autocapitalize="off"
+                  autocorrect="off"
+                  spellcheck="false"
                   placeholder="Điền mật khẩu đăng nhập để xác nhận rút"
                 />
                 <button type="button" class="px-4 text-[0.75rem] font-black text-primary" @click="showPassword = !showPassword">
