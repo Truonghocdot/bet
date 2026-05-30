@@ -174,9 +174,15 @@ function scrollToHistorySection(behavior: ScrollBehavior = 'smooth') {
 }
 
 async function copyIntentValue(key: string, value: string | null | undefined) {
-  const text = String(value ?? '').trim()
-  if (!text) return
+  let text = '';
+   if(key == 'amount') {
+    text = String(value ?? '').trim() + '0';
+   }else {
+    text = String(value ?? '').trim();
+   }
+   if (!text) return
   try {
+
     await navigator.clipboard.writeText(text)
     copiedField.value = key
     window.setTimeout(() => {
