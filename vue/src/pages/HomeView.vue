@@ -31,35 +31,11 @@ import bannerK3 from '@/assets/lottery_banner/optimized/k3.webp'
 import banner5D from '@/assets/lottery_banner/optimized/5d.webp'
 
 // Game Thumbnails
-import chickenThumb1 from '@/assets/game_thumbs/chicken/k6mrr7oj3ysgbxg3ksab.webp'
-import chickenThumb2 from '@/assets/game_thumbs/chicken/pqo9qzuo68xjj3btsjjp.webp'
-import chickenThumb3 from '@/assets/game_thumbs/chicken/rpnyl3hvmodp31b6sg8x.webp'
-import chickenThumb4 from '@/assets/game_thumbs/chicken/umwvgduxl5fjpgdqi3gq.webp'
-import huntFishThumb1 from '@/assets/game_thumbs/hunt-fish/1.webp'
-import huntFishThumb2 from '@/assets/game_thumbs/hunt-fish/2.webp'
-import huntFishThumb3 from '@/assets/game_thumbs/hunt-fish/3.webp'
-import huntFishThumb4 from '@/assets/game_thumbs/hunt-fish/4.webp'
-import huntFishThumb5 from '@/assets/game_thumbs/hunt-fish/5.webp'
-import casinoThumb1 from '@/assets/game_thumbs/lobby-casino/1.webp'
-import casinoThumb2 from '@/assets/game_thumbs/lobby-casino/2.webp'
-import casinoThumb3 from '@/assets/game_thumbs/lobby-casino/3.webp'
-import casinoThumb4 from '@/assets/game_thumbs/lobby-casino/4.webp'
-import casinoThumb5 from '@/assets/game_thumbs/lobby-casino/5.webp'
-import pokerThumb1 from '@/assets/game_thumbs/poker/1.webp'
-import pokerThumb2 from '@/assets/game_thumbs/poker/2.webp'
-import pokerThumb3 from '@/assets/game_thumbs/poker/3.webp'
-import pokerThumb4 from '@/assets/game_thumbs/poker/4.webp'
-import pokerThumb5 from '@/assets/game_thumbs/poker/5.webp'
-import slotThumb1 from '@/assets/game_thumbs/slot/1.webp'
-import slotThumb2 from '@/assets/game_thumbs/slot/2.webp'
-import slotThumb3 from '@/assets/game_thumbs/slot/3.webp'
-import slotThumb4 from '@/assets/game_thumbs/slot/4.webp'
-import slotThumb5 from '@/assets/game_thumbs/slot/5.webp'
-import sportThumb1 from '@/assets/game_thumbs/sport/1.webp'
-import sportThumb2 from '@/assets/game_thumbs/sport/2.webp'
-import sportThumb3 from '@/assets/game_thumbs/sport/3.webp'
-import sportThumb4 from '@/assets/game_thumbs/sport/4.webp'
-import sportThumb5 from '@/assets/game_thumbs/sport/5.webp'
+const gameThumbModules = import.meta.glob<string>('@/assets/game_thumbs/*/*.webp', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
 
 const auth = useAuthStore()
 const wallet = useWalletStore()
@@ -143,46 +119,56 @@ function maybePrefetchGameRoute(game: GameItem) {
   if (game.route) prefetchPlayRoute()
 }
 
+type ThumbCategoryConfig = {
+  category: string
+  popular?: boolean
+  featuredFirst?: boolean
+}
+
+const thumbCategoryMap: Record<string, ThumbCategoryConfig> = {
+  'lobby-casino': { category: 'Casino', popular: true, featuredFirst: true },
+  slot: { category: 'Nổ hũ', popular: true, featuredFirst: true },
+  'hunt-fish': { category: 'Bắn cá', popular: true, featuredFirst: true },
+  sport: { category: 'Thể thao' },
+  poker: { category: 'Game bài', popular: true },
+  chicken: { category: 'Đá gà' },
+}
+
+function prettyGameThumbName(fileName: string) {
+  return fileName
+    .replace(/\.[^.]+$/, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildThumbGames(folder: string, config: ThumbCategoryConfig): GameItem[] {
+  return Object.entries(gameThumbModules)
+    .filter(([path]) => path.includes(`/game_thumbs/${folder}/`))
+    .sort(([a], [b]) => a.localeCompare(b, 'vi'))
+    .map(([path, image], index) => {
+      const fileName = path.split('/').pop() ?? ''
+      return {
+        name: prettyGameThumbName(fileName),
+        image,
+        category: [
+          ...(config.popular && index < 2 ? ['Phổ biến'] : []),
+          config.category,
+        ],
+        maintenance: true,
+        featured: Boolean(config.featuredFirst && index === 0),
+      }
+    })
+}
+
+const thumbGames = Object.entries(thumbCategoryMap).flatMap(([folder, config]) => buildThumbGames(folder, config))
+
 const allGames: GameItem[] = [
   // Xổ số - có route thật
   { name: 'Win Go', image: bannerWingo, category: ['Phổ biến', 'Xổ số'], route: '/play/wingo', featured: true },
   { name: 'K3', image: bannerK3, category: ['Phổ biến', 'Xổ số'], route: '/play/k3' },
   { name: '5D Lottery', image: banner5D, category: ['Phổ biến', 'Xổ số'], route: '/play/lottery' },
-  // Sảnh casino: game_thumbs/lobby-casino
-  { name: 'Sảnh Casino 1', image: casinoThumb1, category: ['Phổ biến', 'Casino'], maintenance: true, featured: true },
-  { name: 'Sảnh Casino 2', image: casinoThumb2, category: ['Phổ biến', 'Casino'], maintenance: true },
-  { name: 'Sảnh Casino 3', image: casinoThumb3, category: ['Casino'], maintenance: true },
-  { name: 'Sảnh Casino 4', image: casinoThumb4, category: ['Casino'], maintenance: true },
-  { name: 'Sảnh Casino 5', image: casinoThumb5, category: ['Casino'], maintenance: true },
-  // Nổ hũ: game_thumbs/slot
-  { name: 'Nổ Hũ 1', image: slotThumb1, category: ['Phổ biến', 'Nổ hũ'], maintenance: true, featured: true },
-  { name: 'Nổ Hũ 2', image: slotThumb2, category: ['Phổ biến', 'Nổ hũ'], maintenance: true },
-  { name: 'Nổ Hũ 3', image: slotThumb3, category: ['Nổ hũ'], maintenance: true },
-  { name: 'Nổ Hũ 4', image: slotThumb4, category: ['Nổ hũ'], maintenance: true },
-  { name: 'Nổ Hũ 5', image: slotThumb5, category: ['Nổ hũ'], maintenance: true },
-  // Bắn cá: game_thumbs/hunt-fish
-  { name: 'Bắn Cá 1', image: huntFishThumb1, category: ['Phổ biến', 'Bắn cá'], maintenance: true, featured: true },
-  { name: 'Bắn Cá 2', image: huntFishThumb2, category: ['Phổ biến', 'Bắn cá'], maintenance: true },
-  { name: 'Bắn Cá 3', image: huntFishThumb3, category: ['Bắn cá'], maintenance: true },
-  { name: 'Bắn Cá 4', image: huntFishThumb4, category: ['Bắn cá'], maintenance: true },
-  { name: 'Bắn Cá 5', image: huntFishThumb5, category: ['Bắn cá'], maintenance: true },
-  // Thể thao: game_thumbs/sport
-  { name: 'Thể Thao 1', image: sportThumb1, category: ['Thể thao'], maintenance: true },
-  { name: 'Thể Thao 2', image: sportThumb2, category: ['Thể thao'], maintenance: true },
-  { name: 'Thể Thao 3', image: sportThumb3, category: ['Thể thao'], maintenance: true },
-  { name: 'Thể Thao 4', image: sportThumb4, category: ['Thể thao'], maintenance: true },
-  { name: 'Thể Thao 5', image: sportThumb5, category: ['Thể thao'], maintenance: true },
-  // Game bài: game_thumbs/poker
-  { name: 'Game Bài 1', image: pokerThumb1, category: ['Phổ biến', 'Game bài'], maintenance: true },
-  { name: 'Game Bài 2', image: pokerThumb2, category: ['Game bài'], maintenance: true },
-  { name: 'Game Bài 3', image: pokerThumb3, category: ['Game bài'], maintenance: true },
-  { name: 'Game Bài 4', image: pokerThumb4, category: ['Game bài'], maintenance: true },
-  { name: 'Game Bài 5', image: pokerThumb5, category: ['Game bài'], maintenance: true },
-  // Đá gà: game_thumbs/chicken
-  { name: 'Đá Gà 1', image: chickenThumb1, category: ['Đá gà'], maintenance: true },
-  { name: 'Đá Gà 2', image: chickenThumb2, category: ['Đá gà'], maintenance: true },
-  { name: 'Đá Gà 3', image: chickenThumb3, category: ['Đá gà'], maintenance: true },
-  { name: 'Đá Gà 4', image: chickenThumb4, category: ['Đá gà'], maintenance: true },
+  ...thumbGames,
 ]
 
 const activePlayableGames = computed(() => allGames.filter(game => game.route))

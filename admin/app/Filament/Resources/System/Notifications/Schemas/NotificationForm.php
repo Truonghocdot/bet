@@ -6,8 +6,8 @@ use App\Enum\Notification\NotificationAudience;
 use App\Enum\Notification\NotificationStatus;
 use App\Support\Filament\EnumPresenter;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -24,10 +24,22 @@ class NotificationForm
                         ->label('Tiêu đề')
                         ->required()
                         ->maxLength(200),
-                    Textarea::make('body')
+                    RichEditor::make('body')
                         ->label('Nội dung')
                         ->required()
-                        ->rows(6)
+                        ->toolbarButtons([
+                            'blockquote',
+                            'bold',
+                            'bulletList',
+                            'italic',
+                            'link',
+                            'orderedList',
+                            'redo',
+                            'strike',
+                            'underline',
+                            'undo',
+                        ])
+                        ->helperText('Có thể chèn link; app sẽ hiển thị nội dung HTML và người dùng có thể bấm được liên kết.')
                         ->columnSpanFull(),
                 ])
                 ->columns(2),

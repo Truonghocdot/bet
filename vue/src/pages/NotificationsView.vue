@@ -26,6 +26,39 @@ function toneByReadState(isRead: boolean) {
   return isRead ? 'info' : 'warning'
 }
 
+function sanitizedNotificationBody(raw: string | null | undefined) {
+  if (typeof window === 'undefined') return ''
+
+  const template = document.createElement('template')
+  template.innerHTML = String(raw ?? '')
+  const allowedTags = new Set(['A', 'B', 'BLOCKQUOTE', 'BR', 'CODE', 'EM', 'I', 'LI', 'OL', 'P', 'S', 'STRONG', 'U', 'UL'])
+
+  template.content.querySelectorAll('*').forEach((element) => {
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(document.createTextNode(element.textContent ?? ''))
+      return
+    }
+
+    for (const attribute of [...element.attributes]) {
+      if (element.tagName === 'A' && attribute.name === 'href') continue
+      element.removeAttribute(attribute.name)
+    }
+
+    if (element.tagName !== 'A') return
+
+    const href = element.getAttribute('href') ?? ''
+    if (!/^https?:\/\//i.test(href) && !/^mailto:/i.test(href) && !/^tel:/i.test(href)) {
+      element.removeAttribute('href')
+      return
+    }
+
+    element.setAttribute('target', '_blank')
+    element.setAttribute('rel', 'noopener noreferrer')
+  })
+
+  return template.innerHTML
+}
+
 async function load(pageNumber = 1) {
   try {
     await store.fetchList(pageNumber, store.pagination.pageSize)
@@ -159,7 +192,10 @@ onBeforeUnmount(() => {
                 {{ !item.is_read ? 'Mới' : 'Đã xem' }}
               </span>
             </div>
-            <p class="mt-1.5 text-[0.76rem] leading-6 text-on-surface-variant">{{ item.body }}</p>
+            <div
+              class="notification-body mt-1.5 text-[0.76rem] leading-6 text-on-surface-variant"
+              v-html="sanitizedNotificationBody(item.body)"
+            />
             <div class="mt-3 flex flex-wrap items-center gap-2 text-[0.68rem] text-on-surface-variant">
               <span>{{ item.publish_at || item.created_at || '—' }}</span>
             </div>
@@ -207,3 +243,22 @@ onBeforeUnmount(() => {
     </section>
   </div>
 </template>
+
+<style scoped>
+.notification-body :deep(a) {
+  color: var(--color-primary);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.notification-body :deep(p) {
+  margin: 0;
+}
+
+.notification-body :deep(ul),
+.notification-body :deep(ol) {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+}
+</style>
