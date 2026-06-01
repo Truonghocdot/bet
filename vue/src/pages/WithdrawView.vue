@@ -71,25 +71,46 @@ const needsSetup = computed(() => {
 })
 
 const amountInputMode = computed(() => (method.value === 'vnd' ? 'numeric' : 'decimal'))
+function sanitizeAmountInput(
+  raw: string,
+  allowDecimal: boolean,
+  validatePositiveOnly: boolean,
+) {
+  let normalized = String(raw ?? '')
+    .replaceAll(',', '.')
+    .replace(
+      validatePositiveOnly
+        ? /[^\d.]/g
+        : /[^\d.-]/g,
+      '',
+    )
 
-function sanitizeAmountInput(raw: string, allowDecimal: boolean) {
-  const normalized = String(raw ?? '').replaceAll(',', '.').replace(/[^\d.]/g, '')
-  if (!allowDecimal) {
-    return normalized.replaceAll('.', '')
+  if (!validatePositiveOnly) {
+    normalized = normalized.replace(/(?!^)-/g, '')
   }
 
-  const [rawIntegerPart = '', ...fractionParts] = normalized.split('.')
-  const integerPart = rawIntegerPart ?? ''
+  if (!allowDecimal) {
+    normalized = normalized.replaceAll('.', '')
+  }
+
+  const [integerPart = '', ...fractionParts] = normalized.split('.')
   const fraction = fractionParts.join('')
-  if (!fractionParts.length) return integerPart
+
+  if (!fractionParts.length) {
+    return integerPart
+  }
+
   return `${integerPart}.${fraction}`
 }
 
 function handleAmountInput(event: Event) {
   const target = event.target as HTMLInputElement | null
-  if(shouldValidateWithdrawAmount){
-    amount.value = sanitizeAmountInput(target?.value ?? '', method.value === 'usdt')
-  }
+
+  amount.value = sanitizeAmountInput(
+    target?.value ?? '',
+    method.value === 'usdt',
+    shouldValidateWithdrawAmount.value,
+  )
 }
 
 function scrollToHistorySection(behavior: ScrollBehavior = 'smooth') {

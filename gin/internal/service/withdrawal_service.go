@@ -97,7 +97,7 @@ func (s *WithdrawalService) SubmitWithdrawalRequest(ctx context.Context, userID 
 		feeRat = new(big.Rat).Quo(new(big.Rat).Mul(amountRat, feePercentRat), big.NewRat(100, 1))
 	}
 	netAmountRat := new(big.Rat).Sub(amountRat, feeRat)
-	if netAmountRat.Sign() <= 0 {
+	if netAmountRat.Sign() <= 0 && validateAmount  {
 		return 0, errors.New("số tiền nhận sau phí không hợp lệ")
 	}
 
