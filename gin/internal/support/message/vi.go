@@ -37,7 +37,7 @@ const (
 	PhoneRequired                  = "Vui lòng nhập số điện thoại"
 	PasswordInvalid                = "Mật khẩu phải từ 6 đến 72 ký tự"
 	CurrentPasswordRequired        = "Thiếu mật khẩu cũ"
-	CurrentPasswordInvalid         = "Mật khẩu cũ không chính xác"
+	CurrentPasswordInvalid         = "Mật khẩu không chính xác"
 	AccountRequired                = "Thiếu email hoặc số điện thoại đăng nhập"
 	PasswordRequired               = "Thiếu mật khẩu"
 	RequestIDRequired              = "Thiếu mã yêu cầu"

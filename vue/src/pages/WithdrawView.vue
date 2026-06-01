@@ -87,7 +87,9 @@ function sanitizeAmountInput(raw: string, allowDecimal: boolean) {
 
 function handleAmountInput(event: Event) {
   const target = event.target as HTMLInputElement | null
-  amount.value = sanitizeAmountInput(target?.value ?? '', method.value === 'usdt')
+  if(shouldValidateWithdrawAmount){
+    amount.value = sanitizeAmountInput(target?.value ?? '', method.value === 'usdt')
+  }
 }
 
 function scrollToHistorySection(behavior: ScrollBehavior = 'smooth') {
@@ -347,6 +349,12 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
         <form autocomplete="off" @submit.prevent="handleWithdraw" class="space-y-4">
           <input class="hidden" tabindex="-1" autocomplete="username" name="withdraw-decoy-username" type="text" />
           <input class="hidden" tabindex="-1" autocomplete="current-password" name="withdraw-decoy-password" type="password" />
+          <div
+            v-if="withdraw.error"
+            class="rounded-[14px] border border-[#ffd9d5] bg-[#fff4f3] px-4 py-3 text-sm font-bold text-[#e64545]"
+          >
+            {{ withdraw.error }}
+          </div>
           <div>
             <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-surface-container-low shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
               <input

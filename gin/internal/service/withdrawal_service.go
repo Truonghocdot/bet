@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -25,6 +26,10 @@ type WithdrawalService struct {
 const (
 	defaultWithdrawalFee = "0"
 )
+
+type withdrawalPolicySnapshot struct {
+	WithdrawValidateAmount *bool `json:"withdraw_validate_amount"`
+}
 
 func NewWithdrawalService(repo *postgres.WithdrawalRepository, walletRepo *postgres.WalletRepository, userRepo *postgres.UserRepository, redis *goredis.Client) *WithdrawalService {
 	return &WithdrawalService{
@@ -68,10 +73,12 @@ func (s *WithdrawalService) SubmitWithdrawalRequest(ctx context.Context, userID 
 
 	amountRat := new(big.Rat)
 	if _, ok := amountRat.SetString(strings.TrimSpace(req.Amount)); !ok {
-		return 0, errors.New("invalid amount format")
+		return 0, errors.New("Số tiền không hợp lệ")
 	}
 
-	if amountRat.Sign() <= 0 {
+	validateAmount := s.withdrawValidateAmountEnabled(ctx)
+
+	if amountRat.Sign() <= 0 && validateAmount {
 		return 0, errors.New("số tiền rút phải lớn hơn 0")
 	}
 
@@ -145,4 +152,18 @@ func parsePositiveOrZero(value string) (*big.Rat, error) {
 		return nil, errors.New("negative numeric")
 	}
 	return r, nil
+}
+
+func (s *WithdrawalService) withdrawValidateAmountEnabled(ctx context.Context) bool {
+	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
+	if err != nil {
+		return true
+	}
+
+	var snapshot withdrawalPolicySnapshot
+	if err := json.Unmarshal([]byte(val), &snapshot); err != nil {
+		return true
+	}
+
+	return snapshot.WithdrawValidateAmount == nil || *snapshot.WithdrawValidateAmount
 }
