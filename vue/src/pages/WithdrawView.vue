@@ -40,6 +40,31 @@ const currentAccount = computed<WithdrawalAccount | undefined>(() => {
 
 const withdrawPolicy = computed(() => wallet.summary?.withdraw_policy ?? null)
 const showWithdrawInfo = computed(() => method.value === 'vnd' && Boolean(withdrawPolicy.value?.enabled))
+const shouldValidateWithdrawAmount = computed(() => method.value === 'vnd' && Boolean(withdrawPolicy.value?.validate_amount))
+
+const numericWithdrawAmount = computed(() => {
+  const normalized = String(amount.value ?? '').replaceAll(',', '.').trim()
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+})
+
+const withdrawAmountValidationMessage = computed(() => {
+  if (!shouldValidateWithdrawAmount.value) return ''
+  if (!String(amount.value).trim()) return ''
+
+  const minAmount = Number(withdrawPolicy.value?.min_amount ?? 0)
+  const maxAmount = Number(withdrawPolicy.value?.max_amount ?? 0)
+
+  if (Number.isFinite(minAmount) && minAmount > 0 && numericWithdrawAmount.value < minAmount) {
+    return `Số tiền rút tối thiểu là ${formatViMoney(minAmount, 0)}`
+  }
+
+  if (Number.isFinite(maxAmount) && maxAmount > 0 && numericWithdrawAmount.value > maxAmount) {
+    return `Số tiền rút tối đa là ${formatViMoney(maxAmount, 0)}`
+  }
+
+  return ''
+})
 
 const needsSetup = computed(() => {
   return currentAccount.value === undefined
@@ -84,7 +109,12 @@ async function changeWithdrawHistoryPage(page: number) {
 }
 
 const canSubmit = computed(() => {
-  return String(amount.value).trim() !== '' && String(password.value).trim() !== '' && currentAccount.value !== undefined
+  return (
+    String(amount.value).trim() !== '' &&
+    String(password.value).trim() !== '' &&
+    currentAccount.value !== undefined &&
+    !withdrawAmountValidationMessage.value
+  )
 })
 
 onMounted(async () => {
@@ -333,6 +363,9 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
                 @input="handleAmountInput"
               />
             </label>
+            <p v-if="withdrawAmountValidationMessage" class="mt-2 text-xs font-bold text-[#e64545]">
+              {{ withdrawAmountValidationMessage }}
+            </p>
           </div>
 
           <div>

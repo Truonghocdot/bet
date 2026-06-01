@@ -86,6 +86,7 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 		},
 		WithdrawPolicy: wallet.WithdrawPolicyDisplay{
 			Enabled:           snapshot.WithdrawPolicyEnabled != nil && *snapshot.WithdrawPolicyEnabled,
+			ValidateAmount:    snapshot.WithdrawValidateAmount == nil || *snapshot.WithdrawValidateAmount,
 			FeePercent:        snapshot.WithdrawFeePercent,
 			RequiredBetVolume: snapshot.WithdrawRequiredBet,
 			MaxTimesPerDay:    snapshot.WithdrawMaxTimes,
@@ -175,6 +176,7 @@ type systemSnapshot struct {
 	PopupMessage          string   `json:"popup_message"`
 	LatestNewsPopup       string   `json:"latest_news_popup"`
 	WithdrawPolicyEnabled *bool    `json:"withdraw_policy_enabled"`
+	WithdrawValidateAmount *bool   `json:"withdraw_validate_amount"`
 	WithdrawFeePercent    string   `json:"withdraw_fee_percent"`
 	WithdrawRequiredBet   string   `json:"withdraw_required_bet_volume"`
 	WithdrawMaxTimes      int      `json:"withdraw_max_times_per_day"`
@@ -192,12 +194,13 @@ func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
 			"Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!",
 			"fh88u - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.",
 		},
-		WithdrawPolicyEnabled: &defaultEnabled,
-		WithdrawFeePercent:    DefaultWithdrawFeePercent,
-		WithdrawRequiredBet:   DefaultWithdrawRequiredBet,
-		WithdrawMaxTimes:      DefaultWithdrawMaxTimes,
-		WithdrawMinAmount:     DefaultWithdrawMinAmount,
-		WithdrawMaxAmount:     DefaultWithdrawMaxAmount,
+		WithdrawPolicyEnabled:  &defaultEnabled,
+		WithdrawValidateAmount: &defaultEnabled,
+		WithdrawFeePercent:     DefaultWithdrawFeePercent,
+		WithdrawRequiredBet:    DefaultWithdrawRequiredBet,
+		WithdrawMaxTimes:       DefaultWithdrawMaxTimes,
+		WithdrawMinAmount:      DefaultWithdrawMinAmount,
+		WithdrawMaxAmount:      DefaultWithdrawMaxAmount,
 	}
 
 	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
@@ -221,6 +224,9 @@ func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
 	}
 	if snapshot.WithdrawPolicyEnabled == nil {
 		snapshot.WithdrawPolicyEnabled = defaultSnap.WithdrawPolicyEnabled
+	}
+	if snapshot.WithdrawValidateAmount == nil {
+		snapshot.WithdrawValidateAmount = defaultSnap.WithdrawValidateAmount
 	}
 	if snapshot.WithdrawFeePercent == "" {
 		snapshot.WithdrawFeePercent = defaultSnap.WithdrawFeePercent

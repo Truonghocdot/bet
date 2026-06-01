@@ -92,6 +92,9 @@ class ExchangeRatePageForm
                 ->schema([
                     Toggle::make('withdraw_policy_enabled')
                         ->label('Hiển thị khối thông tin ở màn rút tiền'),
+                    Toggle::make('withdraw_validate_amount')
+                        ->label('Bật validate số tiền rút ở app')
+                        ->helperText('Nếu tắt, app sẽ không kiểm tra min/max amount trước khi gửi request.'),
                     TextInput::make('withdraw_fee_percent')
                         ->label('Lệ phí (%)')
                         ->numeric()

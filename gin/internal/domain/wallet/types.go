@@ -18,6 +18,7 @@ type WalletBalance struct {
 
 type WithdrawPolicyDisplay struct {
 	Enabled           bool   `json:"enabled"`
+	ValidateAmount    bool   `json:"validate_amount"`
 	FeePercent        string `json:"fee_percent"`
 	RequiredBetVolume string `json:"required_bet_volume"`
 	MaxTimesPerDay    int    `json:"max_times_per_day"`
