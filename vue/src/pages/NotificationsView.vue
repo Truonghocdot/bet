@@ -46,8 +46,14 @@ function sanitizedNotificationBody(raw: string | null | undefined) {
 
     if (element.tagName !== 'A') return
 
-    const href = element.getAttribute('href') ?? ''
-    if (!/^https?:\/\//i.test(href) && !/^mailto:/i.test(href) && !/^tel:/i.test(href)) {
+    const href = (element.getAttribute('href') ?? '').trim()
+    if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href) || /^tel:/i.test(href)) {
+      element.setAttribute('href', href)
+    } else if (/^\/(?!\/)/.test(href)) {
+      element.setAttribute('href', href)
+    } else if (/^(www\.|[a-z0-9-]+(\.[a-z0-9-]+)+)(\/.*)?$/i.test(href)) {
+      element.setAttribute('href', `https://${href}`)
+    } else {
       element.removeAttribute('href')
       return
     }

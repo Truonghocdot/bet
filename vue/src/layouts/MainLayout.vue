@@ -186,6 +186,14 @@ function navigateDrawer(target: RouteLocationRaw) {
   })
 }
 
+function navigatePrimaryClick(event: MouseEvent, target: RouteLocationRaw) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+
+  event.preventDefault()
+  closeDrawer()
+  void router.push(target)
+}
+
 async function handleLogout() {
   closeDrawer()
   await auth.logout()
@@ -365,6 +373,7 @@ onBeforeUnmount(() => {
           :to="{ path: item.to }"
           class="sidebar__item"
           :class="{ 'sidebar__item--active': isActive(item.to) }"
+          @click="navigatePrimaryClick($event, { path: item.to })"
         >
           <span class="material-symbols-outlined sidebar__icon">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
@@ -432,6 +441,7 @@ onBeforeUnmount(() => {
               class="icon-btn icon-btn--soft"
               aria-label="Thông báo"
               to="/notifications"
+              @click="navigatePrimaryClick($event, { path: '/notifications' })"
             >
               <span class="material-symbols-outlined">notifications</span>
             </RouterLink>
