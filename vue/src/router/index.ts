@@ -142,7 +142,7 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to) => {
   const auth = useAuthStore()
   const adminAuth = useAdminAuthStore()
   const isAuthenticated = !!auth.accessToken
@@ -156,20 +156,20 @@ router.beforeEach((to, from, next) => {
 
   // Client auth check
   if (to.meta.requiresAuth && !isAuthenticated) {
-    return next({ name: 'auth' })
+    return { name: 'auth' }
   }
 
   // Admin auth check
   if (to.meta.requiresAdminAuth && !isAdminAuthenticated) {
-    return next({ name: 'auth-sso', query: { expired: '1' } })
+    return { name: 'auth-sso', query: { expired: '1' } }
   }
 
   // Admin role check for specific route
   if (String(to.name || '').startsWith('admin-control') && userRole !== 0 && userRole !== 1) {
-    return next({ name: 'home' })
+    return { name: 'home' }
   }
 
-  next()
+  return true
 })
 
 export default router
