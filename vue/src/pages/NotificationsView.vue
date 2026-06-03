@@ -103,7 +103,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  store.disconnectStream()
+  store.connectStream(1, store.pagination.pageSize)
 })
 </script>
 

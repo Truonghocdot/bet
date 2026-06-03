@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, type RouteLocationRaw, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useWalletStore } from '@/stores/wallet'
 import { formatViMoney } from '@/shared/lib/money'
 import { useLoading } from '@/shared/lib/loading'
@@ -9,6 +10,7 @@ import { useLoading } from '@/shared/lib/loading'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const notifications = useNotificationsStore()
 const wallet = useWalletStore()
 const { isLoading, setLoading } = useLoading()
 
@@ -78,6 +80,11 @@ const vndBalance = computed(() => {
 })
 
 const userName = computed(() => auth.user?.name ?? 'Khách')
+const unreadNotificationCount = computed(() => notifications.unreadCount)
+const unreadNotificationBadge = computed(() => {
+  if (unreadNotificationCount.value <= 0) return ''
+  return unreadNotificationCount.value > 99 ? '99+' : String(unreadNotificationCount.value)
+})
 
 const referralLink = computed(() => auth.affiliateProfile?.ref_link || '')
 
@@ -202,6 +209,7 @@ async function handleLogout() {
 
 async function syncRealtimeState() {
   wallet.disconnectStream()
+  notifications.disconnectStream()
 
   try {
     await wallet.fetchSummary()
@@ -209,8 +217,15 @@ async function syncRealtimeState() {
     // wallet store keeps the current error
   }
 
+  try {
+    await notifications.fetchList(1, notifications.pagination.pageSize)
+  } catch {
+    // notifications store keeps the current error
+  }
+
   if (auth.isAuthenticated) {
     wallet.connectStream()
+    notifications.connectStream(1, notifications.pagination.pageSize)
   }
 }
 
@@ -233,6 +248,7 @@ watch(
 
 onBeforeUnmount(() => {
   wallet.disconnectStream()
+  notifications.disconnectStream()
 })
 </script>
 
@@ -438,12 +454,13 @@ onBeforeUnmount(() => {
           <!-- Right side actions -->
           <div class="flex items-center gap-2">
             <RouterLink
-              class="icon-btn icon-btn--soft"
+              class="icon-btn icon-btn--soft icon-btn--badge"
               aria-label="Thông báo"
               to="/notifications"
               @click="navigatePrimaryClick($event, { path: '/notifications' })"
             >
               <span class="material-symbols-outlined">notifications</span>
+              <span v-if="unreadNotificationBadge" class="icon-btn__badge">{{ unreadNotificationBadge }}</span>
             </RouterLink>
             <!-- Account shortcut visible on mobile header -->
             <RouterLink

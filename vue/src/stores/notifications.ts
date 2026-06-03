@@ -15,6 +15,7 @@ type Pagination = {
   pageSize: number
   total: number
   totalPages: number
+  unreadCount: number
 }
 
 export const useNotificationsStore = defineStore('notifications', () => {
@@ -28,9 +29,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
     pageSize: 10,
     total: 0,
     totalPages: 1,
+    unreadCount: 0,
   })
 
-  const unreadCount = computed(() => items.value.filter((item) => !item.is_read).length)
+  const unreadCount = computed(() => pagination.value.unreadCount)
 
   async function fetchList(page = 1, pageSize = pagination.value.pageSize) {
     const auth = useAuthStore()
@@ -70,6 +72,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       pageSize: res.page_size,
       total: res.total,
       totalPages: res.total_pages || 1,
+      unreadCount: Math.max(0, Number(res.unread_count ?? 0)),
     }
   }
 
@@ -88,6 +91,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
         target.is_read = true
         target.read_at = res.read_at
       }
+      pagination.value.unreadCount = Math.max(0, pagination.value.unreadCount - 1)
       return res
     } catch (e: any) {
       const err = e as ApiError
@@ -143,6 +147,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       pageSize: 10,
       total: 0,
       totalPages: 1,
+      unreadCount: 0,
     }
   }
 
@@ -157,6 +162,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
        created_at: new Date().toISOString(),
        is_read: false
     })
+    pagination.value.total += 1
+    pagination.value.unreadCount += 1
   }
 
   return {

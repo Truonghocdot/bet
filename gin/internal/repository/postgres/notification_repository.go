@@ -39,7 +39,7 @@ func NewNotificationRepository(db *sql.DB) *NotificationRepository {
 	return &NotificationRepository{db: db}
 }
 
-func (r *NotificationRepository) ListForUser(ctx context.Context, userID int64, page, pageSize int) ([]NotificationRecord, int, error) {
+func (r *NotificationRepository) ListForUser(ctx context.Context, userID int64, page, pageSize int) ([]NotificationRecord, int, int, error) {
 	page, pageSize = normalizePagination(page, pageSize)
 
 	var total int
@@ -62,7 +62,34 @@ func (r *NotificationRepository) ListForUser(ctx context.Context, userID int64, 
 			)
 		  )
 	`, userID, notificationStatusPublished, notificationAudienceAll, notificationAudienceUsers).Scan(&total); err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
+	}
+
+	var unreadCount int
+	if err := r.db.QueryRowContext(ctx, `
+		select count(*)
+		from notifications n
+		left join notification_reads nr
+			on nr.notification_id = n.id
+		   and nr.user_id = $1
+		where n.status = $2
+		  and nr.read_at is null
+		  and (n.publish_at is null or n.publish_at <= now())
+		  and (n.expires_at is null or n.expires_at > now())
+		  and (
+			n.audience = $3
+			or (
+				n.audience = $4
+				and exists (
+					select 1
+					from notification_targets nt
+					where nt.notification_id = n.id
+					  and nt.user_id = $1
+				)
+			)
+		  )
+	`, userID, notificationStatusPublished, notificationAudienceAll, notificationAudienceUsers).Scan(&unreadCount); err != nil {
+		return nil, 0, 0, err
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
@@ -99,7 +126,7 @@ func (r *NotificationRepository) ListForUser(ctx context.Context, userID int64, 
 		limit $5 offset $6
 	`, userID, notificationStatusPublished, notificationAudienceAll, notificationAudienceUsers, pageSize, (page-1)*pageSize)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 	defer rows.Close()
 
@@ -117,12 +144,16 @@ func (r *NotificationRepository) ListForUser(ctx context.Context, userID int64, 
 			&record.CreatedAt,
 			&record.ReadAt,
 		); err != nil {
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 		records = append(records, record)
 	}
 
-	return records, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, 0, err
+	}
+
+	return records, total, unreadCount, nil
 }
 
 func (r *NotificationRepository) MarkRead(ctx context.Context, userID, notificationID int64) (time.Time, error) {

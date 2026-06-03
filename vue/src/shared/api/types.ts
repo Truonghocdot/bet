@@ -483,6 +483,7 @@ export type NotificationListResponse = {
   page_size: number
   total: number
   total_pages: number
+  unread_count: number
   items: NotificationListItem[]
 }
 

@@ -194,6 +194,19 @@
     @apply grid h-9 w-9 place-items-center rounded-full transition-transform active:scale-95;
   }
 
+  .icon-btn--badge {
+    @apply relative overflow-visible;
+  }
+
+  .icon-btn__badge {
+    @apply absolute grid min-w-4 place-items-center rounded-full border border-white px-1 text-[0.58rem] font-black leading-none text-white;
+    top: -0.18rem;
+    right: -0.18rem;
+    height: 1rem;
+    background: linear-gradient(180deg, #ff7b72, #e64545);
+    box-shadow: 0 6px 14px rgba(230, 69, 69, 0.3);
+  }
+
   .icon-btn--ghost {
     @apply bg-white/16 text-white;
   }

@@ -14,12 +14,13 @@ type Item struct {
 }
 
 type ListResponse struct {
-	Message    string `json:"message"`
-	Page       int    `json:"page"`
-	PageSize   int    `json:"page_size"`
-	Total      int    `json:"total"`
-	TotalPages int    `json:"total_pages"`
-	Items      []Item `json:"items"`
+	Message     string `json:"message"`
+	Page        int    `json:"page"`
+	PageSize    int    `json:"page_size"`
+	Total       int    `json:"total"`
+	TotalPages  int    `json:"total_pages"`
+	UnreadCount int    `json:"unread_count"`
+	Items       []Item `json:"items"`
 }
 
 type MarkReadResponse struct {

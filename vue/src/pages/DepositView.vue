@@ -757,7 +757,7 @@ async function logout() {
             class="min-w-0 border-0 bg-transparent px-4 py-4 text-lg font-black outline-none disabled:cursor-not-allowed disabled:opacity-60"
             :inputmode="amountInputMode"
             autocomplete="off"
-            placeholder="Số tiền (VD: 50000)"
+            placeholder="Số tiền (VD: 500000)"
             :disabled="isIntentActive"
             @input="handleAmountInput"
           />

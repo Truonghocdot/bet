@@ -32,7 +32,7 @@ func (s *NotificationService) List(ctx context.Context, userID int64, page, page
 		pageSize = 50
 	}
 
-	records, total, err := s.repository.ListForUser(ctx, userID, page, pageSize)
+	records, total, unreadCount, err := s.repository.ListForUser(ctx, userID, page, pageSize)
 	if err != nil {
 		return notification.ListResponse{}, err
 	}
@@ -54,12 +54,13 @@ func (s *NotificationService) List(ctx context.Context, userID int64, page, page
 	}
 
 	return notification.ListResponse{
-		Message:    message.NotificationsListSuccess,
-		Page:       page,
-		PageSize:   pageSize,
-		Total:      total,
-		TotalPages: calcNotificationTotalPages(total, pageSize),
-		Items:      items,
+		Message:     message.NotificationsListSuccess,
+		Page:        page,
+		PageSize:    pageSize,
+		Total:       total,
+		TotalPages:  calcNotificationTotalPages(total, pageSize),
+		UnreadCount: unreadCount,
+		Items:       items,
 	}, nil
 }
 
