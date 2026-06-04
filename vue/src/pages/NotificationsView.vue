@@ -117,7 +117,7 @@ onBeforeUnmount(() => {
           </span>
           <h2 class="mt-4 text-[1.55rem] font-black md:text-[1.8rem]">Danh sách thông báo của bạn</h2>
           <p class="mt-2 max-w-[36rem] text-sm leading-6 text-on-surface-variant">
-            Dữ liệu đang được lấy trực tiếp từ API. Bạn có thể đánh dấu đã đọc để đồng bộ trạng thái theo tài khoản.
+            Thông báo được gửi trực tiếp từ Hệ Thống Sàn , Bạn có thể đánh dấu đã đọc để có thể theo dõi thông báo từ Sàn Game.
           </p>
           <div class="mt-4 flex flex-wrap gap-2">
             <span class="rounded-full bg-primary/10 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.08em] text-primary">

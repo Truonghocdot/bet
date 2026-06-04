@@ -536,7 +536,7 @@ async function logout() {
         <div>
           <h2 class="m-0 text-base font-black text-primary">Lệnh nạp đang chờ xử lý</h2>
           <p class="m-0 mt-1 text-xs text-on-surface-variant italic">
-            {{ isUsdtIntent ? 'Vui lòng quét mã QR hoặc chuyển USDT đúng địa chỉ/memo bên dưới:' : 'Vui lòng quét mã QR hoặc chuyển khoản theo thông tin:' }}
+            {{ isUsdtIntent ? 'Vui lòng quét mã QR hoặc chuyển USDT đúng địa chỉ/memo bên dưới:' : 'Vui lòng chuyển khoản theo thông tin ngân hàng:' }}
           </p>
           <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
             <div class="rounded-[16px] bg-surface-container-low p-3 border border-slate-100">
@@ -696,7 +696,7 @@ async function logout() {
           :disabled="isIntentActive"
           @click="method = 'vietqr'"
         >
-          VietQR
+          Ngân hàng
         </button>
         <button
           class="min-h-11 rounded-[14px] font-extrabold transition-all"
