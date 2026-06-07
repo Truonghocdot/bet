@@ -60,7 +60,7 @@ async function handleRegister() {
 
     <form class="space-y-3" @submit.prevent="handleRegister">
       <label class="grid min-h-[58px] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
-        <input v-model="name" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="text" autocomplete="name" placeholder="Họ và tên" />
+        <input v-model="name" class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none" type="text" autocomplete="name" placeholder="Tên người dùng" />
       </label>
 
       <label class="grid min-h-[58px] grid-cols-[auto_1fr] items-center overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
