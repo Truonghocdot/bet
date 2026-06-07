@@ -20,6 +20,7 @@ const password = ref('')
 const showPassword = ref(false)
 const showWithdrawPolicyModal = ref(false)
 const historySection = ref<HTMLElement | null>(null)
+const withdrawFormAutocomplete = ref<'off' | 'new-password'>('off')
 
 // Form for adding method
 const addProvider = ref('')
@@ -149,6 +150,9 @@ onMounted(async () => {
     showWithdrawPolicyModal.value = true
   }
   await Promise.all([wallet.fetchSummary(), withdraw.fetchAccounts(), withdraw.fetchHistory(1, withdraw.historyPageSize)])
+  window.setTimeout(() => {
+    withdrawFormAutocomplete.value = 'new-password'
+  }, 0)
   if (route.query.section === 'history') {
     await nextTick()
     scrollToHistorySection('auto')
@@ -367,9 +371,9 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
           </div>
         </div>
 
-        <form autocomplete="off" @submit.prevent="handleWithdraw" class="space-y-4">
-          <input class="hidden" tabindex="-1" autocomplete="username" name="withdraw-decoy-username" type="text" />
-          <input class="hidden" tabindex="-1" autocomplete="current-password" name="withdraw-decoy-password" type="password" />
+        <form :autocomplete="withdrawFormAutocomplete" @submit.prevent="handleWithdraw" class="space-y-4">
+          <input class="hidden" tabindex="-1" aria-hidden="true" autocomplete="username" name="withdraw-security-username" type="text" />
+          <input class="hidden" tabindex="-1" aria-hidden="true" :autocomplete="withdrawFormAutocomplete" name="withdraw-security-password" type="password" />
           <div
             v-if="withdraw.error"
             class="rounded-[14px] border border-[#ffd9d5] bg-[#fff4f3] px-4 py-3 text-sm font-bold text-[#e64545]"
@@ -381,14 +385,17 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
               <input
                 v-model="amount"
                 type="text"
-                name="withdraw-request-amount"
+                name="withdraw-amount"
                 class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold text-lg"
                 :inputmode="amountInputMode"
+                data-form-type="other"
                 autocomplete="off"
                 autocapitalize="off"
                 autocorrect="off"
                 spellcheck="false"
+                readonly
                 placeholder="Nhập số tiền muốn rút"
+                @focus="($event.target as HTMLInputElement).removeAttribute('readonly')"
                 @input="handleAmountInput"
               />
             </label>
@@ -404,13 +411,16 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
                 <input
                   v-model="password"
                   class="min-w-0 border-0 bg-transparent px-4 py-4 outline-none font-bold"
-                  name="withdraw-confirm-password"
+                  name="withdraw-verify-secret"
                   :type="showPassword ? 'text' : 'password'"
-                  autocomplete="new-password"
+                  :autocomplete="withdrawFormAutocomplete"
+                  data-form-type="other"
                   autocapitalize="off"
                   autocorrect="off"
                   spellcheck="false"
+                  readonly
                   placeholder="Điền mật khẩu đăng nhập để xác nhận rút"
+                  @focus="($event.target as HTMLInputElement).removeAttribute('readonly')"
                 />
                 <button type="button" class="px-4 text-[0.75rem] font-black text-primary" @click="showPassword = !showPassword">
                   {{ showPassword ? 'Ẩn' : 'Hiện' }}

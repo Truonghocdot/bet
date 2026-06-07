@@ -19,6 +19,7 @@ type RequestOptions = {
   headers?: Record<string, string>
   token?: string | null
   timeoutMs?: number
+  cache?: RequestCache
 }
 
 function joinUrl(base: string, path: string): string {
@@ -66,6 +67,7 @@ export async function request<T>(
       headers,
       body: hasBody ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,
+      cache: options.cache,
     })
 
     if (!res.ok) {
@@ -84,4 +86,3 @@ export async function request<T>(
     window.clearTimeout(timeoutId)
   }
 }
-

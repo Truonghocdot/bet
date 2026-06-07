@@ -22,6 +22,7 @@ export const useWalletStore = defineStore('wallet', () => {
     try {
       const res = await request<WalletSummaryResponse>('GET', '/v1/wallets/summary', {
         token: auth.accessToken || undefined,
+        cache: 'no-store',
       })
       summary.value = res
       return res
