@@ -25,7 +25,7 @@ func NewContentService(repository *repopg.ContentRepository, contentAssetBase st
 }
 
 func (s *ContentService) Home(ctx context.Context) (content.HomeResponse, error) {
-	bannerRecords, err := s.repository.ListActiveBanners(ctx, 6, clock.Now(), "home")
+	bannerRecords, err := s.repository.ListActiveBanners(ctx, 0, clock.Now(), "home")
 	if err != nil {
 		return content.HomeResponse{}, err
 	}

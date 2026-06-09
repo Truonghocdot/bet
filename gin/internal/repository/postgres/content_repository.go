@@ -40,7 +40,44 @@ func NewContentRepository(db *sql.DB) *ContentRepository {
 
 func (r *ContentRepository) ListActiveBanners(ctx context.Context, limit int, now time.Time, placement string) ([]BannerRecord, error) {
 	if limit <= 0 {
-		limit = 5
+		rows, err := r.db.QueryContext(ctx, `
+			select
+				id,
+				title,
+				image_path,
+				link_url,
+				placement,
+				sort_order
+			from banners
+			where deleted_at is null
+			  and placement = $1
+			  and is_active = true
+			  and (start_at is null or start_at <= $2)
+			  and (end_at is null or end_at > $2)
+			order by sort_order asc, id desc
+		`, strings.TrimSpace(placement), now)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		items := make([]BannerRecord, 0)
+		for rows.Next() {
+			var item BannerRecord
+			if err := rows.Scan(
+				&item.ID,
+				&item.Title,
+				&item.ImagePath,
+				&item.LinkURL,
+				&item.Placement,
+				&item.SortOrder,
+			); err != nil {
+				return nil, err
+			}
+			items = append(items, item)
+		}
+
+		return items, rows.Err()
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
