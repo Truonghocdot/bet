@@ -29,6 +29,7 @@ const fallbackList = [
 const banners = computed(() => (props.banners.length > 0 ? props.banners : fallbackList))
 
 const current = ref(0)
+const AUTO_SLIDE_MS = 5000
 let autoTimer: number | undefined
 
 function next() {
@@ -56,7 +57,7 @@ watch(
 )
 
 onMounted(() => {
-  autoTimer = window.setInterval(next, 3500)
+  autoTimer = window.setInterval(next, AUTO_SLIDE_MS)
 })
 
 onBeforeUnmount(() => {
