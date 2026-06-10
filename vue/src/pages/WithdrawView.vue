@@ -41,7 +41,7 @@ const currentAccount = computed<WithdrawalAccount | undefined>(() => {
 
 const withdrawPolicy = computed(() => wallet.summary?.withdraw_policy ?? null)
 const showWithdrawInfo = computed(() => method.value === 'vnd' && Boolean(withdrawPolicy.value?.enabled))
-const shouldValidateWithdrawAmount = computed(() => method.value === 'vnd' && Boolean(withdrawPolicy.value?.validate_amount))
+const currentWallet = computed(() => (method.value === 'vnd' ? currentWallets.value.vnd : currentWallets.value.usdt))
 
 const numericWithdrawAmount = computed(() => {
   const normalized = String(amount.value ?? '').replaceAll(',', '.').trim()
@@ -49,19 +49,26 @@ const numericWithdrawAmount = computed(() => {
   return Number.isFinite(parsed) ? parsed : 0
 })
 
+const currentWalletBalance = computed(() => {
+  const parsed = Number(String(currentWallet.value?.balance ?? 0).replaceAll(',', '.'))
+  return Number.isFinite(parsed) ? parsed : 0
+})
+
 const withdrawAmountValidationMessage = computed(() => {
-  if (!shouldValidateWithdrawAmount.value) return ''
   if (!String(amount.value).trim()) return ''
 
   const minAmount = Number(withdrawPolicy.value?.min_amount ?? 0)
-  const maxAmount = Number(withdrawPolicy.value?.max_amount ?? 0)
 
-  if (Number.isFinite(minAmount) && minAmount > 0 && numericWithdrawAmount.value < minAmount) {
+  if (numericWithdrawAmount.value <= 0) {
+    return 'Số tiền rút phải lớn hơn 0'
+  }
+
+  if (method.value === 'vnd' && Number.isFinite(minAmount) && minAmount > 0 && numericWithdrawAmount.value < minAmount) {
     return `Số tiền rút tối thiểu là ${formatViMoney(minAmount, 0)}`
   }
 
-  if (Number.isFinite(maxAmount) && maxAmount > 0 && numericWithdrawAmount.value > maxAmount) {
-    return `Số tiền rút tối đa là ${formatViMoney(maxAmount, 0)}`
+  if (numericWithdrawAmount.value > currentWalletBalance.value) {
+    return `Số tiền rút tối đa là ${formatViMoney(currentWalletBalance.value, method.value === 'vnd' ? 0 : 2)}`
   }
 
   return ''
@@ -72,23 +79,8 @@ const needsSetup = computed(() => {
 })
 
 const amountInputMode = computed(() => (method.value === 'vnd' ? 'numeric' : 'decimal'))
-function sanitizeAmountInput(
-  raw: string,
-  allowDecimal: boolean,
-  validatePositiveOnly: boolean,
-) {
-  let normalized = String(raw ?? '')
-    .replaceAll(',', '.')
-    .replace(
-      validatePositiveOnly
-        ? /[^\d.]/g
-        : /[^\d.-]/g,
-      '',
-    )
-
-  if (!validatePositiveOnly) {
-    normalized = normalized.replace(/(?!^)-/g, '')
-  }
+function sanitizeAmountInput(raw: string, allowDecimal: boolean) {
+  let normalized = String(raw ?? '').replaceAll(',', '.').replace(/[^\d.]/g, '')
 
   if (!allowDecimal) {
     normalized = normalized.replaceAll('.', '')
@@ -110,7 +102,6 @@ function handleAmountInput(event: Event) {
   amount.value = sanitizeAmountInput(
     target?.value ?? '',
     method.value === 'usdt',
-    shouldValidateWithdrawAmount.value,
   )
 }
 
@@ -321,7 +312,7 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
           </div>
           <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5 sm:col-span-2">
             <span class="font-bold text-slate-500">Rút tối đa</span>
-            <span class="font-black text-primary">{{ formatWithdrawPolicyPlain(withdrawPolicy?.max_amount) }}</span>
+            <span class="font-black text-primary">{{ formatViMoney(currentWalletBalance, 0) }}</span>
           </div>
         </div>
       </div>

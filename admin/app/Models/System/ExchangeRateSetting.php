@@ -36,12 +36,10 @@ class ExchangeRateSetting extends Model
         'popup_message',
         'latest_news_popup',
         'withdraw_policy_enabled',
-        'withdraw_validate_amount',
         'withdraw_fee_percent',
         'withdraw_required_bet_volume',
         'withdraw_max_times_per_day',
         'withdraw_min_amount',
-        'withdraw_max_amount',
     ];
 
     protected $casts = [
@@ -52,12 +50,10 @@ class ExchangeRateSetting extends Model
         'nowpayments_sandbox' => 'boolean',
         'marquee_enabled' => 'boolean',
         'withdraw_policy_enabled' => 'boolean',
-        'withdraw_validate_amount' => 'boolean',
         'withdraw_fee_percent' => 'decimal:4',
         'withdraw_required_bet_volume' => 'decimal:8',
         'withdraw_max_times_per_day' => 'integer',
         'withdraw_min_amount' => 'decimal:8',
-        'withdraw_max_amount' => 'decimal:8',
     ];
 
     public function updatedBy(): BelongsTo

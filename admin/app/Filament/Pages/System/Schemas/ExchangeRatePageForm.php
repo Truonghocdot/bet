@@ -88,13 +88,10 @@ class ExchangeRatePageForm
                 ->columns(2),
 
             Section::make('Khối Thông Tin Rút Tiền')
-                ->description('Chỉ hiển thị trên app người chơi, không còn áp dụng làm rule cứng ở backend Gin.')
+                ->description('Cấu hình hiển thị trên app người chơi và số tiền rút tối thiểu.')
                 ->schema([
                     Toggle::make('withdraw_policy_enabled')
                         ->label('Hiển thị khối thông tin ở màn rút tiền'),
-                    Toggle::make('withdraw_validate_amount')
-                        ->label('Bật validate số tiền rút ở app')
-                        ->helperText('Nếu tắt, app sẽ không kiểm tra min/max amount trước khi gửi request.'),
                     TextInput::make('withdraw_fee_percent')
                         ->label('Lệ phí (%)')
                         ->numeric()
@@ -122,14 +119,7 @@ class ExchangeRatePageForm
                         ->minValue(0)
                         ->step('0.000001')
                         ->required()
-                        ->helperText('Chỉ dùng để hiển thị trên app.'),
-                    TextInput::make('withdraw_max_amount')
-                        ->label('Rút tối đa')
-                        ->numeric()
-                        ->minValue(0)
-                        ->step('0.000001')
-                        ->required()
-                        ->helperText('Chỉ dùng để hiển thị trên app.'),
+                        ->helperText('Dùng để validate số tiền rút tối thiểu ở app và backend Gin.'),
                 ])
                 ->columns(2),
 

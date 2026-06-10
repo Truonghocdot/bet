@@ -132,6 +132,13 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 		return 0, err
 	}
 
+	if compareNumeric(amount, "0") <= 0 {
+		return 0, errors.New("số tiền rút phải lớn hơn 0")
+	}
+	if compareNumeric(balanceBefore, amount) < 0 {
+		return 0, errors.New("số dư ví không đủ")
+	}
+
 	if _, err := tx.ExecContext(ctx, `
 		update wallets
 		set balance = balance - $1::numeric(20,8),

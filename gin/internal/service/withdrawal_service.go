@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"gin/internal/auth/password"
+	"gin/internal/domain/user"
 	"gin/internal/domain/withdrawal"
 	"gin/internal/repository/postgres"
 	"gin/internal/support/message"
@@ -28,7 +29,7 @@ const (
 )
 
 type withdrawalPolicySnapshot struct {
-	WithdrawValidateAmount *bool `json:"withdraw_validate_amount"`
+	WithdrawMinAmount string `json:"withdraw_min_amount"`
 }
 
 func NewWithdrawalService(repo *postgres.WithdrawalRepository, walletRepo *postgres.WalletRepository, userRepo *postgres.UserRepository, redis *goredis.Client) *WithdrawalService {
@@ -76,15 +77,28 @@ func (s *WithdrawalService) SubmitWithdrawalRequest(ctx context.Context, userID 
 		return 0, errors.New("Số tiền không hợp lệ")
 	}
 
-	validateAmount := s.withdrawValidateAmountEnabled(ctx)
-
-	if amountRat.Sign() <= 0 && validateAmount {
+	if amountRat.Sign() <= 0 {
 		return 0, errors.New("số tiền rút phải lớn hơn 0")
 	}
 
 	wallet, err := s.walletRepo.FindByUserAndUnit(ctx, userID, account.Unit)
 	if err != nil {
 		return 0, fmt.Errorf("hệ thống lỗi hoặc chưa có ví cho loại tiền này: %w", err)
+	}
+
+	if account.Unit == user.WalletUnitVND {
+		minAmountRat := s.withdrawMinAmount(ctx)
+		if minAmountRat.Sign() > 0 && amountRat.Cmp(minAmountRat) < 0 {
+			return 0, fmt.Errorf("Số tiền rút tối thiểu là %s", formatRatPlain(minAmountRat))
+		}
+	}
+
+	walletBalanceRat := new(big.Rat)
+	if _, ok := walletBalanceRat.SetString(strings.TrimSpace(wallet.Balance)); !ok {
+		return 0, errors.New("số dư ví không hợp lệ")
+	}
+	if amountRat.Cmp(walletBalanceRat) > 0 {
+		return 0, errors.New("số dư ví không đủ")
 	}
 
 	amountStr := amountRat.FloatString(8)
@@ -97,7 +111,7 @@ func (s *WithdrawalService) SubmitWithdrawalRequest(ctx context.Context, userID 
 		feeRat = new(big.Rat).Quo(new(big.Rat).Mul(amountRat, feePercentRat), big.NewRat(100, 1))
 	}
 	netAmountRat := new(big.Rat).Sub(amountRat, feeRat)
-	if netAmountRat.Sign() <= 0 && validateAmount  {
+	if netAmountRat.Sign() <= 0 {
 		return 0, errors.New("số tiền nhận sau phí không hợp lệ")
 	}
 
@@ -154,16 +168,36 @@ func parsePositiveOrZero(value string) (*big.Rat, error) {
 	return r, nil
 }
 
-func (s *WithdrawalService) withdrawValidateAmountEnabled(ctx context.Context) bool {
+func (s *WithdrawalService) withdrawMinAmount(ctx context.Context) *big.Rat {
+	minAmount := DefaultWithdrawMinAmount
+
 	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
-	if err != nil {
-		return true
+	if err == nil {
+		var snapshot withdrawalPolicySnapshot
+		if json.Unmarshal([]byte(val), &snapshot) == nil && strings.TrimSpace(snapshot.WithdrawMinAmount) != "" {
+			minAmount = snapshot.WithdrawMinAmount
+		}
 	}
 
-	var snapshot withdrawalPolicySnapshot
-	if err := json.Unmarshal([]byte(val), &snapshot); err != nil {
-		return true
+	rat := new(big.Rat)
+	if _, ok := rat.SetString(strings.TrimSpace(minAmount)); ok {
+		return rat
 	}
 
-	return snapshot.WithdrawValidateAmount == nil || *snapshot.WithdrawValidateAmount
+	rat.SetInt64(0)
+	return rat
+}
+
+func formatRatPlain(value *big.Rat) string {
+	if value == nil {
+		return "0"
+	}
+
+	formatted := value.FloatString(8)
+	formatted = strings.TrimRight(formatted, "0")
+	formatted = strings.TrimRight(formatted, ".")
+	if formatted == "" {
+		return "0"
+	}
+	return formatted
 }

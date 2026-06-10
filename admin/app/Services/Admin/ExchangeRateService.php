@@ -44,12 +44,10 @@ class ExchangeRateService
                 'popup_message' => null,
                 'latest_news_popup' => null,
                 'withdraw_policy_enabled' => true,
-                'withdraw_validate_amount' => true,
                 'withdraw_fee_percent' => 0,
                 'withdraw_required_bet_volume' => 0,
                 'withdraw_max_times_per_day' => 3,
                 'withdraw_min_amount' => 200000,
-                'withdraw_max_amount' => 20000000,
             ],
         );
     }
@@ -76,12 +74,10 @@ class ExchangeRateService
                 'popup_message' => $this->normalizePopupText($data['popup_message'] ?? null),
                 'latest_news_popup' => $this->normalizePopupText($data['latest_news_popup'] ?? null),
                 'withdraw_policy_enabled' => (bool) ($data['withdraw_policy_enabled'] ?? true),
-                'withdraw_validate_amount' => (bool) ($data['withdraw_validate_amount'] ?? true),
                 'withdraw_fee_percent' => $data['withdraw_fee_percent'] ?? 0,
                 'withdraw_required_bet_volume' => $data['withdraw_required_bet_volume'] ?? 0,
                 'withdraw_max_times_per_day' => $data['withdraw_max_times_per_day'] ?? 3,
                 'withdraw_min_amount' => $data['withdraw_min_amount'] ?? 200000,
-                'withdraw_max_amount' => $data['withdraw_max_amount'] ?? 20000000,
                 'updated_by' => $actor?->id,
             ]);
 
@@ -229,12 +225,10 @@ class ExchangeRateService
             'popup_message' => $setting->popup_message,
             'latest_news_popup' => $setting->latest_news_popup,
             'withdraw_policy_enabled' => (bool) ($setting->withdraw_policy_enabled ?? true),
-            'withdraw_validate_amount' => (bool) ($setting->withdraw_validate_amount ?? true),
             'withdraw_fee_percent' => (string) ($setting->withdraw_fee_percent ?? '0'),
             'withdraw_required_bet_volume' => (string) ($setting->withdraw_required_bet_volume ?? '0'),
             'withdraw_max_times_per_day' => (int) ($setting->withdraw_max_times_per_day ?? 3),
             'withdraw_min_amount' => (string) ($setting->withdraw_min_amount ?? '200000'),
-            'withdraw_max_amount' => (string) ($setting->withdraw_max_amount ?? '20000000'),
             'cache_store' => $this->cacheStore(),
             'cache_key' => $this->cacheKey(),
             'redis_connection' => $this->redisConnection(),

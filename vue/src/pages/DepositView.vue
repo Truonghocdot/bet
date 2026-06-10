@@ -104,15 +104,15 @@ const presetAmounts = computed(() => {
 
 const isAmountValid = computed(() => {
   const numericAmount = Number(amount.value) || 0
-  if (method.value === 'vietqr') return numericAmount >= 2000
+  if (method.value === 'vietqr') return numericAmount >= 100000
   if (method.value === 'usdt') return numericAmount >= 20
   return false
 })
 
 const validationMessage = computed(() => {
   if (!amount.value) return ''
-  if (method.value === 'vietqr' && Number(amount.value) < 2000) {
-    return 'Nạp tối thiểu 2.000 VND'
+  if (method.value === 'vietqr' && Number(amount.value) < 100000) {
+    return 'Nạp tối thiểu 100.000 VND'
   }
   if (method.value === 'usdt' && Number(amount.value) < 20) {
     return 'Nạp tối thiểu 20 USDT'

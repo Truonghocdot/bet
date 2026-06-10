@@ -406,12 +406,10 @@ export type WalletSummaryResponse = {
   popup?: PopupDisplay
   withdraw_policy?: {
     enabled: boolean
-    validate_amount: boolean
     fee_percent: string
     required_bet_volume: string
     max_times_per_day: number
     min_amount: string
-    max_amount: string
   }
   wallets: WalletSummaryItem[]
 }
