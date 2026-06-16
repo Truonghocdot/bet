@@ -236,7 +236,7 @@ func (s *DepositService) GetDepositStatus(ctx context.Context, userID int64, cli
 		ReceivingAccount: s.toDomainReceivingAccount(record.ReceivingAccount),
 	}
 
-	if response.Transaction.Status == 2 || response.Transaction.Status == 3 || response.Transaction.Status == 4 {
+	if response.Transaction.Status == 2 || response.Transaction.Status == 3 || response.Transaction.Status == 4 || response.Transaction.Status == 5 {
 		_ = s.clearPendingDepositCache(ctx, userID, depositProviderToMethod(record.Provider))
 	}
 
@@ -811,6 +811,8 @@ func depositProviderToMethod(provider string) deposit.DepositMethod {
 	case string(deposit.DepositProviderSepayVietQR):
 		return deposit.DepositMethodVietQR
 	case string(deposit.DepositProviderNowPayments):
+		return deposit.DepositMethodUSDT
+	case string(deposit.DepositProviderManualUSDT):
 		return deposit.DepositMethodUSDT
 	default:
 		return deposit.DepositMethodVietQR

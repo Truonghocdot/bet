@@ -129,7 +129,7 @@ export const useDepositStore = defineStore('deposit', () => {
       )
       currentStatus.value = res
       const status = res.transaction?.status
-      if (status === 2 || status === 3 || status === 4) {
+      if (status === 2 || status === 3 || status === 4 || status === 5) {
         clearPending(currentIntent.value?.method as 'vietqr' | 'usdt' | undefined)
       }
       return res
@@ -165,7 +165,7 @@ export const useDepositStore = defineStore('deposit', () => {
         if (payload.event !== 'deposit.status') return
         currentStatus.value = payload.data as DepositStatusResponse
         const status = currentStatus.value?.transaction?.status
-        if (status === 2 || status === 3 || status === 4) {
+        if (status === 2 || status === 3 || status === 4 || status === 5) {
           clearPending(currentIntent.value?.method as 'vietqr' | 'usdt' | undefined)
           disconnectStatusStream()
         }

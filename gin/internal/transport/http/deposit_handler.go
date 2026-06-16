@@ -315,7 +315,7 @@ func (h *DepositHandler) handleStatusStream(w http.ResponseWriter, r *http.Reque
 			}
 		}
 
-		terminal := response.Transaction.Status == 2 || response.Transaction.Status == 3 || response.Transaction.Status == 4
+		terminal := response.Transaction.Status == 2 || response.Transaction.Status == 3 || response.Transaction.Status == 4 || response.Transaction.Status == 5
 		return terminal, nil
 	}
 

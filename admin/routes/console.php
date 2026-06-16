@@ -12,14 +12,10 @@ Schedule::command('rates:sync-usdt-vnd')
     ->everyFiveMinutes()
     ->withoutOverlapping();
 
-Schedule::command('banks:sync-vietqr')
-    ->dailyAt('03:15')
-    ->withoutOverlapping();
-
 Schedule::command('payment:prime-receiving-accounts')
     ->everyFiveMinutes()
     ->withoutOverlapping();
 
-Schedule::command('bet:cleanup')
-    ->dailyAt('03:45')
+Schedule::command('deposits:expire-pending')
+    ->everyMinute()
     ->withoutOverlapping();
