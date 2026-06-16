@@ -69,54 +69,31 @@ const intentBank = computed(() => {
 })
 const copiedField = ref('')
 const historySection = ref<HTMLElement | null>(null)
-const localExpiredStatusCode = 6
-
-const isIntentExpired = computed(() => {
-  if (!intent.value) return false
-
-  const expiresAtMs = Date.parse(intent.value.expires_at || '')
-  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= 0) return false
-
-  return now.value >= expiresAtMs
-})
-
-const effectiveStatusValue = computed(() => {
-  if (!intent.value) return null
-
-  const rawStatus = Number(status.value?.transaction?.status ?? intent.value.transaction?.status ?? 0)
-  if (isIntentExpired.value && rawStatus === 1) {
-    return localExpiredStatusCode
-  }
-
-  return rawStatus
-})
 
 const statusLabel = computed(() => {
-  const value = effectiveStatusValue.value
+  const value = status.value?.transaction?.status
   if (value === undefined || value === null) return 'Chưa cập nhật'
   const numValue = Number(value)
   if (numValue === 1) return 'Đang chờ'
   if (numValue === 2 || numValue === 3) return 'Hoàn tất'
   if (numValue === 4) return 'Thất bại'
-  if (numValue === 5) return 'Đã hủy'
-  if (numValue === localExpiredStatusCode) return 'Đã hết hạn'
   return `Mã trạng thái: ${value}`
 })
 const statusToneClass = computed(() => {
-  const numValue = Number(effectiveStatusValue.value)
+  const numValue = Number(status.value?.transaction?.status ?? intent.value?.transaction?.status)
   if (numValue === 2 || numValue === 3) return 'text-emerald-600'
   if (numValue === 4) return 'text-rose-500'
-  if (numValue === 5 || numValue === localExpiredStatusCode) return 'text-slate-500'
   return 'text-primary'
 })
 
 const isIntentActive = computed(() => {
   if (!intent.value) return false
-  if (isIntentExpired.value) {
+  const expiresAtMs = Date.parse(intent.value.expires_at || '')
+  if (Number.isFinite(expiresAtMs) && expiresAtMs > 0 && now.value >= expiresAtMs) {
     return false
   }
-  const statusValue = Number(effectiveStatusValue.value ?? intent.value.transaction?.status)
-  return statusValue !== 2 && statusValue !== 3 && statusValue !== 4 && statusValue !== 5 && statusValue !== localExpiredStatusCode
+  const statusValue = Number(status.value?.transaction?.status ?? intent.value.transaction?.status)
+  return statusValue !== 2 && statusValue !== 3 && statusValue !== 4
 })
 const presetAmounts = computed(() => {
   if (method.value === 'vietqr') {
@@ -406,15 +383,6 @@ watch(
 )
 
 watch(
-  () => [isIntentExpired.value, intent.value?.method] as const,
-  ([expired, intentMethod]) => {
-    if (!expired || !intentMethod) return
-    deposit.clearPending(intentMethod)
-  },
-  { immediate: true },
-)
-
-watch(
   () => [isUsdtIntent.value, intent.value?.receiving_account?.account_number, intent.value?.amount] as const,
   async ([isUsdt]) => {
     if (!isUsdt) {
@@ -521,7 +489,6 @@ function depositStatusLabel(statusValue: string | number | null | undefined) {
   if (value === 3) return 'Hoàn tất'
   if (value === 4) return 'Thất bại'
   if (value === 5) return 'Đã hủy'
-  if (value === localExpiredStatusCode) return 'Đã hết hạn'
   return 'Không xác định'
 }
 
@@ -529,13 +496,30 @@ function depositStatusClass(statusValue: string | number | null | undefined) {
   const value = Number(statusValue ?? 0)
   if (value === 1 || value === 2) return 'bg-amber-100 text-amber-600'
   if (value === 3) return 'bg-emerald-100 text-emerald-600'
-  if (value === 4) return 'bg-rose-100 text-rose-600'
-  if (value === 5 || value === localExpiredStatusCode) return 'bg-slate-100 text-slate-500'
+  if (value === 4 || value === 5) return 'bg-rose-100 text-rose-600'
   return 'bg-slate-100 text-slate-500'
 }
 
 function depositHistoryTypeLabel(unit: number | string | null | undefined) {
   return Number(unit) === 2 ? 'Tiền ảo' : 'Ngân hàng'
+}
+
+function formatDepositHistoryAmount(unit: number | string | null | undefined, amount: string | number | null | undefined) {
+  if (Number(unit) === 2) {
+    return `${amount ?? '0'} USDT`
+  }
+
+  const normalized = String(amount ?? '').trim().replaceAll(',', '.')
+  if (!normalized) {
+    return '0'
+  }
+
+  const numericValue = Number(normalized)
+  if (!Number.isFinite(numericValue)) {
+    return normalized.split('.')[0] || '0'
+  }
+
+  return String(Math.trunc(numericValue))
 }
 
 async function logout() {
@@ -855,7 +839,7 @@ async function logout() {
               {{ depositHistoryTypeLabel(item.unit) }}
             </p>
             <p class="m-0 mt-1 text-[0.74rem] font-semibold text-slate-500">
-              {{ item.unit === 1 ? item.amount : `${item.amount} USDT` }}
+              {{ formatDepositHistoryAmount(item.unit, item.amount) }}
             </p>
             <p class="m-0 mt-1 text-[0.68rem] font-medium text-slate-400">
               {{ item.created_at?.split('T')[0] || '---' }} {{ item.created_at?.split('T')[1]?.slice(0, 5) || '' }}
