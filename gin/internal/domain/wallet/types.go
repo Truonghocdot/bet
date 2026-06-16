@@ -22,6 +22,7 @@ type WithdrawPolicyDisplay struct {
 	RequiredBetVolume string `json:"required_bet_volume"`
 	MaxTimesPerDay    int    `json:"max_times_per_day"`
 	MinAmount         string `json:"min_amount"`
+	MaxAmount         string `json:"max_amount"`
 }
 
 type MarqueeDisplay struct {

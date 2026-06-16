@@ -22,6 +22,7 @@ const (
 	DefaultWithdrawRequiredBet   = "0"
 	DefaultWithdrawMaxTimes      = 3
 	DefaultWithdrawMinAmount     = "200000"
+	DefaultWithdrawMaxAmount     = "30000000"
 )
 
 type WalletService struct {
@@ -89,6 +90,7 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 			RequiredBetVolume: snapshot.WithdrawRequiredBet,
 			MaxTimesPerDay:    snapshot.WithdrawMaxTimes,
 			MinAmount:         snapshot.WithdrawMinAmount,
+			MaxAmount:         snapshot.WithdrawMaxAmount,
 		},
 		Wallets: items,
 	}, nil
@@ -177,6 +179,7 @@ type systemSnapshot struct {
 	WithdrawRequiredBet   string   `json:"withdraw_required_bet_volume"`
 	WithdrawMaxTimes      int      `json:"withdraw_max_times_per_day"`
 	WithdrawMinAmount     string   `json:"withdraw_min_amount"`
+	WithdrawMaxAmount     string   `json:"withdraw_max_amount"`
 }
 
 func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
@@ -194,6 +197,7 @@ func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
 		WithdrawRequiredBet:   DefaultWithdrawRequiredBet,
 		WithdrawMaxTimes:      DefaultWithdrawMaxTimes,
 		WithdrawMinAmount:     DefaultWithdrawMinAmount,
+		WithdrawMaxAmount:     DefaultWithdrawMaxAmount,
 	}
 
 	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
@@ -229,6 +233,9 @@ func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
 	}
 	if snapshot.WithdrawMinAmount == "" {
 		snapshot.WithdrawMinAmount = defaultSnap.WithdrawMinAmount
+	}
+	if snapshot.WithdrawMaxAmount == "" {
+		snapshot.WithdrawMaxAmount = defaultSnap.WithdrawMaxAmount
 	}
 
 	return snapshot

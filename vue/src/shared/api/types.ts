@@ -410,6 +410,7 @@ export type WalletSummaryResponse = {
     required_bet_volume: string
     max_times_per_day: number
     min_amount: string
+    max_amount: string
   }
   wallets: WalletSummaryItem[]
 }

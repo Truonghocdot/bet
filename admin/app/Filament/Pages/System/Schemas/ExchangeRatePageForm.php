@@ -88,7 +88,7 @@ class ExchangeRatePageForm
                 ->columns(2),
 
             Section::make('Khối Thông Tin Rút Tiền')
-                ->description('Cấu hình hiển thị trên app người chơi và số tiền rút tối thiểu.')
+                ->description('Cấu hình hiển thị trên app người chơi và số tiền rút tối thiểu/tối đa.')
                 ->schema([
                     Toggle::make('withdraw_policy_enabled')
                         ->label('Hiển thị khối thông tin ở màn rút tiền'),
@@ -120,6 +120,12 @@ class ExchangeRatePageForm
                         ->step('0.000001')
                         ->required()
                         ->helperText('Dùng để validate số tiền rút tối thiểu ở app và backend Gin.'),
+                    TextInput::make('withdraw_max_amount')
+                        ->label('Rút tối đa')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step('0.000001')
+                        ->helperText('Dùng để validate số tiền rút tối đa ở app và backend Gin. Nếu để trống, hệ thống fallback 30.000.000.'),
                 ])
                 ->columns(2),
 

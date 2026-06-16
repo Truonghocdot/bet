@@ -30,6 +30,7 @@ const (
 
 type withdrawalPolicySnapshot struct {
 	WithdrawMinAmount string `json:"withdraw_min_amount"`
+	WithdrawMaxAmount string `json:"withdraw_max_amount"`
 }
 
 func NewWithdrawalService(repo *postgres.WithdrawalRepository, walletRepo *postgres.WalletRepository, userRepo *postgres.UserRepository, redis *goredis.Client) *WithdrawalService {
@@ -87,18 +88,33 @@ func (s *WithdrawalService) SubmitWithdrawalRequest(ctx context.Context, userID 
 	}
 
 	if account.Unit == user.WalletUnitVND {
-		minAmountRat := s.withdrawMinAmount(ctx)
+		policySnapshot := s.loadWithdrawPolicySnapshot(ctx)
+		minAmountRat := parsePolicyAmount(policySnapshot.WithdrawMinAmount, DefaultWithdrawMinAmount)
 		if minAmountRat.Sign() > 0 && amountRat.Cmp(minAmountRat) < 0 {
 			return 0, fmt.Errorf("Số tiền rút tối thiểu là %s", formatRatPlain(minAmountRat))
 		}
-	}
 
-	walletBalanceRat := new(big.Rat)
-	if _, ok := walletBalanceRat.SetString(strings.TrimSpace(wallet.Balance)); !ok {
-		return 0, errors.New("số dư ví không hợp lệ")
-	}
-	if amountRat.Cmp(walletBalanceRat) > 0 {
-		return 0, errors.New("số dư ví không đủ")
+		walletBalanceRat := new(big.Rat)
+		if _, ok := walletBalanceRat.SetString(strings.TrimSpace(wallet.Balance)); !ok {
+			return 0, errors.New("số dư ví không hợp lệ")
+		}
+
+		maxAmountRat := parsePolicyAmount(policySnapshot.WithdrawMaxAmount, DefaultWithdrawMaxAmount)
+		maxAllowedRat := new(big.Rat).Set(walletBalanceRat)
+		if maxAmountRat.Sign() > 0 && maxAmountRat.Cmp(maxAllowedRat) < 0 {
+			maxAllowedRat = new(big.Rat).Set(maxAmountRat)
+		}
+		if amountRat.Cmp(maxAllowedRat) > 0 {
+			return 0, fmt.Errorf("Số tiền rút tối đa là %s", formatRatPlain(maxAllowedRat))
+		}
+	} else {
+		walletBalanceRat := new(big.Rat)
+		if _, ok := walletBalanceRat.SetString(strings.TrimSpace(wallet.Balance)); !ok {
+			return 0, errors.New("số dư ví không hợp lệ")
+		}
+		if amountRat.Cmp(walletBalanceRat) > 0 {
+			return 0, errors.New("số dư ví không đủ")
+		}
 	}
 
 	amountStr := amountRat.FloatString(8)
@@ -168,22 +184,40 @@ func parsePositiveOrZero(value string) (*big.Rat, error) {
 	return r, nil
 }
 
-func (s *WithdrawalService) withdrawMinAmount(ctx context.Context) *big.Rat {
-	minAmount := DefaultWithdrawMinAmount
+func (s *WithdrawalService) loadWithdrawPolicySnapshot(ctx context.Context) withdrawalPolicySnapshot {
+	snapshot := withdrawalPolicySnapshot{
+		WithdrawMinAmount: DefaultWithdrawMinAmount,
+		WithdrawMaxAmount: DefaultWithdrawMaxAmount,
+	}
 
 	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
-	if err == nil {
-		var snapshot withdrawalPolicySnapshot
-		if json.Unmarshal([]byte(val), &snapshot) == nil && strings.TrimSpace(snapshot.WithdrawMinAmount) != "" {
-			minAmount = snapshot.WithdrawMinAmount
-		}
+	if err != nil {
+		return snapshot
 	}
 
+	var loaded withdrawalPolicySnapshot
+	if json.Unmarshal([]byte(val), &loaded) != nil {
+		return snapshot
+	}
+
+	if strings.TrimSpace(loaded.WithdrawMinAmount) != "" {
+		snapshot.WithdrawMinAmount = loaded.WithdrawMinAmount
+	}
+	if strings.TrimSpace(loaded.WithdrawMaxAmount) != "" {
+		snapshot.WithdrawMaxAmount = loaded.WithdrawMaxAmount
+	}
+
+	return snapshot
+}
+
+func parsePolicyAmount(value string, fallback string) *big.Rat {
 	rat := new(big.Rat)
-	if _, ok := rat.SetString(strings.TrimSpace(minAmount)); ok {
+	if _, ok := rat.SetString(strings.TrimSpace(value)); ok {
 		return rat
 	}
-
+	if _, ok := rat.SetString(strings.TrimSpace(fallback)); ok {
+		return rat
+	}
 	rat.SetInt64(0)
 	return rat
 }
