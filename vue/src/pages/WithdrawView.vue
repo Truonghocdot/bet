@@ -78,10 +78,6 @@ const withdrawAmountValidationMessage = computed(() => {
     return `Số tiền rút tối thiểu là ${formatViMoney(minAmount, 0)}`
   }
 
-  if (numericWithdrawAmount.value > currentWalletBalance.value) {
-    return `Số tiền rút tối đa là ${formatViMoney(currentWalletBalance.value, method.value === 'vnd' ? 0 : 2)}`
-  }
-
   return ''
 })
 
