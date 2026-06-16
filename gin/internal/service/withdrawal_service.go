@@ -104,9 +104,6 @@ func (s *WithdrawalService) SubmitWithdrawalRequest(ctx context.Context, userID 
 		if maxAmountRat.Sign() > 0 && maxAmountRat.Cmp(maxAllowedRat) < 0 {
 			maxAllowedRat = new(big.Rat).Set(maxAmountRat)
 		}
-		if amountRat.Cmp(maxAllowedRat) > 0 {
-			return 0, fmt.Errorf("Số tiền rút tối đa là %s", formatRatPlain(maxAllowedRat))
-		}
 	} else {
 		walletBalanceRat := new(big.Rat)
 		if _, ok := walletBalanceRat.SetString(strings.TrimSpace(wallet.Balance)); !ok {
