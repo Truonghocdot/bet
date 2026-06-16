@@ -42,7 +42,6 @@ const currentAccount = computed<WithdrawalAccount | undefined>(() => {
 const withdrawPolicy = computed(() => wallet.summary?.withdraw_policy ?? null)
 const showWithdrawInfo = computed(() => method.value === 'vnd' && Boolean(withdrawPolicy.value?.enabled))
 const currentWallet = computed(() => (method.value === 'vnd' ? currentWallets.value.vnd : currentWallets.value.usdt))
-const defaultVndWithdrawMaxAmount = 30000000
 
 const numericWithdrawAmount = computed(() => {
   const normalized = String(amount.value ?? '').replaceAll(',', '.').trim()
@@ -53,19 +52,6 @@ const numericWithdrawAmount = computed(() => {
 const currentWalletBalance = computed(() => {
   const parsed = Number(String(currentWallet.value?.balance ?? 0).replaceAll(',', '.'))
   return Number.isFinite(parsed) ? parsed : 0
-})
-
-const configuredVndWithdrawMaxAmount = computed(() => {
-  const parsed = Number(String(withdrawPolicy.value?.max_amount ?? '').replaceAll(',', '.'))
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed
-  }
-
-  return defaultVndWithdrawMaxAmount
-})
-
-const effectiveVndWithdrawMaxAmount = computed(() => {
-  return Math.min(currentWalletBalance.value, configuredVndWithdrawMaxAmount.value)
 })
 
 const withdrawAmountValidationMessage = computed(() => {
@@ -79,10 +65,6 @@ const withdrawAmountValidationMessage = computed(() => {
 
   if (method.value === 'vnd' && Number.isFinite(minAmount) && minAmount > 0 && numericWithdrawAmount.value < minAmount) {
     return `Số tiền rút tối thiểu là ${formatViMoney(minAmount, 0)}`
-  }
-
-  if (method.value === 'vnd' && numericWithdrawAmount.value > effectiveVndWithdrawMaxAmount.value) {
-    return `Số tiền rút tối đa là ${formatViMoney(effectiveVndWithdrawMaxAmount.value, 0)}`
   }
 
   if (numericWithdrawAmount.value > currentWalletBalance.value) {
@@ -327,10 +309,6 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
           <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5">
             <span class="font-bold text-slate-500">Rút tối thiểu</span>
             <span class="font-black text-primary">{{ formatWithdrawPolicyPlain(withdrawPolicy?.min_amount) }}</span>
-          </div>
-          <div class="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2.5 sm:col-span-2">
-            <span class="font-bold text-slate-500">Rút tối đa</span>
-            <span class="font-black text-primary">{{ formatViMoney(configuredVndWithdrawMaxAmount, 0) }}</span>
           </div>
         </div>
       </div>
