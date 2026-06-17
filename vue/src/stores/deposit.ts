@@ -54,13 +54,23 @@ export const useDepositStore = defineStore('deposit', () => {
     const saved = readJSON<PersistedPendingDeposit>(`${pendingStorageKey()}:${method}`)
     if (!saved?.intent?.client_ref) return null
 
-    const expiresAt = Date.parse(saved.intent.expires_at)
-    if (Number.isFinite(expiresAt) && expiresAt > 0 && Date.now() >= expiresAt) {
-      clearPending(method)
-      return null
+    return saved
+  }
+
+  function restoreAnyPending(): PersistedPendingDeposit | null {
+    const vietqr = restorePending('vietqr')
+    const usdt = restorePending('usdt')
+
+    if (vietqr && usdt) {
+      const vietqrCreatedAt = Date.parse(vietqr.intent.transaction?.created_at || '')
+      const usdtCreatedAt = Date.parse(usdt.intent.transaction?.created_at || '')
+
+      if (Number.isFinite(vietqrCreatedAt) && Number.isFinite(usdtCreatedAt)) {
+        return usdtCreatedAt > vietqrCreatedAt ? usdt : vietqr
+      }
     }
 
-    return saved
+    return vietqr ?? usdt
   }
 
   function clearPending(method?: 'vietqr' | 'usdt') {
@@ -129,7 +139,7 @@ export const useDepositStore = defineStore('deposit', () => {
       )
       currentStatus.value = res
       const status = res.transaction?.status
-      if (status === 2 || status === 3 || status === 4 || status === 5) {
+      if (status === 2 || status === 3 || status === 4) {
         clearPending(currentIntent.value?.method as 'vietqr' | 'usdt' | undefined)
       }
       return res
@@ -165,8 +175,10 @@ export const useDepositStore = defineStore('deposit', () => {
         if (payload.event !== 'deposit.status') return
         currentStatus.value = payload.data as DepositStatusResponse
         const status = currentStatus.value?.transaction?.status
-        if (status === 2 || status === 3 || status === 4 || status === 5) {
+        if (status === 2 || status === 3 || status === 4) {
           clearPending(currentIntent.value?.method as 'vietqr' | 'usdt' | undefined)
+        }
+        if (status === 2 || status === 3 || status === 4 || status === 5) {
           disconnectStatusStream()
         }
       },
@@ -319,6 +331,7 @@ export const useDepositStore = defineStore('deposit', () => {
     loadVietQrBanks,
     fetchHistory,
     restorePending,
+    restoreAnyPending,
     clearPending,
     cancelDeposit,
     reset,

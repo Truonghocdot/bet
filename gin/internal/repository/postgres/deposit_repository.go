@@ -354,7 +354,7 @@ func (r *DepositRepository) CountUserDeposits(ctx context.Context, userID int64)
 
 var ErrDepositCancelForbidden = errors.New("giao dịch không thể hủy ở trạng thái hiện tại")
 
-// CancelDeposit hủy một lệnh nạp tiền đang chờ xử lý (PENDING/CONFIRMED) do người dùng yêu cầu.
+// CancelDeposit hủy một lệnh nạp tiền đang chờ xử lý hoặc xác nhận đóng một lệnh đã auto-cancel.
 func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int64) (DepositTransactionRecord, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -378,6 +378,15 @@ func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int
 			return DepositTransactionRecord{}, ErrDepositNotFound
 		}
 		return DepositTransactionRecord{}, err
+	}
+
+	// Cho phép bấm hủy để đóng luôn một lệnh đã auto-cancel (5) trên app.
+	if record.Status == 5 {
+		if err := tx.Commit(); err != nil {
+			return DepositTransactionRecord{}, err
+		}
+
+		return record, nil
 	}
 
 	// Chỉ hủy khi đang PENDING (1) hoặc CONFIRMED (2)

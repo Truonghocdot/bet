@@ -27,6 +27,7 @@ var ErrDepositUSDTTemporarilyClosed = errors.New(message.DepositUSDTTemporarilyC
 
 const localUSDTMinAmount = "20"
 const pendingDepositTTL = 3 * time.Minute
+const pendingDepositCacheTTL = 30 * 24 * time.Hour
 
 type DepositConfig struct {
 	ReceivingAccountsRedisKey string
@@ -63,7 +64,7 @@ func (s *DepositService) InitVietQRDeposit(ctx context.Context, userID int64, re
 func (s *DepositService) InitUSDTDeposit(ctx context.Context, userID int64, request deposit.DepositInitRequest) (deposit.DepositInitResponse, error) {
 	traceID := strings.TrimSpace(id.New())
 
-	if cached, err := s.loadPendingDepositCache(ctx, userID, deposit.DepositMethodUSDT); err == nil && cached.ClientRef != "" {
+	if cached, err := s.loadAnyPendingDepositCache(ctx, userID); err == nil && cached.ClientRef != "" {
 		log.Printf("[deposit][usdt.init.cache_hit] trace_id=%s user_id=%d client_ref=%s status=%d", traceID, userID, cached.ClientRef, cached.Transaction.Status)
 		return cached, nil
 	}
@@ -236,7 +237,7 @@ func (s *DepositService) GetDepositStatus(ctx context.Context, userID int64, cli
 		ReceivingAccount: s.toDomainReceivingAccount(record.ReceivingAccount),
 	}
 
-	if response.Transaction.Status == 2 || response.Transaction.Status == 3 || response.Transaction.Status == 4 || response.Transaction.Status == 5 {
+	if response.Transaction.Status == 2 || response.Transaction.Status == 3 || response.Transaction.Status == 4 {
 		_ = s.clearPendingDepositCache(ctx, userID, depositProviderToMethod(record.Provider))
 	}
 
@@ -399,7 +400,7 @@ func (s *DepositService) initDeposit(
 	accountType deposit.ReceivingAccountType,
 	unit int,
 ) (deposit.DepositInitResponse, error) {
-	if cached, err := s.loadPendingDepositCache(ctx, userID, method); err == nil && cached.ClientRef != "" {
+	if cached, err := s.loadAnyPendingDepositCache(ctx, userID); err == nil && cached.ClientRef != "" {
 		return cached, nil
 	}
 
@@ -706,7 +707,33 @@ func (s *DepositService) savePendingDepositCache(ctx context.Context, userID int
 		return err
 	}
 
-	return s.redis.Set(ctx, pendingDepositCacheKey(userID, method), payload, pendingDepositTTL).Err()
+	return s.redis.Set(ctx, pendingDepositCacheKey(userID, method), payload, pendingDepositCacheTTL).Err()
+}
+
+func (s *DepositService) loadAnyPendingDepositCache(ctx context.Context, userID int64) (deposit.DepositInitResponse, error) {
+	candidates := make([]deposit.DepositInitResponse, 0, 2)
+
+	for _, method := range []deposit.DepositMethod{deposit.DepositMethodVietQR, deposit.DepositMethodUSDT} {
+		cached, err := s.loadPendingDepositCache(ctx, userID, method)
+		if err != nil || cached.ClientRef == "" {
+			continue
+		}
+		candidates = append(candidates, cached)
+	}
+
+	if len(candidates) == 0 {
+		return deposit.DepositInitResponse{}, fmt.Errorf("pending deposit cache empty")
+	}
+
+	if len(candidates) == 1 {
+		return candidates[0], nil
+	}
+
+	if candidates[1].Transaction.CreatedAt.After(candidates[0].Transaction.CreatedAt) {
+		return candidates[1], nil
+	}
+
+	return candidates[0], nil
 }
 
 func (s *DepositService) clearPendingDepositCache(ctx context.Context, userID int64, method deposit.DepositMethod) error {

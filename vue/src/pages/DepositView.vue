@@ -12,8 +12,9 @@ const router = useRouter()
 const auth = useAuthStore()
 const deposit = useDepositStore()
 const wallet = useWalletStore()
+const restoredPending = deposit.restoreAnyPending()
 
-const method = ref<'vietqr' | 'usdt'>('vietqr')
+const method = ref<'vietqr' | 'usdt'>(restoredPending?.method ?? 'vietqr')
 const amountByMethod = ref<Record<'vietqr' | 'usdt', string>>({
   vietqr: '',
   usdt: '',
@@ -33,9 +34,7 @@ const usdtQrLoading = ref(false)
 let usdtQrAbortController: AbortController | null = null
 
 const intent = computed(() => {
-  const current = deposit.currentIntent
-  if (!current || current.method !== method.value) return null
-  return current
+  return deposit.currentIntent
 })
 const status = computed(() => {
   if (!intent.value) return null
@@ -69,31 +68,61 @@ const intentBank = computed(() => {
 })
 const copiedField = ref('')
 const historySection = ref<HTMLElement | null>(null)
+const isIntentExpired = computed(() => {
+  if (!intent.value) return false
+
+  const expiresAtMs = Date.parse(intent.value.expires_at || '')
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= 0) return false
+
+  return now.value >= expiresAtMs
+})
+
+const currentIntentStatus = computed(() => Number(status.value?.transaction?.status ?? intent.value?.transaction?.status ?? 0))
+const isIntentCanceled = computed(() => currentIntentStatus.value === 5)
 
 const statusLabel = computed(() => {
-  const value = status.value?.transaction?.status
+  const value = status.value?.transaction?.status ?? intent.value?.transaction?.status
   if (value === undefined || value === null) return 'Chưa cập nhật'
   const numValue = Number(value)
+  if (numValue === 1 && isIntentExpired.value) return 'Đã hết hạn'
   if (numValue === 1) return 'Đang chờ'
   if (numValue === 2 || numValue === 3) return 'Hoàn tất'
   if (numValue === 4) return 'Thất bại'
+  if (numValue === 5 && isIntentExpired.value) return 'Đã hết hạn'
+  if (numValue === 5) return 'Đã hủy'
   return `Mã trạng thái: ${value}`
 })
 const statusToneClass = computed(() => {
-  const numValue = Number(status.value?.transaction?.status ?? intent.value?.transaction?.status)
+  const numValue = currentIntentStatus.value
   if (numValue === 2 || numValue === 3) return 'text-emerald-600'
   if (numValue === 4) return 'text-rose-500'
+  if (numValue === 5) return 'text-slate-500'
+  if (numValue === 1 && isIntentExpired.value) return 'text-amber-600'
   return 'text-primary'
 })
 
 const isIntentActive = computed(() => {
   if (!intent.value) return false
-  const expiresAtMs = Date.parse(intent.value.expires_at || '')
-  if (Number.isFinite(expiresAtMs) && expiresAtMs > 0 && now.value >= expiresAtMs) {
-    return false
-  }
-  const statusValue = Number(status.value?.transaction?.status ?? intent.value.transaction?.status)
+  const statusValue = currentIntentStatus.value
   return statusValue !== 2 && statusValue !== 3 && statusValue !== 4
+})
+
+const intentTitle = computed(() => {
+  if (isIntentCanceled.value && isIntentExpired.value) return 'Lệnh nạp đã hết hạn'
+  if (isIntentCanceled.value) return 'Lệnh nạp đã hủy'
+  return 'Lệnh nạp đang chờ xử lý'
+})
+
+const intentSubtitle = computed(() => {
+  if (isIntentCanceled.value && isIntentExpired.value) {
+    return 'Đơn nạp này đã bị hệ thống tự hủy do hết hạn. Nếu muốn tạo đơn mới, vui lòng bấm Hủy lệnh để đóng đơn này.'
+  }
+  if (isIntentCanceled.value) {
+    return 'Đơn nạp này đã bị hủy. Nếu muốn tạo đơn mới, vui lòng bấm Hủy lệnh để đóng đơn này.'
+  }
+  return isUsdtIntent.value
+    ? 'Vui lòng quét mã QR hoặc chuyển USDT đúng địa chỉ/memo bên dưới:'
+    : 'Vui lòng chuyển khoản theo thông tin ngân hàng:'
 })
 const presetAmounts = computed(() => {
   if (method.value === 'vietqr') {
@@ -145,10 +174,10 @@ function formatPendingDepositAmount(value: string | number | null | undefined) {
   const numericValue = Number(normalized)
 
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    return '0.0'
+    return '0'
   }
 
-  return numericValue.toFixed(1)
+  return String(Math.trunc(numericValue))
 }
 
 function formatPendingDepositAmountForCopy(value: string | number | null | undefined) {
@@ -344,26 +373,13 @@ watch(
 )
 
 watch(
-  () => method.value,
-  (nextMethod) => {
-    deposit.disconnectStatusStream()
-
-    const restored = deposit.restorePending(nextMethod)
-    if (restored?.intent) {
-      deposit.currentIntent = restored.intent
-      deposit.currentStatus = null
-      selectedBankCode.value = nextMethod === 'vietqr'
-        ? (restored.intent.receiving_account?.provider_code ?? bankOptions.value.find((bank) => bank.is_default)?.provider_code ?? bankOptions.value[0]?.provider_code ?? '')
-        : ''
-      return
-    }
-
-    deposit.currentIntent = null
-    deposit.currentStatus = null
-    selectedBankCode.value =
-      nextMethod === 'vietqr'
-        ? bankOptions.value.find((bank) => bank.is_default)?.provider_code ?? bankOptions.value[0]?.provider_code ?? ''
-        : ''
+  () => intent.value?.method,
+  (intentMethod) => {
+    if (!intentMethod) return
+    method.value = intentMethod
+    selectedBankCode.value = intentMethod === 'vietqr'
+      ? (intent.value?.receiving_account?.provider_code ?? bankOptions.value.find((bank) => bank.is_default)?.provider_code ?? bankOptions.value[0]?.provider_code ?? '')
+      : ''
   },
   { immediate: true },
 )
@@ -422,6 +438,11 @@ onMounted(async () => {
   countdownTicker = window.setInterval(() => {
     now.value = Date.now()
   }, 1000)
+
+  if (restoredPending?.intent) {
+    deposit.currentIntent = restoredPending.intent
+    deposit.currentStatus = null
+  }
 
   try {
     await Promise.all([deposit.loadVietQrBanks(), deposit.fetchHistory(1, deposit.historyPageSize)])
@@ -552,9 +573,9 @@ async function logout() {
     <section v-if="intent" class="overflow-hidden rounded-[24px] border-2 border-primary/20 bg-white p-4 shadow-[0_12px_30px_rgba(255,109,102,0.12)] md:p-5">
       <div class="flex items-start justify-between gap-3">
         <div>
-          <h2 class="m-0 text-base font-black text-primary">Lệnh nạp đang chờ xử lý</h2>
+          <h2 class="m-0 text-base font-black text-primary">{{ intentTitle }}</h2>
           <p class="m-0 mt-1 text-xs text-on-surface-variant italic">
-            {{ isUsdtIntent ? 'Vui lòng quét mã QR hoặc chuyển USDT đúng địa chỉ/memo bên dưới:' : 'Vui lòng chuyển khoản theo thông tin ngân hàng:' }}
+            {{ intentSubtitle }}
           </p>
           <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
             <div class="rounded-[16px] bg-surface-container-low p-3 border border-slate-100">
@@ -572,7 +593,7 @@ async function logout() {
             <span class="material-symbols-outlined text-[1rem]">close</span>
             Hủy lệnh
           </button>
-          <button class="rounded-full bg-primary/10 px-3 py-1.5 text-sm font-black text-primary flex items-center gap-1 transition-transform active:scale-95" type="button" :disabled="deposit.loading" @click="refreshStatus">
+          <button class="rounded-full bg-primary/10 px-3 py-1.5 text-sm font-black text-primary flex items-center gap-1 transition-transform active:scale-95" type="button" :disabled="deposit.loading || isIntentCanceled" @click="refreshStatus">
             <span class="material-symbols-outlined text-[1rem]">sync</span>
             Cập nhật
           </button>
