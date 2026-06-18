@@ -15,7 +15,3 @@ Schedule::command('rates:sync-usdt-vnd')
 Schedule::command('payment:prime-receiving-accounts')
     ->everyFiveMinutes()
     ->withoutOverlapping();
-
-Schedule::command('deposits:expire-pending')
-    ->everyMinute()
-    ->withoutOverlapping();

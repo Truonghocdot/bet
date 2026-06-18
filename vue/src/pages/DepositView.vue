@@ -84,11 +84,9 @@ const statusLabel = computed(() => {
   const value = status.value?.transaction?.status ?? intent.value?.transaction?.status
   if (value === undefined || value === null) return 'Chưa cập nhật'
   const numValue = Number(value)
-  if (numValue === 1 && isIntentExpired.value) return 'Đã hết hạn'
   if (numValue === 1) return 'Đang chờ'
   if (numValue === 2 || numValue === 3) return 'Hoàn tất'
   if (numValue === 4) return 'Thất bại'
-  if (numValue === 5 && isIntentExpired.value) return 'Đã hết hạn'
   if (numValue === 5) return 'Đã hủy'
   return `Mã trạng thái: ${value}`
 })
@@ -97,7 +95,6 @@ const statusToneClass = computed(() => {
   if (numValue === 2 || numValue === 3) return 'text-emerald-600'
   if (numValue === 4) return 'text-rose-500'
   if (numValue === 5) return 'text-slate-500'
-  if (numValue === 1 && isIntentExpired.value) return 'text-amber-600'
   return 'text-primary'
 })
 
@@ -108,15 +105,11 @@ const isIntentActive = computed(() => {
 })
 
 const intentTitle = computed(() => {
-  if (isIntentCanceled.value && isIntentExpired.value) return 'Lệnh nạp đã hết hạn'
   if (isIntentCanceled.value) return 'Lệnh nạp đã hủy'
   return 'Lệnh nạp đang chờ xử lý'
 })
 
 const intentSubtitle = computed(() => {
-  if (isIntentCanceled.value && isIntentExpired.value) {
-    return 'Đơn nạp này đã bị hệ thống tự hủy do hết hạn. Nếu muốn tạo đơn mới, vui lòng bấm Hủy lệnh để đóng đơn này.'
-  }
   if (isIntentCanceled.value) {
     return 'Đơn nạp này đã bị hủy. Nếu muốn tạo đơn mới, vui lòng bấm Hủy lệnh để đóng đơn này.'
   }
