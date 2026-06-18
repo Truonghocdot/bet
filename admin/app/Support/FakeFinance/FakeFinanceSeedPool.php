@@ -66,7 +66,8 @@ class FakeFinanceSeedPool
                 continue;
             }
 
-            if ((int) ($row['r'] ?? 0) === 1) {
+            $rowNumber = (int) ((string) ($row['r'] ?? '0'));
+            if ($rowNumber === 1) {
                 continue;
             }
 
@@ -90,6 +91,15 @@ class FakeFinanceSeedPool
             }
 
             if (count($values) < 3) {
+                continue;
+            }
+
+            // Defensive guard: skip the header row even if row-number parsing behaves differently across environments.
+            if (
+                mb_strtolower($values[0]) === 'id'
+                && mb_strtolower($values[1]) === 'số điện thoại'
+                && mb_strtolower($values[2]) === 'trạng thái'
+            ) {
                 continue;
             }
 

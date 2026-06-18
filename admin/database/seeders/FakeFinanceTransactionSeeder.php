@@ -54,12 +54,12 @@ class FakeFinanceTransactionSeeder extends Seeder
                     'masked_code' => $entry['masked_code'],
                     'masked_phone' => $entry['masked_phone'],
                     'status_label' => $entry['status_label'],
-                    'meta' => [
+                    'meta' => json_encode([
                         'channel' => $channel,
                         'source_file' => 'danh_sach.xlsx',
                         'source_index' => $sourceIndex,
                         'seed_batch' => intdiv($batchStart, self::CHUNK_SIZE) + 1,
-                    ],
+                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                     'created_at' => $createdAt,
                     'updated_at' => $createdAt,
                 ];
