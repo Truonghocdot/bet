@@ -15,3 +15,7 @@ Schedule::command('rates:sync-usdt-vnd')
 Schedule::command('payment:prime-receiving-accounts')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+Schedule::command('finance:generate-fake-transactions')
+    ->everyTenSeconds()
+    ->withoutOverlapping();

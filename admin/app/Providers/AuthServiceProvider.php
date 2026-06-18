@@ -29,6 +29,8 @@ class AuthServiceProvider extends ServiceProvider
             'finance.wallets' => [RoleUser::ADMIN, RoleUser::STAFF],
             'finance.wallet-ledger-entries' => [RoleUser::ADMIN, RoleUser::STAFF],
             'finance.transactions' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'finance.fake-deposit-transactions' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'finance.fake-withdraw-transactions' => [RoleUser::ADMIN, RoleUser::STAFF],
             'finance.withdrawal-requests' => [RoleUser::ADMIN, RoleUser::STAFF],
             'finance.account-withdrawal-infos' => [RoleUser::ADMIN, RoleUser::STAFF],
             'system.notifications' => [RoleUser::ADMIN, RoleUser::STAFF],
