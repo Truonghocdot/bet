@@ -51,22 +51,38 @@ class FakeFinanceSeedPool
             return [];
         }
 
-        $worksheet->registerXPathNamespace('sheet', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
-        $rows = $worksheet->xpath('//sheet:sheetData/sheet:row') ?: [];
+        $namespace = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+        $sheetData = $worksheet->children($namespace)->sheetData;
+        if (! $sheetData instanceof SimpleXMLElement) {
+            return [];
+        }
+
+        $rows = $sheetData->children($namespace);
 
         $pool = [];
 
         foreach ($rows as $row) {
+            if ($row->getName() !== 'row') {
+                continue;
+            }
+
             if ((int) ($row['r'] ?? 0) === 1) {
                 continue;
             }
 
-            $cells = $row->xpath('./sheet:c') ?: [];
             $values = [];
 
-            foreach ($cells as $cell) {
-                $inlineText = $cell->xpath('./sheet:is/sheet:t');
-                $value = $inlineText !== [] ? trim((string) $inlineText[0]) : trim((string) $cell->v);
+            foreach ($row->children($namespace) as $cell) {
+                if ($cell->getName() !== 'c') {
+                    continue;
+                }
+
+                $inlineString = $cell->children($namespace)->is;
+                $inlineText = $inlineString instanceof SimpleXMLElement
+                    ? trim((string) $inlineString->children($namespace)->t)
+                    : '';
+
+                $value = $inlineText !== '' ? $inlineText : trim((string) $cell->children($namespace)->v);
 
                 if ($value !== '') {
                     $values[] = $value;
