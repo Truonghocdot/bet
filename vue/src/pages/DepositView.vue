@@ -28,6 +28,7 @@ const amount = computed({
 const selectedBankCode = ref('')
 const now = ref(Date.now())
 let countdownTicker: number | undefined
+let statusPollTicker: number | undefined
 const usdtQrDataUri = ref('')
 const usdtPaymentUri = ref('')
 const usdtQrLoading = ref(false)
@@ -40,9 +41,12 @@ const status = computed(() => {
   if (!intent.value) return null
   return deposit.currentStatus
 })
+const currentTransaction = computed(() => status.value?.transaction ?? intent.value?.transaction ?? null)
+const currentReceivingAccount = computed(() => status.value?.receiving_account ?? intent.value?.receiving_account ?? null)
+const currentDepositAmount = computed(() => currentTransaction.value?.amount ?? intent.value?.amount ?? '0')
 const isUsdtIntent = computed(() => intent.value?.method === 'usdt')
 const activeNetworkLabel = computed(() => {
-  const provider = intent.value?.receiving_account?.provider_code?.trim().toUpperCase()
+  const provider = currentReceivingAccount.value?.provider_code?.trim().toUpperCase()
   if (!provider || provider === 'USDT') return 'USDT TRC20'
   return provider
 })
@@ -55,14 +59,14 @@ const usdtQrPayload = computed(() => {
   const payUrl = (intent.value?.pay_url || '').trim()
   if (payUrl) return payUrl
 
-  return (intent.value?.receiving_account?.account_number || '').trim()
+  return (currentReceivingAccount.value?.account_number || '').trim()
 })
 const bankOptions = computed(() => deposit.bankOptions)
 const selectedBank = computed(
   () => bankOptions.value.find((bank) => bank.provider_code === selectedBankCode.value) ?? null,
 )
 const intentBank = computed(() => {
-  const providerCode = intent.value?.receiving_account?.provider_code
+  const providerCode = currentReceivingAccount.value?.provider_code
   if (!providerCode) return selectedBank.value
   return bankOptions.value.find((bank) => bank.provider_code === providerCode) ?? selectedBank.value
 })
@@ -77,7 +81,7 @@ const isIntentExpired = computed(() => {
   return now.value >= expiresAtMs
 })
 
-const currentIntentStatus = computed(() => Number(status.value?.transaction?.status ?? intent.value?.transaction?.status ?? 0))
+const currentIntentStatus = computed(() => Number(currentTransaction.value?.status ?? 0))
 const isIntentCanceled = computed(() => currentIntentStatus.value === 5)
 
 const statusLabel = computed(() => {
@@ -236,7 +240,7 @@ const transferContent = computed(() => {
   if (isUsdtIntent.value && usdtPaymentUri.value) return usdtPaymentUri.value
   if (isUsdtIntent.value) return usdtQrPayload.value
   if (!intent.value) return ''
-  const clientRef = intent.value.client_ref?.trim()
+  const clientRef = currentTransaction.value?.client_ref?.trim() || intent.value.client_ref?.trim()
   if (clientRef) {
     return clientRef.startsWith('DEP-') ? clientRef.slice(4) : clientRef
   }
@@ -253,9 +257,9 @@ const activeQrImage = computed(() => {
     return usdtQrDataUri.value
   }
 
-  const providerCode = (intent.value.receiving_account?.provider_code || '').trim()
-  const accountNumber = (intent.value.receiving_account?.account_number || '').trim()
-  const amountValue = Math.round(Number(intent.value.amount || 0))
+  const providerCode = (currentReceivingAccount.value?.provider_code || '').trim()
+  const accountNumber = (currentReceivingAccount.value?.account_number || '').trim()
+  const amountValue = Math.round(Number(currentDepositAmount.value || 0))
   const addInfo = transferContent.value.trim()
 
   if (!providerCode || !accountNumber || !Number.isFinite(amountValue) || amountValue <= 0) {
@@ -289,8 +293,8 @@ async function loadUsdtQrCode() {
   }
 
   const qrPayload = usdtQrPayload.value
-  const address = (intent.value.receiving_account?.account_number || '').trim()
-  const rawAmount = Number(intent.value.amount || 0)
+  const address = (currentReceivingAccount.value?.account_number || '').trim()
+  const rawAmount = Number(currentDepositAmount.value || 0)
   if (!qrPayload || !address || !Number.isFinite(rawAmount) || rawAmount <= 0) {
     usdtQrDataUri.value = ''
     usdtPaymentUri.value = ''
@@ -346,6 +350,32 @@ async function refreshDepositHistory(page = deposit.historyPage) {
   await deposit.fetchHistory(page, deposit.historyPageSize)
 }
 
+async function pollCurrentDepositStatus() {
+  if (!intent.value?.client_ref || deposit.loading) return
+
+  try {
+    await deposit.getStatus(intent.value.client_ref)
+  } catch {
+    // store keeps its own error state
+  }
+}
+
+function stopStatusPolling() {
+  if (statusPollTicker) {
+    window.clearInterval(statusPollTicker)
+    statusPollTicker = undefined
+  }
+}
+
+function startStatusPolling() {
+  stopStatusPolling()
+  if (!intent.value?.client_ref) return
+
+  statusPollTicker = window.setInterval(() => {
+    void pollCurrentDepositStatus()
+  }, 500)
+}
+
 async function changeDepositHistoryPage(page: number) {
   if (page < 1 || page > deposit.historyTotalPages || page === deposit.historyPage || deposit.loading) {
     return
@@ -371,7 +401,7 @@ watch(
     if (!intentMethod) return
     method.value = intentMethod
     selectedBankCode.value = intentMethod === 'vietqr'
-      ? (intent.value?.receiving_account?.provider_code ?? bankOptions.value.find((bank) => bank.is_default)?.provider_code ?? bankOptions.value[0]?.provider_code ?? '')
+      ? (currentReceivingAccount.value?.provider_code ?? bankOptions.value.find((bank) => bank.is_default)?.provider_code ?? bankOptions.value[0]?.provider_code ?? '')
       : ''
   },
   { immediate: true },
@@ -381,18 +411,20 @@ watch(
   () => intent.value?.client_ref,
   (clientRef) => {
     if (!clientRef) {
+      stopStatusPolling()
       deposit.disconnectStatusStream()
       return
     }
 
-    void deposit.getStatus(clientRef)
+    void pollCurrentDepositStatus()
+    startStatusPolling()
     deposit.connectStatusStream(clientRef)
   },
   { immediate: true },
 )
 
 watch(
-  () => [isUsdtIntent.value, intent.value?.receiving_account?.account_number, intent.value?.amount] as const,
+  () => [isUsdtIntent.value, currentReceivingAccount.value?.account_number, currentDepositAmount.value] as const,
   async ([isUsdt]) => {
     if (!isUsdt) {
       usdtQrAbortController?.abort()
@@ -462,6 +494,7 @@ onBeforeUnmount(() => {
   if (countdownTicker) {
     window.clearInterval(countdownTicker)
   }
+  stopStatusPolling()
   usdtQrAbortController?.abort()
   usdtQrAbortController = null
   deposit.disconnectStatusStream()
@@ -637,14 +670,14 @@ async function logout() {
                 {{ isUsdtIntent ? activeNetworkLabel : ((intentBank?.short_name ? `${intentBank.short_name} - ` : '') + (intentBank?.name || intent.receiving_account?.provider_code || 'Ngân hàng')) }}
               </p>
               <p class="m-0 truncate text-[0.72rem] text-on-surface-variant lowercase">
-                {{ isUsdtIntent ? 'CryptAPI - USDT Deposit' : `Mã ngân hàng: ${intent.receiving_account?.provider_code || '---'}` }}
+                {{ isUsdtIntent ? 'CryptAPI - USDT Deposit' : `Mã ngân hàng: ${currentReceivingAccount?.provider_code || '---'}` }}
               </p>
             </div>
             <button
               v-if="!isUsdtIntent"
               type="button"
               class="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
-              @click="copyIntentValue('bank_code', intent.receiving_account?.provider_code)"
+              @click="copyIntentValue('bank_code', currentReceivingAccount?.provider_code)"
             >
               <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'bank_code' ? 'check' : 'content_copy' }}</span>
             </button>
@@ -655,12 +688,12 @@ async function logout() {
               <div class="grid grid-cols-[minmax(0,1fr)_32px] items-center gap-2">
                 <div class="min-w-0">
                   <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'Đơn vị nhận' : 'Tên người nhận' }}</p>
-                  <p class="m-0 mt-1 font-black text-on-surface text-[0.8rem] uppercase">{{ intent.receiving_account?.account_name || '---' }}</p>
+                  <p class="m-0 mt-1 font-black text-on-surface text-[0.8rem] uppercase">{{ currentReceivingAccount?.account_name || '---' }}</p>
                 </div>
                 <button
                   type="button"
                   class="grid h-8 w-8 place-items-center self-center justify-self-end rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
-                  @click="copyIntentValue('account_name', intent.receiving_account?.account_name)"
+                  @click="copyIntentValue('account_name', currentReceivingAccount?.account_name)"
                 >
                   <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'account_name' ? 'check' : 'content_copy' }}</span>
                 </button>
@@ -670,12 +703,12 @@ async function logout() {
               <div class="grid grid-cols-[minmax(0,1fr)_32px] items-center gap-2">
                 <div class="min-w-0">
                   <p class="m-0 text-[0.72rem] text-on-surface-variant">{{ isUsdtIntent ? 'Địa chỉ ví' : 'Số tài khoản' }}</p>
-                  <p class="m-0 mt-1 break-all font-black text-primary text-[0.9rem]">{{ intent.receiving_account?.account_number || '---' }}</p>
+                  <p class="m-0 mt-1 break-all font-black text-primary text-[0.9rem]">{{ currentReceivingAccount?.account_number || '---' }}</p>
                 </div>
                 <button
                   type="button"
                   class="grid h-8 w-8 place-items-center self-center justify-self-end rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
-                  @click="copyIntentValue('account_number', intent.receiving_account?.account_number)"
+                  @click="copyIntentValue('account_number', currentReceivingAccount?.account_number)"
                 >
                   <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'account_number' ? 'check' : 'content_copy' }}</span>
                 </button>
@@ -701,13 +734,13 @@ async function logout() {
                 <div class="min-w-0">
                   <p class="m-0 text-[0.72rem] text-on-surface-variant">Số tiền nạp</p>
                   <p class="m-0 mt-1 font-black text-on-surface text-[0.9rem]">
-                    {{ isUsdtIntent ? `${intent.amount} USDT` : formatPendingDepositAmount(intent.amount) }}
+                    {{ isUsdtIntent ? `${currentDepositAmount} USDT` : formatPendingDepositAmount(currentDepositAmount) }}
                   </p>
                 </div>
                 <button
                   type="button"
                   class="grid h-8 w-8 place-items-center self-center justify-self-end rounded-[10px] text-on-surface-variant transition-transform active:scale-95"
-                  @click="copyIntentValue('amount', isUsdtIntent ? intent.amount : formatPendingDepositAmountForCopy(intent.amount))"
+                  @click="copyIntentValue('amount', isUsdtIntent ? currentDepositAmount : formatPendingDepositAmountForCopy(currentDepositAmount))"
                 >
                   <span class="material-symbols-outlined text-[1.1rem]">{{ copiedField === 'amount' ? 'check' : 'content_copy' }}</span>
                 </button>
