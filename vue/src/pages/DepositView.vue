@@ -350,11 +350,12 @@ async function refreshDepositHistory(page = deposit.historyPage) {
   await deposit.fetchHistory(page, deposit.historyPageSize)
 }
 
-async function pollCurrentDepositStatus() {
+async function pollCurrentDepositSnapshot() {
   if (!intent.value?.client_ref || deposit.loading) return
 
   try {
     await deposit.getStatus(intent.value.client_ref)
+    await refreshDepositHistory()
   } catch {
     // store keeps its own error state
   }
@@ -372,8 +373,8 @@ function startStatusPolling() {
   if (!intent.value?.client_ref) return
 
   statusPollTicker = window.setInterval(() => {
-    void pollCurrentDepositStatus()
-  }, 500)
+    void pollCurrentDepositSnapshot()
+  }, 5000)
 }
 
 async function changeDepositHistoryPage(page: number) {
@@ -416,7 +417,7 @@ watch(
       return
     }
 
-    void pollCurrentDepositStatus()
+    void pollCurrentDepositSnapshot()
     startStatusPolling()
     deposit.connectStatusStream(clientRef)
   },
