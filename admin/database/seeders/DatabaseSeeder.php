@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             ExchangeRateSettingSeeder::class,
             VietQrBankSeeder::class,
             SiteDemoSeeder::class,
+            FakeFinanceTransactionSeeder::class,
         ]);
     }
 }

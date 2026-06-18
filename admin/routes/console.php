@@ -17,5 +17,5 @@ Schedule::command('payment:prime-receiving-accounts')
     ->withoutOverlapping();
 
 Schedule::command('finance:generate-fake-transactions')
-    ->everyTenSeconds()
+    ->everyFiveSeconds()
     ->withoutOverlapping();
