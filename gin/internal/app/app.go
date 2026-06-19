@@ -63,6 +63,7 @@ func New() (*App, error) {
 	walletRepository := repopg.NewWalletRepository(db)
 	notificationRepository := repopg.NewNotificationRepository(db)
 	contentRepository := repopg.NewContentRepository(db)
+	financeFeedRepository := repopg.NewFinanceFeedRepository(db)
 	gameRepository := repopg.NewGameRepository(db)
 	depositRepository := repopg.NewDepositRepository(db)
 	withdrawalRepository := repopg.NewWithdrawalRepository(db)
@@ -91,6 +92,7 @@ func New() (*App, error) {
 	walletService := service.NewWalletService(walletRepository, broker, redisClient)
 	notificationService := service.NewNotificationService(notificationRepository)
 	contentService := service.NewContentService(contentRepository, config.ContentAssetBaseURL)
+	financeFeedService := service.NewFinanceFeedService(financeFeedRepository)
 	sessionService := service.NewGameSessionService(hub, walletRepository)
 	betService := service.NewBetService(publisher, sessionService, gameRepository, walletRepository)
 	playRoomService := service.NewPlayRoomService(gameRepository, walletRepository, walletService, redisClient, broker)
@@ -99,7 +101,7 @@ func New() (*App, error) {
 	})
 	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository, userRepository, redisClient)
 	affiliateService := service.NewAffiliateService(userRepository, authService, depositService, withdrawalService)
-	router := httptransport.NewRouter(config.PopupVideoFilePath, authService, affiliateService, walletService, notificationService, contentService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, gameRepository, redisClient, config.InternalToken)
+	router := httptransport.NewRouter(config.PopupVideoFilePath, authService, affiliateService, walletService, notificationService, contentService, financeFeedService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, gameRepository, redisClient, config.InternalToken)
 
 	server := &http.Server{
 		Addr:        config.HTTPAddr,

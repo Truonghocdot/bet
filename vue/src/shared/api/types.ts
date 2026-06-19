@@ -171,6 +171,20 @@ export type DepositHistoryItem = {
   status: number
   created_at?: string | null
 }
+
+export type FakeFinanceFeedItem = {
+  id: number
+  masked_code: string
+  masked_phone: string
+  status_label: string
+  created_at: string
+  channel?: 'deposit' | 'withdraw' | null
+}
+
+export type FakeFinanceFeedResponse = {
+  message: string
+  items: FakeFinanceFeedItem[]
+}
 export type SetupAccountRequest = {
   unit: number
   provider_code: string

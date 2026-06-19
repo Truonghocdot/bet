@@ -481,7 +481,7 @@ onMounted(() => {
           class="fixed inset-0 z-[96] grid place-items-center bg-black/70 px-4 backdrop-blur-sm"
           @click.self="closeVideoPopup"
         >
-          <div class="relative w-full max-w-[380px] overflow-hidden rounded-[24px] bg-black shadow-[0_24px_60px_rgba(0,0,0,0.35)] ring-1 ring-white/10">
+          <div class="relative w-full max-w-[min(92vw,760px)] overflow-hidden rounded-[24px] bg-black shadow-[0_24px_60px_rgba(0,0,0,0.35)] ring-1 ring-white/10">
             <button
               type="button"
               class="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition-transform active:scale-95"
@@ -489,7 +489,7 @@ onMounted(() => {
             >
               <span class="material-symbols-outlined text-[1.1rem]">close</span>
             </button>
-            <div class="relative aspect-[9/16] w-full overflow-hidden bg-[radial-gradient(circle_at_top,#2a0f15_0%,#130609_58%,#050203_100%)]">
+            <div class="relative aspect-[16/10] w-full overflow-hidden bg-[radial-gradient(circle_at_top,#2a0f15_0%,#130609_58%,#050203_100%)] sm:aspect-[16/9]">
               <video
                 class="h-full w-full object-cover"
                 :class="homeVideoReady ? 'opacity-100' : 'opacity-0'"

@@ -18,6 +18,7 @@ func NewRouter(
 	walletService *service.WalletService,
 	notificationService *service.NotificationService,
 	contentService *service.ContentService,
+	financeFeedService *service.FinanceFeedService,
 	sessionService *service.GameSessionService,
 	betService *service.BetService,
 	playRoomService *service.PlayRoomService,
@@ -36,6 +37,7 @@ func NewRouter(
 	walletHandler := NewWalletHandler(walletService, broker)
 	notificationHandler := NewNotificationHandler(notificationService)
 	contentHandler := NewContentHandler(contentService)
+	financeFeedHandler := NewFinanceFeedHandler(financeFeedService)
 	gameHandler := NewGameHandler(sessionService, betService)
 	playRoomHandler := NewPlayRoomHandler(playRoomService, broker)
 	depositHandler := NewDepositHandler(depositService, internalToken)
@@ -72,6 +74,7 @@ func NewRouter(
 	mux.HandleFunc("GET /v1/content/promotions", contentHandler.Promotions)
 	mux.HandleFunc("GET /v1/content/news", contentHandler.News)
 	mux.HandleFunc("GET /v1/content/news/{slug}", contentHandler.NewsDetail)
+	mux.HandleFunc("GET /v1/finance-feed/{channel}", financeFeedHandler.ServeHTTP)
 	mux.HandleFunc("GET /v1/media/popup-video", mediaHandler.ServeHTTP)
 	mux.HandleFunc("GET /v1/play/rooms", playRoomHandler.ListRooms)
 	mux.HandleFunc("GET /v1/play/rooms/{room_code}/state", playRoomHandler.RoomState)
