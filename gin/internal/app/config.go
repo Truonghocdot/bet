@@ -45,6 +45,7 @@ type Config struct {
 	RegisterLimitPhone               int
 	AuthRefreshTTL                   time.Duration
 	ContentAssetBaseURL              string
+	PopupVideoFilePath               string
 }
 
 func LoadConfig() Config {
@@ -87,6 +88,7 @@ func LoadConfig() Config {
 		RegisterLimitPhone:               getEnvInt("AUTH_REGISTER_LIMIT_PHONE", 10),
 		AuthRefreshTTL:                   getEnvDuration("AUTH_REFRESH_TOKEN_TTL", 30*24*time.Hour),
 		ContentAssetBaseURL:              getEnv("CONTENT_ASSET_BASE_URL", "http://127.0.0.1:8000"),
+		PopupVideoFilePath:               getEnv("POPUP_VIDEO_FILE_PATH", "../vue/public/bg.mp4"),
 	}
 }
 

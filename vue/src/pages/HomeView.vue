@@ -40,6 +40,7 @@ const gameThumbModules = import.meta.glob<string>('@/assets/game_thumbs/*/*.webp
 const auth = useAuthStore()
 const wallet = useWalletStore()
 const route = useRoute()
+const popupVideoUrl = `${import.meta.env.VITE_API_BASE_URL}/v1/media/popup-video`
 
 const greetingName = computed(() => auth.user?.name || 'Bạn')
 const vndWallet = computed(() => wallet.wallets.find((item) => item.unit === 1) ?? null)
@@ -74,7 +75,7 @@ function primeHomeVideoLoad() {
   preloader.preload = 'auto'
   preloader.muted = true
   preloader.playsInline = true
-  preloader.src = '/bg.mp4'
+  preloader.src = popupVideoUrl
 
   const cleanup = () => {
     preloader.removeEventListener('loadeddata', handleReady)
@@ -492,7 +493,7 @@ onMounted(() => {
               <video
                 class="h-full w-full object-cover"
                 :class="homeVideoReady ? 'opacity-100' : 'opacity-0'"
-                src="/bg.mp4"
+                :src="popupVideoUrl"
                 preload="auto"
                 autoplay
                 muted

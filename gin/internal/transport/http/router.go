@@ -12,7 +12,7 @@ import (
 )
 
 func NewRouter(
-	_ any,
+	popupVideoPath string,
 	authService *service.AuthService,
 	affiliateService *service.AffiliateService,
 	walletService *service.WalletService,
@@ -40,6 +40,7 @@ func NewRouter(
 	playRoomHandler := NewPlayRoomHandler(playRoomService, broker)
 	depositHandler := NewDepositHandler(depositService, internalToken)
 	withdrawalHandler := NewWithdrawalHandler(withdrawalService)
+	mediaHandler := NewMediaHandler(popupVideoPath)
 	adminHandler := NewAdminHandler(gameRepository, broker, redis, authService)
 	authSSOHandler := NewAuthSSOHandler(authService, redis)
 	authn := authmiddleware.NewAuthentication(authService)
@@ -71,6 +72,7 @@ func NewRouter(
 	mux.HandleFunc("GET /v1/content/promotions", contentHandler.Promotions)
 	mux.HandleFunc("GET /v1/content/news", contentHandler.News)
 	mux.HandleFunc("GET /v1/content/news/{slug}", contentHandler.NewsDetail)
+	mux.HandleFunc("GET /v1/media/popup-video", mediaHandler.ServeHTTP)
 	mux.HandleFunc("GET /v1/play/rooms", playRoomHandler.ListRooms)
 	mux.HandleFunc("GET /v1/play/rooms/{room_code}/state", playRoomHandler.RoomState)
 	mux.HandleFunc("GET /v1/play/rooms/{room_code}/stream", playRoomHandler.RoomStateStream)

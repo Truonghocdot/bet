@@ -99,7 +99,7 @@ func New() (*App, error) {
 	})
 	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository, userRepository, redisClient)
 	affiliateService := service.NewAffiliateService(userRepository, authService, depositService, withdrawalService)
-	router := httptransport.NewRouter(config, authService, affiliateService, walletService, notificationService, contentService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, gameRepository, redisClient, config.InternalToken)
+	router := httptransport.NewRouter(config.PopupVideoFilePath, authService, affiliateService, walletService, notificationService, contentService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, gameRepository, redisClient, config.InternalToken)
 
 	server := &http.Server{
 		Addr:        config.HTTPAddr,
