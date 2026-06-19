@@ -52,8 +52,11 @@ const contentError = ref('')
 const showMaintenance = ref(false)
 const maintenanceGame = ref('')
 const showVideoPopup = ref(false)
+const homeVideoElement = ref<HTMLVideoElement | null>(null)
 const homeVideoReady = ref(false)
 const homeVideoError = ref(false)
+const homeVideoMuted = ref(true)
+const homeVideoNeedsAudioUnlock = ref(false)
 const homeVideoStorageKey = computed(() => `fh88u:home-video-dismissed:${auth.user?.id ?? 0}`)
 function openMaintenance(name: string) {
   maintenanceGame.value = name
@@ -67,9 +70,40 @@ function markHomeVideoReady() {
 function markHomeVideoError() {
   homeVideoError.value = true
 }
+async function playHomeVideoWithSound() {
+  const video = homeVideoElement.value
+  if (!video) return
+
+  homeVideoNeedsAudioUnlock.value = false
+  homeVideoMuted.value = false
+  video.muted = false
+  video.volume = 1
+
+  try {
+    await video.play()
+  } catch {
+    homeVideoMuted.value = true
+    video.muted = true
+    homeVideoNeedsAudioUnlock.value = true
+
+    try {
+      await video.play()
+    } catch {
+      // no-op
+    }
+  }
+}
+function handleHomeVideoReady() {
+  if (!homeVideoReady.value) {
+    markHomeVideoReady()
+  }
+  void playHomeVideoWithSound()
+}
 function primeHomeVideoLoad() {
   homeVideoReady.value = false
   homeVideoError.value = false
+  homeVideoMuted.value = true
+  homeVideoNeedsAudioUnlock.value = false
 
   const preloader = document.createElement('video')
   preloader.preload = 'auto'
@@ -491,17 +525,18 @@ onMounted(() => {
             </button>
             <div class="relative aspect-[16/10] w-full overflow-hidden bg-[radial-gradient(circle_at_top,#2a0f15_0%,#130609_58%,#050203_100%)] sm:aspect-[16/9]">
               <video
+                ref="homeVideoElement"
                 class="h-full w-full object-cover"
                 :class="homeVideoReady ? 'opacity-100' : 'opacity-0'"
                 :src="popupVideoUrl"
                 preload="auto"
                 autoplay
-                muted
+                :muted="homeVideoMuted"
                 loop
                 playsinline
                 controls
-                @loadeddata="markHomeVideoReady"
-                @canplay="markHomeVideoReady"
+                @loadeddata="handleHomeVideoReady"
+                @canplay="handleHomeVideoReady"
                 @error="markHomeVideoError"
               />
               <div
@@ -510,7 +545,18 @@ onMounted(() => {
               >
                 <div class="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white"></div>
                 <p class="text-[0.82rem] font-black uppercase tracking-[0.08em]">Đang tải video</p>
-                <p class="text-[0.72rem] font-semibold text-white/70">Video nền dung lượng lớn nên có thể mất vài giây để hiển thị.</p>
+              </div>
+              <div
+                v-if="homeVideoReady && homeVideoNeedsAudioUnlock && !homeVideoError"
+                class="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pb-4 pt-10"
+              >
+                <button
+                  type="button"
+                  class="rounded-full bg-white/90 px-4 py-2 text-[0.78rem] font-black text-primary shadow-[0_10px_24px_rgba(0,0,0,0.24)] transition-transform active:scale-95"
+                  @click="playHomeVideoWithSound"
+                >
+                  Bật âm thanh
+                </button>
               </div>
               <div
                 v-if="homeVideoError"
