@@ -239,7 +239,7 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
             Mọi hành vi cố tình dùng tài khoản không rõ nguồn gốc để rút tiền mà xảy ra trường hợp thất thoát hay vi phạm quy định thì Hệ Thống sẽ không chịu trách nhiệm.
           </p>
           <p class="m-0 mt-2">
-            Khi liên kết thông tin ngân hàng lên hệ thống cần ghi rõ thông tin đầy đủ và trước khi liên kết cần ghi rõ thông tin ngân hàng phía sau tên ngân hàng của thành viên.
+            Khi liên kết thông tin ngân hàng lên hệ thống cần ghi rõ thông tin đầy đủ và trước khi liên kết cần ghi rõ thông tin chi nhánh ngân hàng phía sau tên ngân hàng của thành viên.
           </p>
           <p class="m-0 mt-2">
             Do hệ thống Ngân Hàng yêu cầu, mong Quý Khách vui lòng liên kết thông tin đầy đủ để tránh trường hợp phải xác minh lại thông tin.
