@@ -50,11 +50,21 @@ const contentError = ref('')
 // Maintenance modal
 const showMaintenance = ref(false)
 const maintenanceGame = ref('')
+const showVideoPopup = ref(false)
+const homeVideoStorageKey = computed(() => `fh88u:home-video-dismissed:${auth.user?.id ?? 0}`)
 function openMaintenance(name: string) {
   maintenanceGame.value = name
   showMaintenance.value = true
 }
 function closeMaintenance() { showMaintenance.value = false }
+function closeVideoPopup() {
+  showVideoPopup.value = false
+  try {
+    window.sessionStorage.setItem(homeVideoStorageKey.value, '1')
+  } catch {
+    // no-op
+  }
+}
 
 function displayBalance(value: string | number | null | undefined) {
   return formatViMoney(value ?? 0, 0)
@@ -171,17 +181,9 @@ const allGames: GameItem[] = [
   ...thumbGames,
 ]
 
-const activePlayableGames = computed(() => allGames.filter(game => game.route))
-
 const filteredGames = computed(() => {
-  if (activeCategory.value === 'Phổ biến') {
-    return activePlayableGames.value
-  }
-
   return allGames.filter(g => g.category.includes(activeCategory.value))
 })
-
-const categoryBannerGames = computed(() => filteredGames.value.slice(0, 3))
 
 const supporterLogos = [
   { name: 'PIE.EXGLN', image: pieExglnLogo },
@@ -206,171 +208,100 @@ onMounted(() => {
   prefetchPlayRouteSoon()
   void wallet.fetchSummary()
   void fetchHomeContent()
+
+  try {
+    showVideoPopup.value = window.sessionStorage.getItem(homeVideoStorageKey.value) !== '1'
+  } catch {
+    showVideoPopup.value = true
+  }
 })
 </script>
 
 <template>
   <div class="pb-4">
-
-    <MarqueeBar />
-    <BannerCarousel :banners="homeBanners" />
-
-    <!-- ===== MAIN BODY: CATEGORY SIDEBAR + GAME BANNERS ===== -->
-    <div class="flex items-start gap-0 pb-1 pt-2.5 md:mx-3 md:mt-3 md:grid md:grid-cols-[124px_minmax(0,1fr)_300px] md:gap-4 md:rounded-[24px] md:bg-black/20 md:p-4 md:shadow-[0_16px_42px_rgba(0,0,0,0.3)] md:backdrop-blur-md md:border md:border-white/10">
-
-      <!-- Category Sidebar -->
-      <div
-        class="flex w-[68px] flex-shrink-0 flex-col justify-between self-stretch px-1 py-0.5 md:sticky md:top-4 md:w-full md:justify-start md:gap-2 md:rounded-[20px] md:bg-white/10 md:backdrop-blur-sm md:p-2 md:shadow-[0_10px_24px_rgba(0,0,0,0.2)]"
-      >
-        <button
-          v-for="cat in categorySidebar"
-          :key="cat.label"
-          type="button"
-          class="group relative flex flex-col items-center justify-center rounded-[12px] px-0.5 py-1 transition-all duration-200 md:flex-row md:justify-start md:gap-2.5 md:rounded-[14px] md:px-2.5 md:py-2.5"
-          :class="activeCategory === cat.label
-            ? 'bg-white shadow-[0_3px_12px_rgba(218,37,29,0.20)] ring-1 ring-red-500/20 md:bg-primary/90 md:backdrop-blur md:text-yellow-50 md:ring-1 md:ring-yellow-400/50 md:shadow-[0_4px_15px_rgba(255,204,0,0.25)]'
-            : 'bg-transparent md:hover:bg-white/15 text-slate-500 md:text-white/80'"
-          @click="activeCategory = cat.label"
-        >
-          <span
-            v-if="activeCategory === cat.label"
-            class="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary md:hidden"
-          />
-          <div
-            class="flex h-8 w-8 items-center justify-center transition-all duration-200 md:h-9 md:w-9 md:flex-shrink-0"
-            :class="activeCategory === cat.label ? 'scale-110' : 'scale-95 opacity-70 group-hover:scale-100 group-hover:opacity-90'"
-          >
-            <img :src="cat.icon" :alt="cat.label" class="w-full h-full object-contain" />
-          </div>
-          <span
-            class="mt-0.5 text-center text-[0.55rem] font-black uppercase leading-tight transition-colors md:mt-0 md:text-left md:text-[0.74rem] md:normal-case md:leading-4"
-            :class="activeCategory === cat.label ? 'text-primary md:text-white' : 'text-slate-500 md:text-white/80'"
-          >
-            {{ cat.label }}
-          </span>
-        </button>
+    <div class="bg-[linear-gradient(180deg,#fff1f1_0%,#fff7f7_18%,#ffffff_100%)] pb-4">
+      <div class="px-3 pt-2">
+        <MarqueeBar />
       </div>
 
-      <!-- Game Banners: 3 banners stacked -->
-      <div class="flex min-w-0 flex-1 flex-col gap-2 pl-1 pr-2 md:gap-3 md:p-0">
-        <component
-          :is="game.route ? RouterLink : 'button'"
-          v-for="(game, index) in categoryBannerGames"
-          :key="game.name"
-          v-bind="game.route ? { to: { path: game.route, query: { from: route.fullPath } } } : { type: 'button' }"
-          class="group relative block overflow-hidden rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.12)] transition-all duration-300 active:scale-[0.98] md:rounded-[20px] md:shadow-[0_12px_26px_rgba(15,23,42,0.12)] md:hover:-translate-y-0.5"
-          @pointerenter="maybePrefetchGameRoute(game)"
-          @focus="maybePrefetchGameRoute(game)"
-          @touchstart.passive="maybePrefetchGameRoute(game)"
-          @click="game.maintenance ? openMaintenance(game.name) : undefined"
-        >
-          <img
-            :src="game.image"
-            :alt="game.name"
-            class="block w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
-            :class="game.route ? 'aspect-[3/1] md:h-[156px] lg:h-[176px] xl:h-[190px]' : 'aspect-[2.55/1] md:h-[156px] lg:h-[176px] xl:h-[190px]'"
-            decoding="async"
-            :fetchpriority="index === 0 ? 'high' : 'low'"
-            :loading="index === 0 ? 'eager' : 'lazy'"
-          />
-          <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-          <div class="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 md:px-4 md:py-3">
-            <div>
-              <h4 class="text-[0.78rem] font-black tracking-wide text-white drop-shadow md:text-[1rem]">{{ game.name }}</h4>
-              <p class="text-[0.55rem] font-semibold text-white/70 md:text-[0.72rem]">
-                {{ game.maintenance ? 'Đang bảo trì' : 'Vào chơi ngay' }}
-              </p>
-            </div>
-            <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/20 backdrop-blur-md md:h-9 md:w-9">
-              <span class="material-symbols-outlined text-[0.9rem] text-white md:text-[1.1rem]">arrow_forward</span>
-            </div>
-          </div>
-        </component>
+      <div class="px-3 pt-2">
+        <div class="overflow-hidden rounded-[26px] border border-red-100 bg-white shadow-[0_10px_30px_rgba(218,37,29,0.14)]">
+          <BannerCarousel :banners="homeBanners" />
+        </div>
       </div>
 
-      <aside class="hidden min-w-0 flex-col gap-4 md:flex">
-        <div class="relative overflow-hidden rounded-[20px] bg-gradient-to-br from-red-700/80 via-red-600/80 to-red-800/80 p-4 text-white shadow-[0_12px_30px_rgba(0,0,0,0.3)] border border-red-400/30 backdrop-blur-md">
-          <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(255,204,0,0.15),transparent_32%)]" />
-          <div class="relative">
-            <p class="text-[0.7rem] font-black uppercase tracking-[0.12em] text-yellow-100/70">Số dư ví VND</p>
-            <strong class="mt-1 block break-words text-[1.55rem] font-black leading-tight text-yellow-400 drop-shadow-sm">
+      <section class="mx-3 mt-3 overflow-hidden rounded-[24px] bg-gradient-to-br from-red-700 via-primary to-red-800 p-4 text-white shadow-[0_14px_30px_rgba(218,37,29,0.3)]">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[0.68rem] font-black uppercase tracking-[0.14em] text-white/75">Số dư ví VND</p>
+            <strong class="mt-1 block break-words text-[1.55rem] font-black leading-tight text-white">
               {{ vndWallet ? displayBalance(vndWallet.balance) : '0' }}đ
             </strong>
-            <p class="mt-1 text-[0.72rem] font-semibold text-white/90">Chào {{ greetingName }}</p>
-            <div class="mt-4 grid grid-cols-2 gap-2">
-              <RouterLink
-                to="/account"
-                class="flex min-h-10 items-center justify-center gap-1 rounded-[12px] border border-white/35 bg-white/10 px-2 text-[0.75rem] font-black text-white transition-transform active:scale-95"
-              >
-                Rút tiền
-              </RouterLink>
-              <RouterLink
-                to="/deposit"
-                class="flex min-h-10 items-center justify-center gap-1 rounded-[12px] bg-gradient-to-r from-yellow-400 to-yellow-500 px-2 text-[0.75rem] font-black text-red-900 shadow-md transition-transform active:scale-95"
-              >
-                Nạp tiền
-              </RouterLink>
-            </div>
+            <p class="mt-1 text-[0.76rem] font-semibold text-white/85">Chào {{ greetingName }}</p>
           </div>
+          <button
+            type="button"
+            class="shrink-0 rounded-full border border-white/35 bg-white/12 px-3 py-2 text-[0.72rem] font-black text-white backdrop-blur"
+            @click="openTelegram()"
+          >
+            CSKH
+          </button>
         </div>
 
-        <div class="rounded-[20px] bg-white/10 backdrop-blur-md border border-white/15 p-4 shadow-[0_10px_24px_rgba(0,0,0,0.15)]">
-          <div class="flex items-center justify-between">
-            <p class="text-[0.8rem] font-black text-white/90">Danh mục đang xem</p>
-            <span class="rounded-full bg-yellow-400/20 px-2 py-1 text-[0.66rem] font-black text-yellow-300">{{ filteredGames.length }} trò</span>
-          </div>
-          <p class="mt-2 text-[1.25rem] font-black text-white">{{ activeCategory }}</p>
-        </div>
-      </aside>
-    </div>
-
-    <!-- ===== WALLET CARD ===== -->
-    <div class="relative mx-3 mt-2 overflow-hidden rounded-[20px] bg-gradient-to-br from-red-700 via-red-600 to-red-800 p-4 text-white shadow-[0_12px_30px_rgba(218,37,29,0.3)] border border-red-500/30 md:hidden">
-      <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(255,204,0,0.15),transparent_26%)]" />
-      <div class="relative">
-        <p class="text-[0.7rem] uppercase tracking-[0.12em] text-yellow-100/70">Số dư ví VND</p>
-        <strong class="mt-1 block text-[1.6rem] font-black text-yellow-400 drop-shadow-sm">
-          {{ vndWallet ? displayBalance(vndWallet.balance) : '0' }}đ
-        </strong>
-        <p class="text-[0.68rem] text-white/90 mt-0.5">Chào {{ greetingName }} 👋</p>
-        <div class="mt-3 grid grid-cols-2 gap-2">
+        <div class="mt-4 grid grid-cols-2 gap-2.5">
           <RouterLink
             to="/account"
-            class="flex items-center justify-center gap-1.5 rounded-full border-2 border-white/40 bg-white/10 py-2.5 text-[0.82rem] font-black text-white active:scale-95 transition-transform"
+            class="flex min-h-12 items-center justify-center rounded-[14px] bg-white/90 px-3 text-[0.9rem] font-black text-primary shadow-[inset_0_-3px_0_rgba(218,37,29,0.12)] transition-transform active:scale-95"
           >
-            <span class="material-symbols-outlined text-[1rem]">account_balance</span>
             Rút tiền
           </RouterLink>
           <RouterLink
             to="/deposit"
-            class="flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 py-2.5 text-[0.82rem] font-black text-red-900 shadow-[0_4px_12px_rgba(255,204,0,0.3)] active:scale-95 transition-transform"
+            class="flex min-h-12 items-center justify-center rounded-[14px] bg-gradient-to-r from-[#ff6d66] to-primary px-3 text-[0.9rem] font-black text-white shadow-[inset_0_-3px_0_rgba(0,0,0,0.12)] transition-transform active:scale-95"
           >
-            <span class="material-symbols-outlined text-[1rem]">add_circle</span>
             Nạp tiền
           </RouterLink>
         </div>
-      </div>
+      </section>
+
+      <section class="mx-3 mt-3 overflow-hidden rounded-[24px] bg-gradient-to-br from-[#ff6e67] via-primary to-[#e73d47] shadow-[0_14px_28px_rgba(218,37,29,0.2)]">
+        <div class="grid grid-cols-4 gap-px bg-white/15">
+          <button
+            v-for="cat in categorySidebar"
+            :key="cat.label"
+            type="button"
+            class="group flex min-h-[86px] flex-col items-center justify-center gap-1.5 px-1 py-3 text-center transition-colors"
+            :class="activeCategory === cat.label ? 'bg-[#c92633] text-white' : 'bg-transparent text-white/88'"
+            @click="activeCategory = cat.label"
+          >
+            <div
+              class="flex h-9 w-9 items-center justify-center rounded-full bg-white/12 transition-transform duration-200"
+              :class="activeCategory === cat.label ? 'scale-110 bg-white/18' : 'group-active:scale-95'"
+            >
+              <img :src="cat.icon" :alt="cat.label" class="h-7 w-7 object-contain" />
+            </div>
+            <span class="text-[0.68rem] font-black leading-4">{{ cat.label }}</span>
+          </button>
+        </div>
+      </section>
     </div>
 
-    <!-- ===== GAME GRID (filtered by active category) ===== -->
-    <div class="mt-4 px-3 md:mt-5">
-      <!-- Section header -->
-      <div class="flex items-center justify-between mb-3 md:bg-black/20 md:backdrop-blur-sm md:px-4 md:py-2.5 md:rounded-[14px] md:border md:border-white/10">
+    <section class="mt-4 px-3">
+      <div class="mb-3 flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <span class="w-1 h-5 rounded-full bg-primary md:bg-yellow-400 block" />
-          <h2 class="text-[0.92rem] font-black text-on-surface md:text-white">{{ activeCategory }}</h2>
+          <span class="block h-5 w-1 rounded-full bg-primary" />
+          <h2 class="text-[0.98rem] font-black text-slate-800">{{ activeCategory }}</h2>
         </div>
-        <span class="text-[0.72rem] font-bold text-slate-400 md:text-white/70">{{ filteredGames.length }} trò chơi</span>
+        <span class="rounded-full bg-red-50 px-2.5 py-1 text-[0.68rem] font-black text-primary">{{ filteredGames.length }} trò chơi</span>
       </div>
 
-      <!-- 2-column grid -->
-      <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+      <div class="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
         <component
           :is="game.route ? RouterLink : 'button'"
           v-for="game in filteredGames"
           :key="game.name"
           v-bind="game.route ? { to: { path: game.route, query: { from: route.fullPath } } } : { type: 'button' }"
-          class="group relative block w-full overflow-hidden rounded-[16px] text-left shadow-[0_4px_14px_rgba(0,0,0,0.10)] transition-all duration-200 active:scale-[0.97] md:rounded-[18px] md:hover:-translate-y-0.5 md:hover:shadow-[0_14px_26px_rgba(15,23,42,0.12)]"
+          class="group relative block overflow-hidden rounded-[18px] border border-red-100 bg-[#ffe3e1] text-left shadow-[0_10px_22px_rgba(218,37,29,0.12)] transition-transform duration-200 active:scale-[0.97] md:hover:-translate-y-0.5"
           @pointerenter="maybePrefetchGameRoute(game)"
           @focus="maybePrefetchGameRoute(game)"
           @touchstart.passive="maybePrefetchGameRoute(game)"
@@ -379,30 +310,26 @@ onMounted(() => {
           <img
             :src="game.image"
             :alt="game.name"
-            class="w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-            :class="game.route ? 'aspect-[3/1] md:aspect-[3/1]' : 'aspect-[4/3] md:aspect-[4/3]'"
+            class="aspect-[0.82] w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
             loading="lazy"
             decoding="async"
           />
-          <!-- Overlay -->
-          <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-          <!-- Maintenance badge -->
+          <div class="absolute inset-0 bg-gradient-to-t from-primary/90 via-transparent to-transparent" />
           <div
             v-if="game.maintenance"
-            class="absolute top-2 right-2 bg-amber-500/90 backdrop-blur-sm text-white text-[0.5rem] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+            class="absolute right-2 top-2 rounded-full bg-[#ff5f5f] px-1.5 py-0.5 text-[0.5rem] font-black uppercase tracking-[0.08em] text-white shadow"
           >
-            Bảo trì
+            HOT
           </div>
-          <!-- Game name -->
-          <div class="absolute bottom-0 left-0 right-0 px-2.5 py-2">
-            <p class="text-white text-[0.75rem] font-black drop-shadow line-clamp-1">{{ game.name }}</p>
-            <p class="text-white/60 text-[0.55rem] font-semibold">
-              {{ game.maintenance ? 'Đang bảo trì' : 'Vào chơi ngay →' }}
+          <div class="absolute bottom-0 left-0 right-0 px-2 py-2.5">
+            <p class="line-clamp-2 text-[0.76rem] font-black uppercase tracking-[0.03em] text-white drop-shadow">{{ game.name }}</p>
+            <p class="mt-0.5 text-[0.54rem] font-semibold text-white/75">
+              {{ game.maintenance ? 'Đang bảo trì' : 'Vào chơi ngay' }}
             </p>
           </div>
         </component>
       </div>
-    </div>
+    </section>
 
     <!-- ===== NEWS HIGHLIGHTS ===== -->
     <div class="mx-3 mt-4 mb-2 overflow-hidden rounded-[20px] bg-white/90 md:bg-black/30 md:backdrop-blur-md shadow-[0_8px_18px_rgba(0,0,0,0.1)] border border-slate-100 md:border-white/10">
@@ -505,6 +432,33 @@ onMounted(() => {
 
     <!-- ===== MAINTENANCE MODAL ===== -->
     <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="showVideoPopup"
+          class="fixed inset-0 z-[96] grid place-items-center bg-black/70 px-4 backdrop-blur-sm"
+          @click.self="closeVideoPopup"
+        >
+          <div class="relative w-full max-w-[380px] overflow-hidden rounded-[24px] bg-black shadow-[0_24px_60px_rgba(0,0,0,0.35)] ring-1 ring-white/10">
+            <button
+              type="button"
+              class="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition-transform active:scale-95"
+              @click="closeVideoPopup"
+            >
+              <span class="material-symbols-outlined text-[1.1rem]">close</span>
+            </button>
+            <video
+              class="block aspect-[9/16] w-full bg-black object-cover"
+              src="/bg.mp4"
+              autoplay
+              muted
+              loop
+              playsinline
+              controls
+            />
+          </div>
+        </div>
+      </Transition>
+
       <Transition name="fade">
         <div
           v-if="showMaintenance"
