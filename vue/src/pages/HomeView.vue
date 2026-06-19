@@ -51,12 +51,50 @@ const contentError = ref('')
 const showMaintenance = ref(false)
 const maintenanceGame = ref('')
 const showVideoPopup = ref(false)
+const homeVideoReady = ref(false)
+const homeVideoError = ref(false)
 const homeVideoStorageKey = computed(() => `fh88u:home-video-dismissed:${auth.user?.id ?? 0}`)
 function openMaintenance(name: string) {
   maintenanceGame.value = name
   showMaintenance.value = true
 }
 function closeMaintenance() { showMaintenance.value = false }
+function markHomeVideoReady() {
+  homeVideoReady.value = true
+  homeVideoError.value = false
+}
+function markHomeVideoError() {
+  homeVideoError.value = true
+}
+function primeHomeVideoLoad() {
+  homeVideoReady.value = false
+  homeVideoError.value = false
+
+  const preloader = document.createElement('video')
+  preloader.preload = 'auto'
+  preloader.muted = true
+  preloader.playsInline = true
+  preloader.src = '/bg.mp4'
+
+  const cleanup = () => {
+    preloader.removeEventListener('loadeddata', handleReady)
+    preloader.removeEventListener('canplay', handleReady)
+    preloader.removeEventListener('error', handleError)
+  }
+  const handleReady = () => {
+    cleanup()
+    markHomeVideoReady()
+  }
+  const handleError = () => {
+    cleanup()
+    markHomeVideoError()
+  }
+
+  preloader.addEventListener('loadeddata', handleReady, { once: true })
+  preloader.addEventListener('canplay', handleReady, { once: true })
+  preloader.addEventListener('error', handleError, { once: true })
+  preloader.load()
+}
 function closeVideoPopup() {
   showVideoPopup.value = false
   try {
@@ -213,6 +251,10 @@ onMounted(() => {
     showVideoPopup.value = window.sessionStorage.getItem(homeVideoStorageKey.value) !== '1'
   } catch {
     showVideoPopup.value = true
+  }
+
+  if (showVideoPopup.value) {
+    primeHomeVideoLoad()
   }
 })
 </script>
@@ -446,15 +488,38 @@ onMounted(() => {
             >
               <span class="material-symbols-outlined text-[1.1rem]">close</span>
             </button>
-            <video
-              class="block aspect-[9/16] w-full bg-black object-cover"
-              src="/bg.mp4"
-              autoplay
-              muted
-              loop
-              playsinline
-              controls
-            />
+            <div class="relative aspect-[9/16] w-full overflow-hidden bg-[radial-gradient(circle_at_top,#2a0f15_0%,#130609_58%,#050203_100%)]">
+              <video
+                class="h-full w-full object-cover"
+                :class="homeVideoReady ? 'opacity-100' : 'opacity-0'"
+                src="/bg.mp4"
+                preload="auto"
+                autoplay
+                muted
+                loop
+                playsinline
+                controls
+                @loadeddata="markHomeVideoReady"
+                @canplay="markHomeVideoReady"
+                @error="markHomeVideoError"
+              />
+              <div
+                v-if="!homeVideoReady && !homeVideoError"
+                class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/25 px-6 text-center text-white"
+              >
+                <div class="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white"></div>
+                <p class="text-[0.82rem] font-black uppercase tracking-[0.08em]">Đang tải video</p>
+                <p class="text-[0.72rem] font-semibold text-white/70">Video nền dung lượng lớn nên có thể mất vài giây để hiển thị.</p>
+              </div>
+              <div
+                v-if="homeVideoError"
+                class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/35 px-6 text-center text-white"
+              >
+                <span class="material-symbols-outlined text-[2rem] text-white/80">broken_image</span>
+                <p class="text-[0.86rem] font-black">Không thể tải video</p>
+                <p class="text-[0.72rem] font-semibold text-white/70">Vui lòng đóng popup và thử lại sau.</p>
+              </div>
+            </div>
           </div>
         </div>
       </Transition>
