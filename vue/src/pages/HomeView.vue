@@ -77,7 +77,6 @@ let playRoutePrefetched = false
 type IdleScheduler = (callback: () => void, options?: { timeout?: number }) => number
 
 const categorySidebar = [
-  { label: 'Phổ biến', icon: catHot },
   { label: 'Xổ số', icon: catLottery },
   { label: 'Casino', icon: catCasino },
   { label: 'Nổ hũ', icon: catJackpot },
