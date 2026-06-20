@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { RouterLink } from 'vue-router'
 
@@ -9,7 +9,7 @@ import aceForcesLogo from '@/assets/supporter/aceforces.jpg'
 import macjbeliLogo from '@/assets/supporter/macjbeli.jpg'
 import pieExglnLogo from '@/assets/supporter/pie.exgln.png'
 import { request } from '@/shared/api/http'
-import type { ContentBannerItem, ContentHomeResponse, ContentNewsItem } from '@/shared/api/types'
+import type { ContentBannerItem, ContentHomeResponse, ContentNewsItem, FakeFinanceFeedItem, FakeFinanceFeedResponse } from '@/shared/api/types'
 import { stripHtmlTags } from '@/shared/lib/html'
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
@@ -47,97 +47,18 @@ const vndWallet = computed(() => wallet.wallets.find((item) => item.unit === 1) 
 const homeBanners = ref<ContentBannerItem[]>([])
 const homeHighlights = ref<ContentNewsItem[]>([])
 const contentError = ref('')
+const fakeDepositFeed = ref<FakeFinanceFeedItem[]>([])
+const fakeWithdrawFeed = ref<FakeFinanceFeedItem[]>([])
+let fakeFinancePollTicker: number | undefined
 
 // Maintenance modal
 const showMaintenance = ref(false)
 const maintenanceGame = ref('')
-const showVideoPopup = ref(false)
-const homeVideoElement = ref<HTMLVideoElement | null>(null)
-const homeVideoReady = ref(false)
-const homeVideoError = ref(false)
-const homeVideoMuted = ref(true)
-const homeVideoNeedsAudioUnlock = ref(false)
-const homeVideoStorageKey = computed(() => `fh88u:home-video-dismissed:${auth.user?.id ?? 0}`)
 function openMaintenance(name: string) {
   maintenanceGame.value = name
   showMaintenance.value = true
 }
 function closeMaintenance() { showMaintenance.value = false }
-function markHomeVideoReady() {
-  homeVideoReady.value = true
-  homeVideoError.value = false
-}
-function markHomeVideoError() {
-  homeVideoError.value = true
-}
-async function playHomeVideoWithSound() {
-  const video = homeVideoElement.value
-  if (!video) return
-
-  homeVideoNeedsAudioUnlock.value = false
-  homeVideoMuted.value = false
-  video.muted = false
-  video.volume = 1
-
-  try {
-    await video.play()
-  } catch {
-    homeVideoMuted.value = true
-    video.muted = true
-    homeVideoNeedsAudioUnlock.value = true
-
-    try {
-      await video.play()
-    } catch {
-      // no-op
-    }
-  }
-}
-function handleHomeVideoReady() {
-  if (!homeVideoReady.value) {
-    markHomeVideoReady()
-  }
-  void playHomeVideoWithSound()
-}
-function primeHomeVideoLoad() {
-  homeVideoReady.value = false
-  homeVideoError.value = false
-  homeVideoMuted.value = true
-  homeVideoNeedsAudioUnlock.value = false
-
-  const preloader = document.createElement('video')
-  preloader.preload = 'auto'
-  preloader.muted = true
-  preloader.playsInline = true
-  preloader.src = popupVideoUrl
-
-  const cleanup = () => {
-    preloader.removeEventListener('loadeddata', handleReady)
-    preloader.removeEventListener('canplay', handleReady)
-    preloader.removeEventListener('error', handleError)
-  }
-  const handleReady = () => {
-    cleanup()
-    markHomeVideoReady()
-  }
-  const handleError = () => {
-    cleanup()
-    markHomeVideoError()
-  }
-
-  preloader.addEventListener('loadeddata', handleReady, { once: true })
-  preloader.addEventListener('canplay', handleReady, { once: true })
-  preloader.addEventListener('error', handleError, { once: true })
-  preloader.load()
-}
-function closeVideoPopup() {
-  showVideoPopup.value = false
-  try {
-    window.sessionStorage.setItem(homeVideoStorageKey.value, '1')
-  } catch {
-    // no-op
-  }
-}
 
 function displayBalance(value: string | number | null | undefined) {
   return formatViMoney(value ?? 0, 0)
@@ -254,8 +175,26 @@ const allGames: GameItem[] = [
   ...thumbGames,
 ]
 
+const activePlayableGames = computed(() => allGames.filter(game => game.route))
+
 const filteredGames = computed(() => {
+  if (activeCategory.value === 'Phổ biến') {
+    return activePlayableGames.value
+  }
+
   return allGames.filter(g => g.category.includes(activeCategory.value))
+})
+
+const categoryBannerGames = computed(() => filteredGames.value.slice(0, 3))
+
+const combinedFakeFinanceFeed = computed(() => {
+  return [...fakeDepositFeed.value, ...fakeWithdrawFeed.value]
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.created_at ?? '')
+      const rightTime = Date.parse(right.created_at ?? '')
+      return rightTime - leftTime
+    })
+    .slice(0, 12)
 })
 
 const supporterLogos = [
@@ -277,20 +216,54 @@ async function fetchHomeContent() {
   }
 }
 
+async function refreshFakeFinanceFeed() {
+  try {
+    const [depositResponse, withdrawResponse] = await Promise.all([
+      request<FakeFinanceFeedResponse>('GET', '/v1/finance-feed/deposit?limit=6'),
+      request<FakeFinanceFeedResponse>('GET', '/v1/finance-feed/withdraw?limit=6'),
+    ])
+    fakeDepositFeed.value = depositResponse.items ?? []
+    fakeWithdrawFeed.value = withdrawResponse.items ?? []
+  } catch {
+    fakeDepositFeed.value = []
+    fakeWithdrawFeed.value = []
+  }
+}
+
+function stopFakeFinancePolling() {
+  if (fakeFinancePollTicker) {
+    window.clearInterval(fakeFinancePollTicker)
+    fakeFinancePollTicker = undefined
+  }
+}
+
+function startFakeFinancePolling() {
+  stopFakeFinancePolling()
+  fakeFinancePollTicker = window.setInterval(() => {
+    void refreshFakeFinanceFeed()
+  }, 5000)
+}
+
+function fakeFinanceChannelLabel(item: FakeFinanceFeedItem) {
+  return item.channel === 'withdraw' ? 'Rút' : 'Nạp'
+}
+
+function fakeFinanceChannelClass(item: FakeFinanceFeedItem) {
+  return item.channel === 'withdraw'
+    ? 'bg-amber-100 text-amber-700'
+    : 'bg-emerald-100 text-emerald-700'
+}
+
 onMounted(() => {
   prefetchPlayRouteSoon()
   void wallet.fetchSummary()
   void fetchHomeContent()
+  void refreshFakeFinanceFeed()
+  startFakeFinancePolling()
+})
 
-  try {
-    showVideoPopup.value = window.sessionStorage.getItem(homeVideoStorageKey.value) !== '1'
-  } catch {
-    showVideoPopup.value = true
-  }
-
-  if (showVideoPopup.value) {
-    primeHomeVideoLoad()
-  }
+onBeforeUnmount(() => {
+  stopFakeFinancePolling()
 })
 </script>
 
@@ -364,21 +337,13 @@ onMounted(() => {
     </div>
 
     <section class="mt-4 px-3">
-      <div class="mb-3 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="block h-5 w-1 rounded-full bg-primary" />
-          <h2 class="text-[0.98rem] font-black text-slate-800">{{ activeCategory }}</h2>
-        </div>
-        <span class="rounded-full bg-red-50 px-2.5 py-1 text-[0.68rem] font-black text-primary">{{ filteredGames.length }} trò chơi</span>
-      </div>
-
-      <div class="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+      <div class="flex min-w-0 flex-col gap-2">
         <component
           :is="game.route ? RouterLink : 'button'"
-          v-for="game in filteredGames"
-          :key="game.name"
+          v-for="(game, index) in categoryBannerGames"
+          :key="`${game.name}-banner`"
           v-bind="game.route ? { to: { path: game.route, query: { from: route.fullPath } } } : { type: 'button' }"
-          class="group relative block overflow-hidden rounded-[18px] border border-red-100 bg-[#ffe3e1] text-left shadow-[0_10px_22px_rgba(218,37,29,0.12)] transition-transform duration-200 active:scale-[0.97] md:hover:-translate-y-0.5"
+          class="group relative block overflow-hidden rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.12)] transition-all duration-300 active:scale-[0.98]"
           @pointerenter="maybePrefetchGameRoute(game)"
           @focus="maybePrefetchGameRoute(game)"
           @touchstart.passive="maybePrefetchGameRoute(game)"
@@ -387,24 +352,125 @@ onMounted(() => {
           <img
             :src="game.image"
             :alt="game.name"
-            class="aspect-[0.82] w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            class="block w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+            :class="game.route ? 'aspect-[3/1]' : 'aspect-[2.55/1]'"
+            decoding="async"
+            :fetchpriority="index === 0 ? 'high' : 'low'"
+            :loading="index === 0 ? 'eager' : 'lazy'"
+          />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+          <div class="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2">
+            <div>
+              <h4 class="text-[0.78rem] font-black tracking-wide text-white drop-shadow">{{ game.name }}</h4>
+              <p class="text-[0.55rem] font-semibold text-white/70">
+                {{ game.maintenance ? 'Đang bảo trì' : 'Vào chơi ngay' }}
+              </p>
+            </div>
+            <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/20 backdrop-blur-md">
+              <span class="material-symbols-outlined text-[0.9rem] text-white">arrow_forward</span>
+            </div>
+          </div>
+        </component>
+      </div>
+    </section>
+
+    <section class="mt-4 px-3">
+      <div class="mb-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="block h-5 w-1 rounded-full bg-primary" />
+          <h2 class="text-[0.98rem] font-black text-slate-800">{{ activeCategory }}</h2>
+        </div>
+        <span class="rounded-full bg-red-50 px-2.5 py-1 text-[0.68rem] font-black text-primary">{{ filteredGames.length }} trò chơi</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+        <component
+          :is="game.route ? RouterLink : 'button'"
+          v-for="game in filteredGames"
+          :key="game.name"
+          v-bind="game.route ? { to: { path: game.route, query: { from: route.fullPath } } } : { type: 'button' }"
+          class="group relative block w-full overflow-hidden rounded-[16px] text-left shadow-[0_4px_14px_rgba(0,0,0,0.10)] transition-all duration-200 active:scale-[0.97]"
+          @pointerenter="maybePrefetchGameRoute(game)"
+          @focus="maybePrefetchGameRoute(game)"
+          @touchstart.passive="maybePrefetchGameRoute(game)"
+          @click="game.maintenance ? openMaintenance(game.name) : undefined"
+        >
+          <img
+            :src="game.image"
+            :alt="game.name"
+            class="w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            :class="game.route ? 'aspect-[3/1]' : 'aspect-[4/3]'"
             loading="lazy"
             decoding="async"
           />
-          <div class="absolute inset-0 bg-gradient-to-t from-primary/90 via-transparent to-transparent" />
-          <div
-            v-if="game.maintenance"
-            class="absolute right-2 top-2 rounded-full bg-[#ff5f5f] px-1.5 py-0.5 text-[0.5rem] font-black uppercase tracking-[0.08em] text-white shadow"
-          >
-            HOT
-          </div>
+          <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
           <div class="absolute bottom-0 left-0 right-0 px-2 py-2.5">
-            <p class="line-clamp-2 text-[0.76rem] font-black uppercase tracking-[0.03em] text-white drop-shadow">{{ game.name }}</p>
-            <p class="mt-0.5 text-[0.54rem] font-semibold text-white/75">
+            <p class="line-clamp-1 text-[0.75rem] font-black text-white drop-shadow">{{ game.name }}</p>
+            <p class="mt-0.5 text-[0.55rem] font-semibold text-white/60">
               {{ game.maintenance ? 'Đang bảo trì' : 'Vào chơi ngay' }}
             </p>
           </div>
         </component>
+      </div>
+    </section>
+
+    <section class="mx-3 mt-4 overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
+      <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
+        <h2 class="m-0 text-[0.92rem] font-black text-on-surface">Giao dịch gần đây</h2>
+        <button
+          type="button"
+          class="text-[0.68rem] font-black uppercase tracking-[0.06em] text-primary"
+          @click="void refreshFakeFinanceFeed()"
+        >
+          Làm mới
+        </button>
+      </div>
+      <div v-if="combinedFakeFinanceFeed.length === 0" class="px-4 py-6 text-center text-[0.78rem] font-semibold text-slate-400">
+        Chưa có dữ liệu giao dịch
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="min-w-full text-left">
+          <thead class="bg-slate-50 text-[0.68rem] uppercase tracking-[0.06em] text-slate-500">
+            <tr>
+              <th class="px-4 py-3 font-black">Loại</th>
+              <th class="px-4 py-3 font-black">Mã</th>
+              <th class="px-4 py-3 font-black">Số điện thoại</th>
+              <th class="px-4 py-3 font-black">Trạng thái</th>
+              <th class="px-4 py-3 font-black">Thời gian</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 text-[0.78rem] text-slate-700">
+            <tr v-for="item in combinedFakeFinanceFeed" :key="`${item.channel}-${item.id}`">
+              <td class="px-4 py-3">
+                <span class="rounded-full px-2.5 py-1 text-[0.66rem] font-black uppercase" :class="fakeFinanceChannelClass(item)">
+                  {{ fakeFinanceChannelLabel(item) }}
+                </span>
+              </td>
+              <td class="px-4 py-3 font-black text-slate-800">{{ item.masked_code }}</td>
+              <td class="px-4 py-3 font-semibold text-slate-500">{{ item.masked_phone }}</td>
+              <td class="px-4 py-3 font-bold text-emerald-600">{{ item.status_label }}</td>
+              <td class="px-4 py-3 font-medium text-slate-400">{{ item.created_at }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mx-3 mt-4 overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
+      <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
+        <h2 class="m-0 text-[0.92rem] font-black text-on-surface">Video giới thiệu</h2>
+        <span class="text-[0.68rem] font-bold uppercase tracking-[0.06em] text-slate-400">Phát thủ công</span>
+      </div>
+      <div class="p-3">
+        <div class="overflow-hidden rounded-[16px] bg-black shadow-[0_10px_24px_rgba(0,0,0,0.22)]">
+          <video
+            class="aspect-video w-full bg-black object-cover"
+            :src="popupVideoUrl"
+            preload="metadata"
+            playsinline
+            controls
+          />
+        </div>
       </div>
     </section>
 
@@ -507,70 +573,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <!-- ===== MAINTENANCE MODAL ===== -->
     <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showVideoPopup"
-          class="fixed inset-0 z-[96] grid place-items-center bg-black/70 px-4 backdrop-blur-sm"
-          @click.self="closeVideoPopup"
-        >
-          <div class="relative w-full max-w-[min(92vw,760px)] overflow-hidden rounded-[24px] bg-black shadow-[0_24px_60px_rgba(0,0,0,0.35)] ring-1 ring-white/10">
-            <button
-              type="button"
-              class="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition-transform active:scale-95"
-              @click="closeVideoPopup"
-            >
-              <span class="material-symbols-outlined text-[1.1rem]">close</span>
-            </button>
-            <div class="relative aspect-[16/10] w-full overflow-hidden bg-[radial-gradient(circle_at_top,#2a0f15_0%,#130609_58%,#050203_100%)] sm:aspect-[16/9]">
-              <video
-                ref="homeVideoElement"
-                class="h-full w-full object-cover"
-                :class="homeVideoReady ? 'opacity-100' : 'opacity-0'"
-                :src="popupVideoUrl"
-                preload="auto"
-                autoplay
-                :muted="homeVideoMuted"
-                loop
-                playsinline
-                controls
-                @loadeddata="handleHomeVideoReady"
-                @canplay="handleHomeVideoReady"
-                @error="markHomeVideoError"
-              />
-              <div
-                v-if="!homeVideoReady && !homeVideoError"
-                class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/25 px-6 text-center text-white"
-              >
-                <div class="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white"></div>
-                <p class="text-[0.82rem] font-black uppercase tracking-[0.08em]">Đang tải video</p>
-              </div>
-              <div
-                v-if="homeVideoReady && homeVideoNeedsAudioUnlock && !homeVideoError"
-                class="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pb-4 pt-10"
-              >
-                <button
-                  type="button"
-                  class="rounded-full bg-white/90 px-4 py-2 text-[0.78rem] font-black text-primary shadow-[0_10px_24px_rgba(0,0,0,0.24)] transition-transform active:scale-95"
-                  @click="playHomeVideoWithSound"
-                >
-                  Bật âm thanh
-                </button>
-              </div>
-              <div
-                v-if="homeVideoError"
-                class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/35 px-6 text-center text-white"
-              >
-                <span class="material-symbols-outlined text-[2rem] text-white/80">broken_image</span>
-                <p class="text-[0.86rem] font-black">Không thể tải video</p>
-                <p class="text-[0.72rem] font-semibold text-white/70">Vui lòng đóng popup và thử lại sau.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
       <Transition name="fade">
         <div
           v-if="showMaintenance"

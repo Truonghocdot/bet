@@ -466,44 +466,6 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
       </section>
     </transition>
 
-    <section class="rounded-[22px] bg-white p-5 shadow-[0_8px_20px_rgba(255,109,102,0.06)]">
-      <div class="mb-4 flex items-center justify-between">
-        <h2 class="m-0 text-base font-black text-primary">Giao dịch rút gần đây</h2>
-        <button
-          type="button"
-          class="text-xs font-bold uppercase tracking-[0.06em] text-primary"
-          @click="() => refreshFakeWithdrawFeed()"
-        >
-          Làm mới
-        </button>
-      </div>
-
-      <div v-if="fakeWithdrawFeed.length === 0" class="py-8 text-center">
-        <p class="m-0 text-xs font-bold text-slate-300">Chưa có dữ liệu giao dịch rút</p>
-      </div>
-
-      <div v-else class="space-y-3">
-        <div
-          v-for="item in fakeWithdrawFeed"
-          :key="item.id"
-          class="flex items-center justify-between gap-3 rounded-[18px] border border-slate-100 bg-slate-50 p-3"
-        >
-          <div class="min-w-0">
-            <p class="m-0 text-[0.8rem] font-black text-slate-700">{{ item.masked_code }}</p>
-            <p class="m-0 mt-1 text-[0.72rem] font-semibold text-slate-500">{{ item.masked_phone }}</p>
-          </div>
-          <div class="text-right">
-            <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[0.66rem] font-black uppercase text-emerald-600">
-              {{ item.status_label }}
-            </span>
-            <p class="m-0 mt-1 text-[0.64rem] font-medium text-slate-400">
-              {{ item.created_at?.split(' ')[0] || '---' }} {{ item.created_at?.split(' ')[1]?.slice(0, 5) || '' }}
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- LỊCH SỬ RÚT TIỀN -->
     <section
       id="withdraw-history"
