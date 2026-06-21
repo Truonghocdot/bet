@@ -30,6 +30,10 @@ type MarqueeDisplay struct {
 	Messages []string `json:"messages"`
 }
 
+type FakeFinanceFeedDisplay struct {
+	Enabled bool `json:"enabled"`
+}
+
 type PopupDisplay struct {
 	Message    *string `json:"message,omitempty"`
 	LatestNews *string `json:"latest_news,omitempty"`
@@ -40,6 +44,7 @@ type WalletSummaryResponse struct {
 	ExchangeRate     string                `json:"exchange_rate"`
 	TelegramCskhLink string                `json:"telegram_cskh_link,omitempty"`
 	Marquee          MarqueeDisplay        `json:"marquee"`
+	FakeFinanceFeed  FakeFinanceFeedDisplay `json:"fake_finance_feed"`
 	Popup            PopupDisplay          `json:"popup"`
 	WithdrawPolicy   WithdrawPolicyDisplay `json:"withdraw_policy"`
 	Wallets          []WalletBalance       `json:"wallets"`

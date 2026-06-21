@@ -145,6 +145,8 @@ class ExchangeRatePageForm
                 ->schema([
                     Toggle::make('marquee_enabled')
                         ->label('Bật marquee trên app'),
+                    Toggle::make('fake_finance_feed_enabled')
+                        ->label('Bật bảng giao dịch fake ở trang chủ'),
                     Textarea::make('marquee_messages')
                         ->label('Danh sách thông báo')
                         ->rows(6)

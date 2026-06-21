@@ -80,6 +80,9 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 			Enabled:  snapshot.MarqueeEnabled != nil && *snapshot.MarqueeEnabled,
 			Messages: snapshot.MarqueeMessages,
 		},
+		FakeFinanceFeed: wallet.FakeFinanceFeedDisplay{
+			Enabled: snapshot.FakeFinanceFeedEnabled != nil && *snapshot.FakeFinanceFeedEnabled,
+		},
 		Popup: wallet.PopupDisplay{
 			Message:    stringPtrOrNil(snapshot.PopupMessage),
 			LatestNews: stringPtrOrNil(snapshot.LatestNewsPopup),
@@ -171,6 +174,7 @@ type systemSnapshot struct {
 	Rate                  string   `json:"rate"`
 	TelegramCskhLink      string   `json:"telegram_cskh_link"`
 	MarqueeEnabled        *bool    `json:"marquee_enabled"`
+	FakeFinanceFeedEnabled *bool   `json:"fake_finance_feed_enabled"`
 	MarqueeMessages       []string `json:"marquee_messages_list"`
 	PopupMessage          string   `json:"popup_message"`
 	LatestNewsPopup       string   `json:"latest_news_popup"`
@@ -187,6 +191,7 @@ func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
 	defaultSnap := systemSnapshot{
 		Rate:           fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault),
 		MarqueeEnabled: &defaultEnabled,
+		FakeFinanceFeedEnabled: &defaultEnabled,
 		MarqueeMessages: []string{
 			"Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.",
 			"Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!",
@@ -215,6 +220,9 @@ func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
 	}
 	if snapshot.MarqueeEnabled == nil {
 		snapshot.MarqueeEnabled = defaultSnap.MarqueeEnabled
+	}
+	if snapshot.FakeFinanceFeedEnabled == nil {
+		snapshot.FakeFinanceFeedEnabled = defaultSnap.FakeFinanceFeedEnabled
 	}
 	if len(snapshot.MarqueeMessages) == 0 {
 		snapshot.MarqueeMessages = defaultSnap.MarqueeMessages

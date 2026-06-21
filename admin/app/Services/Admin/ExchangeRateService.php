@@ -36,6 +36,7 @@ class ExchangeRateService
                 'auto_sync' => true,
                 'source_name' => 'seed',
                 'marquee_enabled' => true,
+                'fake_finance_feed_enabled' => true,
                 'marquee_messages' => implode("\n", [
                     'Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.',
                     'Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!',
@@ -71,6 +72,7 @@ class ExchangeRateService
                 'nowpayments_sandbox' => (bool) ($data['nowpayments_sandbox'] ?? false),
                 'telegram_cskh_link' => $data['telegram_cskh_link'] ?? null,
                 'marquee_enabled' => (bool) ($data['marquee_enabled'] ?? true),
+                'fake_finance_feed_enabled' => (bool) ($data['fake_finance_feed_enabled'] ?? true),
                 'marquee_messages' => $this->normalizeMarqueeMessages($data['marquee_messages'] ?? null),
                 'popup_message' => $this->normalizePopupText($data['popup_message'] ?? null),
                 'latest_news_popup' => $this->normalizePopupText($data['latest_news_popup'] ?? null),
@@ -222,6 +224,7 @@ class ExchangeRateService
             'nowpayments_sandbox' => (bool) $setting->nowpayments_sandbox,
             'telegram_cskh_link' => $setting->telegram_cskh_link,
             'marquee_enabled' => (bool) ($setting->marquee_enabled ?? true),
+            'fake_finance_feed_enabled' => (bool) ($setting->fake_finance_feed_enabled ?? true),
             'marquee_messages' => $setting->marquee_messages,
             'marquee_messages_list' => $this->parseMarqueeMessages($setting->marquee_messages),
             'popup_message' => $setting->popup_message,

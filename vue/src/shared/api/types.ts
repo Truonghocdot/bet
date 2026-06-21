@@ -407,6 +407,10 @@ export type MarqueeDisplay = {
   messages: string[]
 }
 
+export type FakeFinanceFeedDisplay = {
+  enabled: boolean
+}
+
 export type PopupDisplay = {
   message?: string | null
   latest_news?: string | null
@@ -417,6 +421,7 @@ export type WalletSummaryResponse = {
   exchange_rate: string
   telegram_cskh_link?: string | null
   marquee?: MarqueeDisplay
+  fake_finance_feed?: FakeFinanceFeedDisplay
   popup?: PopupDisplay
   withdraw_policy?: {
     enabled: boolean

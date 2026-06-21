@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { RouterLink } from 'vue-router'
 
@@ -195,6 +195,7 @@ const combinedFakeFinanceFeed = computed(() => {
     })
     .slice(0, 12)
 })
+const showFakeFinanceFeed = computed(() => wallet.summary?.fake_finance_feed?.enabled ?? true)
 
 const supporterLogos = [
   { name: 'PIE.EXGLN', image: pieExglnLogo },
@@ -216,6 +217,12 @@ async function fetchHomeContent() {
 }
 
 async function refreshFakeFinanceFeed() {
+  if (!showFakeFinanceFeed.value) {
+    fakeDepositFeed.value = []
+    fakeWithdrawFeed.value = []
+    return
+  }
+
   try {
     const [depositResponse, withdrawResponse] = await Promise.all([
       request<FakeFinanceFeedResponse>('GET', '/v1/finance-feed/deposit?limit=6'),
@@ -238,6 +245,7 @@ function stopFakeFinancePolling() {
 
 function startFakeFinancePolling() {
   stopFakeFinancePolling()
+  if (!showFakeFinanceFeed.value) return
   fakeFinancePollTicker = window.setInterval(() => {
     void refreshFakeFinanceFeed()
   }, 5000)
@@ -260,6 +268,21 @@ onMounted(() => {
   void refreshFakeFinanceFeed()
   startFakeFinancePolling()
 })
+
+watch(
+  showFakeFinanceFeed,
+  (enabled) => {
+    if (!enabled) {
+      stopFakeFinancePolling()
+      fakeDepositFeed.value = []
+      fakeWithdrawFeed.value = []
+      return
+    }
+
+    void refreshFakeFinanceFeed()
+    startFakeFinancePolling()
+  },
+)
 
 onBeforeUnmount(() => {
   stopFakeFinancePolling()
@@ -413,7 +436,7 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="mx-3 mt-4 overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
+    <section v-if="showFakeFinanceFeed" class="mx-3 mt-4 overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
       <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
         <h2 class="m-0 text-[0.92rem] font-black text-on-surface">Giao dịch gần đây</h2>
         <button
@@ -457,8 +480,7 @@ onBeforeUnmount(() => {
 
     <section class="mx-3 mt-4 overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
       <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
-        <h2 class="m-0 text-[0.92rem] font-black text-on-surface">Video giới thiệu</h2>
-        <span class="text-[0.68rem] font-bold uppercase tracking-[0.06em] text-slate-400">Phát thủ công</span>
+        <h2 class="m-0 text-[0.92rem] font-black text-on-surface">ĐẠI SỨ THƯƠNG HIỆU FH88U - Fernando Torres</h2>
       </div>
       <div class="p-3">
         <div class="overflow-hidden rounded-[16px] bg-black shadow-[0_10px_24px_rgba(0,0,0,0.22)]">
