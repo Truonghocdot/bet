@@ -97,7 +97,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <p class="mt-6 text-[0.72rem] font-black uppercase tracking-[0.16em] text-primary/70">Dang tai game</p>
+        <p class="mt-6 text-[0.72rem] font-black uppercase tracking-[0.16em] text-primary/70">Đang tải game</p>
         <h1 class="mt-2 text-[1.35rem] font-black text-slate-900">{{ gameName }}</h1>
         <p class="mt-3 max-w-[320px] text-[0.86rem] leading-6 text-slate-500">
           {{ loadingMessage }}
@@ -105,8 +105,8 @@ onBeforeUnmount(() => {
 
         <div class="mt-6 w-full rounded-[22px] bg-white/90 p-4 shadow-[inset_0_0_0_1px_rgba(248,113,113,0.12)]">
           <div class="flex items-center justify-between text-[0.72rem] font-black uppercase tracking-[0.06em] text-slate-400">
-            <span>Trang thai ket noi</span>
-            <span>{{ hasTimedOut ? 'That bai' : 'Dang xu ly' }}</span>
+            <span>Trạng thái kết nối</span>
+            <span>{{ hasTimedOut ? 'Thất bại' : 'Đang xử lý' }}</span>
           </div>
 
           <div class="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
@@ -118,18 +118,18 @@ onBeforeUnmount(() => {
 
           <div class="mt-3 flex items-center justify-between text-[0.82rem] font-semibold">
             <span class="text-slate-500">
-              {{ hasTimedOut ? 'Khong the mo sanh game doi tac' : 'Dang cho phan hoi tu nha cung cap' }}
+              {{ hasTimedOut ? 'Không thể mở sảnh game đối tác' : 'Đang chờ phản hồi từ nhà cung cấp' }}
             </span>
             <span class="rounded-full px-3 py-1 text-[0.76rem] font-black" :class="hasTimedOut ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'">
-              {{ hasTimedOut ? 'Loi' : `${loadingSeconds}s` }}
+              {{ hasTimedOut ? 'Lỗi' : `${loadingSeconds}s` }}
             </span>
           </div>
         </div>
 
         <div v-if="hasTimedOut" class="mt-5 w-full rounded-[22px] border border-red-100 bg-red-50/80 px-4 py-4 text-left">
-          <p class="text-[0.82rem] font-black text-red-700">Sanh game doi tac dang gap loi</p>
+          <p class="text-[0.82rem] font-black text-red-700">Sảnh game đối tác đang gặp lỗi</p>
           <p class="mt-1 text-[0.78rem] leading-6 text-red-600">
-            Ket noi toi nha cung cap khong thanh cong sau 1 phut. Ban co the thu lai hoac quay ve trang chu de chon tro khac.
+            Kết nối tới nhà cung cấp không thành công sau 1 phút. Bạn có thể thử lại hoặc quay về trang chủ để chọn trò khác.
           </p>
         </div>
 
@@ -140,14 +140,14 @@ onBeforeUnmount(() => {
             class="min-h-12 flex-1 rounded-[18px] bg-gradient-to-r from-[#ff7b71] to-primary px-4 text-[0.88rem] font-black text-white shadow-[0_14px_28px_rgba(218,37,29,0.24)] transition-transform active:scale-[0.98]"
             @click="retryLoading"
           >
-            Tai lai sanh game
+            Tải lại sảnh game
           </button>
           <button
             type="button"
             class="min-h-12 flex-1 rounded-[18px] border border-slate-200 bg-white px-4 text-[0.88rem] font-black text-slate-700 transition-transform active:scale-[0.98]"
             @click="goBack"
           >
-            Quay lai
+            Quay lại
           </button>
         </div>
       </div>
