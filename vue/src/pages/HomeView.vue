@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { RouterLink } from 'vue-router'
+import { RouterLink, type RouteLocationRaw } from 'vue-router'
 
 import BannerCarousel from '@/components/BannerCarousel.vue'
 import MarqueeBar from '@/components/MarqueeBar.vue'
@@ -51,15 +51,6 @@ const fakeDepositFeed = ref<FakeFinanceFeedItem[]>([])
 const fakeWithdrawFeed = ref<FakeFinanceFeedItem[]>([])
 let fakeFinancePollTicker: number | undefined
 
-// Maintenance modal
-const showMaintenance = ref(false)
-const maintenanceGame = ref('')
-function openMaintenance(name: string) {
-  maintenanceGame.value = name
-  showMaintenance.value = true
-}
-function closeMaintenance() { showMaintenance.value = false }
-
 function displayBalance(value: string | number | null | undefined) {
   return formatViMoney(value ?? 0, 0)
 }
@@ -73,6 +64,7 @@ function openTelegram() { window.open(telegramLink.value, '_blank') }
 
 const activeCategory = ref('Phổ biến')
 let playRoutePrefetched = false
+let partnerGameRoutePrefetched = false
 
 type IdleScheduler = (callback: () => void, options?: { timeout?: number }) => number
 
@@ -91,7 +83,7 @@ interface GameItem {
   image: string
   category: string[]
   route?: string
-  maintenance?: boolean
+  partnerLobby?: boolean
   featured?: boolean
 }
 
@@ -107,6 +99,15 @@ function prefetchPlayRoute() {
   })
 }
 
+function prefetchPartnerGameRoute() {
+  if (partnerGameRoutePrefetched) return
+
+  partnerGameRoutePrefetched = true
+  void import('@/pages/PartnerGameLoadingView.vue').catch(() => {
+    partnerGameRoutePrefetched = false
+  })
+}
+
 function prefetchPlayRouteSoon() {
   const requestIdleCallback = (window as Window & { requestIdleCallback?: IdleScheduler }).requestIdleCallback
 
@@ -119,7 +120,28 @@ function prefetchPlayRouteSoon() {
 }
 
 function maybePrefetchGameRoute(game: GameItem) {
-  if (game.route) prefetchPlayRoute()
+  if (game.route) {
+    prefetchPlayRoute()
+    return
+  }
+
+  if (game.partnerLobby) {
+    prefetchPartnerGameRoute()
+  }
+}
+
+function resolveGameTarget(game: GameItem): RouteLocationRaw {
+  if (game.route) {
+    return { path: game.route, query: { from: route.fullPath } }
+  }
+
+  return {
+    name: 'partner-game-loading',
+    query: {
+      name: game.name,
+      from: route.fullPath,
+    },
+  }
 }
 
 type ThumbCategoryConfig = {
@@ -158,7 +180,7 @@ function buildThumbGames(folder: string, config: ThumbCategoryConfig): GameItem[
           ...(config.popular && index < 2 ? ['Phổ biến'] : []),
           config.category,
         ],
-        maintenance: true,
+        partnerLobby: true,
         featured: Boolean(config.featuredFirst && index === 0),
       }
     })
@@ -263,6 +285,7 @@ function fakeFinanceChannelClass(item: FakeFinanceFeedItem) {
 
 onMounted(() => {
   prefetchPlayRouteSoon()
+  window.setTimeout(() => prefetchPartnerGameRoute(), 1200)
   void wallet.fetchSummary()
   void fetchHomeContent()
   void refreshFakeFinanceFeed()
@@ -360,16 +383,14 @@ onBeforeUnmount(() => {
 
     <section class="mt-4 px-3">
       <div class="flex min-w-0 flex-col gap-2">
-        <component
-          :is="game.route ? RouterLink : 'button'"
+        <RouterLink
           v-for="(game, index) in categoryBannerGames"
           :key="`${game.name}-banner`"
-          v-bind="game.route ? { to: { path: game.route, query: { from: route.fullPath } } } : { type: 'button' }"
+          :to="resolveGameTarget(game)"
           class="group relative block overflow-hidden rounded-[16px] shadow-[0_4px_16px_rgba(0,0,0,0.12)] transition-all duration-300 active:scale-[0.98]"
           @pointerenter="maybePrefetchGameRoute(game)"
           @focus="maybePrefetchGameRoute(game)"
           @touchstart.passive="maybePrefetchGameRoute(game)"
-          @click="game.maintenance ? openMaintenance(game.name) : undefined"
         >
           <img
             :src="game.image"
@@ -385,14 +406,14 @@ onBeforeUnmount(() => {
             <div>
               <h4 class="text-[0.78rem] font-black tracking-wide text-white drop-shadow">{{ game.name }}</h4>
               <p class="text-[0.55rem] font-semibold text-white/70">
-                {{ game.maintenance ? 'Đang bảo trì' : 'Vào chơi ngay' }}
+                {{ game.partnerLobby ? 'Mở sảnh đối tác' : 'Vào chơi ngay' }}
               </p>
             </div>
             <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/20 backdrop-blur-md">
               <span class="material-symbols-outlined text-[0.9rem] text-white">arrow_forward</span>
             </div>
           </div>
-        </component>
+        </RouterLink>
       </div>
     </section>
 
@@ -406,16 +427,14 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-        <component
-          :is="game.route ? RouterLink : 'button'"
+        <RouterLink
           v-for="game in filteredGames"
           :key="game.name"
-          v-bind="game.route ? { to: { path: game.route, query: { from: route.fullPath } } } : { type: 'button' }"
+          :to="resolveGameTarget(game)"
           class="group relative block w-full overflow-hidden rounded-[16px] text-left shadow-[0_4px_14px_rgba(0,0,0,0.10)] transition-all duration-200 active:scale-[0.97]"
           @pointerenter="maybePrefetchGameRoute(game)"
           @focus="maybePrefetchGameRoute(game)"
           @touchstart.passive="maybePrefetchGameRoute(game)"
-          @click="game.maintenance ? openMaintenance(game.name) : undefined"
         >
           <img
             :src="game.image"
@@ -429,10 +448,10 @@ onBeforeUnmount(() => {
           <div class="absolute bottom-0 left-0 right-0 px-2 py-2.5">
             <p class="line-clamp-1 text-[0.75rem] font-black text-white drop-shadow">{{ game.name }}</p>
             <p class="mt-0.5 text-[0.55rem] font-semibold text-white/60">
-              {{ game.maintenance ? 'Đang bảo trì' : 'Vào chơi ngay' }}
+              {{ game.partnerLobby ? 'Mở sảnh đối tác' : 'Vào chơi ngay' }}
             </p>
           </div>
-        </component>
+        </RouterLink>
       </div>
     </section>
 
@@ -593,45 +612,5 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </section>
-
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="showMaintenance"
-          class="fixed inset-0 z-[95] grid place-items-center bg-black/50 backdrop-blur-sm px-5"
-          @click.self="closeMaintenance"
-        >
-          <div class="w-full max-w-[320px] rounded-[24px] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.25)] overflow-hidden">
-            <!-- Top graphic -->
-            <div class="bg-gradient-to-br from-red-600 to-red-800 px-6 py-8 flex flex-col items-center gap-3">
-              <div class="w-16 h-16 rounded-full bg-white/10 backdrop-blur flex items-center justify-center ring-2 ring-yellow-400/50">
-                <span class="material-symbols-outlined text-yellow-400 text-[2.2rem]">construction</span>
-              </div>
-              <h3 class="text-yellow-400 text-[1.1rem] font-black text-center">Đang Bảo Trì</h3>
-            </div>
-            <!-- Content -->
-            <div class="px-6 py-5 text-center">
-              <p class="text-[0.95rem] font-black text-slate-800">{{ maintenanceGame }}</p>
-              <p class="mt-2 text-[0.82rem] text-slate-500 leading-6">
-                Trò chơi này đang được bảo trì và nâng cấp.<br/>
-                Vui lòng quay lại sau ít phút.
-              </p>
-              <div class="mt-1 inline-flex items-center gap-1.5 bg-amber-50 text-amber-600 text-[0.72rem] font-bold px-3 py-1.5 rounded-full mt-3">
-                <span class="material-symbols-outlined text-[0.9rem]">schedule</span>
-                Dự kiến hoàn thành sớm
-              </div>
-              <button
-                type="button"
-                class="mt-4 w-full rounded-[14px] bg-gradient-to-r from-red-600 to-red-700 py-3 text-[0.88rem] font-black text-yellow-400 shadow-[0_8px_20px_rgba(218,37,29,0.3)] active:scale-95 transition-transform border border-red-500"
-                @click="closeMaintenance"
-              >
-                Đã hiểu
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
   </div>
 </template>

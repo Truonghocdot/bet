@@ -118,6 +118,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'main', title: 'Phòng chơi', requiresAuth: true },
   },
   {
+    path: '/play/partner-loading',
+    name: 'partner-game-loading',
+    component: () => import('../pages/PartnerGameLoadingView.vue'),
+    meta: { layout: 'main', title: 'Đang tải game', requiresAuth: true },
+  },
+  {
     path: '/play/:game',
     name: 'play',
     component: () => import('../pages/PlayView.vue'),
