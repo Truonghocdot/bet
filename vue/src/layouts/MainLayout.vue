@@ -53,6 +53,10 @@ const visiblePrimaryNavItems = computed(() => (
   primaryNavItems.filter((item) => item.query?.tab !== 'affiliate' || isAgency.value)
 ))
 
+const bottomNavGridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${visiblePrimaryNavItems.value.length}, minmax(0, 1fr))`,
+}))
+
 const utilityNavItems = [
   { label: 'Nạp tiền', icon: 'add_card', to: '/deposit' },
   { label: 'Tài khoản', icon: 'manage_accounts', to: '/account' },
@@ -499,7 +503,7 @@ onBeforeUnmount(() => {
       </main>
 
       <!-- ===== BOTTOM NAV (mobile 5-tab) ===== -->
-      <nav class="bottom-nav md:hidden">
+      <nav class="bottom-nav md:hidden" :style="bottomNavGridStyle">
         <RouterLink
           v-for="item in visiblePrimaryNavItems"
           :key="`${item.to}-${item.query?.tab ?? 'default'}`"
