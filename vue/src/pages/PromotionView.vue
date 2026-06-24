@@ -54,42 +54,17 @@ function normalizePromotionTab(value: unknown): 'affiliate' | 'promotion' | 'new
   return 'affiliate'
 }
 
-function resolveAccessibleTab(value: unknown): 'affiliate' | 'promotion' | 'news' {
-  const normalizedTab = normalizePromotionTab(value)
-  if (normalizedTab === 'affiliate' && !isAgency.value) {
-    return 'promotion'
-  }
-  return normalizedTab
-}
-
 function setActiveTab(tab: 'affiliate' | 'promotion' | 'news') {
-  const nextTab = resolveAccessibleTab(tab)
-  const currentRouteTab = resolveAccessibleTab(route.query.tab)
+  if (activeTab.value === tab && String(route.query.tab ?? 'affiliate') === tab) return
 
-  if (activeTab.value === nextTab && currentRouteTab === nextTab) return
-
-  activeTab.value = nextTab
+  activeTab.value = tab
 
   router.replace({
     query: {
       ...route.query,
-      tab: nextTab,
+      tab,
     },
   })
-}
-
-function syncActiveTabWithRoute() {
-  const nextTab = resolveAccessibleTab(route.query.tab)
-  activeTab.value = nextTab
-
-  if (String(route.query.tab ?? 'affiliate') !== nextTab) {
-    router.replace({
-      query: {
-        ...route.query,
-        tab: nextTab,
-      },
-    })
-  }
 }
 
 async function loadContent() {
@@ -192,7 +167,7 @@ async function submitBecomeAgency() {
 }
 
 onMounted(async () => {
-  syncActiveTabWithRoute()
+  activeTab.value = normalizePromotionTab(route.query.tab)
 
   if (auth.isAuthenticated && !auth.affiliateProfile) {
     try {
@@ -208,15 +183,8 @@ onMounted(async () => {
 
 watch(
   () => route.query.tab,
-  () => {
-    syncActiveTabWithRoute()
-  },
-)
-
-watch(
-  isAgency,
-  () => {
-    syncActiveTabWithRoute()
+  (tab) => {
+    activeTab.value = normalizePromotionTab(tab)
   },
 )
 </script>

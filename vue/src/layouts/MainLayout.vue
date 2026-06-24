@@ -39,8 +39,6 @@ const activePopupHtml = computed(() => {
   return escapeHtml(content).replace(/\r\n|\r|\n/g, '<br>')
 })
 
-const isAgency = computed(() => auth.user?.role === 4)
-
 const primaryNavItems = [
   { label: 'Trang chủ', icon: 'home', to: '/home' },
   { label: 'Đại lý', icon: 'handshake', to: '/promotion', query: { tab: 'affiliate' } },
@@ -49,12 +47,8 @@ const primaryNavItems = [
   { label: 'CSKH', icon: 'support_agent', to: '/cskh' },
 ]
 
-const visiblePrimaryNavItems = computed(() => (
-  primaryNavItems.filter((item) => item.query?.tab !== 'affiliate' || isAgency.value)
-))
-
 const bottomNavGridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${visiblePrimaryNavItems.value.length}, minmax(0, 1fr))`,
+  gridTemplateColumns: `repeat(${primaryNavItems.length}, minmax(0, 1fr))`,
 }))
 
 const utilityNavItems = [
@@ -379,7 +373,7 @@ onBeforeUnmount(() => {
       <nav class="sidebar__nav">
         <p class="sidebar__section-title">Lối tắt chính</p>
         <RouterLink
-          v-for="item in visiblePrimaryNavItems"
+          v-for="item in primaryNavItems"
           :key="`${item.to}-${item.query?.tab ?? 'default'}`"
           :to="{ path: item.to, query: item.query }"
           class="sidebar__item"
@@ -505,7 +499,7 @@ onBeforeUnmount(() => {
       <!-- ===== BOTTOM NAV (mobile 5-tab) ===== -->
       <nav class="bottom-nav md:hidden" :style="bottomNavGridStyle">
         <RouterLink
-          v-for="item in visiblePrimaryNavItems"
+          v-for="item in primaryNavItems"
           :key="`${item.to}-${item.query?.tab ?? 'default'}`"
           :to="{ path: item.to, query: item.query }"
           class="bottom-nav__item"
@@ -552,7 +546,7 @@ onBeforeUnmount(() => {
           <div class="drawer__body">
             <p class="drawer__section-title">Lối tắt chính</p>
             <button
-              v-for="item in visiblePrimaryNavItems"
+              v-for="item in primaryNavItems"
               :key="`${item.to}-${item.query?.tab ?? 'default'}`"
               class="drawer__item"
               :class="{ 'drawer__item--active': isNavItemActive(item) }"
