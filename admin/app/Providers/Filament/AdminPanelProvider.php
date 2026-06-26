@@ -10,7 +10,6 @@ use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
-use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
 use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Width;
@@ -67,7 +66,7 @@ class AdminPanelProvider extends PanelProvider
 
             )
             ->databaseTransactions()
-            ->spa(true)
+            ->spa(false)
             ->maxContentWidth(Width::Full);;
     }
 }
