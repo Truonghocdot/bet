@@ -156,6 +156,44 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(\App\Models\Affiliate\AffiliateRewardLog::class, 'referrer_user_id');
     }
 
+    public function resolveDirectReferrerUser(): ?self
+    {
+        $this->loadMissing('referredByReferral.referrerUser');
+
+        $referrer = $this->referredByReferral?->referrerUser;
+
+        return $referrer instanceof self ? $referrer : null;
+    }
+
+    public function resolveAgencyOwnerUser(int $maxDepth = 10): ?self
+    {
+        $currentUser = $this;
+        $visitedUserIds = [$this->getKey() => true];
+
+        for ($depth = 0; $depth < $maxDepth; $depth++) {
+            $referrer = $currentUser->resolveDirectReferrerUser();
+
+            if (! $referrer) {
+                return null;
+            }
+
+            if ($referrer->role === RoleUser::AGENCY) {
+                return $referrer;
+            }
+
+            $referrerId = $referrer->getKey();
+
+            if (isset($visitedUserIds[$referrerId])) {
+                return null;
+            }
+
+            $visitedUserIds[$referrerId] = true;
+            $currentUser = $referrer;
+        }
+
+        return null;
+    }
+
     public static function generateUniqueSixDigitId(?int $exceptId = null): int
     {
         for ($attempt = 0; $attempt < 50; $attempt++) {

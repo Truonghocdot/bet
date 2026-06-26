@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Users\Tables;
 
 use App\Enum\User\RoleUser;
+use App\Models\User;
 use App\Enum\User\UserStatus;
 use App\Support\Filament\EnumPresenter;
 use Filament\Actions\BulkActionGroup;
@@ -17,9 +18,18 @@ use Illuminate\Database\Eloquent\Builder;
 
 class UsersTable
 {
+    private const REFERRAL_SEARCH_DEPTH = 8;
+
     public static function configure(Table $table, ?RoleUser $fixedRole = null): Table
     {
         return $table
+            ->modifyQueryUsing(function (Builder $query) use ($fixedRole): Builder {
+                if ($fixedRole !== RoleUser::CLIENT) {
+                    return $query;
+                }
+
+                return $query->with(self::referralRelationChain());
+            })
             ->columns([
                 TextColumn::make('id')
                     ->label('ID')
@@ -36,24 +46,39 @@ class UsersTable
                 TextColumn::make('agency_name')
                     ->label('Thuộc đại lý')
                     ->visible($fixedRole === RoleUser::CLIENT)
-                    ->getStateUsing(function ($record): string {
-                        $agency = $record->referredByReferral?->referrerUser;
+                    ->getStateUsing(function (User $record): string {
+                        $agency = $record->resolveAgencyOwnerUser();
 
-                        if (! $agency || $agency->role !== RoleUser::AGENCY) {
+                        if (! $agency) {
                             return '—';
                         }
 
-                        return ($agency->name ?: 'Agency').' (#'.$agency->id.')';
+                        return ($agency->name ?: 'Đại lý').' (#'.$agency->id.')';
                     })
                     ->searchable(query: function (Builder $query, string $search): void {
-                        $query->whereHas('referredByReferral.referrerUser', function (Builder $agencyQuery) use ($search): void {
-                            $agencyQuery
-                                ->where('role', RoleUser::AGENCY->value)
-                                ->where(function (Builder $innerQuery) use ($search): void {
-                                    $innerQuery
-                                        ->where('name', 'like', '%'.$search.'%')
-                                        ->orWhere('id', 'like', '%'.$search.'%');
-                                });
+                        self::applyAgencyOwnerSearch($query, $search);
+                    }),
+                TextColumn::make('direct_referrer_name')
+                    ->label('Người mời trực tiếp')
+                    ->visible($fixedRole === RoleUser::CLIENT)
+                    ->getStateUsing(function (User $record): string {
+                        $referrer = $record->resolveDirectReferrerUser();
+
+                        if (! $referrer) {
+                            return '—';
+                        }
+
+                        $fallbackName = $referrer->role === RoleUser::AGENCY ? 'Đại lý' : 'Người chơi';
+
+                        return ($referrer->name ?: $fallbackName).' (#'.$referrer->id.')';
+                    })
+                    ->searchable(query: function (Builder $query, string $search): void {
+                        $query->whereHas('referredByReferral.referrerUser', function (Builder $referrerQuery) use ($search): void {
+                            $referrerQuery->where(function (Builder $innerQuery) use ($search): void {
+                                $innerQuery
+                                    ->where('name', 'like', '%'.$search.'%')
+                                    ->orWhere('id', 'like', '%'.$search.'%');
+                            });
                         });
                     }),
                 TextColumn::make('role')
@@ -111,5 +136,42 @@ class UsersTable
                     RestoreBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function referralRelationChain(): array
+    {
+        $relations = [];
+        $path = 'referredByReferral.referrerUser';
+
+        for ($depth = 0; $depth < self::REFERRAL_SEARCH_DEPTH; $depth++) {
+            $relations[] = $path;
+            $path .= '.referredByReferral.referrerUser';
+        }
+
+        return $relations;
+    }
+
+    private static function applyAgencyOwnerSearch(Builder $query, string $search): void
+    {
+        $relationPath = 'referredByReferral.referrerUser';
+
+        $query->where(function (Builder $outerQuery) use ($search, $relationPath): void {
+            for ($depth = 0; $depth < self::REFERRAL_SEARCH_DEPTH; $depth++) {
+                $outerQuery->orWhereHas($relationPath, function (Builder $agencyQuery) use ($search): void {
+                    $agencyQuery
+                        ->where('role', RoleUser::AGENCY->value)
+                        ->where(function (Builder $innerQuery) use ($search): void {
+                            $innerQuery
+                                ->where('name', 'like', '%'.$search.'%')
+                                ->orWhere('id', 'like', '%'.$search.'%');
+                        });
+                });
+
+                $relationPath .= '.referredByReferral.referrerUser';
+            }
+        });
     }
 }
