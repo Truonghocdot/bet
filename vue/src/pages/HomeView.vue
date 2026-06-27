@@ -511,6 +511,15 @@ onBeforeUnmount(() => {
             controls
           />
         </div>
+        <div class="mt-3 overflow-hidden rounded-[16px] border border-slate-100 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.08)]">
+          <img
+            src="/ambassador.webp"
+            alt="Đại sứ thương hiệu FH88U"
+            class="block w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
       </div>
     </section>
 
