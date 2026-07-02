@@ -6,6 +6,7 @@ import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
 const tunnelHost = 'ebook-com-qualifications-attempting.trycloudflare.com'
+const defaultAllowedHosts = ['fh88u.win', 'www.fh88u.win', 'localhost', '127.0.0.1']
 const extraAllowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? '')
   .split(',')
   .map((host) => host.trim())
@@ -16,6 +17,7 @@ export default defineConfig({
   server: {
     host: true,
     allowedHosts: [
+      ...defaultAllowedHosts,
       tunnelHost,
       ...extraAllowedHosts,
     ],
