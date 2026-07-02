@@ -183,3 +183,69 @@ func (r *WalletRepository) Exchange(ctx context.Context, userID int64, fromUnit,
 
 	return tx.Commit()
 }
+
+func (r *WalletRepository) DebitByUserAndUnit(ctx context.Context, userID int64, unit int, amount string, referenceType string, note string) error {
+	return r.applyBalanceDelta(ctx, userID, unit, amount, 2, referenceType, note)
+}
+
+func (r *WalletRepository) CreditByUserAndUnit(ctx context.Context, userID int64, unit int, amount string, referenceType string, note string) error {
+	return r.applyBalanceDelta(ctx, userID, unit, amount, 1, referenceType, note)
+}
+
+func (r *WalletRepository) applyBalanceDelta(ctx context.Context, userID int64, unit int, amount string, direction int, referenceType string, note string) error {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var walletID int64
+	var balanceBefore string
+	err = tx.QueryRowContext(ctx, `
+		select id, balance::text
+		from wallets
+		where user_id = $1 and unit = $2 and status = 1
+		for update
+	`, userID, unit).Scan(&walletID, &balanceBefore)
+	if err != nil {
+		return err
+	}
+
+	if direction == 2 && compareNumeric(balanceBefore, amount) < 0 {
+		return fmt.Errorf("số dư không đủ")
+	}
+
+	var balanceAfter string
+	if direction == 1 {
+		balanceAfter, err = addNumeric(balanceBefore, amount)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			update wallets set balance = balance + $1::numeric(20,8), updated_at = now()
+			where id = $2
+		`, amount, walletID); err != nil {
+			return err
+		}
+	} else {
+		balanceAfter, err = subtractNumeric(balanceBefore, amount)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			update wallets set balance = balance - $1::numeric(20,8), updated_at = now()
+			where id = $2
+		`, amount, walletID); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		insert into wallet_ledger_entries (wallet_id, user_id, direction, amount, balance_before, balance_after, reference_type, note, created_at)
+		values ($1, $2, $3, $4::numeric(20,8), $5::numeric(20,8), $6::numeric(20,8), $7, $8, now())
+	`, walletID, userID, direction, amount, balanceBefore, balanceAfter, referenceType, note); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}

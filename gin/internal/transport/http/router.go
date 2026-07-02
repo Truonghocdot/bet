@@ -19,6 +19,8 @@ func NewRouter(
 	notificationService *service.NotificationService,
 	contentService *service.ContentService,
 	financeFeedService *service.FinanceFeedService,
+	providerGameCatalogService *service.ProviderGameCatalogService,
+	tcgRuntimeService *service.TCGRuntimeService,
 	sessionService *service.GameSessionService,
 	betService *service.BetService,
 	playRoomService *service.PlayRoomService,
@@ -38,6 +40,7 @@ func NewRouter(
 	notificationHandler := NewNotificationHandler(notificationService)
 	contentHandler := NewContentHandler(contentService)
 	financeFeedHandler := NewFinanceFeedHandler(financeFeedService)
+	providerGameCatalogHandler := NewProviderGameCatalogHandler(providerGameCatalogService, tcgRuntimeService)
 	gameHandler := NewGameHandler(sessionService, betService)
 	playRoomHandler := NewPlayRoomHandler(playRoomService, broker)
 	depositHandler := NewDepositHandler(depositService, internalToken)
@@ -75,6 +78,9 @@ func NewRouter(
 	mux.HandleFunc("GET /v1/content/news", contentHandler.News)
 	mux.HandleFunc("GET /v1/content/news/{slug}", contentHandler.NewsDetail)
 	mux.HandleFunc("GET /v1/finance-feed/{channel}", financeFeedHandler.ServeHTTP)
+	mux.HandleFunc("GET /v1/provider-games/tcg", providerGameCatalogHandler.TCGList)
+	mux.Handle("POST /v1/provider-games/tcg/launch", authn.Require(http.HandlerFunc(providerGameCatalogHandler.Launch)))
+	mux.Handle("POST /v1/provider-games/tcg/close-active", authn.Require(http.HandlerFunc(providerGameCatalogHandler.CloseActive)))
 	mux.HandleFunc("GET /v1/media/popup-video", mediaHandler.ServeHTTP)
 	mux.HandleFunc("GET /v1/play/rooms", playRoomHandler.ListRooms)
 	mux.HandleFunc("GET /v1/play/rooms/{room_code}/state", playRoomHandler.RoomState)

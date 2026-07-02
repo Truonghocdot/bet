@@ -56,4 +56,11 @@ return [
         'redis_key' => env('PAYMENT_RECEIVING_ACCOUNTS_REDIS_KEY', 'shared:payment:receiving-accounts:v1'),
     ],
 
+    'tcg' => [
+        'gate_base_url' => env('TCG_GATE_BASE_URL', 'http://127.0.0.1:8082'),
+        'gate_internal_token' => env('TCG_GATE_INTERNAL_TOKEN', env('GIN_INTERNAL_TOKEN', '')),
+        'timeout' => (int) env('TCG_GATE_TIMEOUT', 15),
+        'default_currency' => env('TCG_DEFAULT_CURRENCY', 'VND'),
+    ],
+
 ];

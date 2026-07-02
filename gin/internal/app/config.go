@@ -46,6 +46,16 @@ type Config struct {
 	AuthRefreshTTL                   time.Duration
 	ContentAssetBaseURL              string
 	PopupVideoFilePath               string
+	TCGEnabled                       bool
+	TCGDefaultLanguage               string
+	TCGDefaultGameMode               string
+	TCGDefaultIPAddress              string
+	TCGDefaultWebPlatform            string
+	TCGDefaultMobilePlatform         string
+	TCGDefaultLotteryLobbyGameCode   string
+	TCGLaunchReturnURL               string
+	TCGDefaultCurrency               string
+	TCGGameListRedisKey              string
 }
 
 func LoadConfig() Config {
@@ -89,6 +99,16 @@ func LoadConfig() Config {
 		AuthRefreshTTL:                   getEnvDuration("AUTH_REFRESH_TOKEN_TTL", 30*24*time.Hour),
 		ContentAssetBaseURL:              getEnv("CONTENT_ASSET_BASE_URL", "http://127.0.0.1:8000"),
 		PopupVideoFilePath:               getEnv("POPUP_VIDEO_FILE_PATH", "../vue/public/bg.mp4"),
+		TCGEnabled:                       getEnvBool("TCG_ENABLED", false),
+		TCGDefaultLanguage:               getEnv("TCG_DEFAULT_LANGUAGE", "EN"),
+		TCGDefaultGameMode:               getEnv("TCG_DEFAULT_GAME_MODE", "1"),
+		TCGDefaultIPAddress:              getEnv("TCG_DEFAULT_IP_ADDRESS", "127.0.0.1"),
+		TCGDefaultWebPlatform:            getEnv("TCG_DEFAULT_WEB_PLATFORM", "html5-desktop"),
+		TCGDefaultMobilePlatform:         getEnv("TCG_DEFAULT_MOBILE_PLATFORM", "html5"),
+		TCGDefaultLotteryLobbyGameCode:   getEnv("TCG_DEFAULT_LOTTERY_LOBBY_GAME_CODE", "Lobby"),
+		TCGLaunchReturnURL:               getEnv("TCG_LAUNCH_RETURN_URL", "http://localhost:5173/play"),
+		TCGDefaultCurrency:               getEnv("TCG_DEFAULT_CURRENCY", ""),
+		TCGGameListRedisKey:              getEnv("TCG_GAME_LIST_REDIS_KEY", "shared:tcg:game-list:v1"),
 	}
 }
 
@@ -172,4 +192,20 @@ func getEnvInt(key string, fallback int) int {
 	}
 
 	return parsed
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if value == "" {
+		return fallback
+	}
+
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }

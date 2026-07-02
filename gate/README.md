@@ -10,12 +10,12 @@ Service nay dung cho:
 `gate` khong xu ly core game logic.
 Nhiem vu cua no la:
 
-- nhan request ngoai vao
-- webhook nap tien khong can xac thuc
-- doi payload sang event noi bo
-- day sang service noi bo (gin) de apply giao dich
+- Nhận request ngoài vào
+- webhook nạp tiền không cần xác thực
+- đổi payload sang event nội bộ
+- Đẩy sang service nội bộ (gin) để apply giao dịch
 
-## Cau truc
+## Cấu trúc
 
 ```text
 cmd/webhooks
@@ -37,3 +37,33 @@ internal/transport/http
 - `HTTP_ADDR=:8082`
 - `GIN_INTERNAL_BASE_URL=http://localhost:8081`
 - `GIN_INTERNAL_TOKEN`
+
+## Env TC-Gaming
+
+- `TCG_ENABLED=false`
+- `TCG_BASE_URL=`
+- `TCG_HTTP_TIMEOUT=30s`
+- `TCG_MERCHANT_CODE=`
+- `TCG_MERCHANT_DES_KEY=`
+- `TCG_MERCHANT_SIGN_KEY=`
+- `TCG_REPORT_FTP_HOST=`
+- `TCG_REPORT_FTP_PORT=21`
+- `TCG_REPORT_FTP_USERNAME=`
+- `TCG_REPORT_FTP_PASSWORD=`
+- `TCG_REPORT_FTP_BASE_DIR=`
+- `TCG_GAME_LIST_SYNC_ENABLED=false`
+- `TCG_GAME_LIST_SYNC_INTERVAL=5m`
+- `TCG_GAME_LIST_REDIS_KEY=shared:tcg:game-list:v1`
+- `TCG_GAME_LIST_PRODUCT_TYPES=3,4` (fallback cũ nếu không dùng map theo game type)
+- `TCG_GAME_LIST_PLATFORM=all`
+- `TCG_GAME_LIST_CLIENT_TYPE=all`
+- `TCG_GAME_LIST_TYPES=RNG,FISH,LIVE,PVP` (fallback cũ nếu không dùng map theo game type)
+- `TCG_GAME_LIST_PRODUCTS_RNG=98,16,4,3`
+- `TCG_GAME_LIST_PRODUCTS_FISH=16,4`
+- `TCG_GAME_LIST_PRODUCTS_LIVE=4,93,112,27,3`
+- `TCG_GAME_LIST_PRODUCTS_PVP=`
+- `TCG_GAME_LIST_PRODUCTS_SPORTS=`
+- `TCG_GAME_LIST_PRODUCTS_ELOTT=`
+- `TCG_GAME_LIST_LANGUAGE=VI`
+- `TCG_GAME_LIST_PAGE=0`
+- `TCG_GAME_LIST_PAGE_SIZE=0`

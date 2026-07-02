@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { request } from '@/shared/api/http'
+import type { ApiError } from '@/shared/api/http'
+import type { ProviderGameLaunchRequest, ProviderGameLaunchResponse } from '@/shared/api/types'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const loadingSeconds = ref(60)
 const hasTimedOut = ref(false)
+const launchError = ref('')
+const isLaunching = ref(false)
 
 let countdownTicker: number | undefined
 let timeoutTicker: number | undefined
@@ -21,10 +28,30 @@ const returnTarget = computed(() => {
   return '/home'
 })
 
+const launchPayload = computed<ProviderGameLaunchRequest | null>(() => {
+  const productType = Number.parseInt(String(route.query.product_type ?? '').trim(), 10)
+  const gameType = String(route.query.game_type ?? '').trim()
+  const gameCode = String(route.query.game_code ?? '').trim()
+  const name = gameName.value
+
+  if (!Number.isFinite(productType) || productType <= 0 || !gameType || !gameCode) {
+    return null
+  }
+
+  return {
+    product_type: productType,
+    game_type: gameType,
+    game_code: gameCode,
+    name,
+  }
+})
+
 const loadingMessage = computed(() => (
-  hasTimedOut.value
-    ? 'Sảnh game đối tác đang gặp lỗi. Vui lòng thử lại sau ít phút.'
-    : 'Hệ thống đang kết nối tới sảnh game đối tác, vui lòng chờ trong giây lát.'
+  launchError.value
+    ? launchError.value
+    : hasTimedOut.value
+      ? 'Sảnh game đối tác đang gặp lỗi. Vui lòng thử lại sau ít phút.'
+      : 'Hệ thống đang kết nối tới sảnh game đối tác, vui lòng chờ trong giây lát.'
 ))
 
 function clearTimers() {
@@ -43,6 +70,7 @@ function startLoadingState() {
   clearTimers()
   hasTimedOut.value = false
   loadingSeconds.value = 60
+  launchError.value = ''
 
   countdownTicker = window.setInterval(() => {
     if (loadingSeconds.value <= 1) {
@@ -67,16 +95,49 @@ function startLoadingState() {
   }, 60000)
 }
 
-function retryLoading() {
+async function retryLoading() {
   startLoadingState()
+  await launchGame()
 }
 
 function goBack() {
   void router.push(returnTarget.value)
 }
 
+async function launchGame() {
+  if (!launchPayload.value || !auth.accessToken || isLaunching.value) {
+    return
+  }
+
+  isLaunching.value = true
+  try {
+    const response = await request<ProviderGameLaunchResponse>('POST', '/v1/provider-games/tcg/launch', {
+      token: auth.accessToken,
+      body: launchPayload.value,
+      timeoutMs: 45000,
+    })
+
+    if (!response.game_url) {
+      throw { message: 'TCG không trả về đường dẫn game.' } as ApiError
+    }
+
+    window.location.replace(response.game_url)
+  } catch (error: any) {
+    const apiError = error as ApiError
+    launchError.value = apiError?.message?.trim() || 'Không thể mở game lúc này.'
+    hasTimedOut.value = true
+    clearTimers()
+    loadingSeconds.value = 0
+  } finally {
+    isLaunching.value = false
+  }
+}
+
 onMounted(() => {
   startLoadingState()
+  if (launchPayload.value) {
+    void launchGame()
+  }
 })
 
 onBeforeUnmount(() => {

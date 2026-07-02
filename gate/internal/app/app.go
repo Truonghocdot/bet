@@ -10,21 +10,30 @@ import (
 
 	ginclient "gate/internal/integration/gin"
 	nowpayments "gate/internal/integration/nowpayments"
+	tcgclient "gate/internal/integration/tcg"
 	"gate/internal/service"
 	httptransport "gate/internal/transport/http"
 	goredis "github.com/redis/go-redis/v9"
 )
 
 type App struct {
-	config Config
-	server *http.Server
-	redis  *goredis.Client
+	config                 Config
+	server                 *http.Server
+	redis                  *goredis.Client
+	tcgGameListSyncService *service.TCGGameListSyncService
 }
 
 func New() (*App, error) {
 	config := LoadConfig()
 	ginClient := ginclient.NewClient(config.GinInternalBaseURL, config.GinInternalToken)
 	nowPaymentsClient := nowpayments.NewClient(config.NowPaymentsBaseURL, config.NowPaymentsAPIKey)
+	tcgClient := tcgclient.NewClient(
+		config.TCGBaseURL,
+		config.TCGMerchantCode,
+		config.TCGMerchantDESKey,
+		config.TCGMerchantSignKey,
+		config.TCGHTTPTimeout,
+	)
 	sharedRedis := goredis.NewClient(&goredis.Options{
 		Addr:     config.SharedRedisAddr,
 		Password: config.SharedRedisPass,
@@ -58,7 +67,23 @@ func New() (*App, error) {
 		),
 	)
 	notificationService := service.NewNotificationService()
-	router := httptransport.NewRouter(webhookService, notificationService)
+	tcgService := service.NewTCGService(tcgClient, service.TCGConfig{
+		Enabled: config.TCGEnabled,
+	})
+	tcgGameListSyncService := service.NewTCGGameListSyncService(tcgClient, sharedRedis, service.TCGGameListSyncConfig{
+		Enabled:          config.TCGEnabled && config.TCGGameListSyncEnabled,
+		Interval:         config.TCGGameListSyncInterval,
+		RedisKey:         config.TCGGameListRedisKey,
+		ProductTypes:     config.TCGGameListProductTypes,
+		Platform:         config.TCGGameListPlatform,
+		ClientType:       config.TCGGameListClientType,
+		GameTypes:        config.TCGGameListTypes,
+		GameTypeProducts: config.TCGGameListTypeProducts,
+		Language:         config.TCGGameListLanguage,
+		Page:             config.TCGGameListPage,
+		PageSize:         config.TCGGameListPageSize,
+	})
+	router := httptransport.NewRouter(webhookService, notificationService, tcgService)
 
 	server := &http.Server{
 		Addr:         config.HTTPAddr,
@@ -68,9 +93,10 @@ func New() (*App, error) {
 	}
 
 	return &App{
-		config: config,
-		server: server,
-		redis:  sharedRedis,
+		config:                 config,
+		server:                 server,
+		redis:                  sharedRedis,
+		tcgGameListSyncService: tcgGameListSyncService,
 	}, nil
 }
 
@@ -79,6 +105,10 @@ func (a *App) Run() error {
 	defer stop()
 
 	serverErr := make(chan error, 1)
+
+	if a.tcgGameListSyncService != nil {
+		a.tcgGameListSyncService.Start(ctx)
+	}
 
 	go func() {
 		log.Printf("[%s] listening on %s", a.config.ServiceName, a.config.HTTPAddr)

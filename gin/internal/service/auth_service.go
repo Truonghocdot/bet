@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
+	"unicode"
 
 	"gin/internal/auth/otp"
 	"gin/internal/auth/password"
@@ -21,6 +23,7 @@ import (
 	"gin/internal/support/phone"
 
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/text/unicode/norm"
 )
 
 var (
@@ -53,6 +56,8 @@ type AuthConfig struct {
 	RegisterLimitEmail    int
 	RegisterLimitPhone    int
 	RefreshTokenTTL       time.Duration
+	TCGEnabled            bool
+	TCGDefaultCurrency    string
 }
 
 type AuthService struct {
@@ -60,6 +65,7 @@ type AuthService struct {
 	tokenSigner *token.Signer
 	limiter     *ratelimit.Limiter
 	notifier    *gate.Notifier
+	tcg         *gate.TCGClient
 	redis       *redis.Client
 	config      AuthConfig
 }
@@ -69,6 +75,7 @@ func NewAuthService(
 	tokenSigner *token.Signer,
 	limiter *ratelimit.Limiter,
 	notifier *gate.Notifier,
+	tcg *gate.TCGClient,
 	redis *redis.Client,
 	config AuthConfig,
 ) *AuthService {
@@ -77,6 +84,7 @@ func NewAuthService(
 		tokenSigner: tokenSigner,
 		limiter:     limiter,
 		notifier:    notifier,
+		tcg:         tcg,
 		redis:       redis,
 		config:      config,
 	}
@@ -132,6 +140,10 @@ func (s *AuthService) Register(ctx context.Context, request auth.RegisterRequest
 	})
 	if err != nil {
 		return auth.AuthResponse{}, err
+	}
+
+	if err := s.ensureTCGPlayerRegistered(ctx, profile, passwordRaw); err != nil {
+		log.Printf("[auth][tcg.register.warn] user_id=%d err=%v", profile.User.ID, err)
 	}
 
 	return s.newAuthResponse(ctx, profile, meta)
@@ -566,6 +578,131 @@ func (s *AuthService) dispatchForgotPasswordNotification(ctx context.Context, ch
 	}
 
 	return s.notifier.Send(ctx, request)
+}
+
+func (s *AuthService) ensureTCGPlayerRegistered(ctx context.Context, profile auth.UserProfile, rawPassword string) error {
+	if !s.config.TCGEnabled || s.tcg == nil {
+		return nil
+	}
+
+	username := buildTCGUsername(profile.User.Name, profile.User.Phone)
+	if username == "" {
+		return fmt.Errorf("tcg username is empty")
+	}
+
+	password := buildTCGPassword(rawPassword, username)
+	if password == "" {
+		return fmt.Errorf("tcg password is empty")
+	}
+
+	return s.tcg.RegisterPlayer(ctx, gate.RegisterTCGPlayerRequest{
+		Username: username,
+		Password: password,
+		Currency: strings.TrimSpace(s.config.TCGDefaultCurrency),
+	})
+}
+
+func buildTCGUsername(displayName string, phoneNumber *string) string {
+	base := sanitizeTCGUsernameBase(displayName)
+	if base == "" {
+		base = "user"
+	}
+
+	phoneSeed := ""
+	if phoneNumber != nil {
+		phoneSeed = stripDigitsOnly(*phoneNumber)
+	}
+
+	hashSeed := phoneSeed + ":" + base
+	hashSuffix := shortTCGHash(hashSeed)
+	username := base + hashSuffix
+
+	if len(username) > 14 {
+		baseLimit := 14 - len(hashSuffix)
+		if baseLimit < 1 {
+			baseLimit = 1
+		}
+		if len(base) > baseLimit {
+			base = base[:baseLimit]
+		}
+		username = base + hashSuffix
+	}
+
+	for len(username) < 4 {
+		username += "9"
+	}
+
+	return username
+}
+
+func buildTCGPassword(rawPassword string, username string) string {
+	var sanitized strings.Builder
+	for _, r := range strings.TrimSpace(rawPassword) {
+		if isASCIIAlphaNumeric(r) {
+			sanitized.WriteRune(r)
+		}
+	}
+
+	password := sanitized.String()
+	if len(password) >= 6 {
+		if len(password) > 12 {
+			password = password[:12]
+		}
+		return password
+	}
+
+	fallback := "Tcg" + username
+	if len(fallback) > 12 {
+		fallback = fallback[:12]
+	}
+	for len(fallback) < 6 {
+		fallback += "9"
+	}
+	return fallback
+}
+
+func stripDigitsOnly(value string) string {
+	var builder strings.Builder
+	for _, r := range value {
+		if unicode.IsDigit(r) {
+			builder.WriteRune(r)
+		}
+	}
+	return builder.String()
+}
+
+func sanitizeTCGUsernameBase(value string) string {
+	decomposed := norm.NFD.String(strings.TrimSpace(value))
+	var builder strings.Builder
+	for _, r := range decomposed {
+		if unicode.Is(unicode.Mn, r) {
+			continue
+		}
+
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			builder.WriteRune(unicode.ToLower(r))
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+		}
+	}
+
+	base := builder.String()
+	if len(base) > 6 {
+		base = base[:6]
+	}
+	return base
+}
+
+func shortTCGHash(value string) string {
+	sum := sha1.Sum([]byte(strings.TrimSpace(value)))
+	return fmt.Sprintf("%x", sum[:])[:8]
+}
+
+func isASCIIAlphaNumeric(value rune) bool {
+	return (value >= '0' && value <= '9') || (value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z')
 }
 
 func (s *AuthService) parseChannel(channel auth.OTPChannel) (auth.OTPChannel, int, error) {

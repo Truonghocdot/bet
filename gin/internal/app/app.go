@@ -70,7 +70,8 @@ func New() (*App, error) {
 	limiter := ratelimit.New(redisClient)
 	notifier := gate.NewNotifier(config.GateBaseURL)
 	depositGateway := gate.NewDepositClient(config.GateBaseURL, config.GateInternalToken)
-	authService := service.NewAuthService(userRepository, tokenSigner, limiter, notifier, redisClient, service.AuthConfig{
+	tcgGateway := gate.NewTCGClient(config.GateBaseURL, config.GateInternalToken)
+	authService := service.NewAuthService(userRepository, tokenSigner, limiter, notifier, tcgGateway, redisClient, service.AuthConfig{
 		RegisterURL:           config.RegisterURL,
 		OTPSecret:             config.AuthSecret,
 		ForgotOTPTTL:          config.ForgotOTPTTL,
@@ -88,11 +89,27 @@ func New() (*App, error) {
 		RegisterLimitEmail:    config.RegisterLimitEmail,
 		RegisterLimitPhone:    config.RegisterLimitPhone,
 		RefreshTokenTTL:       config.AuthRefreshTTL,
+		TCGEnabled:            config.TCGEnabled,
+		TCGDefaultCurrency:    config.TCGDefaultCurrency,
 	})
 	walletService := service.NewWalletService(walletRepository, broker, redisClient)
 	notificationService := service.NewNotificationService(notificationRepository)
 	contentService := service.NewContentService(contentRepository, config.ContentAssetBaseURL)
 	financeFeedService := service.NewFinanceFeedService(financeFeedRepository)
+	providerGameCatalogService := service.NewProviderGameCatalogService(redisClient, service.ProviderGameCatalogConfig{
+		RedisKey: config.TCGGameListRedisKey,
+	})
+	tcgRuntimeService := service.NewTCGRuntimeService(userRepository, walletRepository, walletService, tcgGateway, redisClient, service.TCGRuntimeConfig{
+		Enabled:                     config.TCGEnabled,
+		DefaultLanguage:             config.TCGDefaultLanguage,
+		DefaultGameMode:             config.TCGDefaultGameMode,
+		DefaultIPAddress:            config.TCGDefaultIPAddress,
+		DefaultWebPlatform:          config.TCGDefaultWebPlatform,
+		DefaultMobilePlatform:       config.TCGDefaultMobilePlatform,
+		DefaultLotteryLobbyGameCode: config.TCGDefaultLotteryLobbyGameCode,
+		LaunchReturnURL:             config.TCGLaunchReturnURL,
+		DefaultCurrency:             config.TCGDefaultCurrency,
+	})
 	sessionService := service.NewGameSessionService(hub, walletRepository)
 	betService := service.NewBetService(publisher, sessionService, gameRepository, walletRepository)
 	playRoomService := service.NewPlayRoomService(gameRepository, walletRepository, walletService, redisClient, broker)
@@ -101,7 +118,7 @@ func New() (*App, error) {
 	})
 	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository, userRepository, redisClient)
 	affiliateService := service.NewAffiliateService(userRepository, authService, depositService, withdrawalService)
-	router := httptransport.NewRouter(config.PopupVideoFilePath, authService, affiliateService, walletService, notificationService, contentService, financeFeedService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, gameRepository, redisClient, config.InternalToken)
+	router := httptransport.NewRouter(config.PopupVideoFilePath, authService, affiliateService, walletService, notificationService, contentService, financeFeedService, providerGameCatalogService, tcgRuntimeService, sessionService, betService, playRoomService, depositService, withdrawalService, broker, gameRepository, redisClient, config.InternalToken)
 
 	server := &http.Server{
 		Addr:        config.HTTPAddr,

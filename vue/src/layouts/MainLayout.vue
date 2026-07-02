@@ -6,6 +6,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useWalletStore } from '@/stores/wallet'
 import { formatViMoney } from '@/shared/lib/money'
 import { useLoading } from '@/shared/lib/loading'
+import { request } from '@/shared/api/http'
 
 const route = useRoute()
 const router = useRouter()
@@ -207,6 +208,16 @@ function navigatePrimaryClick(event: MouseEvent, target: RouteLocationRaw) {
 
 async function handleLogout() {
   closeDrawer()
+  if (auth.accessToken) {
+    try {
+      await request('POST', '/v1/provider-games/tcg/close-active', {
+        token: auth.accessToken,
+        timeoutMs: 10000,
+      })
+    } catch {
+      // best effort
+    }
+  }
   await auth.logout()
   void router.push('/auth')
 }

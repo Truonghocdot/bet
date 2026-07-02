@@ -510,3 +510,63 @@ export type NotificationReadResponse = {
   id: number
   read_at: string
 }
+
+export type ProviderGameCatalogItem = {
+  display_status: number
+  game_type: string
+  game_name: string
+  tcg_game_code: string
+  product_code: string
+  product_type_value: string
+  platform: string
+  game_sub_type: string
+  show_icon?: string
+  trial_support: boolean
+}
+
+export type ProviderGameCatalogPageInfo = {
+  total_page: number
+  current_page: number
+  total_count: string
+}
+
+export type ProviderGameCatalogResponse = {
+  message: string
+  provider: string
+  method: string
+  source: string
+  product_types: number[]
+  game_types: string[]
+  product_type: number
+  platform: string
+  client_type: string
+  game_type: string
+  language?: string
+  synced_at: string
+  items: ProviderGameCatalogItem[]
+  page_info: ProviderGameCatalogPageInfo
+}
+
+export type ProviderGameLaunchRequest = {
+  product_type: number
+  game_type: string
+  game_code: string
+  name: string
+}
+
+export type ProviderGameLaunchResponse = {
+  message: string
+  game_url: string
+  product_type: number
+  game_type: string
+  transferred_amount: string
+  source: string
+}
+
+export type ProviderGameCloseActiveResponse = {
+  message: string
+  product_type: number
+  game_type: string
+  swept: boolean
+  reference_no?: string
+}

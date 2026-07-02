@@ -66,3 +66,16 @@ internal/ws
 - `PUBLIC_REGISTER_URL=http://localhost:3000/register`
 - `GIN_INTERNAL_TOKEN`
 - `PAYMENT_RECEIVING_ACCOUNTS_REDIS_KEY=shared:payment:receiving-accounts:v1`
+
+## Env TC-Gaming defaults
+
+- `TCG_ENABLED=false`
+- `TCG_DEFAULT_LANGUAGE=EN`
+- `TCG_DEFAULT_GAME_MODE=1`
+- `TCG_DEFAULT_IP_ADDRESS=127.0.0.1`
+- `TCG_DEFAULT_WEB_PLATFORM=html5-desktop`
+- `TCG_DEFAULT_MOBILE_PLATFORM=html5`
+- `TCG_DEFAULT_LOTTERY_LOBBY_GAME_CODE=Lobby`
+- `TCG_LAUNCH_RETURN_URL=http://localhost:5173/play`
+- `TCG_DEFAULT_CURRENCY=`
+- `TCG_GAME_LIST_REDIS_KEY=shared:tcg:game-list:v1`

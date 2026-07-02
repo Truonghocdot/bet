@@ -9,14 +9,20 @@ import aceForcesLogo from '@/assets/supporter/aceforces.jpg'
 import macjbeliLogo from '@/assets/supporter/macjbeli.jpg'
 import pieExglnLogo from '@/assets/supporter/pie.exgln.png'
 import { request } from '@/shared/api/http'
-import type { ContentBannerItem, ContentHomeResponse, ContentNewsItem, FakeFinanceFeedItem, FakeFinanceFeedResponse } from '@/shared/api/types'
+import type {
+  ContentBannerItem,
+  ContentHomeResponse,
+  ContentNewsItem,
+  FakeFinanceFeedItem,
+  FakeFinanceFeedResponse,
+  ProviderGameCatalogItem,
+  ProviderGameCatalogResponse,
+} from '@/shared/api/types'
 import { stripHtmlTags } from '@/shared/lib/html'
 import { formatViMoney } from '@/shared/lib/money'
 import { useAuthStore } from '@/stores/auth'
 import { useWalletStore } from '@/stores/wallet'
 
-// Category Icons
-import catHot from '@/assets/category_game/hot.avif'
 import catLottery from '@/assets/category_game/lottery.avif'
 import catCasino from '@/assets/category_game/lobbypoker.avif'
 import catJackpot from '@/assets/category_game/jackpot.avif'
@@ -49,6 +55,8 @@ const homeHighlights = ref<ContentNewsItem[]>([])
 const contentError = ref('')
 const fakeDepositFeed = ref<FakeFinanceFeedItem[]>([])
 const fakeWithdrawFeed = ref<FakeFinanceFeedItem[]>([])
+const providerCatalogItems = ref<ProviderGameCatalogItem[]>([])
+const providerCatalogError = ref('')
 let fakeFinancePollTicker: number | undefined
 
 function displayBalance(value: string | number | null | undefined) {
@@ -67,6 +75,7 @@ let playRoutePrefetched = false
 let partnerGameRoutePrefetched = false
 
 type IdleScheduler = (callback: () => void, options?: { timeout?: number }) => number
+type HomeCategory = 'Xổ số' | 'Casino' | 'Nổ hũ' | 'Bắn cá' | 'Thể thao' | 'Game bài' | 'Đá gà'
 
 const categorySidebar = [
   { label: 'Xổ số', icon: catLottery },
@@ -85,6 +94,9 @@ interface GameItem {
   route?: string
   partnerLobby?: boolean
   featured?: boolean
+  providerGameCode?: string
+  providerProductType?: string
+  providerGameType?: string
 }
 
 function prefetchPlayRoute() {
@@ -140,6 +152,9 @@ function resolveGameTarget(game: GameItem): RouteLocationRaw {
     query: {
       name: game.name,
       from: route.fullPath,
+      game_code: game.providerGameCode,
+      product_type: game.providerProductType,
+      game_type: game.providerGameType,
     },
   }
 }
@@ -188,22 +203,160 @@ function buildThumbGames(folder: string, config: ThumbCategoryConfig): GameItem[
 
 const thumbGames = Object.entries(thumbCategoryMap).flatMap(([folder, config]) => buildThumbGames(folder, config))
 
-const allGames: GameItem[] = [
+const localLotteryGames: GameItem[] = [
   // Xổ số - có route thật
   { name: 'Win Go', image: bannerWingo, category: ['Phổ biến', 'Xổ số'], route: '/play/wingo', featured: true },
   { name: 'K3', image: bannerK3, category: ['Phổ biến', 'Xổ số'], route: '/play/k3' },
   { name: '5D Lottery', image: banner5D, category: ['Phổ biến', 'Xổ số'], route: '/play/lottery' },
-  ...thumbGames,
 ]
 
-const activePlayableGames = computed(() => allGames.filter(game => game.route))
+const homeCategories: HomeCategory[] = ['Xổ số', 'Casino', 'Nổ hũ', 'Bắn cá', 'Thể thao', 'Game bài', 'Đá gà']
+const cockfightProductTypes = new Set(['202', '132'])
+
+const categoryPriority: Record<HomeCategory, number[]> = {
+  'Casino': [4, 93, 112, 27, 3, 28, 172],
+  'Nổ hũ': [98, 16, 4, 3, 39, 13, 171],
+  'Bắn cá': [16, 4, 140, 171, 55],
+  'Game bài': [140, 55],
+  'Thể thao': [174, 47, 142, 54],
+  'Đá gà': [202, 132],
+  'Xổ số': [2, 384, 420, 64, 76],
+}
+
+function parseProviderProductType(value: string): number {
+  const parsed = Number.parseInt(String(value || '').trim(), 10)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function providerCategory(item: ProviderGameCatalogItem): HomeCategory | null {
+  const gameType = String(item.game_type || '').trim().toUpperCase()
+  const productType = String(item.product_type_value || '').trim()
+
+  if (gameType === 'LIVE') return 'Casino'
+  if (gameType === 'RNG') return 'Nổ hũ'
+  if (gameType === 'FISH') return 'Bắn cá'
+  if (gameType === 'PVP') return 'Game bài'
+  if (gameType === 'SPORTS' || gameType === 'SPORT') {
+    return cockfightProductTypes.has(productType) ? 'Đá gà' : 'Thể thao'
+  }
+
+  return null
+}
+
+function supportsHomePlatform(item: ProviderGameCatalogItem): boolean {
+  const platform = String(item.platform || '').trim().toLowerCase()
+  if (!platform) return false
+
+  return platform.includes('html5') || platform.includes('desktop') || platform.includes('web') || platform.includes('mobile')
+}
+
+function providerProductPriority(category: HomeCategory, productType: number): number {
+  const priority = categoryPriority[category] || []
+  const index = priority.indexOf(productType)
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index
+}
+
+function buildProviderGameItem(item: ProviderGameCatalogItem, category: HomeCategory): GameItem {
+  return {
+    name: String(item.game_name || '').trim() || String(item.tcg_game_code || 'TCG Game').trim(),
+    image: String(item.show_icon || '').trim(),
+    category: [category],
+    partnerLobby: true,
+    providerGameCode: String(item.tcg_game_code || '').trim(),
+    providerProductType: String(item.product_type_value || '').trim(),
+    providerGameType: String(item.game_type || '').trim(),
+  }
+}
+
+function uniqueGames(items: GameItem[]): GameItem[] {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const key = [
+      item.providerProductType || '',
+      item.providerGameCode || '',
+      item.name,
+      item.category.join('|'),
+    ].join(':')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+const providerGamesByCategory = computed<Record<HomeCategory, GameItem[]>>(() => {
+  const grouped: Record<HomeCategory, GameItem[]> = {
+    'Xổ số': [],
+    'Casino': [],
+    'Nổ hũ': [],
+    'Bắn cá': [],
+    'Thể thao': [],
+    'Game bài': [],
+    'Đá gà': [],
+  }
+
+  for (const item of providerCatalogItems.value) {
+    if (Number(item.display_status ?? 0) !== 0) continue
+    if (!supportsHomePlatform(item)) continue
+    if (!String(item.show_icon || '').trim()) continue
+
+    const category = providerCategory(item)
+    if (!category) continue
+
+    grouped[category].push(buildProviderGameItem(item, category))
+  }
+
+  for (const category of homeCategories) {
+    const items = grouped[category]
+    grouped[category] = uniqueGames(items).sort((left, right) => {
+      const leftPriority = providerProductPriority(category, parseProviderProductType(left.providerProductType || ''))
+      const rightPriority = providerProductPriority(category, parseProviderProductType(right.providerProductType || ''))
+      if (leftPriority !== rightPriority) return leftPriority - rightPriority
+      return left.name.localeCompare(right.name, 'vi')
+    })
+  }
+
+  return grouped
+})
+
+const categoriesWithProviderData = computed(() => {
+  const categories = new Set<string>()
+  for (const category of homeCategories) {
+    const items = providerGamesByCategory.value[category]
+    if (items.length > 0) categories.add(category)
+  }
+  return categories
+})
+
+const fallbackThumbGames = computed(() => (
+  thumbGames.filter((game) => game.category.every((category) => !categoriesWithProviderData.value.has(category)))
+))
+
+function fallbackGamesForCategory(category: HomeCategory): GameItem[] {
+  return fallbackThumbGames.value.filter((game) => game.category.includes(category))
+}
+
+const popularGames = computed(() => [...localLotteryGames])
 
 const filteredGames = computed(() => {
   if (activeCategory.value === 'Phổ biến') {
-    return activePlayableGames.value
+    return popularGames.value
   }
 
-  return allGames.filter(g => g.category.includes(activeCategory.value))
+  const category = activeCategory.value as HomeCategory
+  if (category === 'Xổ số') {
+    const providerItems = providerGamesByCategory.value['Xổ số']
+    return uniqueGames([
+      ...localLotteryGames.filter((game) => game.category.includes('Xổ số')),
+      ...(providerItems.length > 0 ? providerItems : fallbackGamesForCategory('Xổ số')),
+    ])
+  }
+
+  const providerItems = providerGamesByCategory.value[category]
+  if (providerItems.length > 0) {
+    return providerItems
+  }
+
+  return fallbackGamesForCategory(category)
 })
 
 const categoryBannerGames = computed(() => filteredGames.value.slice(0, 3))
@@ -235,6 +388,17 @@ async function fetchHomeContent() {
     homeBanners.value = []
     homeHighlights.value = []
     contentError.value = 'Không thể tải nội dung trang chủ'
+  }
+}
+
+async function fetchProviderGames() {
+  providerCatalogError.value = ''
+  try {
+    const response = await request<ProviderGameCatalogResponse>('GET', '/v1/provider-games/tcg')
+    providerCatalogItems.value = response.items || []
+  } catch {
+    providerCatalogItems.value = []
+    providerCatalogError.value = 'Không thể tải danh sách game nhà cung cấp'
   }
 }
 
@@ -288,6 +452,7 @@ onMounted(() => {
   window.setTimeout(() => prefetchPartnerGameRoute(), 1200)
   void wallet.fetchSummary()
   void fetchHomeContent()
+  void fetchProviderGames()
   void refreshFakeFinanceFeed()
   startFakeFinancePolling()
 })
@@ -381,7 +546,7 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
-    <section class="mt-4 px-3">
+    <section v-if="activeCategory === 'Phổ biến'" class="mt-4 px-3">
       <div class="flex min-w-0 flex-col gap-2">
         <RouterLink
           v-for="(game, index) in categoryBannerGames"
@@ -440,7 +605,7 @@ onBeforeUnmount(() => {
             :src="game.image"
             :alt="game.name"
             class="w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-            :class="game.route ? 'aspect-[3/1]' : 'aspect-[4/3]'"
+            :class="game.route ? 'aspect-[3/1]' : 'aspect-square'"
             loading="lazy"
             decoding="async"
           />
