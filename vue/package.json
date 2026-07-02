@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "start": "vite --host 0.0.0.0 --port 3000 --strictPort",
+    "start": "NODE_ENV=production VITE_ENABLE_DEVTOOLS=false vite --host 0.0.0.0 --port 3000 --strictPort --mode production",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "test:e2e": "playwright test",

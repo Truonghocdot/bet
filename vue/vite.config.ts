@@ -13,23 +13,27 @@ const extraAllowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? '')
   .filter(Boolean)
 
 // https://vite.dev/config/
-export default defineConfig({
-  server: {
-    host: true,
-    allowedHosts: [
-      ...defaultAllowedHosts,
-      tunnelHost,
-      ...extraAllowedHosts,
-    ],
-  },
-  plugins: [
-    tailwindcss(),
-    vue(),
-    vueDevTools(),
-  ],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+export default defineConfig(({ mode }) => {
+  const enableVueDevTools = process.env.VITE_ENABLE_DEVTOOLS !== 'false' && mode !== 'production'
+
+  return {
+    server: {
+      host: true,
+      allowedHosts: [
+        ...defaultAllowedHosts,
+        tunnelHost,
+        ...extraAllowedHosts,
+      ],
     },
-  },
+    plugins: [
+      tailwindcss(),
+      vue(),
+      ...(enableVueDevTools ? [vueDevTools()] : []),
+    ],
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url))
+      },
+    },
+  }
 })
