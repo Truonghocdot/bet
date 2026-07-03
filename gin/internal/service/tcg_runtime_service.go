@@ -30,6 +30,7 @@ type TCGRuntimeConfig struct {
 	DefaultLotteryLobbyGameCode string
 	LaunchReturnURL             string
 	DefaultCurrency             string
+	PreviewZeroBalance          bool
 }
 
 type TCGLaunchRequest struct {
@@ -121,15 +122,17 @@ func (s *TCGRuntimeService) LaunchGame(ctx context.Context, userID int64, reques
 	}
 
 	activeState, _ := s.loadActiveState(ctx, userID)
-	if activeState != nil && activeState.ProductType != request.ProductType {
-		if _, err := s.closeActiveProduct(ctx, userID, username, *activeState); err != nil {
-			return TCGLaunchResponse{}, err
+	if activeState != nil {
+		if s.config.PreviewZeroBalance || activeState.ProductType != request.ProductType {
+			if _, err := s.closeActiveProduct(ctx, userID, username, *activeState); err != nil {
+				return TCGLaunchResponse{}, err
+			}
+			activeState = nil
 		}
-		activeState = nil
 	}
 
 	transferredAmount := "0"
-	if activeState == nil || activeState.ProductType != request.ProductType {
+	if !s.config.PreviewZeroBalance && (activeState == nil || activeState.ProductType != request.ProductType) {
 		wallet, err := s.walletRepository.FindByUserAndUnit(ctx, userID, user.WalletUnitVND)
 		if err != nil {
 			return TCGLaunchResponse{}, err

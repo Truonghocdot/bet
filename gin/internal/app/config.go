@@ -56,6 +56,7 @@ type Config struct {
 	TCGLaunchReturnURL               string
 	TCGDefaultCurrency               string
 	TCGGameListRedisKey              string
+	TCGPreviewZeroBalance            bool
 }
 
 func LoadConfig() Config {
@@ -109,6 +110,7 @@ func LoadConfig() Config {
 		TCGLaunchReturnURL:               getEnv("TCG_LAUNCH_RETURN_URL", "http://localhost:5173/play"),
 		TCGDefaultCurrency:               getEnv("TCG_DEFAULT_CURRENCY", ""),
 		TCGGameListRedisKey:              getEnv("TCG_GAME_LIST_REDIS_KEY", "shared:tcg:game-list:v1"),
+		TCGPreviewZeroBalance:            getEnvBool("TCG_PREVIEW_ZERO_BALANCE", false),
 	}
 }
 

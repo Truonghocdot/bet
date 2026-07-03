@@ -109,6 +109,7 @@ func New() (*App, error) {
 		DefaultLotteryLobbyGameCode: config.TCGDefaultLotteryLobbyGameCode,
 		LaunchReturnURL:             config.TCGLaunchReturnURL,
 		DefaultCurrency:             config.TCGDefaultCurrency,
+		PreviewZeroBalance:          config.TCGPreviewZeroBalance,
 	})
 	sessionService := service.NewGameSessionService(hub, walletRepository)
 	betService := service.NewBetService(publisher, sessionService, gameRepository, walletRepository)
