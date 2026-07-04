@@ -73,9 +73,12 @@ function openTelegram() { window.open(telegramLink.value, '_blank') }
 const activeCategory = ref('Phổ biến')
 let playRoutePrefetched = false
 let partnerGameRoutePrefetched = false
+const recentGameKeys = ref<string[]>([])
+const favoriteGameKeys = ref<string[]>([])
 
 type IdleScheduler = (callback: () => void, options?: { timeout?: number }) => number
 type HomeCategory = 'Xổ số' | 'Casino' | 'Nổ hũ' | 'Bắn cá' | 'Thể thao' | 'Game bài' | 'Đá gà'
+type MobileLobbyKey = 'hot' | 'slots' | 'sports' | 'casino' | 'fish' | 'cards' | 'mini' | 'lottery' | 'cockfight' | 'demo'
 
 const categorySidebar = [
   { label: 'Xổ số', icon: catLottery },
@@ -86,6 +89,21 @@ const categorySidebar = [
   { label: 'Game bài', icon: catPoker },
   { label: 'Đá gà', icon: catChicken },
 ]
+
+const mobileLobbySidebar: Array<{ key: MobileLobbyKey; label: string; icon: string; category: string; iconClass: string }> = [
+  { key: 'hot', label: 'Hot', icon: 'local_fire_department', category: 'Phổ biến', iconClass: 'text-[#ea580c]' },
+  { key: 'slots', label: 'Nổ Hũ', icon: 'workspace_premium', category: 'Nổ hũ', iconClass: 'text-[#d97706]' },
+  { key: 'sports', label: 'Thể Thao', icon: 'sports_soccer', category: 'Thể thao', iconClass: 'text-[#2563eb]' },
+  { key: 'casino', label: 'Casino', icon: 'casino', category: 'Casino', iconClass: 'text-[#db2777]' },
+  { key: 'fish', label: 'Bắn Cá', icon: 'set_meal', category: 'Bắn cá', iconClass: 'text-[#0284c7]' },
+  { key: 'cards', label: 'Game Bài', icon: 'style', category: 'Game bài', iconClass: 'text-[#dc2626]' },
+  { key: 'mini', label: 'Trò Chơi Nhỏ', icon: 'extension', category: 'Phổ biến', iconClass: 'text-[#16a34a]' },
+  { key: 'lottery', label: 'Xổ Số', icon: 'confirmation_number', category: 'Xổ số', iconClass: 'text-[#ca8a04]' },
+  { key: 'cockfight', label: 'Đá Gà', icon: 'sports_mma', category: 'Đá gà', iconClass: 'text-[#ea580c]' },
+  { key: 'demo', label: 'Chơi Thử', icon: 'sports_esports', category: 'Phổ biến', iconClass: 'text-[#059669]' },
+]
+const activeMobileLobbyKey = ref<MobileLobbyKey>('hot')
+const activeMobileLobbyTab = ref<'category' | 'history' | 'favorite'>('category')
 
 interface GameItem {
   name: string
@@ -98,6 +116,9 @@ interface GameItem {
   providerProductType?: string
   providerGameType?: string
 }
+
+const recentGamesStorageKey = 'fh88u:home:recent-games:v1'
+const favoriteGamesStorageKey = 'fh88u:home:favorite-games:v1'
 
 function prefetchPlayRoute() {
   if (playRoutePrefetched) return
@@ -209,6 +230,8 @@ const localLotteryGames: GameItem[] = [
   { name: 'K3', image: bannerK3, category: ['Phổ biến', 'Xổ số'], route: '/play/k3' },
   { name: '5D Lottery', image: banner5D, category: ['Phổ biến', 'Xổ số'], route: '/play/lottery' },
 ]
+const defaultLobbyGames = localLotteryGames.slice(0, 3)
+const categoryGameLimit = 15
 
 const homeCategories: HomeCategory[] = ['Xổ số', 'Casino', 'Nổ hũ', 'Bắn cá', 'Thể thao', 'Game bài', 'Đá gà']
 const cockfightProductTypes = new Set(['202', '132'])
@@ -266,6 +289,80 @@ function buildProviderGameItem(item: ProviderGameCatalogItem, category: HomeCate
     providerProductType: String(item.product_type_value || '').trim(),
     providerGameType: String(item.game_type || '').trim(),
   }
+}
+
+function gameStorageKey(game: GameItem): string {
+  return [
+    game.providerProductType || '',
+    game.providerGameCode || '',
+    game.route || '',
+    game.name.trim(),
+  ].join(':')
+}
+
+function loadStoredGameKeys(storageKey: string): string[] {
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed)
+      ? parsed.map((item) => String(item || '').trim()).filter(Boolean)
+      : []
+  } catch {
+    return []
+  }
+}
+
+function persistStoredGameKeys(storageKey: string, items: string[]) {
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(items))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function trackRecentGame(game: GameItem) {
+  const key = gameStorageKey(game)
+  const next = [key, ...recentGameKeys.value.filter((item) => item !== key)].slice(0, 24)
+  recentGameKeys.value = next
+  persistStoredGameKeys(recentGamesStorageKey, next)
+}
+
+function toggleFavoriteGame(game: GameItem) {
+  const key = gameStorageKey(game)
+  const exists = favoriteGameKeys.value.includes(key)
+  const next = exists
+    ? favoriteGameKeys.value.filter((item) => item !== key)
+    : [key, ...favoriteGameKeys.value].slice(0, 36)
+  favoriteGameKeys.value = next
+  persistStoredGameKeys(favoriteGamesStorageKey, next)
+}
+
+function isFavoriteGame(game: GameItem): boolean {
+  return favoriteGameKeys.value.includes(gameStorageKey(game))
+}
+
+function selectMobileLobbyItem(key: MobileLobbyKey) {
+  const item = mobileLobbySidebar.find((entry) => entry.key === key)
+  if (!item) return
+  activeMobileLobbyKey.value = key
+  activeCategory.value = item.category
+  activeMobileLobbyTab.value = 'category'
+}
+
+function mobileLobbyBadgeText(game: GameItem, index: number): string {
+  if (game.route) return 'Live'
+  if (game.featured || index < 3) return 'Hot'
+  return ''
+}
+
+function isDefaultLobbyGame(game: GameItem): boolean {
+  return defaultLobbyGames.some((item) => item.route === game.route && item.name === game.name)
+}
+
+function matchesSelectedCategory(game: GameItem): boolean {
+  if (activeCategory.value === 'Phổ biến') return true
+  return game.category.includes(activeCategory.value)
 }
 
 function uniqueGames(items: GameItem[]): GameItem[] {
@@ -335,31 +432,100 @@ function fallbackGamesForCategory(category: HomeCategory): GameItem[] {
   return fallbackThumbGames.value.filter((game) => game.category.includes(category))
 }
 
-const popularGames = computed(() => [...localLotteryGames])
+function dedupeCasinoProviderGames(items: GameItem[]): GameItem[] {
+  const seenProviders = new Set<string>()
+  return items.filter((item) => {
+    const key = String(item.providerProductType || item.image || item.name).trim()
+    if (!key) return true
+    if (seenProviders.has(key)) return false
+    seenProviders.add(key)
+    return true
+  })
+}
+
+function normalizeCategoryGames(category: HomeCategory, items: GameItem[]): GameItem[] {
+  const normalized = category === 'Casino'
+    ? dedupeCasinoProviderGames(items)
+    : items
+
+  return normalized.slice(0, categoryGameLimit)
+}
+
+function resolvedCategoryGames(category: HomeCategory): GameItem[] {
+  const providerItems = providerGamesByCategory.value[category]
+  const source = providerItems.length > 0 ? providerItems : fallbackGamesForCategory(category)
+  return normalizeCategoryGames(category, source)
+}
+
+function curatedGamesForCategory(category: HomeCategory, limit: number): GameItem[] {
+  return resolvedCategoryGames(category).slice(0, limit)
+}
+
+const popularGames = computed(() => defaultLobbyGames)
 
 const filteredGames = computed(() => {
-  if (activeCategory.value === 'Phổ biến') {
-    return popularGames.value
-  }
-
   const category = activeCategory.value as HomeCategory
-  if (category === 'Xổ số') {
-    const providerItems = providerGamesByCategory.value['Xổ số']
-    return uniqueGames([
-      ...localLotteryGames.filter((game) => game.category.includes('Xổ số')),
-      ...(providerItems.length > 0 ? providerItems : fallbackGamesForCategory('Xổ số')),
-    ])
+  if (activeCategory.value === 'Phổ biến' || category === 'Xổ số') {
+    return defaultLobbyGames
   }
 
-  const providerItems = providerGamesByCategory.value[category]
-  if (providerItems.length > 0) {
-    return providerItems
-  }
-
-  return fallbackGamesForCategory(category)
+  return resolvedCategoryGames(category)
 })
 
-const categoryBannerGames = computed(() => filteredGames.value.slice(0, 3))
+const categoryBannerGames = computed(() => (
+  activeCategory.value === 'Phổ biến'
+    ? defaultLobbyGames
+    : filteredGames.value.slice(0, 3)
+))
+
+const activeMobileLobbyItem = computed(() => (
+  mobileLobbySidebar.find((item) => item.key === activeMobileLobbyKey.value) ?? mobileLobbySidebar[0]
+))
+
+const allKnownGames = computed(() => {
+  const games: GameItem[] = []
+  games.push(...localLotteryGames)
+  games.push(...thumbGames)
+  for (const cat of homeCategories) {
+    games.push(...(providerGamesByCategory.value[cat] || []))
+  }
+  return uniqueGames(games)
+})
+
+const mobileLobbyGames = computed(() => {
+  if (activeMobileLobbyTab.value === 'history') {
+    return recentGameKeys.value
+      .map((key) => allKnownGames.value.find((g) => gameStorageKey(g) === key))
+      .filter((g): g is GameItem => Boolean(g))
+      .filter(matchesSelectedCategory)
+  }
+
+  if (activeMobileLobbyTab.value === 'favorite') {
+    return favoriteGameKeys.value
+      .map((key) => allKnownGames.value.find((g) => gameStorageKey(g) === key))
+      .filter((g): g is GameItem => Boolean(g))
+      .filter(matchesSelectedCategory)
+  }
+
+  if (activeMobileLobbyKey.value === 'demo') {
+    return filteredGames.value.slice(0, 12)
+  }
+
+  if (activeMobileLobbyKey.value === 'mini') {
+    return uniqueGames([
+      ...popularGames.value.slice(0, 6),
+      ...curatedGamesForCategory('Nổ hũ', 6),
+    ]).slice(0, 12)
+  }
+
+  return filteredGames.value
+})
+
+const mobileLobbyEmptyMessage = computed(() => {
+  if (activeMobileLobbyTab.value === 'history') return 'Bạn chưa chơi trò nào gần đây.'
+  if (activeMobileLobbyTab.value === 'favorite') return 'Bạn chưa có trò chơi yêu thích nào.'
+  return providerCatalogError.value || 'Danh mục này đang được cập nhật.'
+})
 
 const combinedFakeFinanceFeed = computed(() => {
   return [...fakeDepositFeed.value, ...fakeWithdrawFeed.value]
@@ -448,6 +614,8 @@ function fakeFinanceChannelClass(item: FakeFinanceFeedItem) {
 }
 
 onMounted(() => {
+  recentGameKeys.value = loadStoredGameKeys(recentGamesStorageKey)
+  favoriteGameKeys.value = loadStoredGameKeys(favoriteGamesStorageKey)
   prefetchPlayRouteSoon()
   window.setTimeout(() => prefetchPartnerGameRoute(), 1200)
   void wallet.fetchSummary()
@@ -479,7 +647,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="pb-4">
-    <div class="bg-[linear-gradient(180deg,#fff1f1_0%,#fff7f7_18%,#ffffff_100%)] pb-4">
+
+    <div class="mt-4 bg-[linear-gradient(180deg,#fff1f1_0%,#fff7f7_18%,#ffffff_100%)] pb-4 md:mt-0">
       <div class="px-3 pt-2">
         <MarqueeBar />
       </div>
@@ -524,7 +693,121 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="mx-3 mt-3 overflow-hidden rounded-[24px] bg-gradient-to-br from-[#ff6e67] via-primary to-[#e73d47] shadow-[0_14px_28px_rgba(218,37,29,0.2)]">
+    <section class="home-lobby-mobile relative overflow-hidden mt-4">
+      <div class="home-lobby-mobile__shell relative min-h-[calc(100dvh-11.5rem)] px-2 pb-4 pt-3">
+        <aside class="home-lobby-mobile__sidebar sticky top-3 self-start">
+          <div class="space-y-2">
+            <button
+              v-for="item in mobileLobbySidebar"
+              :key="item.key"
+              type="button"
+              class="home-lobby-mobile__nav-item flex w-full items-center gap-2 rounded-[14px] px-2 py-2 text-left transition-all duration-200"
+              :class="activeMobileLobbyKey === item.key ? 'bg-[linear-gradient(180deg,#da251d_0%,#a81b14_100%)] text-white shadow-[0_8px_16px_rgba(218,37,29,0.3)]' : 'bg-transparent text-slate-700'"
+              @click="selectMobileLobbyItem(item.key)"
+            >
+              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-[10px]" :class="activeMobileLobbyKey === item.key ? 'bg-white/20' : 'bg-transparent'">
+                <span class="material-symbols-outlined text-[1rem]" :class="item.iconClass">{{ item.icon }}</span>
+              </span>
+              <span class="text-[0.72rem] font-semibold leading-4">{{ item.label }}</span>
+            </button>
+          </div>
+        </aside>
+
+        <div class="home-lobby-mobile__panel min-w-0">
+          <div class="mb-4 flex items-center justify-around border-b border-red-100 pb-2">
+            <button 
+              class="relative text-[0.85rem] font-bold transition-colors"
+              :class="activeMobileLobbyTab === 'category' ? 'text-primary' : 'text-slate-500 hover:text-primary/70'"
+              @click="activeMobileLobbyTab = 'category'"
+            >
+              {{ activeMobileLobbyItem?.label }}
+              <div v-if="activeMobileLobbyTab === 'category'" class="absolute -bottom-[9px] left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-t-md bg-primary"></div>
+            </button>
+            <button 
+              class="relative text-[0.85rem] font-bold transition-colors"
+              :class="activeMobileLobbyTab === 'history' ? 'text-primary' : 'text-slate-500 hover:text-primary/70'"
+              @click="activeMobileLobbyTab = 'history'"
+            >
+              Lịch Sử
+              <div v-if="activeMobileLobbyTab === 'history'" class="absolute -bottom-[9px] left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-t-md bg-primary"></div>
+            </button>
+            <button 
+              class="relative text-[0.85rem] font-bold transition-colors"
+              :class="activeMobileLobbyTab === 'favorite' ? 'text-primary' : 'text-slate-500 hover:text-primary/70'"
+              @click="activeMobileLobbyTab = 'favorite'"
+            >
+              Yêu Thích
+              <div v-if="activeMobileLobbyTab === 'favorite'" class="absolute -bottom-[9px] left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-t-md bg-primary"></div>
+            </button>
+          </div>
+
+          <div v-if="mobileLobbyGames.length" class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-3 gap-y-4">
+            <RouterLink
+              v-for="(game, index) in mobileLobbyGames"
+              :key="`${game.name}-mobile-lobby`"
+              :to="resolveGameTarget(game)"
+              class="group min-w-0"
+              :class="isDefaultLobbyGame(game) ? 'col-span-3' : ''"
+              @pointerenter="maybePrefetchGameRoute(game)"
+              @focus="maybePrefetchGameRoute(game)"
+              @touchstart.passive="maybePrefetchGameRoute(game)"
+              @click="trackRecentGame(game)"
+            >
+              <div class="home-lobby-mobile__card relative overflow-hidden rounded-[16px]">
+                <img
+                  :src="game.image"
+                  :alt="game.name"
+                  class="w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                  :class="isDefaultLobbyGame(game) ? 'aspect-[3/1]' : 'aspect-square'"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/18 via-transparent to-transparent" />
+                <div
+                  v-if="mobileLobbyBadgeText(game, index) === 'Hot'"
+                  class="absolute left-0 top-0 rounded-br-[8px] bg-gradient-to-br from-[#ffb732] to-[#ff8f2f] px-1.5 py-0.5 shadow-[0_2px_6px_rgba(255,143,47,0.4)]"
+                >
+                  <span class="material-symbols-outlined block text-[0.7rem] text-white">thumb_up</span>
+                </div>
+                <span
+                  v-else-if="mobileLobbyBadgeText(game, index)"
+                  class="absolute left-1.5 top-1.5 rounded-full bg-[#ff8f2f] px-1.5 py-0.5 text-[0.5rem] font-black uppercase tracking-[0.08em] text-white shadow-[0_6px_12px_rgba(255,143,47,0.35)]"
+                >
+                  {{ mobileLobbyBadgeText(game, index) }}
+                </span>
+                <button
+                  type="button"
+                  class="absolute right-1.5 top-1.5 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-black/30 text-white/90 backdrop-blur-sm"
+                  @click.prevent.stop="toggleFavoriteGame(game)"
+                >
+                  <span class="material-symbols-outlined text-[0.8rem]" :class="isFavoriteGame(game) ? 'text-yellow-400' : ''">
+                    {{ isFavoriteGame(game) ? 'kid_star' : 'star' }}
+                  </span>
+                </button>
+              </div>
+              <p class="mt-1.5 text-center line-clamp-2 text-[0.72rem] leading-4 text-slate-700 font-bold">{{ game.name }}</p>
+            </RouterLink>
+          </div>
+
+          <div
+            v-else
+            class="flex min-h-[240px] items-center justify-center rounded-[20px] border border-dashed border-red-200 bg-white/60 px-5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]"
+          >
+            <div>
+              <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+                <span class="material-symbols-outlined text-[1.2rem] text-primary">deployed_code</span>
+              </div>
+              <p class="mt-3 text-[0.76rem] font-black text-slate-700">Danh mục đang trống</p>
+              <p class="mt-1 text-[0.64rem] font-semibold leading-5 text-slate-500">
+                {{ mobileLobbyEmptyMessage }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+      <section class="mx-3 mt-3 hidden overflow-hidden rounded-[24px] bg-gradient-to-br from-[#ff6e67] via-primary to-[#e73d47] shadow-[0_14px_28px_rgba(218,37,29,0.2)] !hidden">
         <div class="grid grid-cols-4 gap-px bg-white/15">
           <button
             v-for="cat in categorySidebar"
@@ -546,7 +829,7 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
-    <section v-if="activeCategory === 'Phổ biến'" class="mt-4 px-3">
+    <section v-if="activeCategory === 'Phổ biến'" class="mt-4 hidden px-3 !hidden">
       <div class="flex min-w-0 flex-col gap-2">
         <RouterLink
           v-for="(game, index) in categoryBannerGames"
@@ -556,6 +839,7 @@ onBeforeUnmount(() => {
           @pointerenter="maybePrefetchGameRoute(game)"
           @focus="maybePrefetchGameRoute(game)"
           @touchstart.passive="maybePrefetchGameRoute(game)"
+          @click="trackRecentGame(game)"
         >
           <img
             :src="game.image"
@@ -582,7 +866,7 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="mt-4 px-3">
+    <section class="mt-4 hidden px-3 !hidden">
       <div class="mb-3 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <span class="block h-5 w-1 rounded-full bg-primary" />
@@ -600,6 +884,7 @@ onBeforeUnmount(() => {
           @pointerenter="maybePrefetchGameRoute(game)"
           @focus="maybePrefetchGameRoute(game)"
           @touchstart.passive="maybePrefetchGameRoute(game)"
+          @click="trackRecentGame(game)"
         >
           <img
             :src="game.image"
@@ -788,3 +1073,42 @@ onBeforeUnmount(() => {
     </section>
   </div>
 </template>
+
+<style scoped>
+.home-lobby-mobile {
+  background: transparent;
+}
+
+.home-lobby-mobile::before {
+  display: none;
+}
+
+.home-lobby-mobile__shell {
+  display: grid;
+  grid-template-columns: 5.7rem minmax(0, 1fr);
+  column-gap: 0.8rem;
+  align-items: start;
+}
+
+.home-lobby-mobile__sidebar {
+  z-index: 1;
+}
+
+.home-lobby-mobile__panel {
+  min-width: 0;
+}
+
+.home-lobby-mobile__nav-item {
+  border: 1px solid rgba(218, 37, 29, 0.08);
+}
+
+.home-lobby-mobile__card {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+}
+.home-lobby-mobile__card img {
+  border-radius: 16px;
+  box-shadow: 0 6px 16px rgba(218, 37, 29, 0.12);
+}
+</style>

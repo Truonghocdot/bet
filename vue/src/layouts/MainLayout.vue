@@ -372,74 +372,6 @@ onBeforeUnmount(() => {
       </div>
     </Transition>
 
-    <!-- ===== DESKTOP SIDEBAR (md+) ===== -->
-    <aside class="sidebar hidden md:flex">
-      <!-- Logo -->
-      <RouterLink to="/home" class="sidebar__logo" @click="closeDrawer">
-        <img src="/favicon.png" alt="fh88u" class="h-9 w-9 rounded-[10px]" />
-        <span class="text-[1.3rem] font-black italic tracking-tight text-white">fh88u</span>
-      </RouterLink>
-
-      <!-- Main nav -->
-      <nav class="sidebar__nav">
-        <p class="sidebar__section-title">Lối tắt chính</p>
-        <RouterLink
-          v-for="item in primaryNavItems"
-          :key="`${item.to}-${item.query?.tab ?? 'default'}`"
-          :to="{ path: item.to, query: item.query }"
-          class="sidebar__item"
-          :class="{ 'sidebar__item--active': isNavItemActive(item) }"
-        >
-          <span class="material-symbols-outlined sidebar__icon">{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
-        </RouterLink>
-      </nav>
-
-      <!-- Bottom links -->
-      <div class="sidebar__bottom">
-        <p class="sidebar__section-title">Tiện ích</p>
-        <RouterLink
-          v-for="item in utilityNavItems"
-          :key="item.to"
-          :to="{ path: item.to }"
-          class="sidebar__item"
-          :class="{ 'sidebar__item--active': isActive(item.to) }"
-          @click="navigatePrimaryClick($event, { path: item.to })"
-        >
-          <span class="material-symbols-outlined sidebar__icon">{{ item.icon }}</span>
-          <span>{{ item.label }}</span>
-        </RouterLink>
-        <button
-          v-if="auth.isAuthenticated"
-          class="sidebar__item sidebar__item--logout"
-          @click="handleLogout"
-        >
-          <span class="material-symbols-outlined sidebar__icon">logout</span>
-          <span>Đăng xuất</span>
-        </button>
-        <template v-else>
-          <RouterLink to="/auth" class="sidebar__item">
-            <span class="material-symbols-outlined sidebar__icon">login</span>
-            <span>Đăng nhập</span>
-          </RouterLink>
-          <RouterLink to="/register" class="sidebar__item">
-            <span class="material-symbols-outlined sidebar__icon">person_add</span>
-            <span>Đăng ký</span>
-          </RouterLink>
-          <a
-            :href="referralLink || '#'"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="sidebar__item"
-            :class="{ 'cursor-not-allowed opacity-50': !referralLink }"
-          >
-            <span class="material-symbols-outlined sidebar__icon">share</span>
-            <span>Link giới thiệu</span>
-          </a>
-        </template>
-      </div>
-    </aside>
-
     <!-- ===== MAIN COLUMN ===== -->
     <div class="app-main-col">
 
@@ -448,23 +380,19 @@ onBeforeUnmount(() => {
         <div class="topbar-inner">
           <!-- Hamburger (mobile only) -->
           <button
-            class="icon-btn icon-btn--ghost md:hidden"
+            class="icon-btn icon-btn--ghost"
             aria-label="Mở menu"
             @click="openDrawer"
           >
             <span class="material-symbols-outlined">menu</span>
           </button>
 
-          <!-- Logo (show on mobile, hidden on md because sidebar has it) -->
           <RouterLink
             to="/home"
-            class="flex items-center md:hidden"
+            class="flex items-center"
           >
             <img src="@/assets/logo-mobile.webp" alt="fh88u" class="h-11 w-auto object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
           </RouterLink>
-
-          <!-- Page title on desktop -->
-          <span class="hidden md:block text-[1rem] font-black text-white">{{ currentTitle }}</span>
 
           <!-- Right side actions -->
           <div class="flex items-center gap-2">
@@ -477,9 +405,8 @@ onBeforeUnmount(() => {
               <span class="material-symbols-outlined">notifications</span>
               <span v-if="unreadNotificationBadge" class="icon-btn__badge">{{ unreadNotificationBadge }}</span>
             </RouterLink>
-            <!-- Account shortcut visible on mobile header -->
             <RouterLink
-              class="icon-btn icon-btn--soft md:hidden"
+              class="icon-btn icon-btn--soft"
               aria-label="Tài khoản"
               to="/account"
             >
@@ -508,7 +435,7 @@ onBeforeUnmount(() => {
       </main>
 
       <!-- ===== BOTTOM NAV (mobile 5-tab) ===== -->
-      <nav class="bottom-nav md:hidden" :style="bottomNavGridStyle">
+      <nav class="bottom-nav" :style="bottomNavGridStyle">
         <RouterLink
           v-for="item in primaryNavItems"
           :key="`${item.to}-${item.query?.tab ?? 'default'}`"
@@ -528,14 +455,14 @@ onBeforeUnmount(() => {
       <Transition name="fade">
         <div
           v-if="isDrawerOpen"
-          class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm md:hidden"
+          class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
           @click="closeDrawer"
         />
       </Transition>
 
       <!-- Drawer Panel -->
       <Transition name="slide-drawer">
-        <div v-if="isDrawerOpen" class="drawer md:hidden">
+        <div v-if="isDrawerOpen" class="drawer">
           <!-- Drawer Header / User Info -->
           <div class="drawer__header">
             <button class="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full bg-white/15 text-white" @click="closeDrawer">

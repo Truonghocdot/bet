@@ -73,6 +73,8 @@
       return false
     }
   })
+  const playPageBodyClass = 'play-page-active'
+  const playSelectionExceptionSelector = 'input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"], [data-allow-selection="true"]'
   let roomStateGeneration = 0
 
   // Bet modal state
@@ -86,6 +88,46 @@
   const modalBetAmount = ref(initialBetAmount)
   const modalBetStepAmount = ref(minimumBetAmount)
   const betAmountPresets = [1000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000]
+
+  function eventTargetElement(target: EventTarget | null) {
+    if (target instanceof Element) return target
+    if (target instanceof Node) return target.parentElement
+    return null
+  }
+
+  function allowNativeSelection(target: EventTarget | null) {
+    const element = eventTargetElement(target)
+    return Boolean(element?.closest(playSelectionExceptionSelector))
+  }
+
+  function shouldSuppressPlayPageBrowserBehavior(event: Event) {
+    if (typeof document === 'undefined' || !document.body.classList.contains(playPageBodyClass)) {
+      return false
+    }
+
+    return !allowNativeSelection(event.target)
+  }
+
+  function preventPlayPageBrowserBehavior(event: Event) {
+    if (!shouldSuppressPlayPageBrowserBehavior(event)) return
+    event.preventDefault()
+  }
+
+  function enablePlayPageInteractionLock() {
+    if (typeof document === 'undefined') return
+    document.body.classList.add(playPageBodyClass)
+    document.addEventListener('dblclick', preventPlayPageBrowserBehavior, true)
+    document.addEventListener('selectstart', preventPlayPageBrowserBehavior, true)
+    document.addEventListener('dragstart', preventPlayPageBrowserBehavior, true)
+  }
+
+  function disablePlayPageInteractionLock() {
+    if (typeof document === 'undefined') return
+    document.body.classList.remove(playPageBodyClass)
+    document.removeEventListener('dblclick', preventPlayPageBrowserBehavior, true)
+    document.removeEventListener('selectstart', preventPlayPageBrowserBehavior, true)
+    document.removeEventListener('dragstart', preventPlayPageBrowserBehavior, true)
+  }
 
   // Countdown beep for the last seconds before bet lock.
   let tickAudioContext: AudioContext | null = null
@@ -2764,6 +2806,7 @@
   }
 
   onMounted(() => {
+    enablePlayPageInteractionLock()
     void loadWallet()
     rollingDice.value = [...currentDice.value]
     timer = window.setInterval(() => { clockTick.value = Date.now() }, 1000)
@@ -2771,6 +2814,7 @@
   })
 
   onBeforeUnmount(() => {
+    disablePlayPageInteractionLock()
     if (timer) window.clearInterval(timer)
     if (roomStateReconcileTimer) window.clearTimeout(roomStateReconcileTimer)
     if (periodRollForwardTimer) window.clearTimeout(periodRollForwardTimer)
