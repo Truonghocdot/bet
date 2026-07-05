@@ -112,6 +112,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'main', title: 'Thống kê trò chơi', requiresAuth: true },
   },
   {
+    path: '/provider-games/tcg/:category/:productType',
+    name: 'provider-game-lobbies',
+    component: () => import('../pages/ProviderGameLobbyListView.vue'),
+    meta: { layout: 'main', title: 'Danh sách lobby', requiresAuth: true },
+  },
+  {
     path: '/play',
     name: 'play-lobby',
     component: () => import('../pages/PlayLobbyView.vue'),

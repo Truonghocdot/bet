@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { RouterLink, type RouteLocationRaw } from 'vue-router'
 
 import BannerCarousel from '@/components/BannerCarousel.vue'
@@ -15,7 +15,8 @@ import type {
   ContentNewsItem,
   FakeFinanceFeedItem,
   FakeFinanceFeedResponse,
-  ProviderGameCatalogItem,
+  ProviderGameCatalogCategory,
+  ProviderGameCatalogCategoryItem,
   ProviderGameCatalogResponse,
 } from '@/shared/api/types'
 import { stripHtmlTags } from '@/shared/lib/html'
@@ -30,14 +31,28 @@ import catHuntfish from '@/assets/category_game/huntfish.avif'
 import catFootball from '@/assets/category_game/football.avif'
 import catPoker from '@/assets/category_game/poker.avif'
 import catChicken from '@/assets/category_game/chicken.avif'
+import catHot from '@/assets/category_game/hot.avif'
 
 // Main Game Banners
 import bannerWingo from '@/assets/lottery_banner/optimized/wingo.webp'
 import bannerK3 from '@/assets/lottery_banner/optimized/k3.webp'
 import banner5D from '@/assets/lottery_banner/optimized/5d.webp'
+import slot168Game from '@/assets/game_thumbs/slot/168GAME.avif'
+import slotCQ9 from '@/assets/game_thumbs/slot/CQ9.avif'
+import slotFC from '@/assets/game_thumbs/slot/FC.avif'
+import slotJDB from '@/assets/game_thumbs/slot/JDB.avif'
+import slotJili from '@/assets/game_thumbs/slot/JILI.avif'
+import slotPG from '@/assets/game_thumbs/slot/PG.avif'
+import slotTP from '@/assets/game_thumbs/slot/TP.avif'
+import slotWG from '@/assets/game_thumbs/slot/WG.avif'
+import sportCMD from '@/assets/game_thumbs/sport/CMD.avif'
+import sportCrown from '@/assets/game_thumbs/sport/CROWN.avif'
+import sportIM from '@/assets/game_thumbs/sport/IM.avif'
+import sportPanda from '@/assets/game_thumbs/sport/PANDA.avif'
+import sportSaba from '@/assets/game_thumbs/sport/SABA.avif'
 
-// Game Thumbnails
-const gameThumbModules = import.meta.glob<string>('@/assets/game_thumbs/*/*.webp', {
+// Game Thumbnails - supports both .webp and .avif
+const gameThumbModules = import.meta.glob<string>('@/assets/game_thumbs/*/*.{webp,avif}', {
   eager: true,
   query: '?url',
   import: 'default',
@@ -46,6 +61,7 @@ const gameThumbModules = import.meta.glob<string>('@/assets/game_thumbs/*/*.webp
 const auth = useAuthStore()
 const wallet = useWalletStore()
 const route = useRoute()
+const router = useRouter()
 const popupVideoUrl = `${import.meta.env.VITE_API_BASE_URL}/v1/media/popup-video`
 
 const greetingName = computed(() => auth.user?.name || 'Bạn')
@@ -55,7 +71,7 @@ const homeHighlights = ref<ContentNewsItem[]>([])
 const contentError = ref('')
 const fakeDepositFeed = ref<FakeFinanceFeedItem[]>([])
 const fakeWithdrawFeed = ref<FakeFinanceFeedItem[]>([])
-const providerCatalogItems = ref<ProviderGameCatalogItem[]>([])
+const providerCatalogCategories = ref<ProviderGameCatalogCategory[]>([])
 const providerCatalogError = ref('')
 let fakeFinancePollTicker: number | undefined
 
@@ -73,34 +89,34 @@ function openTelegram() { window.open(telegramLink.value, '_blank') }
 const activeCategory = ref('Phổ biến')
 let playRoutePrefetched = false
 let partnerGameRoutePrefetched = false
+let providerLobbyRoutePrefetched = false
 const recentGameKeys = ref<string[]>([])
 const favoriteGameKeys = ref<string[]>([])
 
 type IdleScheduler = (callback: () => void, options?: { timeout?: number }) => number
 type HomeCategory = 'Xổ số' | 'Casino' | 'Nổ hũ' | 'Bắn cá' | 'Thể thao' | 'Game bài' | 'Đá gà'
-type MobileLobbyKey = 'hot' | 'slots' | 'sports' | 'casino' | 'fish' | 'cards' | 'mini' | 'lottery' | 'cockfight' | 'demo'
+type MobileLobbyKey = 'hot' | 'lottery' | 'slots' | 'sports' | 'casino' | 'fish' | 'cards' | 'cockfight'
 
 const categorySidebar = [
+  { label: 'Phổ biến', icon: catHot },
   { label: 'Xổ số', icon: catLottery },
-  { label: 'Casino', icon: catCasino },
   { label: 'Nổ hũ', icon: catJackpot },
-  { label: 'Bắn cá', icon: catHuntfish },
   { label: 'Thể thao', icon: catFootball },
+  { label: 'Casino', icon: catCasino },
+  { label: 'Bắn cá', icon: catHuntfish },
   { label: 'Game bài', icon: catPoker },
   { label: 'Đá gà', icon: catChicken },
 ]
 
-const mobileLobbySidebar: Array<{ key: MobileLobbyKey; label: string; icon: string; category: string; iconClass: string }> = [
-  { key: 'hot', label: 'Hot', icon: 'local_fire_department', category: 'Phổ biến', iconClass: 'text-[#ea580c]' },
-  { key: 'slots', label: 'Nổ Hũ', icon: 'workspace_premium', category: 'Nổ hũ', iconClass: 'text-[#d97706]' },
-  { key: 'sports', label: 'Thể Thao', icon: 'sports_soccer', category: 'Thể thao', iconClass: 'text-[#2563eb]' },
-  { key: 'casino', label: 'Casino', icon: 'casino', category: 'Casino', iconClass: 'text-[#db2777]' },
-  { key: 'fish', label: 'Bắn Cá', icon: 'set_meal', category: 'Bắn cá', iconClass: 'text-[#0284c7]' },
-  { key: 'cards', label: 'Game Bài', icon: 'style', category: 'Game bài', iconClass: 'text-[#dc2626]' },
-  { key: 'mini', label: 'Trò Chơi Nhỏ', icon: 'extension', category: 'Phổ biến', iconClass: 'text-[#16a34a]' },
-  { key: 'lottery', label: 'Xổ Số', icon: 'confirmation_number', category: 'Xổ số', iconClass: 'text-[#ca8a04]' },
-  { key: 'cockfight', label: 'Đá Gà', icon: 'sports_mma', category: 'Đá gà', iconClass: 'text-[#ea580c]' },
-  { key: 'demo', label: 'Chơi Thử', icon: 'sports_esports', category: 'Phổ biến', iconClass: 'text-[#059669]' },
+const mobileLobbySidebar: Array<{ key: MobileLobbyKey; label: string; icon: string; category: string }> = [
+  { key: 'hot', label: 'Hot', icon: catHot, category: 'Phổ biến' },
+  { key: 'lottery', label: 'Xổ Số', icon: catLottery, category: 'Xổ số' },
+  { key: 'slots', label: 'Nổ Hũ', icon: catJackpot, category: 'Nổ hũ' },
+  { key: 'sports', label: 'Thể Thao', icon: catFootball, category: 'Thể thao' },
+  { key: 'casino', label: 'Casino', icon: catCasino, category: 'Casino' },
+  { key: 'fish', label: 'Bắn Cá', icon: catHuntfish, category: 'Bắn cá' },
+  { key: 'cards', label: 'Game Bài', icon: catPoker, category: 'Game bài' },
+  { key: 'cockfight', label: 'Đá Gà', icon: catChicken, category: 'Đá gà' },
 ]
 const activeMobileLobbyKey = ref<MobileLobbyKey>('hot')
 const activeMobileLobbyTab = ref<'category' | 'history' | 'favorite'>('category')
@@ -112,8 +128,13 @@ interface GameItem {
   route?: string
   partnerLobby?: boolean
   featured?: boolean
+  wideCard?: boolean
+  providerItemKind?: string
+  providerCategoryKey?: string
+  providerChildCount?: number
   providerGameCode?: string
   providerProductType?: string
+  providerProductTypeNumber?: number
   providerGameType?: string
 }
 
@@ -141,6 +162,15 @@ function prefetchPartnerGameRoute() {
   })
 }
 
+function prefetchProviderLobbyRoute() {
+  if (providerLobbyRoutePrefetched) return
+
+  providerLobbyRoutePrefetched = true
+  void import('@/pages/ProviderGameLobbyListView.vue').catch(() => {
+    providerLobbyRoutePrefetched = false
+  })
+}
+
 function prefetchPlayRouteSoon() {
   const requestIdleCallback = (window as Window & { requestIdleCallback?: IdleScheduler }).requestIdleCallback
 
@@ -158,6 +188,11 @@ function maybePrefetchGameRoute(game: GameItem) {
     return
   }
 
+  if (game.providerItemKind === 'group') {
+    prefetchProviderLobbyRoute()
+    return
+  }
+
   if (game.partnerLobby) {
     prefetchPartnerGameRoute()
   }
@@ -166,6 +201,29 @@ function maybePrefetchGameRoute(game: GameItem) {
 function resolveGameTarget(game: GameItem): RouteLocationRaw {
   if (game.route) {
     return { path: game.route, query: { from: route.fullPath } }
+  }
+
+  if (game.providerItemKind === 'group') {
+    const productType = game.providerProductTypeNumber ?? parseProviderProductType(game.providerProductType || '')
+    if (!game.providerCategoryKey || productType <= 0) {
+      return { path: route.path }
+    }
+
+    return {
+      name: 'provider-game-lobbies',
+      params: {
+        category: game.providerCategoryKey,
+        productType,
+      },
+      query: {
+        name: game.name,
+        from: route.fullPath,
+      },
+    }
+  }
+
+  if (!game.providerGameCode || !game.providerProductType || !game.providerGameType) {
+    return { path: route.path }
   }
 
   return {
@@ -186,11 +244,34 @@ type ThumbCategoryConfig = {
   featuredFirst?: boolean
 }
 
+type ProviderThumbPreset = {
+  code: string
+  label: string
+  productType: number
+  image: string
+}
+
+// Mapping tên file thumbnail lobby-casino → productType của TCG API
+const lobbyCasinoProductTypeMap: Record<string, number> = {
+  'AE':       4,
+  'AG':       27,
+  'BBIN':     43,
+  'DG':       3,
+  'EZUGI':    272,
+  'HRG':      93,
+  'MG':       79,
+  'MT':       258,
+  'PP':       177,
+  'Playtech': 39,
+  'SA':       118,
+  'TP':       93,
+  'W':        43,
+  'WM':       39,
+}
+
 const thumbCategoryMap: Record<string, ThumbCategoryConfig> = {
   'lobby-casino': { category: 'Casino', popular: true, featuredFirst: true },
-  slot: { category: 'Nổ hũ', popular: true, featuredFirst: true },
   'hunt-fish': { category: 'Bắn cá', popular: true, featuredFirst: true },
-  sport: { category: 'Thể thao' },
   poker: { category: 'Game bài', popular: true },
   chicken: { category: 'Đá gà' },
 }
@@ -209,6 +290,30 @@ function buildThumbGames(folder: string, config: ThumbCategoryConfig): GameItem[
     .sort(([a], [b]) => a.localeCompare(b, 'vi'))
     .map(([path, image], index) => {
       const fileName = path.split('/').pop() ?? ''
+      const baseName = fileName.replace(/\.[^.]+$/, '')
+
+      // Các thumbnail lobby-casino được navigate thẳng tới trang danh sách lobby
+      if (folder === 'lobby-casino') {
+        const productType = lobbyCasinoProductTypeMap[baseName] ?? 0
+        return {
+          name: baseName,
+          image,
+          category: [
+            ...(config.popular && index < 2 ? ['Phổ biến'] : []),
+            config.category,
+          ],
+          partnerLobby: false,
+          featured: Boolean(config.featuredFirst && index === 0),
+          wideCard: true,
+          providerItemKind: 'group',
+          providerCategoryKey: 'casino',
+          providerProductType: String(productType),
+          providerProductTypeNumber: productType,
+          providerGameCode: baseName,
+          providerGameType: 'LIVE',
+        }
+      }
+
       return {
         name: prettyGameThumbName(fileName),
         image,
@@ -233,15 +338,33 @@ const localLotteryGames: GameItem[] = [
 const defaultLobbyGames = localLotteryGames.slice(0, 3)
 const categoryGameLimit = 15
 
+const sportsProviderPresets: ProviderThumbPreset[] = [
+  { code: 'SABA', label: 'SABA', productType: 174, image: sportSaba },
+  { code: 'CMD', label: 'CMD', productType: 104, image: sportCMD },
+  { code: 'PANDA', label: 'PANDA', productType: 131, image: sportPanda },
+  { code: 'CROWN', label: 'CROWN', productType: 65, image: sportCrown },
+  { code: 'IM', label: 'IM', productType: 68, image: sportIM },
+]
+
+const slotProviderPresets: ProviderThumbPreset[] = [
+  { code: '168GAME', label: '168GAME', productType: 275, image: slot168Game },
+  { code: 'CQ9', label: 'CQ9', productType: 16, image: slotCQ9 },
+  { code: 'FC', label: 'FC', productType: 141, image: slotFC },
+  { code: 'JDB', label: 'JDB', productType: 55, image: slotJDB },
+  { code: 'JILI', label: 'JILI', productType: 140, image: slotJili },
+  { code: 'PG', label: 'PG', productType: 98, image: slotPG },
+  { code: 'TP', label: 'TP', productType: 243, image: slotTP },
+  { code: 'WG', label: 'WG', productType: 212, image: slotWG },
+]
+
 const homeCategories: HomeCategory[] = ['Xổ số', 'Casino', 'Nổ hũ', 'Bắn cá', 'Thể thao', 'Game bài', 'Đá gà']
-const cockfightProductTypes = new Set(['202', '132'])
 
 const categoryPriority: Record<HomeCategory, number[]> = {
-  'Casino': [4, 93, 112, 27, 3, 28, 172],
+  'Casino': [4, 3, 79, 27, 177, 43, 39, 93, 258, 118, 272],
   'Nổ hũ': [98, 16, 4, 3, 39, 13, 171],
   'Bắn cá': [16, 4, 140, 171, 55],
   'Game bài': [140, 55],
-  'Thể thao': [174, 47, 142, 54],
+  'Thể thao': [104, 65, 68, 131, 174],
   'Đá gà': [202, 132],
   'Xổ số': [2, 384, 420, 64, 76],
 }
@@ -251,23 +374,24 @@ function parseProviderProductType(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function providerCategory(item: ProviderGameCatalogItem): HomeCategory | null {
-  const gameType = String(item.game_type || '').trim().toUpperCase()
-  const productType = String(item.product_type_value || '').trim()
-
-  if (gameType === 'LIVE') return 'Casino'
-  if (gameType === 'RNG') return 'Nổ hũ'
-  if (gameType === 'FISH') return 'Bắn cá'
-  if (gameType === 'PVP') return 'Game bài'
-  if (gameType === 'SPORTS' || gameType === 'SPORT') {
-    return cockfightProductTypes.has(productType) ? 'Đá gà' : 'Thể thao'
-  }
-
-  return null
+function providerCatalogItemProductType(item: ProviderGameCatalogCategoryItem): number {
+  const directProductType = Number(item.product_type ?? 0)
+  if (directProductType > 0) return directProductType
+  return parseProviderProductType(String(item.product_type_value || '').trim())
 }
 
-function supportsHomePlatform(item: ProviderGameCatalogItem): boolean {
-  const platform = String(item.platform || '').trim().toLowerCase()
+const providerCategoryKeys: Record<HomeCategory, string> = {
+  'Xổ số': 'lottery',
+  'Casino': 'casino',
+  'Nổ hũ': 'slots',
+  'Bắn cá': 'fish',
+  'Thể thao': 'sports',
+  'Game bài': 'cards',
+  'Đá gà': 'cockfight',
+}
+
+function supportsCatalogPlatform(platformValue: string): boolean {
+  const platform = String(platformValue || '').trim().toLowerCase()
   if (!platform) return false
 
   return platform.includes('html5') || platform.includes('desktop') || platform.includes('web') || platform.includes('mobile')
@@ -279,15 +403,123 @@ function providerProductPriority(category: HomeCategory, productType: number): n
   return index === -1 ? Number.MAX_SAFE_INTEGER : index
 }
 
-function buildProviderGameItem(item: ProviderGameCatalogItem, category: HomeCategory): GameItem {
+function buildProviderGameItem(item: ProviderGameCatalogCategoryItem, category: HomeCategory, categoryKey: string): GameItem {
+  const productType = providerCatalogItemProductType(item)
   return {
     name: String(item.game_name || '').trim() || String(item.tcg_game_code || 'TCG Game').trim(),
     image: String(item.show_icon || '').trim(),
     category: [category],
-    partnerLobby: true,
+    partnerLobby: String(item.kind || '').trim() !== 'group',
+    wideCard: false,
     providerGameCode: String(item.tcg_game_code || '').trim(),
-    providerProductType: String(item.product_type_value || '').trim(),
+    providerProductType: String(item.product_type_value || item.product_type || '').trim(),
+    providerProductTypeNumber: productType,
     providerGameType: String(item.game_type || '').trim(),
+    providerItemKind: String(item.kind || '').trim(),
+    providerCategoryKey: categoryKey,
+    providerChildCount: Number(item.child_count ?? 0),
+  }
+}
+
+function buildSportsProviderGameItem(
+  item: ProviderGameCatalogCategoryItem | undefined,
+  categoryKey: string,
+  preset: ProviderThumbPreset,
+): GameItem {
+  return {
+    name: preset.label,
+    image: preset.image,
+    category: ['Thể thao'],
+    partnerLobby: true,
+    wideCard: true,
+    providerGameCode: item ? String(item.tcg_game_code || '').trim() : preset.code,
+    providerProductType: String(preset.productType),
+    providerProductTypeNumber: preset.productType,
+    providerGameType: item ? String(item.game_type || '').trim() : 'SPORTS',
+    providerItemKind: 'launch',
+    providerCategoryKey: categoryKey,
+    providerChildCount: 0,
+  }
+}
+
+function slotProviderPresetKeywords(preset: ProviderThumbPreset): string[] {
+  if (preset.code === '168GAME') return ['168game', '168 game']
+  if (preset.code === 'JILI') return ['jili', 'jl']
+  if (preset.code === 'WG') return ['swg', 'swgaming']
+  return [preset.code.toLowerCase()]
+}
+
+function matchesProviderCatalogKeyword(item: ProviderGameCatalogCategoryItem, keywords: string[]): boolean {
+  const values = [
+    String(item.game_name || '').trim().toLowerCase(),
+    String(item.tcg_game_code || '').trim().toLowerCase(),
+    String(item.product_code || '').trim().toLowerCase(),
+    String(item.game_sub_type || '').trim().toLowerCase(),
+  ].filter(Boolean)
+
+  return keywords.some((keyword) => {
+    const normalizedKeyword = String(keyword || '').trim().toLowerCase()
+    return normalizedKeyword !== '' && values.some((value) => value.includes(normalizedKeyword))
+  })
+}
+
+function slotProviderLaunchRank(item: ProviderGameCatalogCategoryItem, preset: ProviderThumbPreset): number {
+  let score = 0
+
+  if (matchesProviderCatalogKeyword(item, slotProviderPresetKeywords(preset))) score += 8
+  if (matchesProviderCatalogKeyword(item, ['game_list', 'game list', 'lobby'])) score += 6
+  if (matchesProviderCatalogKeyword(item, ['slot', 'slots', 'rng'])) score += 3
+  if (String(item.show_icon || '').trim()) score += 1
+
+  return score
+}
+
+function pickSlotProviderLaunchItem(
+  items: ProviderGameCatalogCategoryItem[],
+  preset: ProviderThumbPreset,
+): ProviderGameCatalogCategoryItem | undefined {
+  const launchItems = items.filter((item) => String(item.kind || '').trim() === 'launch')
+  const exactProductTypeItems = launchItems.filter((item) => providerCatalogItemProductType(item) === preset.productType)
+  const aliasMatchedItems = launchItems.filter((item) => matchesProviderCatalogKeyword(item, slotProviderPresetKeywords(preset)))
+  const candidates = exactProductTypeItems.length > 0 ? exactProductTypeItems : aliasMatchedItems
+
+  if (candidates.length === 0) return undefined
+
+  return [...candidates].sort((left, right) => {
+    const priorityDiff = slotProviderLaunchRank(right, preset) - slotProviderLaunchRank(left, preset)
+    if (priorityDiff !== 0) return priorityDiff
+
+    const leftName = String(left.game_name || left.tcg_game_code || '').trim()
+    const rightName = String(right.game_name || right.tcg_game_code || '').trim()
+    return leftName.localeCompare(rightName, 'vi')
+  })[0]
+}
+
+function buildSlotProviderGameItem(
+  item: ProviderGameCatalogCategoryItem | undefined,
+  categoryKey: string,
+  preset: ProviderThumbPreset,
+  index: number,
+): GameItem {
+  const productType = item ? providerCatalogItemProductType(item) : preset.productType
+
+  return {
+    name: preset.label,
+    image: preset.image,
+    category: [
+      ...(index < 2 ? ['Phổ biến'] : []),
+      'Nổ hũ',
+    ],
+    partnerLobby: false,
+    featured: index === 0,
+    wideCard: true,
+    providerGameCode: preset.code,
+    providerProductType: item ? String(item.product_type_value || item.product_type || '').trim() : String(productType),
+    providerProductTypeNumber: productType,
+    providerGameType: item ? String(item.game_type || '').trim() : 'RNG',
+    providerItemKind: 'group',
+    providerCategoryKey: categoryKey,
+    providerChildCount: item ? 1 : 0,
   }
 }
 
@@ -348,16 +580,44 @@ function selectMobileLobbyItem(key: MobileLobbyKey) {
   activeMobileLobbyKey.value = key
   activeCategory.value = item.category
   activeMobileLobbyTab.value = 'category'
+  void router.replace({ query: { ...route.query, tab: key } })
+}
+
+function switchLobbyTab(tab: 'category' | 'history' | 'favorite') {
+  activeMobileLobbyTab.value = tab
+  void router.replace({ query: { ...route.query, subtab: tab === 'category' ? undefined : tab } })
+}
+
+function syncTabFromRoute() {
+  const tabParam = String(route.query.tab ?? '').trim() as MobileLobbyKey
+  const subtabParam = String(route.query.subtab ?? '').trim()
+
+  if (tabParam && mobileLobbySidebar.some((e) => e.key === tabParam)) {
+    const item = mobileLobbySidebar.find((e) => e.key === tabParam)!
+    activeMobileLobbyKey.value = tabParam
+    activeCategory.value = item.category
+  }
+
+  if (subtabParam === 'history' || subtabParam === 'favorite') {
+    activeMobileLobbyTab.value = subtabParam
+  } else {
+    activeMobileLobbyTab.value = 'category'
+  }
 }
 
 function mobileLobbyBadgeText(game: GameItem, index: number): string {
   if (game.route) return 'Live'
+  if (game.providerItemKind === 'group') return 'Lobby'
   if (game.featured || index < 3) return 'Hot'
   return ''
 }
 
 function isDefaultLobbyGame(game: GameItem): boolean {
   return defaultLobbyGames.some((item) => item.route === game.route && item.name === game.name)
+}
+
+function isWideLobbyGame(game: GameItem): boolean {
+  return isDefaultLobbyGame(game) || Boolean(game.wideCard)
 }
 
 function matchesSelectedCategory(game: GameItem): boolean {
@@ -391,20 +651,45 @@ const providerGamesByCategory = computed<Record<HomeCategory, GameItem[]>>(() =>
     'Đá gà': [],
   }
 
-  for (const item of providerCatalogItems.value) {
-    if (Number(item.display_status ?? 0) !== 0) continue
-    if (!supportsHomePlatform(item)) continue
-    if (!String(item.show_icon || '').trim()) continue
-
-    const category = providerCategory(item)
-    if (!category) continue
-
-    grouped[category].push(buildProviderGameItem(item, category))
-  }
-
   for (const category of homeCategories) {
-    const items = grouped[category]
-    grouped[category] = uniqueGames(items).sort((left, right) => {
+    const categoryKey = providerCategoryKeys[category]
+    const section = providerCatalogCategories.value.find((item) => String(item.key || '').trim().toLowerCase() === categoryKey)
+    const categoryItems = (section?.items ?? [])
+      .filter((item) => Number(item.display_status ?? 0) === 0)
+      .filter((item) => supportsCatalogPlatform(item.platform))
+
+    if (category === 'Thể thao') {
+      grouped[category] = sportsProviderPresets.map((preset) => {
+        const matched = categoryItems.find((item) => (
+          providerCatalogItemProductType(item) === preset.productType && String(item.kind || '').trim() === 'launch'
+        ))
+        return buildSportsProviderGameItem(matched, categoryKey, preset)
+      })
+      continue
+    }
+
+    // Nổ hũ: giữ giao diện local thumb mặc định, còn metadata launch lấy từ catalog nếu có.
+    if (category === 'Nổ hũ') {
+      grouped[category] = slotProviderPresets.map((preset, index) => {
+        const matched = pickSlotProviderLaunchItem(categoryItems, preset)
+        return buildSlotProviderGameItem(matched, categoryKey, preset, index)
+      })
+      continue
+    }
+
+    // Casino: luôn dùng local thumbnails (giống Sports), mỗi thumbnail điều hướng tới trang lobby của nhà của
+    if (category === 'Casino') {
+      const casinoThumbs = thumbGames.filter((g) => g.category.includes('Casino'))
+      // Chỉ giữ lại các item có productType hợp lệ (> 0)
+      grouped[category] = casinoThumbs.filter((g) => (g.providerProductTypeNumber ?? 0) > 0)
+      continue
+    }
+
+    const sourceItems = categoryItems
+      .filter((item) => String(item.show_icon || '').trim())
+      .map((item) => buildProviderGameItem(item, category, categoryKey))
+
+    grouped[category] = uniqueGames(sourceItems).sort((left, right) => {
       const leftPriority = providerProductPriority(category, parseProviderProductType(left.providerProductType || ''))
       const rightPriority = providerProductPriority(category, parseProviderProductType(right.providerProductType || ''))
       if (leftPriority !== rightPriority) return leftPriority - rightPriority
@@ -432,23 +717,8 @@ function fallbackGamesForCategory(category: HomeCategory): GameItem[] {
   return fallbackThumbGames.value.filter((game) => game.category.includes(category))
 }
 
-function dedupeCasinoProviderGames(items: GameItem[]): GameItem[] {
-  const seenProviders = new Set<string>()
-  return items.filter((item) => {
-    const key = String(item.providerProductType || item.image || item.name).trim()
-    if (!key) return true
-    if (seenProviders.has(key)) return false
-    seenProviders.add(key)
-    return true
-  })
-}
-
 function normalizeCategoryGames(category: HomeCategory, items: GameItem[]): GameItem[] {
-  const normalized = category === 'Casino'
-    ? dedupeCasinoProviderGames(items)
-    : items
-
-  return normalized.slice(0, categoryGameLimit)
+  return items.slice(0, categoryGameLimit)
 }
 
 function resolvedCategoryGames(category: HomeCategory): GameItem[] {
@@ -456,12 +726,6 @@ function resolvedCategoryGames(category: HomeCategory): GameItem[] {
   const source = providerItems.length > 0 ? providerItems : fallbackGamesForCategory(category)
   return normalizeCategoryGames(category, source)
 }
-
-function curatedGamesForCategory(category: HomeCategory, limit: number): GameItem[] {
-  return resolvedCategoryGames(category).slice(0, limit)
-}
-
-const popularGames = computed(() => defaultLobbyGames)
 
 const filteredGames = computed(() => {
   const category = activeCategory.value as HomeCategory
@@ -507,17 +771,6 @@ const mobileLobbyGames = computed(() => {
       .filter(matchesSelectedCategory)
   }
 
-  if (activeMobileLobbyKey.value === 'demo') {
-    return filteredGames.value.slice(0, 12)
-  }
-
-  if (activeMobileLobbyKey.value === 'mini') {
-    return uniqueGames([
-      ...popularGames.value.slice(0, 6),
-      ...curatedGamesForCategory('Nổ hũ', 6),
-    ]).slice(0, 12)
-  }
-
   return filteredGames.value
 })
 
@@ -561,9 +814,9 @@ async function fetchProviderGames() {
   providerCatalogError.value = ''
   try {
     const response = await request<ProviderGameCatalogResponse>('GET', '/v1/provider-games/tcg')
-    providerCatalogItems.value = response.items || []
+    providerCatalogCategories.value = response.categories || []
   } catch {
-    providerCatalogItems.value = []
+    providerCatalogCategories.value = []
     providerCatalogError.value = 'Không thể tải danh sách game nhà cung cấp'
   }
 }
@@ -616,14 +869,21 @@ function fakeFinanceChannelClass(item: FakeFinanceFeedItem) {
 onMounted(() => {
   recentGameKeys.value = loadStoredGameKeys(recentGamesStorageKey)
   favoriteGameKeys.value = loadStoredGameKeys(favoriteGamesStorageKey)
+  syncTabFromRoute()
   prefetchPlayRouteSoon()
   window.setTimeout(() => prefetchPartnerGameRoute(), 1200)
+  window.setTimeout(() => prefetchProviderLobbyRoute(), 1500)
   void wallet.fetchSummary()
   void fetchHomeContent()
   void fetchProviderGames()
   void refreshFakeFinanceFeed()
   startFakeFinancePolling()
 })
+
+watch(
+  () => route.query,
+  () => syncTabFromRoute(),
+)
 
 watch(
   showFakeFinanceFeed,
@@ -696,19 +956,19 @@ onBeforeUnmount(() => {
     <section class="home-lobby-mobile relative overflow-hidden mt-4">
       <div class="home-lobby-mobile__shell relative min-h-[calc(100dvh-11.5rem)] px-2 pb-4 pt-3">
         <aside class="home-lobby-mobile__sidebar sticky top-3 self-start">
-          <div class="space-y-2">
+          <div class="space-y-1.5">
             <button
               v-for="item in mobileLobbySidebar"
               :key="item.key"
               type="button"
-              class="home-lobby-mobile__nav-item flex w-full items-center gap-2 rounded-[14px] px-2 py-2 text-left transition-all duration-200"
+              class="home-lobby-mobile__nav-item flex w-full flex-col items-center justify-center gap-1 rounded-[14px] px-1.5 py-2.5 text-center transition-all duration-200"
               :class="activeMobileLobbyKey === item.key ? 'bg-[linear-gradient(180deg,#da251d_0%,#a81b14_100%)] text-white shadow-[0_8px_16px_rgba(218,37,29,0.3)]' : 'bg-transparent text-slate-700'"
               @click="selectMobileLobbyItem(item.key)"
             >
-              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-[10px]" :class="activeMobileLobbyKey === item.key ? 'bg-white/20' : 'bg-transparent'">
-                <span class="material-symbols-outlined text-[1rem]" :class="item.iconClass">{{ item.icon }}</span>
+              <span class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-[12px]" :class="activeMobileLobbyKey === item.key ? 'bg-white/20' : 'bg-transparent'">
+                <img :src="item.icon" :alt="item.label" class="h-8 w-8 object-contain" loading="lazy" decoding="async" />
               </span>
-              <span class="text-[0.72rem] font-semibold leading-4">{{ item.label }}</span>
+              <span class="text-[0.65rem] font-semibold leading-[1.05rem]">{{ item.label }}</span>
             </button>
           </div>
         </aside>
@@ -718,7 +978,7 @@ onBeforeUnmount(() => {
             <button 
               class="relative text-[0.85rem] font-bold transition-colors"
               :class="activeMobileLobbyTab === 'category' ? 'text-primary' : 'text-slate-500 hover:text-primary/70'"
-              @click="activeMobileLobbyTab = 'category'"
+              @click="switchLobbyTab('category')"
             >
               {{ activeMobileLobbyItem?.label }}
               <div v-if="activeMobileLobbyTab === 'category'" class="absolute -bottom-[9px] left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-t-md bg-primary"></div>
@@ -726,7 +986,7 @@ onBeforeUnmount(() => {
             <button 
               class="relative text-[0.85rem] font-bold transition-colors"
               :class="activeMobileLobbyTab === 'history' ? 'text-primary' : 'text-slate-500 hover:text-primary/70'"
-              @click="activeMobileLobbyTab = 'history'"
+              @click="switchLobbyTab('history')"
             >
               Lịch Sử
               <div v-if="activeMobileLobbyTab === 'history'" class="absolute -bottom-[9px] left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-t-md bg-primary"></div>
@@ -734,7 +994,7 @@ onBeforeUnmount(() => {
             <button 
               class="relative text-[0.85rem] font-bold transition-colors"
               :class="activeMobileLobbyTab === 'favorite' ? 'text-primary' : 'text-slate-500 hover:text-primary/70'"
-              @click="activeMobileLobbyTab = 'favorite'"
+              @click="switchLobbyTab('favorite')"
             >
               Yêu Thích
               <div v-if="activeMobileLobbyTab === 'favorite'" class="absolute -bottom-[9px] left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-t-md bg-primary"></div>
@@ -747,7 +1007,7 @@ onBeforeUnmount(() => {
               :key="`${game.name}-mobile-lobby`"
               :to="resolveGameTarget(game)"
               class="group min-w-0"
-              :class="isDefaultLobbyGame(game) ? 'col-span-3' : ''"
+              :class="isWideLobbyGame(game) ? 'col-span-full' : ''"
               @pointerenter="maybePrefetchGameRoute(game)"
               @focus="maybePrefetchGameRoute(game)"
               @touchstart.passive="maybePrefetchGameRoute(game)"
@@ -758,7 +1018,7 @@ onBeforeUnmount(() => {
                   :src="game.image"
                   :alt="game.name"
                   class="w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                  :class="isDefaultLobbyGame(game) ? 'aspect-[3/1]' : 'aspect-square'"
+                  :class="isWideLobbyGame(game) ? 'aspect-[3/1]' : 'aspect-square'"
                   loading="lazy"
                   decoding="async"
                 />
@@ -1085,8 +1345,8 @@ onBeforeUnmount(() => {
 
 .home-lobby-mobile__shell {
   display: grid;
-  grid-template-columns: 5.7rem minmax(0, 1fr);
-  column-gap: 0.8rem;
+  grid-template-columns: 5.85rem minmax(0, 1fr);
+  column-gap: 0.7rem;
   align-items: start;
 }
 
@@ -1100,6 +1360,7 @@ onBeforeUnmount(() => {
 
 .home-lobby-mobile__nav-item {
   border: 1px solid rgba(218, 37, 29, 0.08);
+  min-height: 5.1rem;
 }
 
 .home-lobby-mobile__card {

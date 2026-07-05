@@ -524,6 +524,29 @@ export type ProviderGameCatalogItem = {
   trial_support: boolean
 }
 
+export type ProviderGameCatalogCategoryItem = {
+  kind: string
+  display_status: number
+  game_type: string
+  game_name: string
+  tcg_game_code: string
+  product_code: string
+  product_type: number
+  product_type_value: string
+  platform: string
+  game_sub_type: string
+  show_icon?: string
+  trial_support: boolean
+  child_count?: number
+  children?: ProviderGameCatalogItem[]
+}
+
+export type ProviderGameCatalogCategory = {
+  key: string
+  label: string
+  items: ProviderGameCatalogCategoryItem[]
+}
+
 export type ProviderGameCatalogPageInfo = {
   total_page: number
   current_page: number
@@ -543,7 +566,7 @@ export type ProviderGameCatalogResponse = {
   game_type: string
   language?: string
   synced_at: string
-  items: ProviderGameCatalogItem[]
+  categories: ProviderGameCatalogCategory[]
   page_info: ProviderGameCatalogPageInfo
 }
 

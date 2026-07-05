@@ -28,24 +28,25 @@ type TCGGameListSyncConfig struct {
 }
 
 type TCGGameListSnapshot struct {
-	Provider     string              `json:"provider"`
-	Method       string              `json:"method"`
-	Source       string              `json:"source"`
-	ProductTypes []int               `json:"product_types"`
-	GameTypes    []string            `json:"game_types"`
-	ProductType  int                 `json:"product_type"`
-	Platform     string              `json:"platform"`
-	ClientType   string              `json:"client_type"`
-	GameType     string              `json:"game_type"`
-	Language     string              `json:"language,omitempty"`
-	Page         int                 `json:"page"`
-	PageSize     int                 `json:"page_size"`
-	Status       int                 `json:"status"`
-	ErrorDesc    string              `json:"error_desc,omitempty"`
-	SyncedAt     time.Time           `json:"synced_at"`
-	Games        []TCGGameListItem   `json:"games"`
-	PageInfo     TCGGameListPageInfo `json:"page_info"`
-	Raw          map[string]any      `json:"raw,omitempty"`
+	Provider     string                       `json:"provider"`
+	Method       string                       `json:"method"`
+	Source       string                       `json:"source"`
+	ProductTypes []int                        `json:"product_types"`
+	GameTypes    []string                     `json:"game_types"`
+	ProductType  int                          `json:"product_type"`
+	Platform     string                       `json:"platform"`
+	ClientType   string                       `json:"client_type"`
+	GameType     string                       `json:"game_type"`
+	Language     string                       `json:"language,omitempty"`
+	Page         int                          `json:"page"`
+	PageSize     int                          `json:"page_size"`
+	Status       int                          `json:"status"`
+	ErrorDesc    string                       `json:"error_desc,omitempty"`
+	SyncedAt     time.Time                    `json:"synced_at"`
+	Games        []TCGGameListItem            `json:"-"`
+	Categories   []TCGProviderCatalogCategory `json:"categories"`
+	PageInfo     TCGGameListPageInfo          `json:"page_info"`
+	Raw          map[string]any               `json:"raw,omitempty"`
 }
 
 type TCGGameListItem struct {
@@ -159,7 +160,7 @@ func (s *TCGGameListSyncService) fetchCombinedSnapshot(ctx context.Context) TCGG
 		Page:         s.config.Page,
 		PageSize:     s.config.PageSize,
 		SyncedAt:     time.Now(),
-		Games:        make([]TCGGameListItem, 0),
+		Categories:   make([]TCGProviderCatalogCategory, 0),
 		PageInfo:     TCGGameListPageInfo{},
 		Raw:          map[string]any{},
 	}
@@ -169,6 +170,7 @@ func (s *TCGGameListSyncService) fetchCombinedSnapshot(ctx context.Context) TCGG
 	currentPage := 0
 	successCount := 0
 	seen := make(map[string]struct{})
+	combinedGames := make([]TCGGameListItem, 0)
 
 	for _, gameType := range gameTypes {
 		for _, productType := range effectiveMap[gameType] {
@@ -203,7 +205,7 @@ func (s *TCGGameListSyncService) fetchCombinedSnapshot(ctx context.Context) TCGG
 					continue
 				}
 				seen[key] = struct{}{}
-				snapshot.Games = append(snapshot.Games, item)
+				combinedGames = append(combinedGames, item)
 			}
 			combinedTotalPage += partial.PageInfo.TotalPage
 			currentPage = maxInt(currentPage, partial.PageInfo.CurrentPage)
@@ -224,17 +226,19 @@ func (s *TCGGameListSyncService) fetchCombinedSnapshot(ctx context.Context) TCGG
 	snapshot.PageInfo.TotalPage = combinedTotalPage
 	snapshot.PageInfo.CurrentPage = currentPage
 
-	if len(snapshot.Games) == 0 {
-		snapshot.Games = buildStaticTCGGameCatalog(effectiveMap)
-		if len(snapshot.Games) > 0 {
+	if len(combinedGames) == 0 {
+		combinedGames = buildStaticTCGGameCatalog(effectiveMap)
+		if len(combinedGames) > 0 {
 			snapshot.Source = "static_docs_fallback"
 			snapshot.PageInfo = TCGGameListPageInfo{
 				TotalPage:   1,
 				CurrentPage: 1,
-				TotalCount:  strconv.Itoa(len(snapshot.Games)),
+				TotalCount:  strconv.Itoa(len(combinedGames)),
 			}
 		}
 	}
+
+	snapshot.Categories = buildTCGProviderCatalogCategories(combinedGames)
 
 	return snapshot
 }

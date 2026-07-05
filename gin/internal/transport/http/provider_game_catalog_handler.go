@@ -3,6 +3,8 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
 
 	authmiddleware "gin/internal/auth/middleware"
 	"gin/internal/domain/game"
@@ -28,13 +30,37 @@ func (h *ProviderGameCatalogHandler) TCGList(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	response, err := h.service.GetTCGGameCatalog(r.Context())
+	productType := 0
+	productTypeText := strings.TrimSpace(r.URL.Query().Get("product_type"))
+	if productTypeText != "" {
+		parsed, err := strconv.Atoi(productTypeText)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "product_type không hợp lệ"})
+			return
+		}
+		productType = parsed
+	}
+
+	response, err := h.service.GetTCGGameCatalog(r.Context(), service.ProviderGameCatalogFilter{
+		Category:        r.URL.Query().Get("category"),
+		ProductType:     productType,
+		IncludeChildren: isTruthyQueryValue(r.URL.Query().Get("include_children")),
+	})
 	if err != nil {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"message": err.Error()})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func isTruthyQueryValue(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func (h *ProviderGameCatalogHandler) Launch(w http.ResponseWriter, r *http.Request) {
