@@ -211,6 +211,11 @@ function maybePrefetchGameRoute(game: GameItem) {
   }
 }
 
+function providerLobbyDisplayName(game: GameItem): string {
+  if (game.providerCategoryKey === 'casino' && game.name === 'AE') return 'SEXY'
+  return game.name
+}
+
 function resolveGameTarget(game: GameItem): RouteLocationRaw {
   if (game.route) {
     return { path: game.route, query: { from: route.fullPath } }
@@ -229,8 +234,9 @@ function resolveGameTarget(game: GameItem): RouteLocationRaw {
         productType,
       },
       query: {
-        name: game.name,
+        name: providerLobbyDisplayName(game),
         from: route.fullPath,
+        provider_key: providerLobbyDisplayName(game),
       },
     }
   }
@@ -266,20 +272,20 @@ type ProviderThumbPreset = {
 
 // Mapping tên file thumbnail lobby-casino → productType của TCG API
 const lobbyCasinoProductTypeMap: Record<string, number> = {
-  'AE':       4,
-  'AG':       27,
-  'BBIN':     43,
-  'DG':       3,
-  'EZUGI':    272,
+  'AE':       112,
+  'AG':       4,
+  'BBIN':     79,
+  'DG':       27,
+  'EZUGI':    177,
   'HRG':      93,
-  'MG':       79,
-  'MT':       258,
-  'PP':       177,
-  'Playtech': 39,
-  'SA':       118,
+  'MG':       43,
+  'MT':       272,
+  'PP':       39,
+  'Playtech': 3,
+  'SA':       93,
   'TP':       93,
-  'W':        43,
-  'WM':       39,
+  'W':        258,
+  'WM':       118,
 }
 
 const thumbCategoryMap: Record<string, ThumbCategoryConfig> = {

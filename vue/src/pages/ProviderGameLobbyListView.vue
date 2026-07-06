@@ -9,21 +9,147 @@ import type {
   ProviderGameCatalogResponse,
 } from '@/shared/api/types'
 
+const casinoSidebarIconModules = import.meta.glob<string>('@/assets/game_thumbs/lobby-casino/icon/*.avif', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+
+const casinoShowIconModules = import.meta.glob<string>('@/assets/game_thumbs/lobby-casino/show-icon/*.avif', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+
+const casinoSidebarIconMap = Object.fromEntries(
+  Object.entries(casinoSidebarIconModules).map(([path, url]) => {
+    const fileName = path.split('/').pop() ?? ''
+    const baseName = fileName.replace(/\.[^.]+$/, '')
+    return [baseName, url]
+  }),
+) as Record<string, string>
+
+const casinoShowIconMap = Object.fromEntries(
+  Object.entries(casinoShowIconModules).map(([path, url]) => {
+    const fileName = path.split('/').pop() ?? ''
+    const baseName = fileName.replace(/\.[^.]+$/, '')
+    return [baseName, url]
+  }),
+) as Record<string, string>
+
 const route = useRoute()
 const router = useRouter()
 
 const loading = ref(false)
 const error = ref('')
-const allProviders = ref<ProviderGameCatalogCategoryItem[]>([])
+interface SidebarProviderItem extends ProviderGameCatalogCategoryItem {
+  sidebarKey: string
+  sidebarLabel: string
+  sidebarIconKey?: string
+}
+
+const allProviders = ref<SidebarProviderItem[]>([])
 const activeProductType = ref(0)
 
+type ProviderLobbyPreset = {
+  label: string
+  productType: number
+  sidebarIconKey?: string
+}
+
+type CasinoGlobalLobbyConfig = {
+  displayName?: string
+  showIconKey?: string
+  preferredCodes?: string[]
+}
+
+const slotLobbyPresets: ProviderLobbyPreset[] = [
+  { label: '168GAME', productType: 275 },
+  { label: 'CQ9', productType: 16 },
+  { label: 'FC', productType: 141 },
+  { label: 'JDB', productType: 55 },
+  { label: 'JILI', productType: 140 },
+  { label: 'PG', productType: 98 },
+  { label: 'TP', productType: 243 },
+  { label: 'WG', productType: 212 },
+]
+
+const fishLobbyPresets: ProviderLobbyPreset[] = [
+  { label: 'BBIN', productType: 79 },
+  { label: 'CQ9', productType: 16 },
+  { label: 'FC', productType: 141 },
+  { label: 'JDB', productType: 55 },
+  { label: 'JILI', productType: 140 },
+  { label: 'MG', productType: 43 },
+  { label: 'RSG', productType: 138 },
+  { label: 'TP', productType: 243 },
+  { label: 'WG', productType: 212 },
+]
+
+const cardLobbyPresets: ProviderLobbyPreset[] = [
+  { label: 'JILI', productType: 140 },
+  { label: 'MG', productType: 43 },
+  { label: 'WG', productType: 212 },
+]
+
+const casinoLobbyPresets: ProviderLobbyPreset[] = [
+  { label: 'SEXY', productType: 112, sidebarIconKey: 'SEXY' },
+  { label: 'AG', productType: 4, sidebarIconKey: 'AG' },
+  { label: 'BBIN', productType: 79, sidebarIconKey: 'BBIN' },
+  { label: 'DG', productType: 27, sidebarIconKey: 'DG' },
+  { label: 'EZUGI', productType: 177 },
+  { label: 'HRG', productType: 93, sidebarIconKey: 'HRG' },
+  { label: 'MG', productType: 43, sidebarIconKey: 'MG' },
+  { label: 'MT', productType: 272 },
+  { label: 'PP', productType: 39, sidebarIconKey: 'PP' },
+  { label: 'PT', productType: 3, sidebarIconKey: 'PT' },
+  { label: 'SA', productType: 93, sidebarIconKey: 'SA' },
+  { label: 'TP', productType: 93, sidebarIconKey: 'TP' },
+  { label: 'W', productType: 258, sidebarIconKey: 'NW' },
+  { label: 'WM', productType: 118, sidebarIconKey: 'WM' },
+]
+
+const expandedCasinoLobbyKeys = new Set(['SEXY', 'WM'])
+
+const casinoGlobalLobbyConfigMap: Record<string, CasinoGlobalLobbyConfig> = {
+  AG: { displayName: 'CHOICE', showIconKey: 'CHOICE', preferredCodes: ['A00234'] },
+  BBIN: { showIconKey: 'BBIN', preferredCodes: ['BBB001'] },
+  DG: { showIconKey: 'DG', preferredCodes: ['DG0013'] },
+  MG: { preferredCodes: ['MG0554'] },
+  MT: { showIconKey: 'MT' },
+  PP: { showIconKey: 'PP' },
+  SA: { showIconKey: 'SA', preferredCodes: ['SA0001'] },
+  TP: { showIconKey: 'TP' },
+}
+
+const casinoProviderAliasMap: Record<string, string[]> = {
+  AG: ['ag', 'choice'],
+  BBIN: ['bbin', 'bb'],
+  DG: ['dg'],
+  HRG: ['hrg'],
+  MG: ['mg'],
+  MT: ['mt'],
+  PP: ['pp'],
+  PT: ['pt', 'playtech'],
+  SA: ['sa'],
+  SEXY: ['sexy', 'sex'],
+  TP: ['tp'],
+  W: ['w', 'nw'],
+  WM: ['wm'],
+}
+
 const categoryKey = computed(() => String(route.params.category ?? '').trim().toLowerCase())
+const isCasinoCategory = computed(() => categoryKey.value === 'casino')
+const activeSidebarKey = computed(() => String(route.query.provider_key ?? route.query.name ?? '').trim())
 const productTypeParam = computed(() => {
   const parsed = Number.parseInt(String(route.params.productType ?? '').trim(), 10)
   return Number.isFinite(parsed) ? parsed : 0
 })
 
 const pageTitle = computed(() => {
+  const activeProviderLabel = String(activeProvider.value?.sidebarLabel || '').trim()
+  if (activeProviderLabel) return activeProviderLabel
+
   const queryName = String(route.query.name ?? '').trim()
   return queryName || categoryLabel.value
 })
@@ -46,16 +172,28 @@ const backTarget = computed(() => {
   return from.startsWith('/') ? from : '/home'
 })
 
-const activeProvider = computed(() =>
-  allProviders.value.find((p) => Number(p.product_type ?? 0) === activeProductType.value) ?? null,
-)
+const activeProvider = computed(() => {
+  if (activeSidebarKey.value) {
+    const exact = allProviders.value.find((provider) => provider.sidebarKey === activeSidebarKey.value)
+    if (exact) return exact
+  }
+
+  return allProviders.value.find((p) => Number(p.product_type ?? 0) === activeProductType.value) ?? null
+})
 
 const lobbyItems = computed(() => {
-  const children = activeProvider.value?.children ?? []
-  return children.filter((item) => {
-    if (Number(item.display_status ?? 0) !== 0) return false
-    return supportsDisplayPlatform(item.platform)
-  })
+  const provider = activeProvider.value
+  const children = filterLobbyChildren(provider?.children ?? [])
+
+  if (!provider) return []
+  if (!isCasinoCategory.value) return children
+
+  if (expandedCasinoLobbyKeys.has(casinoProviderKey(provider))) {
+    return children
+  }
+
+  const globalLobby = buildCasinoGlobalLobbyItem(provider, children)
+  return globalLobby ? [globalLobby] : children
 })
 
 function parseProductType(value: string | number | null | undefined): number {
@@ -69,6 +207,105 @@ function providerProductType(item: ProviderGameCatalogCategoryItem): number {
   return parseProductType(item.product_type_value)
 }
 
+type CatalogKeywordSource = Pick<
+  ProviderGameCatalogItem,
+  'game_name' | 'tcg_game_code' | 'product_code' | 'game_sub_type'
+>
+
+function categoryLobbyPresets(category: string): ProviderLobbyPreset[] {
+  switch (category) {
+    case 'casino':
+      return casinoLobbyPresets
+    case 'slots':
+      return slotLobbyPresets
+    case 'fish':
+      return fishLobbyPresets
+    case 'cards':
+      return cardLobbyPresets
+    default:
+      return []
+  }
+}
+
+function presetLabelForProvider(category: string, productType: number, fallback: string): string {
+  const preset = categoryLobbyPresets(category).find((item) => item.productType === productType)
+  return preset?.label ?? fallback
+}
+
+function presetForProvider(category: string, productType: number): ProviderLobbyPreset | undefined {
+  return categoryLobbyPresets(category).find((item) => item.productType === productType)
+}
+
+function providerSidebarLabel(category: string, productType: number, fallback: string): string {
+  if (category === 'casino' && productType === 4) {
+    return 'CHOICE'
+  }
+
+  const preset = presetForProvider(category, productType)
+  return preset?.label ?? fallback
+}
+
+function localCasinoSidebarIcon(provider: SidebarProviderItem): string {
+  const explicitKey = String(provider.sidebarIconKey || '').trim()
+  if (explicitKey && casinoSidebarIconMap[explicitKey]) {
+    return casinoSidebarIconMap[explicitKey]
+  }
+
+  const sidebarLabel = String(provider.sidebarLabel || '').trim()
+  if (sidebarLabel && casinoSidebarIconMap[sidebarLabel]) {
+    return casinoSidebarIconMap[sidebarLabel]
+  }
+
+  return ''
+}
+
+function providerSidebarIcon(provider: SidebarProviderItem): string {
+  if (categoryKey.value === 'casino') {
+    const localIcon = localCasinoSidebarIcon(provider)
+    if (localIcon) return localIcon
+  }
+
+  return String(provider.show_icon || '').trim()
+}
+
+function buildSidebarProviders(category: string, items: ProviderGameCatalogCategoryItem[]): SidebarProviderItem[] {
+  const orderedPresets = categoryLobbyPresets(category)
+  if (orderedPresets.length === 0) {
+    return items.map((item) => {
+      const fallbackLabel = String(item.game_name || item.tcg_game_code || '').trim()
+      return {
+        ...item,
+        sidebarKey: String(item.product_type || item.product_type_value || fallbackLabel).trim(),
+        sidebarLabel: fallbackLabel,
+        sidebarIconKey: '',
+      }
+    })
+  }
+
+  const mapped = items.map((item) => {
+    const productType = providerProductType(item)
+    const fallbackLabel = String(item.game_name || item.tcg_game_code || '').trim()
+    const preset = presetForProvider(category, productType)
+    const sidebarKey = preset?.label ?? fallbackLabel
+    const sidebarLabel = providerSidebarLabel(category, productType, fallbackLabel)
+    return {
+      ...item,
+      sidebarKey,
+      sidebarLabel,
+      sidebarIconKey: String(preset?.sidebarIconKey || '').trim(),
+    }
+  })
+
+  return [...mapped].sort((left, right) => {
+    const leftPT = providerProductType(left)
+    const rightPT = providerProductType(right)
+    const leftIndex = orderedPresets.findIndex((preset) => preset.productType === leftPT)
+    const rightIndex = orderedPresets.findIndex((preset) => preset.productType === rightPT)
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex
+    return left.sidebarLabel.localeCompare(right.sidebarLabel, 'vi')
+  })
+}
+
 function supportsDisplayPlatform(platform: string): boolean {
   const normalized = String(platform || '').trim().toLowerCase()
   if (!normalized) return false
@@ -78,18 +315,117 @@ function supportsDisplayPlatform(platform: string): boolean {
     || normalized.includes('desktop')
 }
 
-function containsProviderKeyword(item: ProviderGameCatalogCategoryItem, keywords: string[]): boolean {
-  const values = [
+function catalogKeywordValues(item: CatalogKeywordSource): string[] {
+  return [
     String(item.game_name || '').trim().toLowerCase(),
     String(item.tcg_game_code || '').trim().toLowerCase(),
     String(item.product_code || '').trim().toLowerCase(),
     String(item.game_sub_type || '').trim().toLowerCase(),
   ].filter(Boolean)
+}
+
+function catalogContainsKeyword(item: CatalogKeywordSource, keywords: string[]): boolean {
+  const values = catalogKeywordValues(item)
 
   return keywords.some((keyword) => {
     const normalizedKeyword = String(keyword || '').trim().toLowerCase()
     return normalizedKeyword !== '' && values.some((value) => value.includes(normalizedKeyword))
   })
+}
+
+function containsProviderKeyword(item: ProviderGameCatalogCategoryItem, keywords: string[]): boolean {
+  return catalogContainsKeyword(item, keywords)
+}
+
+function casinoProviderKey(provider: SidebarProviderItem): string {
+  return String(provider.sidebarKey || provider.sidebarLabel || provider.product_code || '').trim().toUpperCase()
+}
+
+function casinoGlobalLobbyConfig(provider: SidebarProviderItem): CasinoGlobalLobbyConfig {
+  return casinoGlobalLobbyConfigMap[casinoProviderKey(provider)] ?? {}
+}
+
+function localCasinoShowIcon(provider: SidebarProviderItem): string {
+  const config = casinoGlobalLobbyConfig(provider)
+  const explicitKey = String(config.showIconKey || '').trim()
+  if (explicitKey && casinoShowIconMap[explicitKey]) {
+    return casinoShowIconMap[explicitKey]
+  }
+
+  const providerKey = casinoProviderKey(provider)
+  if (providerKey && casinoShowIconMap[providerKey]) {
+    return casinoShowIconMap[providerKey]
+  }
+
+  return ''
+}
+
+function casinoGlobalLobbyScore(provider: SidebarProviderItem, item: ProviderGameCatalogItem): number {
+  const providerKey = casinoProviderKey(provider)
+  const config = casinoGlobalLobbyConfig(provider)
+  const aliases = casinoProviderAliasMap[providerKey] ?? [providerKey.toLowerCase()]
+  const normalizedCode = String(item.tcg_game_code || '').trim().toUpperCase()
+  const hasProviderAlias = catalogContainsKeyword(item, aliases)
+  const hasLobbyKeyword = catalogContainsKeyword(item, [
+    'game_list',
+    'game list',
+    'lobby',
+    'sảnh',
+    'sanh',
+    'sảnh trò chơi',
+    'sanh tro choi',
+    'sảnh chờ',
+    'sanh cho',
+  ])
+  const hasProviderLobbyKeyword = catalogContainsKeyword(item, [
+    'trực tuyến',
+    'truc tuyen',
+    'mobile',
+    'live',
+  ])
+
+  let score = 0
+
+  if ((config.preferredCodes ?? []).includes(normalizedCode)) score += 100
+  if (hasLobbyKeyword) score += 40
+  if (hasProviderAlias) score += 6
+  if (hasProviderAlias && hasProviderLobbyKeyword) score += 24
+  if (String(item.show_icon || '').trim()) score += 2
+  if (supportsDisplayPlatform(item.platform)) score += 1
+
+  return score
+}
+
+function buildCasinoGlobalLobbyItem(
+  provider: SidebarProviderItem,
+  children: ProviderGameCatalogItem[],
+): ProviderGameCatalogItem | null {
+  const rankedChildren = children
+    .map((item, index) => ({
+      item,
+      index,
+      score: casinoGlobalLobbyScore(provider, item),
+    }))
+    .sort((left, right) => {
+      if (left.score !== right.score) return right.score - left.score
+      return left.index - right.index
+    })
+
+  const bestChild = rankedChildren[0]
+  const sourceItem = bestChild && bestChild.score > 0 ? bestChild.item : toProviderGameItem(provider)
+  const showIcon = localCasinoShowIcon(provider)
+  const config = casinoGlobalLobbyConfig(provider)
+  const displayName = String(config.displayName || provider.sidebarLabel || sourceItem.game_name || '').trim()
+
+  if (!sourceItem.tcg_game_code || !sourceItem.game_type) {
+    return null
+  }
+
+  return {
+    ...sourceItem,
+    game_name: displayName || sourceItem.game_name,
+    show_icon: showIcon || sourceItem.show_icon,
+  }
 }
 
 function providerHeroRank(item: ProviderGameCatalogCategoryItem): number {
@@ -195,16 +531,67 @@ function lobbyTarget(item: ProviderGameCatalogItem): RouteLocationRaw {
   }
 }
 
-function selectProvider(productType: number) {
+function selectProvider(provider: SidebarProviderItem) {
+  const productType = Number(provider.product_type ?? 0)
   activeProductType.value = productType
   void router.replace({
     params: { ...route.params, productType },
-    query: route.query,
+    query: {
+      ...route.query,
+      name: provider.sidebarLabel,
+      provider_key: provider.sidebarKey,
+    },
   })
 }
 
-function providerName(item: ProviderGameCatalogCategoryItem): string {
+function providerName(item: SidebarProviderItem | ProviderGameCatalogCategoryItem): string {
+  if ('sidebarLabel' in item && String(item.sidebarLabel || '').trim()) {
+    return String(item.sidebarLabel || '').trim()
+  }
   return String(item.game_name || item.tcg_game_code || '').trim()
+}
+
+function filterLobbyChildren(items: ProviderGameCatalogItem[]): ProviderGameCatalogItem[] {
+  return items.filter((item) => {
+    if (Number(item.display_status ?? 0) !== 0) return false
+    return supportsDisplayPlatform(item.platform)
+  })
+}
+
+async function fetchCasinoLobbyProvidersSequentially(): Promise<SidebarProviderItem[]> {
+  const providers: SidebarProviderItem[] = []
+
+  for (const preset of casinoLobbyPresets) {
+    try {
+      const response = await request<ProviderGameCatalogResponse>(
+        'GET',
+        `/v1/provider-games/tcg?category=casino&product_type=${preset.productType}&include_children=1`,
+      )
+      const category = response.categories.find(
+        (item) => String(item.key || '').trim().toLowerCase() === 'casino',
+      )
+      const matched = (category?.items ?? []).find(
+        (item) => providerProductType(item) === preset.productType,
+      )
+      if (!matched) continue
+
+      const children = filterLobbyChildren(matched.children ?? [])
+      if (children.length === 0) continue
+
+      providers.push({
+        ...matched,
+        sidebarKey: preset.label,
+        sidebarLabel: providerSidebarLabel('casino', preset.productType, preset.label),
+        sidebarIconKey: String(preset.sidebarIconKey || '').trim(),
+        child_count: children.length,
+        children,
+      })
+    } catch {
+      // Skip unavailable provider and continue preserving root-category order.
+    }
+  }
+
+  return providers
 }
 
 async function fetchLobbyList() {
@@ -217,20 +604,29 @@ async function fetchLobbyList() {
   error.value = ''
 
   try {
-    const response = await request<ProviderGameCatalogResponse>(
-      'GET',
-      `/v1/provider-games/tcg?category=${encodeURIComponent(categoryKey.value)}&include_children=1`,
-    )
-    const category = response.categories.find(
-      (item) => String(item.key || '').trim().toLowerCase() === categoryKey.value,
-    )
-    const categoryItems = (category?.items ?? []).filter((item) => Number(item.display_status ?? 0) === 0)
-    const groupedItems = categoryItems.filter(
-      (item) =>
-        supportsDisplayPlatform(item.platform) &&
-        (Number(item.child_count ?? 0) > 0 || String(item.kind || '').trim() === 'group'),
-    )
-    const items = groupedItems.length > 0 ? groupedItems : buildVirtualProviders(categoryItems)
+    let items: SidebarProviderItem[] = []
+
+    if (isCasinoCategory.value) {
+      items = await fetchCasinoLobbyProvidersSequentially()
+    } else {
+      const response = await request<ProviderGameCatalogResponse>(
+        'GET',
+        `/v1/provider-games/tcg?category=${encodeURIComponent(categoryKey.value)}&include_children=1`,
+      )
+      const category = response.categories.find(
+        (item) => String(item.key || '').trim().toLowerCase() === categoryKey.value,
+      )
+      const categoryItems = (category?.items ?? []).filter((item) => Number(item.display_status ?? 0) === 0)
+      const groupedItems = categoryItems.filter(
+        (item) =>
+          supportsDisplayPlatform(item.platform) &&
+          (Number(item.child_count ?? 0) > 0 || String(item.kind || '').trim() === 'group'),
+      )
+      items = buildSidebarProviders(
+        categoryKey.value,
+        groupedItems.length > 0 ? groupedItems : buildVirtualProviders(categoryItems),
+      )
+    }
 
     allProviders.value = items
 
@@ -258,6 +654,15 @@ function goBack() {
 watch(
   () => categoryKey.value,
   () => { void fetchLobbyList() },
+)
+
+watch(
+  () => productTypeParam.value,
+  (productType) => {
+    if (productType <= 0) return
+    if (!allProviders.value.some((provider) => Number(provider.product_type ?? 0) === productType)) return
+    activeProductType.value = productType
+  },
 )
 
 onMounted(() => {
@@ -308,7 +713,7 @@ onMounted(() => {
     <!-- Main layout: sidebar + game grid -->
     <div v-else class="flex gap-3">
       <!-- Sidebar providers -->
-      <aside class="w-[4.8rem] shrink-0">
+      <aside class="w-[5.8rem] shrink-0">
         <div
           v-if="loading"
           class="space-y-2"
@@ -323,31 +728,31 @@ onMounted(() => {
         <div v-else class="space-y-2">
           <button
             v-for="provider in allProviders"
-            :key="String(provider.product_type)"
+            :key="provider.sidebarKey"
             type="button"
-            class="flex w-full flex-col items-center gap-1 rounded-[14px] px-1 py-2 text-center transition-all duration-200"
+            class="flex w-full items-center gap-1.5 rounded-[14px] px-1.5 py-2 text-left transition-all duration-200"
             :class="
-              activeProductType === Number(provider.product_type)
+              activeProvider?.sidebarKey === provider.sidebarKey
                 ? 'bg-[linear-gradient(180deg,#da251d_0%,#a81b14_100%)] text-white shadow-[0_8px_16px_rgba(218,37,29,0.28)]'
                 : 'bg-white text-slate-600 shadow-sm'
             "
-            @click="selectProvider(Number(provider.product_type))"
+            @click="selectProvider(provider)"
           >
             <img
-              v-if="provider.show_icon"
-              :src="provider.show_icon"
+              v-if="providerSidebarIcon(provider)"
+              :src="providerSidebarIcon(provider)"
               :alt="providerName(provider)"
-              class="h-8 w-8 rounded-[8px] object-contain"
+              class="h-7 w-7 rounded-[8px] object-contain"
               loading="lazy"
             />
             <div
               v-else
-              class="flex h-8 w-8 items-center justify-center rounded-[8px]"
-              :class="activeProductType === Number(provider.product_type) ? 'bg-white/20' : 'bg-red-50'"
+              class="flex h-7 w-7 items-center justify-center rounded-[8px]"
+              :class="activeProvider?.sidebarKey === provider.sidebarKey ? 'bg-white/20' : 'bg-red-50'"
             >
               <span class="material-symbols-outlined text-[1rem]">casino</span>
             </div>
-            <span class="line-clamp-2 text-[0.6rem] font-bold leading-3">
+            <span class="min-w-0 flex-1 whitespace-nowrap text-[0.58rem] font-bold leading-none">
               {{ providerName(provider) }}
             </span>
           </button>
