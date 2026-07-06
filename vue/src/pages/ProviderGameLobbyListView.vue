@@ -50,6 +50,7 @@ interface SidebarProviderItem extends ProviderGameCatalogCategoryItem {
 
 const allProviders = ref<SidebarProviderItem[]>([])
 const activeProductType = ref(0)
+const providerCache = new Map<string, SidebarProviderItem[]>()
 
 type ProviderLobbyPreset = {
   label: string
@@ -94,9 +95,9 @@ const cardLobbyPresets: ProviderLobbyPreset[] = [
 
 const casinoLobbyPresets: ProviderLobbyPreset[] = [
   { label: 'SEXY', productType: 112, sidebarIconKey: 'SEXY' },
+  { label: 'DG', productType: 27, sidebarIconKey: 'DG' },
   { label: 'AG', productType: 4, sidebarIconKey: 'AG' },
   { label: 'BBIN', productType: 79, sidebarIconKey: 'BBIN' },
-  { label: 'DG', productType: 27, sidebarIconKey: 'DG' },
   { label: 'EZUGI', productType: 177 },
   { label: 'HRG', productType: 93, sidebarIconKey: 'HRG' },
   { label: 'MG', productType: 43, sidebarIconKey: 'MG' },
@@ -558,37 +559,45 @@ function filterLobbyChildren(items: ProviderGameCatalogItem[]): ProviderGameCata
   })
 }
 
-async function fetchCasinoLobbyProvidersSequentially(): Promise<SidebarProviderItem[]> {
+function applyActiveProvider(items: SidebarProviderItem[]) {
+  const targetPT = productTypeParam.value
+  if (targetPT > 0 && items.some((provider) => Number(provider.product_type ?? 0) === targetPT)) {
+    activeProductType.value = targetPT
+    return
+  }
+
+  const firstProvider = items[0]
+  if (firstProvider) {
+    activeProductType.value = Number(firstProvider.product_type ?? 0)
+  }
+}
+
+async function fetchCasinoLobbyProviders(): Promise<SidebarProviderItem[]> {
+  const response = await request<ProviderGameCatalogResponse>(
+    'GET',
+    '/v1/provider-games/tcg?category=casino&include_children=1',
+  )
+  const category = response.categories.find(
+    (item) => String(item.key || '').trim().toLowerCase() === 'casino',
+  )
+  const categoryItems = (category?.items ?? []).filter((item) => Number(item.display_status ?? 0) === 0)
   const providers: SidebarProviderItem[] = []
 
   for (const preset of casinoLobbyPresets) {
-    try {
-      const response = await request<ProviderGameCatalogResponse>(
-        'GET',
-        `/v1/provider-games/tcg?category=casino&product_type=${preset.productType}&include_children=1`,
-      )
-      const category = response.categories.find(
-        (item) => String(item.key || '').trim().toLowerCase() === 'casino',
-      )
-      const matched = (category?.items ?? []).find(
-        (item) => providerProductType(item) === preset.productType,
-      )
-      if (!matched) continue
+    const matched = categoryItems.find((item) => providerProductType(item) === preset.productType)
+    if (!matched) continue
 
-      const children = filterLobbyChildren(matched.children ?? [])
-      if (children.length === 0) continue
+    const children = filterLobbyChildren(matched.children ?? [])
+    if (children.length === 0) continue
 
-      providers.push({
-        ...matched,
-        sidebarKey: preset.label,
-        sidebarLabel: providerSidebarLabel('casino', preset.productType, preset.label),
-        sidebarIconKey: String(preset.sidebarIconKey || '').trim(),
-        child_count: children.length,
-        children,
-      })
-    } catch {
-      // Skip unavailable provider and continue preserving root-category order.
-    }
+    providers.push({
+      ...matched,
+      sidebarKey: preset.label,
+      sidebarLabel: providerSidebarLabel('casino', preset.productType, preset.label),
+      sidebarIconKey: String(preset.sidebarIconKey || '').trim(),
+      child_count: children.length,
+      children,
+    })
   }
 
   return providers
@@ -600,6 +609,14 @@ async function fetchLobbyList() {
     return
   }
 
+  const cachedProviders = providerCache.get(categoryKey.value)
+  if (cachedProviders && cachedProviders.length > 0) {
+    error.value = ''
+    allProviders.value = cachedProviders
+    applyActiveProvider(cachedProviders)
+    return
+  }
+
   loading.value = true
   error.value = ''
 
@@ -607,7 +624,7 @@ async function fetchLobbyList() {
     let items: SidebarProviderItem[] = []
 
     if (isCasinoCategory.value) {
-      items = await fetchCasinoLobbyProvidersSequentially()
+      items = await fetchCasinoLobbyProviders()
     } else {
       const response = await request<ProviderGameCatalogResponse>(
         'GET',
@@ -629,17 +646,9 @@ async function fetchLobbyList() {
     }
 
     allProviders.value = items
+    providerCache.set(categoryKey.value, items)
 
-    // Chọn provider từ URL param, nếu không có thì chọn provider đầu tiên
-    const targetPT = productTypeParam.value
-    if (targetPT > 0 && items.some((p) => Number(p.product_type ?? 0) === targetPT)) {
-      activeProductType.value = targetPT
-    } else if (items.length > 0) {
-      const firstProvider = items[0]
-      if (firstProvider) {
-        activeProductType.value = Number(firstProvider.product_type ?? 0)
-      }
-    }
+    applyActiveProvider(items)
   } catch {
     error.value = 'Không thể tải danh sách lobby lúc này.'
   } finally {

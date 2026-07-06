@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, type RouteLocationNormalizedLoaded } from 'vue-router'
 import AuthLayout from './layouts/AuthLayout.vue'
 import AdminLayout from './layouts/AdminLayout.vue'
 import MainLayout from './layouts/MainLayout.vue'
@@ -12,13 +12,21 @@ const layout = computed(() => {
   if (route.meta.layout === 'admin') return AdminLayout
   return MainLayout
 })
+
+function routeViewKey(childRoute: RouteLocationNormalizedLoaded): string {
+  if (childRoute.meta.preserveComponentInstance) {
+    return String(childRoute.name ?? childRoute.path)
+  }
+
+  return childRoute.fullPath
+}
 </script>
 
 <template>
   <component :is="layout">
     <RouterView v-slot="{ Component, route: childRoute }">
       <Transition name="page" mode="out-in">
-        <component :is="Component" :key="childRoute.fullPath" />
+        <component :is="Component" :key="routeViewKey(childRoute)" />
       </Transition>
     </RouterView>
   </component>
