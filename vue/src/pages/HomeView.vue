@@ -37,6 +37,19 @@ import catHot from '@/assets/category_game/hot.avif'
 import bannerWingo from '@/assets/lottery_banner/optimized/wingo.webp'
 import bannerK3 from '@/assets/lottery_banner/optimized/k3.webp'
 import banner5D from '@/assets/lottery_banner/optimized/5d.webp'
+import chickenSV128 from '@/assets/game_thumbs/chicken/SV128.avif'
+import fishBBIN from '@/assets/game_thumbs/hunt-fish/BBIN.avif'
+import fishCQ9 from '@/assets/game_thumbs/hunt-fish/CQ9.avif'
+import fishFC from '@/assets/game_thumbs/hunt-fish/FC.avif'
+import fishJDB from '@/assets/game_thumbs/hunt-fish/JDB.avif'
+import fishJili from '@/assets/game_thumbs/hunt-fish/JILI.avif'
+import fishMG from '@/assets/game_thumbs/hunt-fish/MG.avif'
+import fishRSG from '@/assets/game_thumbs/hunt-fish/RSG.avif'
+import fishTP from '@/assets/game_thumbs/hunt-fish/TP.avif'
+import fishWG from '@/assets/game_thumbs/hunt-fish/WG.avif'
+import pokerJili from '@/assets/game_thumbs/poker/JILI.avif'
+import pokerMG from '@/assets/game_thumbs/poker/MG.avif'
+import pokerWG from '@/assets/game_thumbs/poker/WG.avif'
 import slot168Game from '@/assets/game_thumbs/slot/168GAME.avif'
 import slotCQ9 from '@/assets/game_thumbs/slot/CQ9.avif'
 import slotFC from '@/assets/game_thumbs/slot/FC.avif'
@@ -271,8 +284,6 @@ const lobbyCasinoProductTypeMap: Record<string, number> = {
 
 const thumbCategoryMap: Record<string, ThumbCategoryConfig> = {
   'lobby-casino': { category: 'Casino', popular: true, featuredFirst: true },
-  'hunt-fish': { category: 'Bắn cá', popular: true, featuredFirst: true },
-  poker: { category: 'Game bài', popular: true },
   chicken: { category: 'Đá gà' },
 }
 
@@ -323,6 +334,7 @@ function buildThumbGames(folder: string, config: ThumbCategoryConfig): GameItem[
         ],
         partnerLobby: true,
         featured: Boolean(config.featuredFirst && index === 0),
+        wideCard: folder === 'chicken',
       }
     })
 }
@@ -357,13 +369,31 @@ const slotProviderPresets: ProviderThumbPreset[] = [
   { code: 'WG', label: 'WG', productType: 212, image: slotWG },
 ]
 
+const fishProviderPresets: ProviderThumbPreset[] = [
+  { code: 'BBIN', label: 'BBIN', productType: 79, image: fishBBIN },
+  { code: 'CQ9', label: 'CQ9', productType: 16, image: fishCQ9 },
+  { code: 'FC', label: 'FC', productType: 141, image: fishFC },
+  { code: 'JDB', label: 'JDB', productType: 55, image: fishJDB },
+  { code: 'JILI', label: 'JILI', productType: 140, image: fishJili },
+  { code: 'MG', label: 'MG', productType: 43, image: fishMG },
+  { code: 'RSG', label: 'RSG', productType: 138, image: fishRSG },
+  { code: 'TP', label: 'TP', productType: 243, image: fishTP },
+  { code: 'WG', label: 'WG', productType: 212, image: fishWG },
+]
+
+const pokerProviderPresets: ProviderThumbPreset[] = [
+  { code: 'JILI', label: 'JILI', productType: 140, image: pokerJili },
+  { code: 'MG', label: 'MG', productType: 43, image: pokerMG },
+  { code: 'WG', label: 'WG', productType: 212, image: pokerWG },
+]
+
 const homeCategories: HomeCategory[] = ['Xổ số', 'Casino', 'Nổ hũ', 'Bắn cá', 'Thể thao', 'Game bài', 'Đá gà']
 
 const categoryPriority: Record<HomeCategory, number[]> = {
   'Casino': [4, 3, 79, 27, 177, 43, 39, 93, 258, 118, 272],
   'Nổ hũ': [98, 16, 4, 3, 39, 13, 171],
-  'Bắn cá': [16, 4, 140, 171, 55],
-  'Game bài': [140, 55],
+  'Bắn cá': [79, 16, 141, 55, 140, 43, 138, 243, 212],
+  'Game bài': [140, 43, 212],
   'Thể thao': [104, 65, 68, 131, 174],
   'Đá gà': [202, 132],
   'Xổ số': [2, 384, 420, 64, 76],
@@ -523,6 +553,115 @@ function buildSlotProviderGameItem(
   }
 }
 
+function buildFishProviderGameItem(
+  item: ProviderGameCatalogCategoryItem | undefined,
+  categoryKey: string,
+  preset: ProviderThumbPreset,
+  index: number,
+): GameItem {
+  const productType = item ? providerCatalogItemProductType(item) : preset.productType
+
+  return {
+    name: preset.label,
+    image: preset.image,
+    category: [
+      ...(index < 2 ? ['Phổ biến'] : []),
+      'Bắn cá',
+    ],
+    partnerLobby: false,
+    featured: index === 0,
+    wideCard: true,
+    providerGameCode: preset.code,
+    providerProductType: item ? String(item.product_type_value || item.product_type || '').trim() : String(productType),
+    providerProductTypeNumber: productType,
+    providerGameType: item ? String(item.game_type || '').trim() : 'FISH',
+    providerItemKind: 'group',
+    providerCategoryKey: categoryKey,
+    providerChildCount: Number(item?.child_count ?? 0),
+  }
+}
+
+function buildPokerProviderGameItem(
+  item: ProviderGameCatalogCategoryItem | undefined,
+  categoryKey: string,
+  preset: ProviderThumbPreset,
+  index: number,
+): GameItem {
+  const productType = item ? providerCatalogItemProductType(item) : preset.productType
+
+  return {
+    name: preset.label,
+    image: preset.image,
+    category: [
+      ...(index < 2 ? ['Phổ biến'] : []),
+      'Game bài',
+    ],
+    partnerLobby: false,
+    featured: index === 0,
+    wideCard: true,
+    providerGameCode: preset.code,
+    providerProductType: item ? String(item.product_type_value || item.product_type || '').trim() : String(productType),
+    providerProductTypeNumber: productType,
+    providerGameType: item ? String(item.game_type || '').trim() : 'PVP',
+    providerItemKind: 'group',
+    providerCategoryKey: categoryKey,
+    providerChildCount: Number(item?.child_count ?? 0),
+  }
+}
+
+function cockfightLaunchRank(item: ProviderGameCatalogCategoryItem): number {
+  let score = 0
+
+  const productType = providerCatalogItemProductType(item)
+  const productPriority = providerProductPriority('Đá gà', productType)
+  if (productPriority !== Number.MAX_SAFE_INTEGER) {
+    score += 10 - productPriority
+  }
+
+  if (matchesProviderCatalogKeyword(item, ['cockfight', 'ws168', 'sv388', 'sv128', 'fight', 'arena', 'lobby'])) score += 6
+  if (String(item.show_icon || '').trim()) score += 1
+
+  return score
+}
+
+function pickCockfightLaunchItem(items: ProviderGameCatalogCategoryItem[]): ProviderGameCatalogCategoryItem | undefined {
+  const launchItems = items.filter((item) => String(item.kind || '').trim() === 'launch')
+  if (launchItems.length === 0) return undefined
+
+  return [...launchItems].sort((left, right) => {
+    const rankDiff = cockfightLaunchRank(right) - cockfightLaunchRank(left)
+    if (rankDiff !== 0) return rankDiff
+
+    const leftPriority = providerProductPriority('Đá gà', providerCatalogItemProductType(left))
+    const rightPriority = providerProductPriority('Đá gà', providerCatalogItemProductType(right))
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority
+
+    return String(left.game_name || left.tcg_game_code || '').trim()
+      .localeCompare(String(right.game_name || right.tcg_game_code || '').trim(), 'vi')
+  })[0]
+}
+
+function buildCockfightProviderGameItem(
+  item: ProviderGameCatalogCategoryItem,
+  categoryKey: string,
+): GameItem {
+  return {
+    name: 'Đá gà',
+    image: chickenSV128,
+    category: ['Đá gà'],
+    partnerLobby: true,
+    featured: true,
+    wideCard: true,
+    providerGameCode: String(item.tcg_game_code || '').trim(),
+    providerProductType: String(item.product_type_value || item.product_type || '').trim(),
+    providerProductTypeNumber: providerCatalogItemProductType(item),
+    providerGameType: String(item.game_type || '').trim() || 'SPORTS',
+    providerItemKind: 'launch',
+    providerCategoryKey: categoryKey,
+    providerChildCount: 0,
+  }
+}
+
 function gameStorageKey(game: GameItem): string {
   return [
     game.providerProductType || '',
@@ -674,6 +813,28 @@ const providerGamesByCategory = computed<Record<HomeCategory, GameItem[]>>(() =>
         const matched = pickSlotProviderLaunchItem(categoryItems, preset)
         return buildSlotProviderGameItem(matched, categoryKey, preset, index)
       })
+      continue
+    }
+
+    if (category === 'Bắn cá') {
+      grouped[category] = fishProviderPresets.map((preset, index) => {
+        const matched = categoryItems.find((item) => providerCatalogItemProductType(item) === preset.productType)
+        return buildFishProviderGameItem(matched, categoryKey, preset, index)
+      })
+      continue
+    }
+
+    if (category === 'Game bài') {
+      grouped[category] = pokerProviderPresets.map((preset, index) => {
+        const matched = categoryItems.find((item) => providerCatalogItemProductType(item) === preset.productType)
+        return buildPokerProviderGameItem(matched, categoryKey, preset, index)
+      })
+      continue
+    }
+
+    if (category === 'Đá gà') {
+      const matched = pickCockfightLaunchItem(categoryItems)
+      grouped[category] = matched ? [buildCockfightProviderGameItem(matched, categoryKey)] : []
       continue
     }
 

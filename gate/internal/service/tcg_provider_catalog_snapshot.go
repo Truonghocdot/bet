@@ -108,6 +108,8 @@ func buildTCGCategoryCatalogItems(categoryKey string, items []TCGGameListItem) [
 	switch strings.TrimSpace(categoryKey) {
 	case "casino":
 		return buildCasinoCatalogItems(items)
+	case "fish":
+		return buildFishCatalogItems(items)
 	case "sports":
 		return buildSportsCatalogItems(items)
 	default:
@@ -147,6 +149,25 @@ func buildSportsCatalogItems(items []TCGGameListItem) []TCGProviderCatalogCatego
 
 		launchItem := pickSportsCatalogLobby(candidates)
 		result = append(result, buildLaunchCatalogItem(launchItem))
+	}
+
+	sortCatalogItems(result)
+	return result
+}
+
+func buildFishCatalogItems(items []TCGGameListItem) []TCGProviderCatalogCategoryItem {
+	grouped := groupTCGItemsByProductType(items)
+	productKeys := orderedTCGProductKeys(grouped)
+	result := make([]TCGProviderCatalogCategoryItem, 0, len(productKeys))
+
+	for _, productKey := range productKeys {
+		children := normalizeTCGCatalogChildren(grouped[productKey])
+		if len(children) == 0 {
+			continue
+		}
+
+		hero := pickFishCatalogHero(children)
+		result = append(result, buildGroupedCatalogItem(hero, children))
 	}
 
 	sortCatalogItems(result)
@@ -321,6 +342,24 @@ func pickSportsCatalogLobby(items []TCGGameListItem) TCGGameListItem {
 	return best
 }
 
+func pickFishCatalogHero(items []TCGGameListItem) TCGGameListItem {
+	best := items[0]
+	bestRank := fishCatalogHeroRank(best)
+	for _, item := range items[1:] {
+		rank := fishCatalogHeroRank(item)
+		if rank > bestRank {
+			best = item
+			bestRank = rank
+			continue
+		}
+		if rank == bestRank && compareCatalogNames(item.GameName, best.GameName) < 0 {
+			best = item
+			bestRank = rank
+		}
+	}
+	return best
+}
+
 func casinoCatalogHeroRank(item TCGGameListItem) int {
 	score := 0
 	if strings.TrimSpace(item.ShowIcon) != "" {
@@ -348,6 +387,20 @@ func sportsCatalogLobbyRank(item TCGGameListItem) int {
 	}
 	if strings.TrimSpace(item.ShowIcon) != "" {
 		score += 1
+	}
+	if supportsDisplayPlatform(item.Platform) {
+		score += 1
+	}
+	return score
+}
+
+func fishCatalogHeroRank(item TCGGameListItem) int {
+	score := 0
+	if containsCatalogKeyword(item, "game_list", "game list", "lobby", "fish", "fishing", "ocean", "hunter") {
+		score += 5
+	}
+	if strings.TrimSpace(item.ShowIcon) != "" {
+		score += 2
 	}
 	if supportsDisplayPlatform(item.Platform) {
 		score += 1
