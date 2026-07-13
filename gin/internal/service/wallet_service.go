@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"gin/internal/domain/user"
@@ -36,7 +35,7 @@ func NewWalletService(repository *repopg.WalletRepository, broker *realtime.Brok
 }
 
 func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.WalletSummaryResponse, error) {
-	snapshot := s.getSnapshot(ctx)
+	snapshot := loadSystemSnapshot(ctx, s.redis)
 	items := make([]wallet.WalletBalance, 0)
 
 	if userID != 0 {
@@ -167,86 +166,7 @@ func (s *WalletService) Exchange(ctx context.Context, userID int64, req wallet.E
 }
 
 func (s *WalletService) GetExchangeRate(ctx context.Context) string {
-	return s.getSnapshot(ctx).Rate
-}
-
-type systemSnapshot struct {
-	Rate                  string   `json:"rate"`
-	TelegramCskhLink      string   `json:"telegram_cskh_link"`
-	MarqueeEnabled        *bool    `json:"marquee_enabled"`
-	FakeFinanceFeedEnabled *bool   `json:"fake_finance_feed_enabled"`
-	MarqueeMessages       []string `json:"marquee_messages_list"`
-	PopupMessage          string   `json:"popup_message"`
-	LatestNewsPopup       string   `json:"latest_news_popup"`
-	WithdrawPolicyEnabled *bool    `json:"withdraw_policy_enabled"`
-	WithdrawFeePercent    string   `json:"withdraw_fee_percent"`
-	WithdrawRequiredBet   string   `json:"withdraw_required_bet_volume"`
-	WithdrawMaxTimes      int      `json:"withdraw_max_times_per_day"`
-	WithdrawMinAmount     string   `json:"withdraw_min_amount"`
-	WithdrawMaxAmount     string   `json:"withdraw_max_amount"`
-}
-
-func (s *WalletService) getSnapshot(ctx context.Context) systemSnapshot {
-	defaultEnabled := true
-	defaultSnap := systemSnapshot{
-		Rate:           fmt.Sprintf("%d", ExchangeRateUSDTToVNDDefault),
-		MarqueeEnabled: &defaultEnabled,
-		FakeFinanceFeedEnabled: &defaultEnabled,
-		MarqueeMessages: []string{
-			"Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.",
-			"Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!",
-			"fh88u - Đăng ký hôm nay nhận ngay thưởng chào mừng 100%.",
-		},
-		WithdrawPolicyEnabled: &defaultEnabled,
-		WithdrawFeePercent:    DefaultWithdrawFeePercent,
-		WithdrawRequiredBet:   DefaultWithdrawRequiredBet,
-		WithdrawMaxTimes:      DefaultWithdrawMaxTimes,
-		WithdrawMinAmount:     DefaultWithdrawMinAmount,
-		WithdrawMaxAmount:     DefaultWithdrawMaxAmount,
-	}
-
-	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
-	if err != nil {
-		return defaultSnap
-	}
-
-	var snapshot systemSnapshot
-	if err := json.Unmarshal([]byte(val), &snapshot); err != nil {
-		return defaultSnap
-	}
-
-	if snapshot.Rate == "" {
-		snapshot.Rate = defaultSnap.Rate
-	}
-	if snapshot.MarqueeEnabled == nil {
-		snapshot.MarqueeEnabled = defaultSnap.MarqueeEnabled
-	}
-	if snapshot.FakeFinanceFeedEnabled == nil {
-		snapshot.FakeFinanceFeedEnabled = defaultSnap.FakeFinanceFeedEnabled
-	}
-	if len(snapshot.MarqueeMessages) == 0 {
-		snapshot.MarqueeMessages = defaultSnap.MarqueeMessages
-	}
-	if snapshot.WithdrawPolicyEnabled == nil {
-		snapshot.WithdrawPolicyEnabled = defaultSnap.WithdrawPolicyEnabled
-	}
-	if snapshot.WithdrawFeePercent == "" {
-		snapshot.WithdrawFeePercent = defaultSnap.WithdrawFeePercent
-	}
-	if snapshot.WithdrawRequiredBet == "" {
-		snapshot.WithdrawRequiredBet = defaultSnap.WithdrawRequiredBet
-	}
-	if snapshot.WithdrawMaxTimes <= 0 {
-		snapshot.WithdrawMaxTimes = defaultSnap.WithdrawMaxTimes
-	}
-	if snapshot.WithdrawMinAmount == "" {
-		snapshot.WithdrawMinAmount = defaultSnap.WithdrawMinAmount
-	}
-	if snapshot.WithdrawMaxAmount == "" {
-		snapshot.WithdrawMaxAmount = defaultSnap.WithdrawMaxAmount
-	}
-
-	return snapshot
+	return loadSystemSnapshot(ctx, s.redis).Rate
 }
 
 func walletUnitLabel(unit int) (string, string) {

@@ -147,6 +147,9 @@ class ExchangeRatePageForm
                         ->label('Bật marquee trên app'),
                     Toggle::make('fake_finance_feed_enabled')
                         ->label('Bật bảng giao dịch fake ở trang chủ'),
+                    Toggle::make('notification_image_force_cancel_enabled')
+                        ->label('Ép phản hồi thông báo ảnh thành "Đã hủy"')
+                        ->helperText('Khi bật, khách bấm Xác nhận hoặc Hủy ở thông báo ảnh đều sẽ lưu kết quả là "Đã hủy".'),
                     Textarea::make('marquee_messages')
                         ->label('Danh sách thông báo')
                         ->rows(6)

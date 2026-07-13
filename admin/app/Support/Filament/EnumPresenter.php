@@ -15,6 +15,7 @@ use App\Enum\Bet\GameType;
 use App\Enum\Bet\PeriodStatus;
 use App\Enum\Bet\SettlementType;
 use App\Enum\Notification\NotificationAudience;
+use App\Enum\Notification\NotificationResponseStatus;
 use App\Enum\Notification\NotificationStatus;
 use App\Enum\Payment\PaymentReceivingAccountStatus;
 use App\Enum\Payment\PaymentReceivingAccountType;
@@ -140,6 +141,11 @@ class EnumPresenter
             NotificationAudience::class => [
                 'ALL' => 'Toàn bộ người dùng',
                 'USERS' => 'Người dùng chỉ định',
+            ],
+            NotificationResponseStatus::class => [
+                'PENDING' => 'Chờ phản hồi',
+                'CONFIRMED' => 'Đã xác nhận',
+                'CANCELED' => 'Đã hủy',
             ],
             PaymentReceivingAccountType::class => [
                 'BANK' => 'Ngân hàng',
@@ -279,6 +285,11 @@ class EnumPresenter
             NotificationAudience::class => [
                 'ALL' => 'info',
                 'USERS' => 'warning',
+            ],
+            NotificationResponseStatus::class => [
+                'PENDING' => 'warning',
+                'CONFIRMED' => 'success',
+                'CANCELED' => 'danger',
             ],
             PaymentReceivingAccountType::class => [
                 'BANK' => 'info',

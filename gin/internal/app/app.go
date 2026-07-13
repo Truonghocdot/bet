@@ -93,7 +93,7 @@ func New() (*App, error) {
 		TCGDefaultCurrency:    config.TCGDefaultCurrency,
 	})
 	walletService := service.NewWalletService(walletRepository, broker, redisClient)
-	notificationService := service.NewNotificationService(notificationRepository)
+	notificationService := service.NewNotificationService(notificationRepository, redisClient, config.ContentAssetBaseURL)
 	contentService := service.NewContentService(contentRepository, config.ContentAssetBaseURL)
 	financeFeedService := service.NewFinanceFeedService(financeFeedRepository)
 	providerGameCatalogService := service.NewProviderGameCatalogService(redisClient, service.ProviderGameCatalogConfig{

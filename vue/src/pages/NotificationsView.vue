@@ -11,6 +11,8 @@ const unreadCount = computed(() => store.unreadCount)
 const totalCount = computed(() => store.pagination.total)
 const isLoading = computed(() => store.loading)
 const isMarkingRead = computed(() => store.markingReadId)
+const isResponding = computed(() => store.respondingId)
+const respondingAction = computed(() => store.respondingAction)
 const page = computed(() => store.pagination.page)
 const totalPages = computed(() => store.pagination.totalPages)
 
@@ -24,6 +26,30 @@ const unreadItems = computed(() => store.items.filter((item) => !item.is_read).s
 
 function toneByReadState(isRead: boolean) {
   return isRead ? 'info' : 'warning'
+}
+
+function hasResponseFlow(item: { image_url?: string | null; audience: number }) {
+  return Boolean(item.image_url) && item.audience === 2
+}
+
+function normalizedResponseStatus(item: { image_url?: string | null; audience: number; response_status?: number | null }) {
+  if (!hasResponseFlow(item)) return null
+  return Number(item.response_status ?? 1)
+}
+
+function responseStatusLabel(item: { image_url?: string | null; audience: number; response_status?: number | null }) {
+  const status = normalizedResponseStatus(item)
+  if (status === 2) return 'ĐÃ XÁC NHẬN'
+  if (status === 3) return 'ĐÃ HUỶ'
+  if (status === 1) return 'Chờ phản hồi'
+  return null
+}
+
+function responseStatusClass(item: { image_url?: string | null; audience: number; response_status?: number | null }) {
+  const status = normalizedResponseStatus(item)
+  if (status === 2) return 'bg-emerald-500/10 text-emerald-700'
+  if (status === 3) return 'bg-[#e64545]/10 text-[#e64545]'
+  return 'bg-amber-500/10 text-amber-700'
 }
 
 function sanitizedNotificationBody(raw: string | null | undefined) {
@@ -83,6 +109,15 @@ async function markRead(id: number) {
   }
 }
 
+async function respond(id: number, action: 'confirm' | 'cancel') {
+  if (!id) return
+  try {
+    await store.respond(id, action)
+  } catch {
+    // message already populated in store.error
+  }
+}
+
 function prevPage() {
   if (page.value <= 1 || isLoading.value) return
   void load(page.value - 1)
@@ -103,7 +138,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  store.connectStream(1, store.pagination.pageSize)
+  store.disconnectStream()
 })
 </script>
 
@@ -191,19 +226,55 @@ onBeforeUnmount(() => {
           <div class="min-w-0 flex-1">
             <div class="flex items-center justify-between gap-2">
               <strong class="text-[0.9rem] font-black">{{ item.title }}</strong>
-              <span
-                class="rounded-full px-2 py-1 text-[0.62rem] font-black uppercase tracking-[0.08em]"
-                :class="!item.is_read ? 'bg-primary/10 text-primary' : 'bg-surface-container-low text-on-surface-variant'"
-              >
-                {{ !item.is_read ? 'Mới' : 'Đã xem' }}
-              </span>
+              <div class="flex flex-wrap items-center justify-end gap-1.5">
+                <span
+                  class="rounded-full px-2 py-1 text-[0.62rem] font-black uppercase tracking-[0.08em]"
+                  :class="!item.is_read ? 'bg-primary/10 text-primary' : 'bg-surface-container-low text-on-surface-variant'"
+                >
+                  {{ !item.is_read ? 'Mới' : 'Đã xem' }}
+                </span>
+                <span
+                  v-if="responseStatusLabel(item)"
+                  class="rounded-full px-2 py-1 text-[0.62rem] font-black uppercase tracking-[0.08em]"
+                  :class="responseStatusClass(item)"
+                >
+                  {{ responseStatusLabel(item) }}
+                </span>
+              </div>
             </div>
+            <img
+              v-if="item.image_url"
+              :src="item.image_url"
+              :alt="item.title"
+              class="notification-image mt-3 h-auto w-full rounded-[18px] border border-slate-200/80 object-cover"
+              loading="lazy"
+              decoding="async"
+            />
             <div
+              v-if="item.body"
               class="notification-body mt-1.5 text-[0.76rem] leading-6 text-on-surface-variant"
               v-html="sanitizedNotificationBody(item.body)"
             />
             <div class="mt-3 flex flex-wrap items-center gap-2 text-[0.68rem] text-on-surface-variant">
               <span>{{ item.publish_at || item.created_at || '—' }}</span>
+            </div>
+            <div v-if="item.can_respond" class="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex rounded-full bg-emerald-500/10 px-3 py-1 text-[0.72rem] font-extrabold text-emerald-700 disabled:opacity-60"
+                :disabled="isResponding === item.id"
+                @click="respond(item.id, 'confirm')"
+              >
+                {{ isResponding === item.id && respondingAction === 'confirm' ? 'Đang xác nhận...' : 'Xác nhận' }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex rounded-full bg-[#e64545]/10 px-3 py-1 text-[0.72rem] font-extrabold text-[#e64545] disabled:opacity-60"
+                :disabled="isResponding === item.id"
+                @click="respond(item.id, 'cancel')"
+              >
+                {{ isResponding === item.id && respondingAction === 'cancel' ? 'Đang huỷ...' : 'Huỷ' }}
+              </button>
             </div>
             <button
               v-if="!item.is_read"
@@ -266,5 +337,9 @@ onBeforeUnmount(() => {
 .notification-body :deep(ol) {
   margin: 0.35rem 0 0;
   padding-left: 1rem;
+}
+
+.notification-image {
+  max-height: 18rem;
 }
 </style>

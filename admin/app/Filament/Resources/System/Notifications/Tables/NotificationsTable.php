@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\System\Notifications\Tables;
 
+use App\Enum\Notification\NotificationAudience;
 use App\Enum\Notification\NotificationStatus;
 use App\Support\Filament\EnumPresenter;
 use Filament\Actions\Action;
@@ -38,10 +39,43 @@ class NotificationsTable
                 TextColumn::make('target_users_count')
                     ->label('User đích')
                     ->counts('targetUsers')
+                    ->badge()
+                    ->color(fn ($record): string => (int) ($record->audience?->value ?? $record->audience) === NotificationAudience::ALL->value ? 'gray' : 'info')
+                    ->formatStateUsing(function ($state, $record): string {
+                        if ((int) ($record->audience?->value ?? $record->audience) === NotificationAudience::ALL->value) {
+                            return 'Toàn bộ';
+                        }
+
+                        return self::formatPeopleCount($state);
+                    })
                     ->sortable(),
                 TextColumn::make('reads_count')
                     ->label('Đã đọc')
                     ->counts('reads')
+                    ->badge()
+                    ->color('success')
+                    ->formatStateUsing(fn ($state): string => self::formatPeopleCount($state))
+                    ->sortable(),
+                TextColumn::make('pending_response_targets_count')
+                    ->label('Chờ phản hồi')
+                    ->counts('pendingResponseTargets')
+                    ->badge()
+                    ->color('warning')
+                    ->formatStateUsing(fn ($state, $record): string => $record->supportsResponseTracking() ? self::formatPeopleCount($state) : '—')
+                    ->sortable(),
+                TextColumn::make('confirmed_response_targets_count')
+                    ->label('Đã xác nhận')
+                    ->counts('confirmedResponseTargets')
+                    ->badge()
+                    ->color('success')
+                    ->formatStateUsing(fn ($state, $record): string => $record->supportsResponseTracking() ? self::formatPeopleCount($state) : '—')
+                    ->sortable(),
+                TextColumn::make('canceled_response_targets_count')
+                    ->label('Đã hủy')
+                    ->counts('canceledResponseTargets')
+                    ->badge()
+                    ->color('danger')
+                    ->formatStateUsing(fn ($state, $record): string => $record->supportsResponseTracking() ? self::formatPeopleCount($state) : '—')
                     ->sortable(),
                 TextColumn::make('publish_at')
                     ->label('Phát hành')
@@ -103,5 +137,10 @@ class NotificationsTable
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    private static function formatPeopleCount(mixed $state): string
+    {
+        return number_format((int) $state).' người';
     }
 }

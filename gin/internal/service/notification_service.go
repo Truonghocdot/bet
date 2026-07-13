@@ -2,19 +2,28 @@ package service
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"gin/internal/domain/notification"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/support/message"
+
+	goredis "github.com/redis/go-redis/v9"
 )
 
 type NotificationService struct {
-	repository *repopg.NotificationRepository
+	repository       *repopg.NotificationRepository
+	redis            *goredis.Client
+	contentAssetBase string
 }
 
-func NewNotificationService(repository *repopg.NotificationRepository) *NotificationService {
-	return &NotificationService{repository: repository}
+func NewNotificationService(repository *repopg.NotificationRepository, redis *goredis.Client, contentAssetBase string) *NotificationService {
+	return &NotificationService{
+		repository:       repository,
+		redis:            redis,
+		contentAssetBase: strings.TrimRight(strings.TrimSpace(contentAssetBase), "/"),
+	}
 }
 
 func (s *NotificationService) List(ctx context.Context, userID int64, page, pageSize int) (notification.ListResponse, error) {
@@ -40,16 +49,20 @@ func (s *NotificationService) List(ctx context.Context, userID int64, page, page
 	items := make([]notification.Item, 0, len(records))
 	for _, record := range records {
 		items = append(items, notification.Item{
-			ID:        record.ID,
-			Title:     record.Title,
-			Body:      record.Body,
-			Status:    record.Status,
-			Audience:  record.Audience,
-			PublishAt: formatNullableNotificationTime(record.PublishAt),
-			ExpiresAt: formatNullableNotificationTime(record.ExpiresAt),
-			CreatedAt: formatNotificationTime(record.CreatedAt),
-			IsRead:    record.ReadAt != nil,
-			ReadAt:    formatNullableNotificationTime(record.ReadAt),
+			ID:             record.ID,
+			Title:          record.Title,
+			Body:           record.Body,
+			ImageURL:       stringPtrOrNil(buildPublicAssetURL(s.contentAssetBase, firstNonEmptyStringPtr(record.ImagePath))),
+			Status:         record.Status,
+			Audience:       record.Audience,
+			PublishAt:      formatNullableNotificationTime(record.PublishAt),
+			ExpiresAt:      formatNullableNotificationTime(record.ExpiresAt),
+			CreatedAt:      formatNotificationTime(record.CreatedAt),
+			IsRead:         record.ReadAt != nil,
+			ReadAt:         formatNullableNotificationTime(record.ReadAt),
+			ResponseStatus: record.ResponseStatus,
+			RespondedAt:    formatNullableNotificationTime(record.RespondedAt),
+			CanRespond:     s.canRespond(record),
 		})
 	}
 
@@ -81,6 +94,33 @@ func (s *NotificationService) MarkRead(ctx context.Context, userID, notification
 	}, nil
 }
 
+func (s *NotificationService) Respond(ctx context.Context, userID, notificationID int64, action string) (notification.RespondResponse, error) {
+	if userID == 0 {
+		return notification.RespondResponse{}, ErrUnauthorized
+	}
+
+	requestedStatus := notification.ResponseStatusCanceled
+	if action == notification.ResponseActionConfirm {
+		requestedStatus = notification.ResponseStatusConfirmed
+	}
+
+	snapshot := loadSystemSnapshot(ctx, s.redis)
+	forceCancel := snapshot.NotificationImageForceCancelEnabled != nil && *snapshot.NotificationImageForceCancelEnabled
+
+	result, err := s.repository.Respond(ctx, userID, notificationID, requestedStatus, forceCancel)
+	if err != nil {
+		return notification.RespondResponse{}, err
+	}
+
+	return notification.RespondResponse{
+		Message:        message.NotificationResponseSuccess,
+		ID:             notificationID,
+		ResponseStatus: result.ResponseStatus,
+		RespondedAt:    formatNotificationTime(result.RespondedAt),
+		ReadAt:         formatNotificationTime(result.ReadAt),
+	}, nil
+}
+
 func calcNotificationTotalPages(total, pageSize int) int {
 	if pageSize <= 0 {
 		return 0
@@ -109,4 +149,18 @@ func formatNullableNotificationTime(value *time.Time) *string {
 
 	formatted := value.Format(dbDateTimeLayout)
 	return &formatted
+}
+
+func (s *NotificationService) canRespond(record repopg.NotificationRecord) bool {
+	if record.Audience != 2 {
+		return false
+	}
+	if strings.TrimSpace(firstNonEmptyStringPtr(record.ImagePath)) == "" {
+		return false
+	}
+	if record.ResponseStatus == nil {
+		return true
+	}
+
+	return *record.ResponseStatus == notification.ResponseStatusPending
 }

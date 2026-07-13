@@ -486,6 +486,7 @@ export type NotificationListItem = {
   id: number
   title: string
   body: string
+  image_url?: string | null
   status: number
   audience: number
   publish_at?: string | null
@@ -493,6 +494,9 @@ export type NotificationListItem = {
   created_at: string
   is_read: boolean
   read_at?: string | null
+  response_status?: number | null
+  responded_at?: string | null
+  can_respond: boolean
 }
 
 export type NotificationListResponse = {
@@ -508,6 +512,14 @@ export type NotificationListResponse = {
 export type NotificationReadResponse = {
   message: string
   id: number
+  read_at: string
+}
+
+export type NotificationRespondResponse = {
+  message: string
+  id: number
+  response_status: number
+  responded_at: string
   read_at: string
 }
 

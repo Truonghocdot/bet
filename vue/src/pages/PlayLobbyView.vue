@@ -65,8 +65,8 @@ onMounted(() => {
 <template>
   <div class="space-y-4 pb-6 md:space-y-6">
     <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-5 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)] md:p-6">
-      <div class="grid gap-4 md:grid-cols-[1.35fr_0.95fr] md:items-end">
-        <div class="space-y-4">
+      <div class="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(23rem,0.95fr)] xl:items-end">
+        <div class="min-w-0 space-y-4">
           <div class="flex flex-wrap items-center gap-2">
             <span class="inline-flex rounded-full bg-[#fdd404] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#594a00]">
               Phòng chơi trực tiếp
@@ -86,7 +86,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="grid gap-3 sm:grid-cols-3 md:justify-self-end">
+        <div class="grid gap-3 md:grid-cols-2 xl:justify-self-end 2xl:grid-cols-3">
           <article class="rounded-[22px] bg-white/14 p-4 backdrop-blur-md">
             <p class="m-0 text-[0.68rem] uppercase tracking-[0.12em] text-white/72">Đang mở</p>
             <strong class="mt-1 block text-[1.45rem] font-black">{{ openRooms.length }}</strong>
@@ -139,13 +139,13 @@ onMounted(() => {
       >
         <div class="absolute inset-x-0 top-0 h-1.5" :style="{ background: `linear-gradient(90deg, ${room.accent}, ${room.accent}55)` }"></div>
         <div class="flex items-start justify-between gap-3">
-          <div class="flex items-start gap-3">
+          <div class="flex min-w-0 items-start gap-3">
             <div class="grid h-[48px] w-[48px] place-items-center rounded-[16px]" :style="{ backgroundColor: `${room.accent}16`, color: room.accent }">
               <span class="material-symbols-outlined">{{ room.symbol }}</span>
             </div>
-            <div>
+            <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2">
-                <h3 class="m-0 text-[1rem] font-black">{{ room.title }}</h3>
+                <h3 class="m-0 text-[1rem] font-black break-words">{{ room.title }}</h3>
                 <span
                   class="rounded-full px-2.5 py-1 text-[0.64rem] font-black uppercase tracking-[0.08em]"
                   :class="room.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-700'"
@@ -153,12 +153,12 @@ onMounted(() => {
                   {{ room.status === 'OPEN' ? 'Đang mở' : 'Chờ mở' }}
                 </span>
               </div>
-              <p class="mt-1 text-[0.72rem] text-on-surface-variant">
+              <p class="mt-1 break-words text-[0.72rem] text-on-surface-variant">
                 {{ room.subtitle }}
               </p>
             </div>
           </div>
-          <span class="rounded-full bg-surface-container-low px-2.5 py-1 text-[0.64rem] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+          <span class="shrink-0 rounded-full bg-surface-container-low px-2.5 py-1 text-[0.64rem] font-black uppercase tracking-[0.08em] text-on-surface-variant">
             {{ room.category }}
           </span>
         </div>
@@ -192,21 +192,21 @@ onMounted(() => {
           </span>
         </div>
 
-        <div class="mt-4 flex items-center gap-2">
-          <div class="flex-1 rounded-[16px] bg-background px-3 py-2.5 text-[0.72rem] text-on-surface-variant">
+        <div class="mt-4 grid gap-2 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center">
+          <div class="min-w-0 rounded-[16px] bg-background px-3 py-2.5 text-[0.72rem] text-on-surface-variant">
             <span class="block text-[0.65rem] uppercase tracking-[0.08em]">Chọn nhanh</span>
-            <strong class="mt-1 block text-on-surface">
+            <strong class="mt-1 block break-words text-on-surface">
               {{ formatRoomVariants(room.code).join(' • ') }}
             </strong>
           </div>
 
           <RouterLink
-          :to="room.status === 'OPEN' ? { path: `/play/${room.code}`, query: { from: route.fullPath } } : '/promotion'"
-          class="inline-flex min-h-12 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-primary-container px-4 text-[0.82rem] font-black text-white transition-transform active:scale-95"
-          @pointerenter="maybePrefetchRoom(room.status)"
-          @focus="maybePrefetchRoom(room.status)"
-          @touchstart.passive="maybePrefetchRoom(room.status)"
-        >
+            :to="room.status === 'OPEN' ? { path: `/play/${room.code}`, query: { from: route.fullPath } } : '/promotion'"
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-primary-container px-4 text-[0.82rem] font-black text-white transition-transform active:scale-95"
+            @pointerenter="maybePrefetchRoom(room.status)"
+            @focus="maybePrefetchRoom(room.status)"
+            @touchstart.passive="maybePrefetchRoom(room.status)"
+          >
             {{ room.status === 'OPEN' ? 'Vào chơi' : 'Chờ mở' }}
           </RouterLink>
         </div>

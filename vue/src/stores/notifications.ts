@@ -7,6 +7,7 @@ import type {
   NotificationListItem,
   NotificationListResponse,
   NotificationReadResponse,
+  NotificationRespondResponse,
 } from '@/shared/api/types'
 import { useAuthStore } from '@/stores/auth'
 
@@ -22,6 +23,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const items = ref<NotificationListItem[]>([])
   const loading = ref(false)
   const markingReadId = ref<number | null>(null)
+  const respondingId = ref<number | null>(null)
+  const respondingAction = ref<'confirm' | 'cancel' | null>(null)
   const error = ref('')
   let streamConnection: StreamConnection | null = null
   const pagination = ref<Pagination>({
@@ -87,11 +90,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
         token: auth.accessToken,
       })
       const target = items.value.find((item) => item.id === id)
+      const wasUnread = target ? !target.is_read : false
       if (target) {
         target.is_read = true
         target.read_at = res.read_at
       }
-      pagination.value.unreadCount = Math.max(0, pagination.value.unreadCount - 1)
+      if (wasUnread) {
+        pagination.value.unreadCount = Math.max(0, pagination.value.unreadCount - 1)
+      }
       return res
     } catch (e: any) {
       const err = e as ApiError
@@ -104,6 +110,46 @@ export const useNotificationsStore = defineStore('notifications', () => {
       throw e
     } finally {
       markingReadId.value = null
+    }
+  }
+
+  async function respond(id: number, action: 'confirm' | 'cancel') {
+    const auth = useAuthStore()
+    if (!auth.accessToken || !id) return null
+
+    respondingId.value = id
+    respondingAction.value = action
+    error.value = ''
+    try {
+      const res = await request<NotificationRespondResponse>('POST', `/v1/notifications/${id}/respond`, {
+        token: auth.accessToken,
+        body: { action },
+      })
+      const target = items.value.find((item) => item.id === id)
+      const wasUnread = target ? !target.is_read : false
+      if (target) {
+        target.response_status = res.response_status
+        target.responded_at = res.responded_at
+        target.is_read = true
+        target.read_at = res.read_at
+        target.can_respond = false
+      }
+      if (wasUnread) {
+        pagination.value.unreadCount = Math.max(0, pagination.value.unreadCount - 1)
+      }
+      return res
+    } catch (e: any) {
+      const err = e as ApiError
+      if (err?.status === 401) {
+        auth.logout()
+        reset()
+        throw e
+      }
+      error.value = err?.message ?? 'Không thể cập nhật phản hồi thông báo'
+      throw e
+    } finally {
+      respondingId.value = null
+      respondingAction.value = null
     }
   }
 
@@ -141,6 +187,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
     items.value = []
     loading.value = false
     markingReadId.value = null
+    respondingId.value = null
+    respondingAction.value = null
     error.value = ''
     pagination.value = {
       page: 1,
@@ -157,11 +205,13 @@ export const useNotificationsStore = defineStore('notifications', () => {
        id,
        title,
        body,
+       image_url: null,
        status: 1,
        audience: 1,
        created_at: new Date().toISOString(),
-       is_read: false
-    })
+       is_read: false,
+       can_respond: false,
+     })
     pagination.value.total += 1
     pagination.value.unreadCount += 1
   }
@@ -170,6 +220,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
     items,
     loading,
     markingReadId,
+    respondingId,
+    respondingAction,
     error,
     pagination,
     unreadCount,
@@ -177,6 +229,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     connectStream,
     disconnectStream,
     markRead,
+    respond,
     addLocalNotification,
     reset,
   }

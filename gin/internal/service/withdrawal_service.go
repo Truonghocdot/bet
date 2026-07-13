@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -182,29 +181,12 @@ func parsePositiveOrZero(value string) (*big.Rat, error) {
 }
 
 func (s *WithdrawalService) loadWithdrawPolicySnapshot(ctx context.Context) withdrawalPolicySnapshot {
-	snapshot := withdrawalPolicySnapshot{
-		WithdrawMinAmount: DefaultWithdrawMinAmount,
-		WithdrawMaxAmount: DefaultWithdrawMaxAmount,
-	}
+	loaded := loadSystemSnapshot(ctx, s.redis)
 
-	val, err := s.redis.Get(ctx, ExchangeRateRedisKey).Result()
-	if err != nil {
-		return snapshot
+	return withdrawalPolicySnapshot{
+		WithdrawMinAmount: loaded.WithdrawMinAmount,
+		WithdrawMaxAmount: loaded.WithdrawMaxAmount,
 	}
-
-	var loaded withdrawalPolicySnapshot
-	if json.Unmarshal([]byte(val), &loaded) != nil {
-		return snapshot
-	}
-
-	if strings.TrimSpace(loaded.WithdrawMinAmount) != "" {
-		snapshot.WithdrawMinAmount = loaded.WithdrawMinAmount
-	}
-	if strings.TrimSpace(loaded.WithdrawMaxAmount) != "" {
-		snapshot.WithdrawMaxAmount = loaded.WithdrawMaxAmount
-	}
-
-	return snapshot
 }
 
 func parsePolicyAmount(value string, fallback string) *big.Rat {

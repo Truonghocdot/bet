@@ -73,6 +73,7 @@ func NewRouter(
 	mux.Handle("GET /v1/notifications", authn.Require(http.HandlerFunc(notificationHandler.List)))
 	mux.Handle("GET /v1/notifications/stream", authn.Require(http.HandlerFunc(notificationHandler.Stream)))
 	mux.Handle("POST /v1/notifications/{id}/read", authn.Require(http.HandlerFunc(notificationHandler.MarkRead)))
+	mux.Handle("POST /v1/notifications/{id}/respond", authn.Require(http.HandlerFunc(notificationHandler.Respond)))
 	mux.HandleFunc("GET /v1/content/home", contentHandler.Home)
 	mux.HandleFunc("GET /v1/content/promotions", contentHandler.Promotions)
 	mux.HandleFunc("GET /v1/content/news", contentHandler.News)

@@ -6,6 +6,7 @@ use App\Filament\Resources\BaseResource;
 use App\Filament\Resources\System\Notifications\Pages\CreateNotification;
 use App\Filament\Resources\System\Notifications\Pages\EditNotification;
 use App\Filament\Resources\System\Notifications\Pages\ListNotifications;
+use App\Filament\Resources\System\Notifications\RelationManagers\TargetUsersRelationManager;
 use App\Filament\Resources\System\Notifications\Schemas\NotificationForm;
 use App\Filament\Resources\System\Notifications\Tables\NotificationsTable;
 use App\Models\Notification\Notification;
@@ -45,7 +46,9 @@ class NotificationResource extends BaseResource
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            TargetUsersRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
@@ -57,4 +60,3 @@ class NotificationResource extends BaseResource
         ];
     }
 }
-

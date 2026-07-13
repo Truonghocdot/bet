@@ -9,6 +9,7 @@ import (
 	"time"
 
 	authmiddleware "gin/internal/auth/middleware"
+	"gin/internal/domain/notification"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
 	"gin/internal/support/message"
@@ -16,6 +17,10 @@ import (
 
 type NotificationHandler struct {
 	notificationService *service.NotificationService
+}
+
+type notificationRespondRequest struct {
+	Action string `json:"action"`
 }
 
 func NewNotificationHandler(notificationService *service.NotificationService) *NotificationHandler {
@@ -54,6 +59,41 @@ func (h *NotificationHandler) MarkRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.notificationService.MarkRead(r.Context(), claims.UserID, notificationID)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *NotificationHandler) Respond(w http.ResponseWriter, r *http.Request) {
+	claims, ok := authmiddleware.CurrentClaims(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
+		return
+	}
+
+	rawID := strings.TrimSpace(r.PathValue("id"))
+	notificationID, err := strconv.ParseInt(rawID, 10, 64)
+	if err != nil || notificationID <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": message.NotificationIDInvalid})
+		return
+	}
+
+	var request notificationRespondRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": message.NotificationResponseInvalid})
+		return
+	}
+
+	request.Action = strings.ToLower(strings.TrimSpace(request.Action))
+	if request.Action != notification.ResponseActionConfirm && request.Action != notification.ResponseActionCancel {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": message.NotificationResponseActionInvalid})
+		return
+	}
+
+	response, err := h.notificationService.Respond(r.Context(), claims.UserID, notificationID, request.Action)
 	if err != nil {
 		h.writeError(w, err)
 		return
@@ -131,6 +171,8 @@ func (h *NotificationHandler) writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, service.ErrUnauthorized):
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.Unauthorized})
 	case errors.Is(err, repopg.ErrNotificationNotFound):
+		writeJSON(w, http.StatusNotFound, map[string]string{"message": message.NotificationNotFound})
+	case errors.Is(err, repopg.ErrNotificationResponseNotAllowed):
 		writeJSON(w, http.StatusNotFound, map[string]string{"message": message.NotificationNotFound})
 	default:
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": message.InternalServerError})

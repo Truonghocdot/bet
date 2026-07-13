@@ -5,12 +5,18 @@ namespace App\Filament\Resources\System\Notifications\Pages;
 use App\Enum\Notification\NotificationAudience;
 use App\Enum\Notification\NotificationStatus;
 use App\Filament\Resources\System\Notifications\NotificationResource;
+use App\Filament\Resources\System\Notifications\Support\NotificationTargetSyncer;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Validation\ValidationException;
 
 class CreateNotification extends CreateRecord
 {
     protected static string $resource = NotificationResource::class;
+
+    /**
+     * @var list<int|string>
+     */
+    private array $targetUserIds = [];
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -22,15 +28,17 @@ class CreateNotification extends CreateRecord
 
     protected function afterCreate(): void
     {
-        if ((int) $this->record->audience->value !== NotificationAudience::USERS->value) {
-            $this->record->targetUsers()->sync([]);
-        }
+        NotificationTargetSyncer::sync($this->record, $this->targetUserIds);
     }
 
     private function normalizeAndValidate(array $data): array
     {
         $status = (int) ($data['status'] ?? 0);
         $audience = (int) ($data['audience'] ?? 0);
+        $this->targetUserIds = array_values($data['targetUsers'] ?? []);
+        unset($data['targetUsers']);
+
+        $data['body'] = $this->normalizeBody($data['body'] ?? null);
 
         if ($status === NotificationStatus::PUBLISHED->value && blank($data['publish_at'] ?? null)) {
             $data['publish_at'] = now();
@@ -46,13 +54,25 @@ class CreateNotification extends CreateRecord
             ]);
         }
 
-        $targetUsers = $data['targetUsers'] ?? ($this->data['targetUsers'] ?? []);
-        if ($audience === NotificationAudience::USERS->value && empty($targetUsers)) {
+        if (blank($data['image_path'] ?? null) && blank($data['body'])) {
+            throw ValidationException::withMessages([
+                'body' => 'Vui lòng nhập nội dung hoặc tải lên ảnh thông báo.',
+            ]);
+        }
+
+        if ($audience === NotificationAudience::USERS->value && empty($this->targetUserIds)) {
             throw ValidationException::withMessages([
                 'targetUsers' => 'Vui lòng chọn ít nhất 1 người dùng đích.',
             ]);
         }
 
         return $data;
+    }
+
+    private function normalizeBody(mixed $value): ?string
+    {
+        $normalized = trim((string) ($value ?? ''));
+
+        return $normalized === '' ? null : $normalized;
     }
 }
