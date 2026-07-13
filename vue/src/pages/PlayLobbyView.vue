@@ -63,9 +63,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4 pb-6 md:space-y-6">
-    <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-5 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)] md:p-6">
-      <div class="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(23rem,0.95fr)] xl:items-end">
+  <div class="space-y-5 pb-6">
+    <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-5 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)]">
+      <div class="grid gap-4">
         <div class="min-w-0 space-y-4">
           <div class="flex flex-wrap items-center gap-2">
             <span class="inline-flex rounded-full bg-[#fdd404] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#594a00]">
@@ -77,16 +77,16 @@ onMounted(() => {
           </div>
 
           <div class="space-y-2">
-            <h2 class="max-w-[20rem] text-[1.72rem] font-black leading-[1.08] md:max-w-[28rem] md:text-[2.25rem]">
+            <h2 class="max-w-[14rem] text-[1.72rem] font-black leading-[1.08]">
               Chọn phòng bạn muốn và vào chơi ngay
             </h2>
-            <p class="max-w-[33rem] text-sm leading-6 text-white/88 md:text-[0.96rem]">
+            <p class="max-w-[18rem] text-sm leading-6 text-white/88">
               Mỗi phòng có nhịp chơi riêng. Bạn chỉ cần chọn đúng phòng đang mở, xem nhanh thời gian và vào chơi ngay.
             </p>
           </div>
         </div>
 
-        <div class="grid gap-3 md:grid-cols-2 xl:justify-self-end 2xl:grid-cols-3">
+        <div class="grid grid-cols-2 gap-3">
           <article class="rounded-[22px] bg-white/14 p-4 backdrop-blur-md">
             <p class="m-0 text-[0.68rem] uppercase tracking-[0.12em] text-white/72">Đang mở</p>
             <strong class="mt-1 block text-[1.45rem] font-black">{{ openRooms.length }}</strong>
@@ -99,7 +99,7 @@ onMounted(() => {
             <p class="mt-1 text-[0.72rem] leading-5 text-white/80">Sắp mở để bạn quay lại sau.</p>
           </article>
 
-          <RouterLink to="/promotion" class="rounded-[22px] bg-white px-4 py-4 text-primary shadow-[0_8px_24px_rgba(255,255,255,0.16)]">
+          <RouterLink to="/promotion" class="col-span-2 rounded-[22px] bg-white px-4 py-4 text-primary shadow-[0_8px_24px_rgba(255,255,255,0.16)]">
             <p class="m-0 text-[0.68rem] uppercase tracking-[0.12em] text-primary/70">Nổi bật</p>
             <strong class="mt-1 block text-[1rem] font-black leading-5">{{ featuredRooms.length }} phòng nổi bật</strong>
             <span class="mt-2 inline-flex items-center gap-1 text-[0.72rem] font-bold text-primary">
@@ -131,7 +131,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <section class="grid gap-3">
       <article
         v-for="room in filteredRooms"
         :key="room.code"
@@ -192,7 +192,7 @@ onMounted(() => {
           </span>
         </div>
 
-        <div class="mt-4 grid gap-2 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center">
+        <div class="mt-4 grid gap-2">
           <div class="min-w-0 rounded-[16px] bg-background px-3 py-2.5 text-[0.72rem] text-on-surface-variant">
             <span class="block text-[0.65rem] uppercase tracking-[0.08em]">Chọn nhanh</span>
             <strong class="mt-1 block break-words text-on-surface">

@@ -143,14 +143,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="space-y-5 md:space-y-6">
-    <section class="rounded-[28px] bg-white p-5 shadow-[0_8px_18px_rgba(255,109,102,0.05)] md:p-6">
-      <div class="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
+  <div class="space-y-5">
+    <section class="rounded-[28px] bg-white p-5 shadow-[0_8px_18px_rgba(255,109,102,0.05)]">
+      <div class="grid gap-4">
         <div>
           <span class="inline-flex rounded-full bg-[#e64545]/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#e64545]">
             Thông báo
           </span>
-          <h2 class="mt-4 text-[1.55rem] font-black md:text-[1.8rem]">Danh sách thông báo của bạn</h2>
+          <h2 class="mt-4 text-[1.55rem] font-black">Danh sách thông báo của bạn</h2>
           <p class="mt-2 max-w-[36rem] text-sm leading-6 text-on-surface-variant">
             Thông báo được gửi trực tiếp từ Hệ Thống Sàn , Bạn có thể đánh dấu đã đọc để có thể theo dõi thông báo từ Sàn Game.
           </p>
@@ -164,7 +164,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+        <div class="grid gap-2 grid-cols-2">
           <div class="rounded-[22px] bg-primary/10 px-4 py-3 text-left">
             <p class="m-0 text-[0.7rem] uppercase tracking-[0.12em] text-primary/70">Chưa đọc</p>
             <strong class="mt-1 block text-[1.35rem] font-black text-primary">{{ unreadCount }}</strong>
@@ -204,7 +204,7 @@ onBeforeUnmount(() => {
       Không có thông báo ở bộ lọc hiện tại.
     </section>
 
-    <section v-else class="grid gap-3 md:grid-cols-2">
+    <section v-else class="grid gap-3">
       <article
         v-for="item in filteredNotifications"
         :key="item.id"
