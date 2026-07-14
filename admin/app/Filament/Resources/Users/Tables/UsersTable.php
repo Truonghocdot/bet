@@ -3,18 +3,21 @@
 namespace App\Filament\Resources\Users\Tables;
 
 use App\Enum\User\RoleUser;
-use App\Models\User;
 use App\Enum\User\UserStatus;
+use App\Models\User;
 use App\Support\Filament\EnumPresenter;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Gate;
 
 class UsersTable
 {
@@ -127,6 +130,7 @@ class UsersTable
             ->defaultSort('id', 'desc')
             ->poll(2000)
             ->recordActions([
+                ...self::clientAccountActions($fixedRole),
                 EditAction::make(),
             ])
             ->toolbarActions([
@@ -173,5 +177,60 @@ class UsersTable
                 $relationPath .= '.referredByReferral.referrerUser';
             }
         });
+    }
+
+    /**
+     * @return array<int, Action>
+     */
+    private static function clientAccountActions(?RoleUser $fixedRole): array
+    {
+        if ($fixedRole !== RoleUser::CLIENT) {
+            return [];
+        }
+
+        return [
+            Action::make('lock_account')
+                ->label('Khóa tài khoản')
+                ->icon('heroicon-m-lock-closed')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading('Khóa tài khoản người chơi')
+                ->modalDescription('Người chơi sẽ bị đăng xuất khỏi ứng dụng và không thể đăng nhập lại cho đến khi được mở khóa.')
+                ->modalSubmitActionLabel('Xác nhận khóa')
+                ->visible(fn (User $record): bool => Gate::allows('system.users.clients.update')
+                    && $record->deleted_at === null
+                    && $record->status === UserStatus::ACTIVE)
+                ->action(function (User $record): void {
+                    $record->update([
+                        'status' => UserStatus::SUSPENDED,
+                    ]);
+
+                    Notification::make()
+                        ->title('Đã khóa tài khoản người chơi')
+                        ->success()
+                        ->send();
+                }),
+            Action::make('unlock_account')
+                ->label('Mở khóa')
+                ->icon('heroicon-m-lock-open')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalHeading('Mở khóa tài khoản người chơi')
+                ->modalDescription('Người chơi sẽ có thể đăng nhập lại sau khi mở khóa.')
+                ->modalSubmitActionLabel('Xác nhận mở khóa')
+                ->visible(fn (User $record): bool => Gate::allows('system.users.clients.update')
+                    && $record->deleted_at === null
+                    && $record->status !== UserStatus::ACTIVE)
+                ->action(function (User $record): void {
+                    $record->update([
+                        'status' => UserStatus::ACTIVE,
+                    ]);
+
+                    Notification::make()
+                        ->title('Đã mở khóa tài khoản người chơi')
+                        ->success()
+                        ->send();
+                }),
+        ];
     }
 }
