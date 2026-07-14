@@ -411,7 +411,7 @@ onBeforeUnmount(() => {
           <!-- Right side actions -->
           <div class="topbar-inner__side topbar-inner__side--right">
             <RouterLink
-              class="icon-btn icon-btn--soft icon-btn--badge"
+              class="icon-btn icon-btn--soft icon-btn--badge topbar-action-btn"
               aria-label="Thông báo"
               to="/notifications"
               @click="navigatePrimaryClick($event, { path: '/notifications' })"
@@ -420,7 +420,7 @@ onBeforeUnmount(() => {
               <span v-if="unreadNotificationBadge" class="icon-btn__badge">{{ unreadNotificationBadge }}</span>
             </RouterLink>
             <RouterLink
-              class="icon-btn icon-btn--soft"
+              class="icon-btn icon-btn--soft topbar-action-btn"
               aria-label="Tài khoản"
               to="/account"
             >
