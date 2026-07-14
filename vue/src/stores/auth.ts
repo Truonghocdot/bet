@@ -204,9 +204,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Hook up global session invalidate
-  setSessionInvalidatedCallback(() => {
+  setSessionInvalidatedCallback((reason, code) => {
     forcedLogout(
-      'Tài khoản của bạn đã được đăng nhập từ một thiết bị khác. Vui lòng đăng nhập lại.',
+      reason || (
+        code === 'ACCOUNT_DISABLED'
+          ? 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ hỗ trợ.'
+          : 'Tài khoản của bạn đã được đăng nhập từ một thiết bị khác. Vui lòng đăng nhập lại.'
+      ),
     )
   })
 

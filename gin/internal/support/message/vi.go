@@ -24,7 +24,7 @@ const (
 	ReferralCodeNotFound              = "Mã giới thiệu không tồn tại"
 	StaffInviteCodeInvalid            = "Mã mời nhân viên không hợp lệ"
 	ReferralAlreadyUsed               = "Bạn đã nhập mã mời trước đó"
-	UserNotActive                     = "Tài khoản chưa ở trạng thái hoạt động"
+	UserNotActive                     = "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ hỗ trợ"
 	InvalidSelfReferral               = "Không thể tự nhập mã giới thiệu của chính mình"
 	CannotGenerateAffiliate           = "Không thể tạo mã giới thiệu duy nhất"
 	UserIDRequired                    = "Thiếu thông tin người dùng"

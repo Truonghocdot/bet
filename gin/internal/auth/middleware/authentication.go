@@ -109,6 +109,18 @@ func (m *Authentication) authenticateRequest(r *http.Request) (auth.TokenClaims,
 	}
 
 	if !m.authService.VerifySession(r.Context(), claims.UserID, claims.SessionID) {
+		isActive, statusErr := m.authService.IsUserActive(r.Context(), claims.UserID)
+		if statusErr != nil {
+			log.Printf("[auth][session.status_check.error] user_id=%d path=%s method=%s err=%v", claims.UserID, r.URL.Path, r.Method, statusErr)
+		}
+		if statusErr == nil && !isActive {
+			log.Printf("[auth][session.account_disabled] user_id=%d path=%s method=%s", claims.UserID, r.URL.Path, r.Method)
+			return auth.TokenClaims{}, false, &authRequestError{
+				Message: message.UserNotActive,
+				Code:    "ACCOUNT_DISABLED",
+			}
+		}
+
 		log.Printf("[auth][session.invalidated] user_id=%d path=%s method=%s", claims.UserID, r.URL.Path, r.Method)
 		return auth.TokenClaims{}, false, &authRequestError{
 			Message: "Tài khoản của bạn đã được đăng nhập từ một thiết bị khác. Vui lòng đăng nhập lại.",

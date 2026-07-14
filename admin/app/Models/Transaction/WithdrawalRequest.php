@@ -6,6 +6,7 @@ use App\Enum\Transaction\WithdrawalStatus;
 use App\Enum\Wallet\UnitTransaction;
 use App\Models\User;
 use App\Models\Wallet\Wallet;
+use App\Support\FakeFinance\FakeFinanceFeedService;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,24 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class WithdrawalRequest extends Model
 {
     use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::created(function (self $request): void {
+            if ($request->status === WithdrawalStatus::PAID) {
+                self::appendFakeWithdrawFeed($request);
+            }
+        });
+
+        static::updated(function (self $request): void {
+            if (
+                $request->status === WithdrawalStatus::PAID
+                && $request->wasChanged('status')
+            ) {
+                self::appendFakeWithdrawFeed($request);
+            }
+        });
+    }
 
     protected $fillable = [
         'user_id',
@@ -79,5 +98,14 @@ class WithdrawalRequest extends Model
     public function paidBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'paid_by');
+    }
+
+    private static function appendFakeWithdrawFeed(self $request): void
+    {
+        app(FakeFinanceFeedService::class)->appendWithdrawBatch(1, [
+            'trigger' => 'real_withdrawal_paid',
+            'reference_type' => self::class,
+            'reference_id' => $request->id,
+        ]);
     }
 }

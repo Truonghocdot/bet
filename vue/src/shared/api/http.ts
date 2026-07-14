@@ -9,8 +9,8 @@ export type ApiError = {
 }
 
 // Global callback for session invalidation (set by auth store)
-export let onSessionInvalidated: (() => void) | null = null
-export function setSessionInvalidatedCallback(fn: () => void) {
+export let onSessionInvalidated: ((reason: string, code?: string) => void) | null = null
+export function setSessionInvalidatedCallback(fn: (reason: string, code?: string) => void) {
   onSessionInvalidated = fn
 }
 
@@ -74,8 +74,8 @@ export async function request<T>(
       const { message, code } = await readErrorBody(res)
       const err: ApiError = { status: res.status, message, code }
       // Handle session invalidation globally
-      if (res.status === 401 && code === 'SESSION_INVALIDATED') {
-        onSessionInvalidated?.()
+      if (res.status === 401 && (code === 'SESSION_INVALIDATED' || code === 'ACCOUNT_DISABLED')) {
+        onSessionInvalidated?.(message, code)
       }
       throw err
     }

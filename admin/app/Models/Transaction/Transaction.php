@@ -5,9 +5,10 @@ namespace App\Models\Transaction;
 use App\Enum\Transaction\TransactionStatus;
 use App\Enum\Transaction\TypeTransaction;
 use App\Enum\Wallet\UnitTransaction;
-use App\Models\User;
 use App\Models\Payment\PaymentReceivingAccount;
+use App\Models\User;
 use App\Models\Wallet\Wallet;
+use App\Support\FakeFinance\FakeFinanceFeedService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -15,6 +16,28 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Transaction extends Model
 {
     use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::created(function (self $transaction): void {
+            if (
+                $transaction->type === TypeTransaction::DEPOSIT
+                && $transaction->status === TransactionStatus::COMPLETED
+            ) {
+                self::appendFakeDepositFeed($transaction);
+            }
+        });
+
+        static::updated(function (self $transaction): void {
+            if (
+                $transaction->type === TypeTransaction::DEPOSIT
+                && $transaction->status === TransactionStatus::COMPLETED
+                && $transaction->wasChanged('status')
+            ) {
+                self::appendFakeDepositFeed($transaction);
+            }
+        });
+    }
 
     protected $fillable = [
         'user_id',
@@ -67,5 +90,14 @@ class Transaction extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    private static function appendFakeDepositFeed(self $transaction): void
+    {
+        app(FakeFinanceFeedService::class)->appendDepositBatch(1, [
+            'trigger' => 'real_transaction_completed',
+            'reference_type' => self::class,
+            'reference_id' => $transaction->id,
+        ]);
     }
 }

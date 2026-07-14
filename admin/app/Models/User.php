@@ -4,22 +4,27 @@ namespace App\Models;
 
 use App\Enum\User\RoleUser;
 use App\Enum\User\UserStatus;
+use App\Models\Affiliate\AffiliateLink;
 use App\Models\Affiliate\AffiliateProfile;
+use App\Models\Affiliate\AffiliateReferral;
+use App\Models\Affiliate\AffiliateRewardLog;
 use App\Models\Bet\BetTicket;
 use App\Models\Transaction\AccountWithdrawalInfo;
 use App\Models\Transaction\Transaction;
 use App\Models\Transaction\WithdrawalRequest;
 use App\Models\Wallet\Wallet;
+use App\Services\Admin\UserClientSessionService;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class User extends Authenticatable implements FilamentUser
@@ -49,6 +54,18 @@ class User extends Authenticatable implements FilamentUser
             }
 
             $user->setAttribute($user->getKeyName(), static::generateUniqueSixDigitId());
+        });
+
+        static::updated(function (self $user): void {
+            if (! $user->wasChanged('status') || $user->status === UserStatus::ACTIVE) {
+                return;
+            }
+
+            DB::afterCommit(fn () => app(UserClientSessionService::class)->invalidateSessions((int) $user->getKey()));
+        });
+
+        static::deleted(function (self $user): void {
+            DB::afterCommit(fn () => app(UserClientSessionService::class)->invalidateSessions((int) $user->getKey()));
         });
     }
 
@@ -108,7 +125,7 @@ class User extends Authenticatable implements FilamentUser
     public function affiliateLinks(): HasManyThrough
     {
         return $this->hasManyThrough(
-            \App\Models\Affiliate\AffiliateLink::class,
+            AffiliateLink::class,
             AffiliateProfile::class,
             'user_id',
             'affiliate_profile_id',
@@ -120,7 +137,7 @@ class User extends Authenticatable implements FilamentUser
     public function affiliateReferrals(): HasManyThrough
     {
         return $this->hasManyThrough(
-            \App\Models\Affiliate\AffiliateReferral::class,
+            AffiliateReferral::class,
             AffiliateProfile::class,
             'user_id',
             'affiliate_profile_id',
@@ -132,7 +149,7 @@ class User extends Authenticatable implements FilamentUser
     public function affiliateRewardLogs(): HasManyThrough
     {
         return $this->hasManyThrough(
-            \App\Models\Affiliate\AffiliateRewardLog::class,
+            AffiliateRewardLog::class,
             AffiliateProfile::class,
             'user_id',
             'affiliate_profile_id',
@@ -143,17 +160,17 @@ class User extends Authenticatable implements FilamentUser
 
     public function referredByReferrals(): HasMany
     {
-        return $this->hasMany(\App\Models\Affiliate\AffiliateReferral::class, 'referred_user_id');
+        return $this->hasMany(AffiliateReferral::class, 'referred_user_id');
     }
 
     public function referredByReferral(): HasOne
     {
-        return $this->hasOne(\App\Models\Affiliate\AffiliateReferral::class, 'referred_user_id');
+        return $this->hasOne(AffiliateReferral::class, 'referred_user_id');
     }
 
     public function referralLogs(): HasMany
     {
-        return $this->hasMany(\App\Models\Affiliate\AffiliateRewardLog::class, 'referrer_user_id');
+        return $this->hasMany(AffiliateRewardLog::class, 'referrer_user_id');
     }
 
     public function resolveDirectReferrerUser(): ?self

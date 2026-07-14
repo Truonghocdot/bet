@@ -431,6 +431,19 @@ func (s *AuthService) VerifySession(ctx context.Context, userID int64, sessionID
 	return latest == sessionID
 }
 
+func (s *AuthService) IsUserActive(ctx context.Context, userID int64) (bool, error) {
+	_, err := s.repository.FindProfileByUserID(ctx, userID)
+	if err == nil {
+		return true, nil
+	}
+
+	if errors.Is(err, repopg.ErrUserDisabled) || errors.Is(err, repopg.ErrAccountNotFound) {
+		return false, nil
+	}
+
+	return false, err
+}
+
 func (s *AuthService) Refresh(ctx context.Context, request auth.RefreshTokenRequest, meta auth.RequestMeta) (auth.AuthResponse, error) {
 	userID, expiresAt, storedScope, err := s.repository.FindRefreshToken(ctx, withClientScopeToken(meta.ClientScope, request.RefreshToken))
 	if err != nil {
