@@ -93,7 +93,8 @@ const unreadNotificationBadge = computed(() => {
   if (unreadNotificationCount.value <= 0) return ''
   return unreadNotificationCount.value > 99 ? '99+' : String(unreadNotificationCount.value)
 })
-const headerLogoSrc = computed(() => String(wallet.summary?.app_header_logo_url ?? '').trim() || defaultHeaderLogo)
+const uploadedHeaderLogoSrc = computed(() => String(wallet.summary?.app_header_logo_url ?? '').trim())
+const loadingLogoSrc = computed(() => uploadedHeaderLogoSrc.value || defaultHeaderLogo)
 
 const referralLink = computed(() => auth.affiliateProfile?.ref_link || '')
 
@@ -285,7 +286,7 @@ onBeforeUnmount(() => {
           <div class="flex flex-col items-center gap-4">
           <div class="relative">
             <div class="absolute inset-0 animate-ping rounded-full bg-primary/20" />
-            <img :src="headerLogoSrc" alt="Loading..." class="relative h-20 w-20 rounded-2xl object-contain shadow-xl animate-pulse" />
+            <img :src="loadingLogoSrc" alt="Loading..." class="relative h-20 w-20 rounded-2xl object-contain shadow-xl animate-pulse" />
           </div>
           <div class="flex items-center gap-1.5">
             <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary" />
@@ -390,13 +391,21 @@ onBeforeUnmount(() => {
             >
               <span class="material-symbols-outlined">menu</span>
             </button>
+
+            <RouterLink
+              to="/home"
+              class="topbar-home-brand"
+            >
+              <img :src="defaultHeaderLogo" alt="fh88u" class="topbar-home-brand__logo" />
+            </RouterLink>
           </div>
 
           <RouterLink
+            v-if="uploadedHeaderLogoSrc"
             to="/home"
             class="topbar-brand"
           >
-            <img :src="headerLogoSrc" alt="fh88u" class="topbar-brand__logo" />
+            <img :src="uploadedHeaderLogoSrc" alt="Logo app" class="topbar-brand__logo topbar-brand__logo--custom" />
           </RouterLink>
 
           <!-- Right side actions -->
