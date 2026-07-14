@@ -72,6 +72,7 @@ class ExchangeRateService
                 'nowpayments_payout_wallet' => $data['nowpayments_payout_wallet'] ?? null,
                 'nowpayments_sandbox' => (bool) ($data['nowpayments_sandbox'] ?? false),
                 'telegram_cskh_link' => $data['telegram_cskh_link'] ?? null,
+                'app_header_logo_path' => $this->normalizeStoredAssetPath($data['app_header_logo_path'] ?? null),
                 'marquee_enabled' => (bool) ($data['marquee_enabled'] ?? true),
                 'fake_finance_feed_enabled' => (bool) ($data['fake_finance_feed_enabled'] ?? true),
                 'notification_image_force_cancel_enabled' => (bool) ($data['notification_image_force_cancel_enabled'] ?? false),
@@ -225,6 +226,7 @@ class ExchangeRateService
             'nowpayments_payout_wallet' => $setting->nowpayments_payout_wallet,
             'nowpayments_sandbox' => (bool) $setting->nowpayments_sandbox,
             'telegram_cskh_link' => $setting->telegram_cskh_link,
+            'app_header_logo_path' => $setting->app_header_logo_path,
             'marquee_enabled' => (bool) ($setting->marquee_enabled ?? true),
             'fake_finance_feed_enabled' => (bool) ($setting->fake_finance_feed_enabled ?? true),
             'notification_image_force_cancel_enabled' => (bool) ($setting->notification_image_force_cancel_enabled ?? false),
@@ -260,8 +262,8 @@ class ExchangeRateService
         }
 
         return collect(preg_split('/\r\n|\r|\n/', $value) ?: [])
-            ->map(fn(mixed $line): string => trim((string) $line))
-            ->filter(fn(string $line): bool => $line !== '')
+            ->map(fn (mixed $line): string => trim((string) $line))
+            ->filter(fn (string $line): bool => $line !== '')
             ->values()
             ->all();
     }
@@ -292,6 +294,13 @@ class ExchangeRateService
         }
 
         return $normalized;
+    }
+
+    private function normalizeStoredAssetPath(mixed $value): ?string
+    {
+        $normalized = trim((string) ($value ?? ''));
+
+        return $normalized === '' ? null : $normalized;
     }
 
     private function extractRateFromPayload(array|string $payload): float

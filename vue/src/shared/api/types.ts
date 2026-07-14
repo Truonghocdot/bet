@@ -420,6 +420,7 @@ export type WalletSummaryResponse = {
   message: string
   exchange_rate: string
   telegram_cskh_link?: string | null
+  app_header_logo_url?: string | null
   marquee?: MarqueeDisplay
   fake_finance_feed?: FakeFinanceFeedDisplay
   popup?: PopupDisplay

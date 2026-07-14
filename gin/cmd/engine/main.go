@@ -42,7 +42,7 @@ func main() {
 	gameRepository := repopg.NewGameRepository(db)
 	walletRepository := repopg.NewWalletRepository(db)
 	broker := realtime.NewBroker(redisClient)
-	walletService := service.NewWalletService(walletRepository, broker, redisClient)
+	walletService := service.NewWalletService(walletRepository, broker, redisClient, config.ContentAssetBaseURL)
 	playRoomService := service.NewPlayRoomService(gameRepository, walletRepository, walletService, redisClient, broker)
 	engineService := service.NewRoomEngineService(gameRepository, redisClient, playRoomService, walletService, broker, time.Second)
 

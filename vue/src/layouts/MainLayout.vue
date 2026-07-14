@@ -7,6 +7,9 @@ import { useWalletStore } from '@/stores/wallet'
 import { formatViMoney } from '@/shared/lib/money'
 import { useLoading } from '@/shared/lib/loading'
 import { request } from '@/shared/api/http'
+import bottomNavLeftArt from '@/assets/bottom/icon_btm_jr.avif'
+import bottomNavRightArt from '@/assets/bottom/icon_btm_jr2.avif'
+import defaultHeaderLogo from '@/assets/logo-mobile.webp'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,6 +93,7 @@ const unreadNotificationBadge = computed(() => {
   if (unreadNotificationCount.value <= 0) return ''
   return unreadNotificationCount.value > 99 ? '99+' : String(unreadNotificationCount.value)
 })
+const headerLogoSrc = computed(() => String(wallet.summary?.app_header_logo_url ?? '').trim() || defaultHeaderLogo)
 
 const referralLink = computed(() => auth.affiliateProfile?.ref_link || '')
 
@@ -278,10 +282,10 @@ onBeforeUnmount(() => {
     <!-- ===== GLOBAL LOADING OVERLAY ===== -->
     <Transition name="fade">
       <div v-if="isLoading" class="fixed inset-0 z-[100] grid place-items-center bg-white/80 backdrop-blur-md">
-        <div class="flex flex-col items-center gap-4">
+          <div class="flex flex-col items-center gap-4">
           <div class="relative">
             <div class="absolute inset-0 animate-ping rounded-full bg-primary/20" />
-            <img src="/logo.png" alt="Loading..." class="relative h-20 w-20 rounded-2xl shadow-xl animate-pulse" />
+            <img :src="headerLogoSrc" alt="Loading..." class="relative h-20 w-20 rounded-2xl object-contain shadow-xl animate-pulse" />
           </div>
           <div class="flex items-center gap-1.5">
             <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-primary" />
@@ -378,24 +382,25 @@ onBeforeUnmount(() => {
       <!-- ===== HEADER (non-play routes OR always on play) ===== -->
       <header v-if="!isPlayRoute" class="glass-bar sticky top-0 z-20">
         <div class="topbar-inner">
-          <!-- Hamburger (mobile only) -->
-          <button
-            class="icon-btn icon-btn--ghost"
-            aria-label="Mở menu"
-            @click="openDrawer"
-          >
-            <span class="material-symbols-outlined">menu</span>
-          </button>
+          <div class="topbar-inner__side topbar-inner__side--left">
+            <button
+              class="icon-btn icon-btn--ghost"
+              aria-label="Mở menu"
+              @click="openDrawer"
+            >
+              <span class="material-symbols-outlined">menu</span>
+            </button>
+          </div>
 
           <RouterLink
             to="/home"
-            class="flex items-center"
+            class="topbar-brand"
           >
-            <img src="@/assets/logo-mobile.webp" alt="fh88u" class="h-11 w-auto object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
+            <img :src="headerLogoSrc" alt="fh88u" class="topbar-brand__logo" />
           </RouterLink>
 
           <!-- Right side actions -->
-          <div class="flex items-center gap-2">
+          <div class="topbar-inner__side topbar-inner__side--right">
             <RouterLink
               class="icon-btn icon-btn--soft icon-btn--badge"
               aria-label="Thông báo"
@@ -436,6 +441,8 @@ onBeforeUnmount(() => {
 
       <!-- ===== BOTTOM NAV (mobile 5-tab) ===== -->
       <nav class="bottom-nav" :style="bottomNavGridStyle">
+        <img :src="bottomNavLeftArt" alt="" class="bottom-nav__side-art bottom-nav__side-art--left" aria-hidden="true" />
+        <img :src="bottomNavRightArt" alt="" class="bottom-nav__side-art bottom-nav__side-art--right" aria-hidden="true" />
         <RouterLink
           v-for="item in primaryNavItems"
           :key="`${item.to}-${item.query?.tab ?? 'default'}`"

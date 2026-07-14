@@ -3,6 +3,7 @@
 namespace App\Filament\Pages\System\Schemas;
 
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -137,6 +138,19 @@ class ExchangeRatePageForm
                         ->url()
                         ->placeholder('https://t.me/your_cskh')
                         ->helperText('Đường dẫn trực tiếp đến tài khoản hoặc group Telegram hỗ trợ.'),
+                    FileUpload::make('app_header_logo_path')
+                        ->label('Logo header app')
+                        ->disk('public')
+                        ->directory('system')
+                        ->image()
+                        ->acceptedFileTypes([
+                            'image/avif',
+                            'image/webp',
+                            'image/png',
+                            'image/jpeg',
+                        ])
+                        ->helperText('Ảnh hiển thị ở header app người chơi. Hỗ trợ AVIF, WEBP, PNG, JPG.')
+                        ->columnSpanFull(),
                 ])
                 ->columns(2),
 
@@ -164,7 +178,7 @@ class ExchangeRatePageForm
                 ->schema([
                     RichEditor::make('popup_message')
                         ->label('Popup thông báo')
-                        ->afterStateHydrated(static function (RichEditor $component, string | array | null $rawState): void {
+                        ->afterStateHydrated(static function (RichEditor $component, string|array|null $rawState): void {
                             if (! is_array($rawState)) {
                                 $component->state($rawState);
                             }
@@ -188,7 +202,7 @@ class ExchangeRatePageForm
                         ->columnSpanFull(),
                     RichEditor::make('latest_news_popup')
                         ->label('Tin tức popup mới nhất')
-                        ->afterStateHydrated(static function (RichEditor $component, string | array | null $rawState): void {
+                        ->afterStateHydrated(static function (RichEditor $component, string|array|null $rawState): void {
                             if (! is_array($rawState)) {
                                 $component->state($rawState);
                             }

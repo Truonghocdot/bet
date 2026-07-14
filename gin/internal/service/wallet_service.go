@@ -25,13 +25,19 @@ const (
 )
 
 type WalletService struct {
-	repository *repopg.WalletRepository
-	broker     *realtime.Broker
-	redis      *goredis.Client
+	repository       *repopg.WalletRepository
+	broker           *realtime.Broker
+	redis            *goredis.Client
+	contentAssetBase string
 }
 
-func NewWalletService(repository *repopg.WalletRepository, broker *realtime.Broker, redis *goredis.Client) *WalletService {
-	return &WalletService{repository: repository, broker: broker, redis: redis}
+func NewWalletService(repository *repopg.WalletRepository, broker *realtime.Broker, redis *goredis.Client, contentAssetBase string) *WalletService {
+	return &WalletService{
+		repository:       repository,
+		broker:           broker,
+		redis:            redis,
+		contentAssetBase: contentAssetBase,
+	}
 }
 
 func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.WalletSummaryResponse, error) {
@@ -75,6 +81,7 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 		Message:          message.WalletSummarySuccess,
 		ExchangeRate:     snapshot.Rate,
 		TelegramCskhLink: snapshot.TelegramCskhLink,
+		AppHeaderLogoURL: buildPublicAssetURL(s.contentAssetBase, snapshot.AppHeaderLogoPath),
 		Marquee: wallet.MarqueeDisplay{
 			Enabled:  snapshot.MarqueeEnabled != nil && *snapshot.MarqueeEnabled,
 			Messages: snapshot.MarqueeMessages,

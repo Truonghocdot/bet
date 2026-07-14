@@ -31,6 +31,7 @@ class ExchangeRateSetting extends Model
         'nowpayments_payout_wallet',
         'nowpayments_sandbox',
         'telegram_cskh_link',
+        'app_header_logo_path',
         'marquee_enabled',
         'fake_finance_feed_enabled',
         'notification_image_force_cancel_enabled',
