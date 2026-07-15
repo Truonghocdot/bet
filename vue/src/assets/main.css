@@ -241,9 +241,8 @@
   /* Safari AVIF alpha-channel bug: transparent areas render as black.
    * mix-blend-mode: screen makes (0,0,0) pixels "disappear" into the background,
    * visually restoring transparency without changing the image format. */
-  .topbar-brand__logo--screen-blend {
+  .topbar-brand--screen-blend {
     mix-blend-mode: screen;
-    filter: none;
   }
 
   .icon-btn {

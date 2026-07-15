@@ -439,16 +439,16 @@ onBeforeUnmount(() => {
           <RouterLink
             v-if="uploadedHeaderLogoSrc && resolvedHeaderLogoSrc"
             to="/home"
-            class="topbar-brand"
+            :class="[
+              'topbar-brand',
+              { 'topbar-brand--screen-blend': headerLogoNeedsScreenBlend },
+            ]"
           >
             <img
               :key="resolvedHeaderLogoSrc"
               :src="resolvedHeaderLogoSrc"
               alt="Logo app"
-              :class="[
-                'topbar-brand__logo topbar-brand__logo--custom',
-                { 'topbar-brand__logo--screen-blend': headerLogoNeedsScreenBlend },
-              ]"
+              class="topbar-brand__logo topbar-brand__logo--custom"
               @error="handleHeaderLogoError"
             />
           </RouterLink>
