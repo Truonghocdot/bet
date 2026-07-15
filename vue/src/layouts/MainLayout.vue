@@ -114,6 +114,11 @@ const headerLogoCandidateSources = computed(() => {
 })
 const resolvedHeaderLogoSrc = computed(() => headerLogoCandidateSources.value[headerLogoSourceIndex.value] ?? '')
 const loadingLogoSrc = computed(() => resolvedHeaderLogoSrc.value || defaultHeaderLogo)
+// Safari bug: AVIF alpha channel bị render thành đen.
+// Dùng mix-blend-mode: screen để "khử" vùng đen đó — black screen dark-bg = bg color.
+const headerLogoNeedsScreenBlend = computed(() =>
+  isSafariBrowser.value && /\.avif(\?|$)/i.test(resolvedHeaderLogoSrc.value)
+)
 watch(headerLogoCandidateSources, () => {
   headerLogoSourceIndex.value = 0
 }, { immediate: true })
@@ -440,7 +445,10 @@ onBeforeUnmount(() => {
               :key="resolvedHeaderLogoSrc"
               :src="resolvedHeaderLogoSrc"
               alt="Logo app"
-              class="topbar-brand__logo topbar-brand__logo--custom"
+              :class="[
+                'topbar-brand__logo topbar-brand__logo--custom',
+                { 'topbar-brand__logo--screen-blend': headerLogoNeedsScreenBlend },
+              ]"
               @error="handleHeaderLogoError"
             />
           </RouterLink>
