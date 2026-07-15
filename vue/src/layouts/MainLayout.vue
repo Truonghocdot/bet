@@ -103,8 +103,27 @@ const isSafariBrowser = computed(() => {
   return /Safari/i.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|OPiOS|SamsungBrowser|Android/i.test(userAgent)
 })
 const headerLogoSourceIndex = ref(0)
+function buildSafariAvifFallbacks(src: string): string[] {
+  const fallbacks: string[] = []
+  if (uploadedHeaderLogoFallbackSrc.value) {
+    fallbacks.push(uploadedHeaderLogoFallbackSrc.value)
+  }
+  // Thử đổi .avif → .webp và .png
+  const webp = src.replace(/\.avif(\?.*)?$/i, '.webp$1')
+  const png  = src.replace(/\.avif(\?.*)?$/i, '.png$1')
+  if (webp !== src) fallbacks.push(webp)
+  if (png  !== src) fallbacks.push(png)
+  fallbacks.push(src) // last resort
+  return [...new Set(fallbacks)]
+}
+
 const headerLogoCandidateSources = computed(() => {
   if (!uploadedHeaderLogoSrc.value) return []
+
+  const isAvif = /\.avif(\?|$)/i.test(uploadedHeaderLogoSrc.value)
+  if (isSafariBrowser.value && isAvif) {
+    return buildSafariAvifFallbacks(uploadedHeaderLogoSrc.value)
+  }
 
   if (isSafariBrowser.value && uploadedHeaderLogoFallbackSrc.value) {
     return [uploadedHeaderLogoFallbackSrc.value, uploadedHeaderLogoSrc.value].filter(Boolean)
@@ -114,11 +133,6 @@ const headerLogoCandidateSources = computed(() => {
 })
 const resolvedHeaderLogoSrc = computed(() => headerLogoCandidateSources.value[headerLogoSourceIndex.value] ?? '')
 const loadingLogoSrc = computed(() => resolvedHeaderLogoSrc.value || defaultHeaderLogo)
-// Safari bug: AVIF alpha channel bị render thành đen.
-// Dùng mix-blend-mode: screen để "khử" vùng đen đó — black screen dark-bg = bg color.
-const headerLogoNeedsScreenBlend = computed(() =>
-  isSafariBrowser.value && /\.avif(\?|$)/i.test(resolvedHeaderLogoSrc.value)
-)
 watch(headerLogoCandidateSources, () => {
   headerLogoSourceIndex.value = 0
 }, { immediate: true })
@@ -439,10 +453,7 @@ onBeforeUnmount(() => {
           <RouterLink
             v-if="uploadedHeaderLogoSrc && resolvedHeaderLogoSrc"
             to="/home"
-            :class="[
-              'topbar-brand',
-              { 'topbar-brand--screen-blend': headerLogoNeedsScreenBlend },
-            ]"
+            class="topbar-brand"
           >
             <img
               :key="resolvedHeaderLogoSrc"
