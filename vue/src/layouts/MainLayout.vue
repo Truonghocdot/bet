@@ -94,6 +94,7 @@ const unreadNotificationBadge = computed(() => {
   return unreadNotificationCount.value > 99 ? '99+' : String(unreadNotificationCount.value)
 })
 const uploadedHeaderLogoSrc = computed(() => String(wallet.summary?.app_header_logo_url ?? '').trim())
+const uploadedHeaderLogoFallbackSrc = computed(() => String(wallet.summary?.app_header_logo_fallback_url ?? '').trim())
 const isSafariBrowser = computed(() => {
   if (typeof navigator === 'undefined') return false
 
@@ -101,13 +102,12 @@ const isSafariBrowser = computed(() => {
 
   return /Safari/i.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|OPiOS|SamsungBrowser|Android/i.test(userAgent)
 })
-const safariHeaderLogoFallbackSrc = computed(() => uploadedHeaderLogoSrc.value.replace(/\.avif(?=([?#].*)?$)/i, '.webp'))
 const headerLogoSourceIndex = ref(0)
 const headerLogoCandidateSources = computed(() => {
   if (!uploadedHeaderLogoSrc.value) return []
 
-  if (isSafariBrowser.value && /\.avif(?=([?#].*)?$)/i.test(uploadedHeaderLogoSrc.value)) {
-    return [safariHeaderLogoFallbackSrc.value, uploadedHeaderLogoSrc.value].filter(Boolean)
+  if (isSafariBrowser.value && uploadedHeaderLogoFallbackSrc.value) {
+    return [uploadedHeaderLogoFallbackSrc.value, uploadedHeaderLogoSrc.value].filter(Boolean)
   }
 
   return [uploadedHeaderLogoSrc.value]

@@ -228,6 +228,7 @@ class ExchangeRateService
             'nowpayments_sandbox' => (bool) $setting->nowpayments_sandbox,
             'telegram_cskh_link' => $setting->telegram_cskh_link,
             'app_header_logo_path' => $setting->app_header_logo_path,
+            'app_header_logo_webp_path' => WebpImageConverter::ensurePublicDiskWebpVariant($setting->app_header_logo_path),
             'marquee_enabled' => (bool) ($setting->marquee_enabled ?? true),
             'fake_finance_feed_enabled' => (bool) ($setting->fake_finance_feed_enabled ?? true),
             'notification_image_force_cancel_enabled' => (bool) ($setting->notification_image_force_cancel_enabled ?? false),

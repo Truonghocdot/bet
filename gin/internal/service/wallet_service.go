@@ -78,10 +78,11 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 	}
 
 	return wallet.WalletSummaryResponse{
-		Message:          message.WalletSummarySuccess,
-		ExchangeRate:     snapshot.Rate,
-		TelegramCskhLink: snapshot.TelegramCskhLink,
-		AppHeaderLogoURL: buildPublicAssetURL(s.contentAssetBase, snapshot.AppHeaderLogoPath),
+		Message:                  message.WalletSummarySuccess,
+		ExchangeRate:             snapshot.Rate,
+		TelegramCskhLink:         snapshot.TelegramCskhLink,
+		AppHeaderLogoURL:         buildPublicAssetURL(s.contentAssetBase, snapshot.AppHeaderLogoPath),
+		AppHeaderLogoFallbackURL: buildPublicAssetURL(s.contentAssetBase, snapshot.AppHeaderLogoWebpPath),
 		Marquee: wallet.MarqueeDisplay{
 			Enabled:  snapshot.MarqueeEnabled != nil && *snapshot.MarqueeEnabled,
 			Messages: snapshot.MarqueeMessages,

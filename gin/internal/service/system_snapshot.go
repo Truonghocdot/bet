@@ -13,6 +13,7 @@ type systemSnapshot struct {
 	Rate                                string   `json:"rate"`
 	TelegramCskhLink                    string   `json:"telegram_cskh_link"`
 	AppHeaderLogoPath                   string   `json:"app_header_logo_path"`
+	AppHeaderLogoWebpPath               string   `json:"app_header_logo_webp_path"`
 	MarqueeEnabled                      *bool    `json:"marquee_enabled"`
 	FakeFinanceFeedEnabled              *bool    `json:"fake_finance_feed_enabled"`
 	NotificationImageForceCancelEnabled *bool    `json:"notification_image_force_cancel_enabled"`

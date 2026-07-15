@@ -40,15 +40,16 @@ type PopupDisplay struct {
 }
 
 type WalletSummaryResponse struct {
-	Message          string                 `json:"message"`
-	ExchangeRate     string                 `json:"exchange_rate"`
-	TelegramCskhLink string                 `json:"telegram_cskh_link,omitempty"`
-	AppHeaderLogoURL string                 `json:"app_header_logo_url,omitempty"`
-	Marquee          MarqueeDisplay         `json:"marquee"`
-	FakeFinanceFeed  FakeFinanceFeedDisplay `json:"fake_finance_feed"`
-	Popup            PopupDisplay           `json:"popup"`
-	WithdrawPolicy   WithdrawPolicyDisplay  `json:"withdraw_policy"`
-	Wallets          []WalletBalance        `json:"wallets"`
+	Message                  string                 `json:"message"`
+	ExchangeRate             string                 `json:"exchange_rate"`
+	TelegramCskhLink         string                 `json:"telegram_cskh_link,omitempty"`
+	AppHeaderLogoURL         string                 `json:"app_header_logo_url,omitempty"`
+	AppHeaderLogoFallbackURL string                 `json:"app_header_logo_fallback_url,omitempty"`
+	Marquee                  MarqueeDisplay         `json:"marquee"`
+	FakeFinanceFeed          FakeFinanceFeedDisplay `json:"fake_finance_feed"`
+	Popup                    PopupDisplay           `json:"popup"`
+	WithdrawPolicy           WithdrawPolicyDisplay  `json:"withdraw_policy"`
+	Wallets                  []WalletBalance        `json:"wallets"`
 }
 
 type ExchangeRequest struct {
