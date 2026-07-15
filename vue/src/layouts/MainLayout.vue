@@ -102,16 +102,30 @@ const isSafariBrowser = computed(() => {
   return /Safari/i.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|OPiOS|SamsungBrowser|Android/i.test(userAgent)
 })
 const safariHeaderLogoFallbackSrc = computed(() => uploadedHeaderLogoSrc.value.replace(/\.avif(?=([?#].*)?$)/i, '.webp'))
-const resolvedHeaderLogoSrc = computed(() => {
-  if (!uploadedHeaderLogoSrc.value) return ''
+const headerLogoSourceIndex = ref(0)
+const headerLogoCandidateSources = computed(() => {
+  if (!uploadedHeaderLogoSrc.value) return []
 
   if (isSafariBrowser.value && /\.avif(?=([?#].*)?$)/i.test(uploadedHeaderLogoSrc.value)) {
-    return safariHeaderLogoFallbackSrc.value
+    return [safariHeaderLogoFallbackSrc.value, uploadedHeaderLogoSrc.value].filter(Boolean)
   }
 
-  return uploadedHeaderLogoSrc.value
+  return [uploadedHeaderLogoSrc.value]
 })
+const resolvedHeaderLogoSrc = computed(() => headerLogoCandidateSources.value[headerLogoSourceIndex.value] ?? '')
 const loadingLogoSrc = computed(() => resolvedHeaderLogoSrc.value || defaultHeaderLogo)
+watch(headerLogoCandidateSources, () => {
+  headerLogoSourceIndex.value = 0
+}, { immediate: true })
+
+function handleHeaderLogoError() {
+  if (headerLogoSourceIndex.value < headerLogoCandidateSources.value.length - 1) {
+    headerLogoSourceIndex.value += 1
+    return
+  }
+
+  headerLogoSourceIndex.value = -1
+}
 
 const referralLink = computed(() => auth.affiliateProfile?.ref_link || '')
 
@@ -418,11 +432,17 @@ onBeforeUnmount(() => {
           </div>
 
           <RouterLink
-            v-if="uploadedHeaderLogoSrc"
+            v-if="uploadedHeaderLogoSrc && resolvedHeaderLogoSrc"
             to="/home"
             class="topbar-brand"
           >
-            <img :src="resolvedHeaderLogoSrc" alt="Logo app" class="topbar-brand__logo topbar-brand__logo--custom" />
+            <img
+              :key="resolvedHeaderLogoSrc"
+              :src="resolvedHeaderLogoSrc"
+              alt="Logo app"
+              class="topbar-brand__logo topbar-brand__logo--custom"
+              @error="handleHeaderLogoError"
+            />
           </RouterLink>
 
           <!-- Right side actions -->
