@@ -44,6 +44,10 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
   html,
   body,
   #app {
