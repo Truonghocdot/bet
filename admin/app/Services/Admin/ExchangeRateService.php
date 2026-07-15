@@ -4,6 +4,7 @@ namespace App\Services\Admin;
 
 use App\Models\System\ExchangeRateSetting;
 use App\Models\User;
+use App\Support\Media\WebpImageConverter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -300,7 +301,13 @@ class ExchangeRateService
     {
         $normalized = trim((string) ($value ?? ''));
 
-        return $normalized === '' ? null : $normalized;
+        if ($normalized === '') {
+            return null;
+        }
+
+        WebpImageConverter::ensurePublicDiskWebpVariant($normalized);
+
+        return $normalized;
     }
 
     private function extractRateFromPayload(array|string $payload): float

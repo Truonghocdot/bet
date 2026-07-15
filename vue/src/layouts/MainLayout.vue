@@ -94,7 +94,24 @@ const unreadNotificationBadge = computed(() => {
   return unreadNotificationCount.value > 99 ? '99+' : String(unreadNotificationCount.value)
 })
 const uploadedHeaderLogoSrc = computed(() => String(wallet.summary?.app_header_logo_url ?? '').trim())
-const loadingLogoSrc = computed(() => uploadedHeaderLogoSrc.value || defaultHeaderLogo)
+const isSafariBrowser = computed(() => {
+  if (typeof navigator === 'undefined') return false
+
+  const userAgent = navigator.userAgent || ''
+
+  return /Safari/i.test(userAgent) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|OPiOS|SamsungBrowser|Android/i.test(userAgent)
+})
+const safariHeaderLogoFallbackSrc = computed(() => uploadedHeaderLogoSrc.value.replace(/\.avif(?=([?#].*)?$)/i, '.webp'))
+const resolvedHeaderLogoSrc = computed(() => {
+  if (!uploadedHeaderLogoSrc.value) return ''
+
+  if (isSafariBrowser.value && /\.avif(?=([?#].*)?$)/i.test(uploadedHeaderLogoSrc.value)) {
+    return safariHeaderLogoFallbackSrc.value
+  }
+
+  return uploadedHeaderLogoSrc.value
+})
+const loadingLogoSrc = computed(() => resolvedHeaderLogoSrc.value || defaultHeaderLogo)
 
 const referralLink = computed(() => auth.affiliateProfile?.ref_link || '')
 
@@ -405,7 +422,7 @@ onBeforeUnmount(() => {
             to="/home"
             class="topbar-brand"
           >
-            <img :src="uploadedHeaderLogoSrc" alt="Logo app" class="topbar-brand__logo topbar-brand__logo--custom" />
+            <img :src="resolvedHeaderLogoSrc" alt="Logo app" class="topbar-brand__logo topbar-brand__logo--custom" />
           </RouterLink>
 
           <!-- Right side actions -->
