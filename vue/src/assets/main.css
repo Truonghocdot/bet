@@ -220,11 +220,14 @@
     @apply absolute left-1/2 top-1/2 z-[1] flex items-center justify-center;
     max-width: calc(100% - 2.5rem);
     transform: translate(-50%, -50%);
+    color-scheme: only light;
+    forced-color-adjust: none;
   }
 
   .topbar-brand__logo {
     @apply h-11 w-auto object-contain;
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    forced-color-adjust: none;
   }
 
   .topbar-brand__logo--custom {
