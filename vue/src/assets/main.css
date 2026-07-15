@@ -243,6 +243,7 @@
    * visually restoring transparency without changing the image format. */
   .topbar-brand__logo--screen-blend {
     mix-blend-mode: screen;
+    filter: none;
   }
 
   .icon-btn {
