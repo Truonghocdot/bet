@@ -203,7 +203,7 @@ func (h *WithdrawalHandler) handleAddAccount(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if strings.TrimSpace(req.AccountNumber) == "" || strings.TrimSpace(req.AccountName) == "" {
+	if strings.TrimSpace(req.ProviderCode) == "" || strings.TrimSpace(req.AccountNumber) == "" || strings.TrimSpace(req.AccountName) == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Thiếu thông tin tài khoản nhận tiền"})
 		return
 	}

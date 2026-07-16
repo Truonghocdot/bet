@@ -30,6 +30,7 @@ const fakeWithdrawFeed = ref<FakeFinanceFeedItem[]>([])
 const addProvider = ref('')
 const addHolder = ref('')
 const addNumber = ref('')
+const setupFormError = ref('')
 
 const currentWallets = computed(() => {
   return {
@@ -87,6 +88,22 @@ const withdrawAmountValidationMessage = computed(() => {
 
 const needsSetup = computed(() => {
   return currentAccount.value === undefined
+})
+const setupProviderError = computed(() => {
+  if (String(addProvider.value).trim() !== '') {
+    return ''
+  }
+
+  return method.value === 'vnd'
+    ? 'Vui lòng nhập tên ngân hàng.'
+    : 'Vui lòng nhập mạng lưới ví.'
+})
+const canSubmitSaveMethod = computed(() => {
+  return (
+    String(addProvider.value).trim() !== '' &&
+    String(addHolder.value).trim() !== '' &&
+    String(addNumber.value).trim() !== ''
+  )
 })
 
 const amountInputMode = computed(() => (method.value === 'vnd' ? 'numeric' : 'decimal'))
@@ -194,13 +211,31 @@ watch(
   },
 )
 
+watch(method, () => {
+  setupFormError.value = ''
+})
+
+watch([addProvider, addHolder, addNumber], () => {
+  if (canSubmitSaveMethod.value) {
+    setupFormError.value = ''
+  }
+})
+
 onBeforeUnmount(() => {
   stopFakeFeedPolling()
 })
 
 // Methods limit helpers
 async function submitSaveMethod() {
-  if (!addHolder.value || !addNumber.value) return
+  if (!canSubmitSaveMethod.value) {
+    setupFormError.value = method.value === 'vnd'
+      ? 'Vui lòng điền đầy đủ tên ngân hàng, chủ tài khoản và số tài khoản.'
+      : 'Vui lòng điền đầy đủ mạng lưới ví, nhãn ghi nhớ và địa chỉ ví.'
+
+    return
+  }
+
+  setupFormError.value = ''
   await withdraw.addAccount({
     unit: method.value === 'vnd' ? 1 : 2,
     provider_code: addProvider.value.toUpperCase().trim(),
@@ -367,9 +402,18 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
         </p>
         
         <form class="mt-4 space-y-3" @submit.prevent="submitSaveMethod">
+          <div
+            v-if="setupFormError || withdraw.error"
+            class="rounded-[14px] border border-[#ffd9d5] bg-[#fff4f3] px-4 py-3 text-sm font-bold text-[#e64545]"
+          >
+            {{ setupFormError || withdraw.error }}
+          </div>
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Tên Ngân hàng' : 'Mạng lưới (VD: TRC20, ERC20)' }}</span>
-            <input v-model="addProvider" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none" :required="method === 'usdt'" :placeholder="method === 'vnd' ? 'Điền Tên Ngân Hàng' : ''" />
+            <input v-model="addProvider" class="mt-1 min-h-12 w-full rounded-[14px] bg-slate-50 px-4 font-semibold text-on-surface outline-none" required :placeholder="method === 'vnd' ? 'Điền Tên Ngân Hàng' : ''" />
+            <p v-if="setupProviderError" class="mt-2 text-xs font-bold text-[#e64545]">
+              {{ setupProviderError }}
+            </p>
           </label>
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant">{{ method === 'vnd' ? 'Chủ tài khoản' : 'Nhãn ghi nhớ' }}</span>
@@ -381,7 +425,7 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
           </label>
 
           <div class="pt-2 flex gap-2">
-            <button class="min-h-12 flex-1 rounded-[14px] bg-primary font-black text-white disabled:opacity-60" type="submit" :disabled="withdraw.loading">
+            <button class="min-h-12 flex-1 rounded-[14px] bg-primary font-black text-white disabled:opacity-60" type="submit" :disabled="withdraw.loading || !canSubmitSaveMethod">
               Lưu cấu hình
             </button>
           </div>
