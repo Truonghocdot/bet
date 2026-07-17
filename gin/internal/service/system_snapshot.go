@@ -17,6 +17,8 @@ type systemSnapshot struct {
 	MarqueeEnabled                      *bool    `json:"marquee_enabled"`
 	FakeFinanceFeedEnabled              *bool    `json:"fake_finance_feed_enabled"`
 	NotificationImageForceCancelEnabled *bool    `json:"notification_image_force_cancel_enabled"`
+	RegisterSecurityNoticeEnabled       *bool    `json:"register_security_notice_enabled"`
+	RegisterSecurityNoticeText          string   `json:"register_security_notice_text"`
 	MarqueeMessages                     []string `json:"marquee_messages_list"`
 	PopupMessage                        string   `json:"popup_message"`
 	LatestNewsPopup                     string   `json:"latest_news_popup"`
@@ -36,6 +38,7 @@ func loadSystemSnapshot(ctx context.Context, redis *goredis.Client) systemSnapsh
 		MarqueeEnabled:                      &defaultEnabled,
 		FakeFinanceFeedEnabled:              &defaultEnabled,
 		NotificationImageForceCancelEnabled: &defaultDisabled,
+		RegisterSecurityNoticeEnabled:       &defaultDisabled,
 		MarqueeMessages: []string{
 			"Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.",
 			"Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!",
@@ -74,6 +77,9 @@ func loadSystemSnapshot(ctx context.Context, redis *goredis.Client) systemSnapsh
 	}
 	if snapshot.NotificationImageForceCancelEnabled == nil {
 		snapshot.NotificationImageForceCancelEnabled = defaultSnap.NotificationImageForceCancelEnabled
+	}
+	if snapshot.RegisterSecurityNoticeEnabled == nil {
+		snapshot.RegisterSecurityNoticeEnabled = defaultSnap.RegisterSecurityNoticeEnabled
 	}
 	if len(snapshot.MarqueeMessages) == 0 {
 		snapshot.MarqueeMessages = defaultSnap.MarqueeMessages

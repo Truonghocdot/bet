@@ -411,6 +411,11 @@ export type FakeFinanceFeedDisplay = {
   enabled: boolean
 }
 
+export type RegisterSecurityNoticeDisplay = {
+  enabled: boolean
+  content?: string | null
+}
+
 export type PopupDisplay = {
   message?: string | null
   latest_news?: string | null
@@ -424,6 +429,7 @@ export type WalletSummaryResponse = {
   app_header_logo_fallback_url?: string | null
   marquee?: MarqueeDisplay
   fake_finance_feed?: FakeFinanceFeedDisplay
+  security_notice?: RegisterSecurityNoticeDisplay
   popup?: PopupDisplay
   withdraw_policy?: {
     enabled: boolean

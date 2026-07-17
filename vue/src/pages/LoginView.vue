@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import { normalizeVNPhone } from '@/shared/lib/phone'
+import AuthSecuritySection from '@/components/AuthSecuritySection.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -152,16 +153,7 @@ async function handleLogin() {
       </section>
     </form>
 
-    <section class="mt-2 grid grid-cols-2 gap-3">
-      <a href="#" class="grid min-h-[84px] place-items-center gap-1 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
-        <span class="material-symbols-outlined text-primary">support_agent</span>
-        <span>CSKH</span>
-      </a>
-      <a href="#" class="grid min-h-[84px] place-items-center gap-1 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)]">
-        <span class="material-symbols-outlined text-primary">security</span>
-        <span>Bảo mật</span>
-      </a>
-    </section>
+    <AuthSecuritySection />
   </div>
 </template>
 

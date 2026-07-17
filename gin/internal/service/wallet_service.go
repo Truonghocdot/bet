@@ -90,6 +90,10 @@ func (s *WalletService) Summary(ctx context.Context, userID int64) (wallet.Walle
 		FakeFinanceFeed: wallet.FakeFinanceFeedDisplay{
 			Enabled: snapshot.FakeFinanceFeedEnabled != nil && *snapshot.FakeFinanceFeedEnabled,
 		},
+		RegisterSecurityNotice: wallet.RegisterSecurityNoticeDisplay{
+			Enabled: snapshot.RegisterSecurityNoticeEnabled != nil && *snapshot.RegisterSecurityNoticeEnabled,
+			Content: snapshot.RegisterSecurityNoticeText,
+		},
 		Popup: wallet.PopupDisplay{
 			Message:    stringPtrOrNil(snapshot.PopupMessage),
 			LatestNews: stringPtrOrNil(snapshot.LatestNewsPopup),

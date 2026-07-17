@@ -39,6 +39,8 @@ class ExchangeRateService
                 'marquee_enabled' => true,
                 'fake_finance_feed_enabled' => true,
                 'notification_image_force_cancel_enabled' => false,
+                'register_security_notice_enabled' => false,
+                'register_security_notice_text' => null,
                 'marquee_messages' => implode("\n", [
                     'Quý khách thân mến vui lòng thay đổi cổng nạp tiền nếu không thể tạo lệnh nạp.',
                     'Khi nạp tiền bằng cổng CHUYỂN KHOẢN sẽ được nhận thêm ưu đãi đặc biệt!',
@@ -77,6 +79,8 @@ class ExchangeRateService
                 'marquee_enabled' => (bool) ($data['marquee_enabled'] ?? true),
                 'fake_finance_feed_enabled' => (bool) ($data['fake_finance_feed_enabled'] ?? true),
                 'notification_image_force_cancel_enabled' => (bool) ($data['notification_image_force_cancel_enabled'] ?? false),
+                'register_security_notice_enabled' => (bool) ($data['register_security_notice_enabled'] ?? false),
+                'register_security_notice_text' => $this->normalizeTextareaText($data['register_security_notice_text'] ?? null),
                 'marquee_messages' => $this->normalizeMarqueeMessages($data['marquee_messages'] ?? null),
                 'popup_message' => $this->normalizePopupText($data['popup_message'] ?? null),
                 'latest_news_popup' => $this->normalizePopupText($data['latest_news_popup'] ?? null),
@@ -232,6 +236,8 @@ class ExchangeRateService
             'marquee_enabled' => (bool) ($setting->marquee_enabled ?? true),
             'fake_finance_feed_enabled' => (bool) ($setting->fake_finance_feed_enabled ?? true),
             'notification_image_force_cancel_enabled' => (bool) ($setting->notification_image_force_cancel_enabled ?? false),
+            'register_security_notice_enabled' => (bool) ($setting->register_security_notice_enabled ?? false),
+            'register_security_notice_text' => $setting->register_security_notice_text,
             'marquee_messages' => $setting->marquee_messages,
             'marquee_messages_list' => $this->parseMarqueeMessages($setting->marquee_messages),
             'popup_message' => $setting->popup_message,
@@ -275,6 +281,17 @@ class ExchangeRateService
         $lines = $this->parseMarqueeMessages($value);
 
         return $lines === [] ? null : implode("\n", $lines);
+    }
+
+    private function normalizeTextareaText(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        return $normalized === '' ? null : $normalized;
     }
 
     private function normalizePopupText(?string $value): ?string

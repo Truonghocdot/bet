@@ -173,6 +173,19 @@ class ExchangeRatePageForm
                 ])
                 ->columns(2),
 
+            Section::make('Bảo mật đăng ký')
+                ->description('Cấu hình mục "Bảo mật" ở các màn đăng nhập / đăng ký của app.')
+                ->schema([
+                    Toggle::make('register_security_notice_enabled')
+                        ->label('Bật mục Bảo mật cho khách xem'),
+                    Textarea::make('register_security_notice_text')
+                        ->label('Nội dung Bảo mật')
+                        ->rows(5)
+                        ->placeholder("Ví dụ:\nKhông cung cấp mật khẩu cho bất kỳ ai.\nMọi thông báo chính thức chỉ hiển thị trong ứng dụng.")
+                        ->helperText('Khách bấm vào mục Bảo mật sẽ thấy nội dung này ở dưới nút.'),
+                ])
+                ->columns(2),
+
             Section::make('Popup thông báo')
                 ->description('Cấu hình 2 popup riêng biệt hiển thị trên app.')
                 ->schema([
