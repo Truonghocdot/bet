@@ -53,7 +53,6 @@ function toggleSecurity(): void {
       <button
         type="button"
         class="grid min-h-[84px] place-items-center gap-1 rounded-[18px] bg-white font-extrabold shadow-[0_8px_20px_rgba(255,109,102,0.05)] transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-        :disabled="!securityEnabled"
         @click="toggleSecurity"
       >
         <span class="material-symbols-outlined text-primary">security</span>
