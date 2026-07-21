@@ -173,12 +173,12 @@ function handleAmountInput(event: Event) {
 function formatPendingDepositAmount(value: string | number | null | undefined) {
   const normalized = String(value ?? '').replace(/[^\d.]/g, '')
   const numericValue = Number(normalized)
-
+  console.log('formatPendingDepositAmount', { value, normalized, numericValue })
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    return '0'
+    return '0.0'
   }
 
-  return String(Math.trunc(numericValue))
+  return String(Math.trunc(numericValue)) + '.0';
 }
 
 function formatPendingDepositAmountForCopy(value: string | number | null | undefined) {
@@ -210,7 +210,7 @@ async function copyIntentValue(key: string, value: string | null | undefined) {
    }else {
     text = String(value ?? '').trim();
    }
-   if (!text) return
+  if (!text) return
   try {
 
     await navigator.clipboard.writeText(text)
