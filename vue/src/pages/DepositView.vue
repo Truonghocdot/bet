@@ -173,26 +173,15 @@ function handleAmountInput(event: Event) {
 function formatPendingDepositAmount(value: string | number | null | undefined) {
   const normalized = String(value ?? '').replace(/[^\d.]/g, '')
   const numericValue = Number(normalized)
-  console.log('formatPendingDepositAmount', { value, normalized, numericValue })
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
     return '0.0'
   }
 
-  return String(Math.trunc(numericValue)) + '.0';
+  return `${Math.trunc(numericValue)}.0`
 }
 
 function formatPendingDepositAmountForCopy(value: string | number | null | undefined) {
-  const normalized = String(value ?? '').replace(/[^\d.]/g, '')
-  if (!normalized) {
-    return '0'
-  }
-
-  const [rawInteger = '0', rawFraction = ''] = normalized.split('.')
-  const integer = rawInteger.replace(/^0+(?=\d)/, '') || '0'
-  const fraction = rawFraction.replace(/0+$/, '')
-  if (!fraction) return integer
-
-  return `${integer}.${fraction}`
+  return formatPendingDepositAmount(value)
 }
 
 function redirectBack() {
@@ -204,22 +193,47 @@ function scrollToHistorySection(behavior: ScrollBehavior = 'smooth') {
 }
 
 async function copyIntentValue(key: string, value: string | null | undefined) {
-  let text = '';
-   if(key == 'amount') {
-    text = String(value ?? '').trim() + '0';
-   }else {
-    text = String(value ?? '').trim();
-   }
+  if( key == 'amount') {
+    value =  value?.slice(0, -2) + '0';
+  }
+  const text = String(value ?? '').trim()
   if (!text) return
   try {
-
-    await navigator.clipboard.writeText(text)
+    await writeClipboardText(text)
     copiedField.value = key
     window.setTimeout(() => {
       if (copiedField.value === key) copiedField.value = ''
     }, 1500)
   } catch {
     copiedField.value = ''
+  }
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  textarea.style.pointerEvents = 'none'
+  textarea.style.top = '0'
+  textarea.style.left = '0'
+
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+  textarea.setSelectionRange(0, textarea.value.length)
+
+  const copied = document.execCommand('copy')
+  document.body.removeChild(textarea)
+
+  if (!copied) {
+    throw new Error('copy_failed')
   }
 }
 
