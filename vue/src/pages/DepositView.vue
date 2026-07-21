@@ -554,7 +554,7 @@ async function refreshStatus() {
 async function handleCancel() {
   try {
     await deposit.cancelDeposit()
-    await deposit.fetchHistory(1, deposit.historyPageSize)
+    await refreshDepositHistory(1)
   } catch {
     // error is handled in store
   }
