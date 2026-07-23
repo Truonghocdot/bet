@@ -57,6 +57,7 @@ type DepositTransactionRecord struct {
 	Unit               int
 	Type               int
 	Amount             string
+	OriginalAmount     string
 	NetAmount          string
 	Status             int
 	Provider           string
@@ -247,14 +248,14 @@ func (r *DepositRepository) CreateDepositIntent(ctx context.Context, params Crea
 
 	row := r.db.QueryRowContext(ctx, `
 		insert into transactions (
-			user_id, wallet_id, client_ref, unit, type, amount, fee, net_amount,
+			user_id, wallet_id, client_ref, unit, type, amount, original_amount, fee, net_amount,
 			status, provider, provider_txn_id, receiving_account_id, meta,
 			created_at, updated_at
 		)
-		values ($1, $2, $3, $4, $5, $6::numeric(20,8), 0, $6::numeric(20,8), $7, $8, $9, $10, $11, now(), now())
+		values ($1, $2, $3, $4, $5, $6::numeric(20,8), $6::numeric(20,8), 0, $6::numeric(20,8), $7, $8, $9, $10, $11, now(), now())
 		on conflict (client_ref) do update
 		set updated_at = excluded.updated_at
-		returning id, user_id, wallet_id, client_ref, unit, type, amount::text, net_amount::text,
+		returning id, user_id, wallet_id, client_ref, unit, type, amount::text, original_amount::text, net_amount::text,
 		          status, provider, provider_txn_id, receiving_account_id, meta, reason_failed,
 		          approved_by, approved_at, created_at, updated_at
 	`, params.UserID, params.WalletID, params.ClientRef, params.Unit, params.Type, params.Amount, params.Status, params.Provider, params.ProviderTxnID, params.ReceivingAccountID, metaJSON)
@@ -268,7 +269,7 @@ func (r *DepositRepository) CreateDepositIntent(ctx context.Context, params Crea
 
 func (r *DepositRepository) FindDepositIntentByClientRef(ctx context.Context, clientRef string) (DepositTransactionRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
-		select t.id, t.user_id, t.wallet_id, t.client_ref, t.unit, t.type, t.amount::text, t.net_amount::text,
+		select t.id, t.user_id, t.wallet_id, t.client_ref, t.unit, t.type, t.amount::text, t.original_amount::text, t.net_amount::text,
 		       t.status, t.provider, t.provider_txn_id, t.receiving_account_id, t.meta, t.reason_failed,
 		       t.approved_by, t.approved_at, t.created_at, t.updated_at,
 		       p.id, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
@@ -289,7 +290,7 @@ func (r *DepositRepository) FindDepositIntentByClientRef(ctx context.Context, cl
 
 func (r *DepositRepository) FindDepositIntentByProviderTxnID(ctx context.Context, provider, providerTxnID string) (DepositTransactionRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
-		select t.id, t.user_id, t.wallet_id, t.client_ref, t.unit, t.type, t.amount::text, t.net_amount::text,
+		select t.id, t.user_id, t.wallet_id, t.client_ref, t.unit, t.type, t.amount::text, t.original_amount::text, t.net_amount::text,
 		       t.status, t.provider, t.provider_txn_id, t.receiving_account_id, t.meta, t.reason_failed,
 		       t.approved_by, t.approved_at, t.created_at, t.updated_at,
 		       p.id, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
@@ -310,7 +311,7 @@ func (r *DepositRepository) FindDepositIntentByProviderTxnID(ctx context.Context
 
 func (r *DepositRepository) ListUserDeposits(ctx context.Context, userID int64, limit, offset int) ([]DepositTransactionRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		select t.id, t.user_id, t.wallet_id, t.client_ref, t.unit, t.type, t.amount::text, t.net_amount::text,
+		select t.id, t.user_id, t.wallet_id, t.client_ref, t.unit, t.type, t.amount::text, t.original_amount::text, t.net_amount::text,
 		       t.status, t.provider, t.provider_txn_id, t.receiving_account_id, t.meta, t.reason_failed,
 		       t.approved_by, t.approved_at, t.created_at, t.updated_at,
 		       p.id, p.type, p.unit, p.provider_code, p.account_name, p.account_number,
@@ -363,7 +364,7 @@ func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int
 	defer func() { _ = tx.Rollback() }()
 
 	row := tx.QueryRowContext(ctx, `
-		select id, user_id, wallet_id, client_ref, unit, type, amount::text, net_amount::text,
+		select id, user_id, wallet_id, client_ref, unit, type, amount::text, original_amount::text, net_amount::text,
 		       status, provider, provider_txn_id, receiving_account_id, meta, reason_failed,
 		       approved_by, approved_at, created_at, updated_at
 		from transactions
@@ -382,6 +383,18 @@ func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int
 
 	// Cho phép bấm hủy để đóng luôn một lệnh đã auto-cancel (5) trên app.
 	if record.Status == 5 {
+		if record.OriginalAmount != "" && record.Amount != record.OriginalAmount {
+			if _, err := tx.ExecContext(ctx, `
+				update transactions
+				set amount = coalesce(original_amount, amount), updated_at = now()
+				where id = $1
+			`, record.ID); err != nil {
+				return DepositTransactionRecord{}, err
+			}
+
+			record.Amount = record.OriginalAmount
+		}
+
 		if err := tx.Commit(); err != nil {
 			return DepositTransactionRecord{}, err
 		}
@@ -395,7 +408,11 @@ func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int
 	}
 
 	if _, err := tx.ExecContext(ctx, `
-		update transactions set status = 5, reason_failed = 'Người dùng tự hủy', updated_at = now()
+		update transactions
+		set status = 5,
+		    amount = coalesce(original_amount, amount),
+		    reason_failed = 'Người dùng tự hủy',
+		    updated_at = now()
 		where id = $1
 	`, record.ID); err != nil {
 		return DepositTransactionRecord{}, err
@@ -406,6 +423,9 @@ func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int
 	}
 
 	record.Status = 5
+	if record.OriginalAmount != "" {
+		record.Amount = record.OriginalAmount
+	}
 	return record, nil
 }
 
@@ -607,7 +627,7 @@ type ApplyDepositParams struct {
 
 func (r *DepositRepository) findDepositIntentForUpdate(ctx context.Context, tx *sql.Tx, params ApplyDepositParams) (DepositTransactionRecord, error) {
 	query := `
-		select id, user_id, wallet_id, client_ref, unit, type, amount::text, net_amount::text,
+		select id, user_id, wallet_id, client_ref, unit, type, amount::text, original_amount::text, net_amount::text,
 		       status, provider, provider_txn_id, receiving_account_id, meta, reason_failed,
 		       approved_by, approved_at, created_at, updated_at
 		from transactions
@@ -622,7 +642,7 @@ func (r *DepositRepository) findDepositIntentForUpdate(ctx context.Context, tx *
 		if errors.Is(err, sql.ErrNoRows) {
 			if strings.TrimSpace(params.ProviderTxnID) != "" {
 				row = tx.QueryRowContext(ctx, `
-					select id, user_id, wallet_id, client_ref, unit, type, amount::text, net_amount::text,
+					select id, user_id, wallet_id, client_ref, unit, type, amount::text, original_amount::text, net_amount::text,
 					       status, provider, provider_txn_id, receiving_account_id, meta, reason_failed,
 					       approved_by, approved_at, created_at, updated_at
 					from transactions
@@ -700,6 +720,7 @@ func scanDepositTransaction(row *sql.Row, record *DepositTransactionRecord) erro
 		&record.Unit,
 		&record.Type,
 		&record.Amount,
+		&record.OriginalAmount,
 		&record.NetAmount,
 		&record.Status,
 		&record.Provider,
@@ -774,6 +795,7 @@ func scanDepositTransactionWithAccountScanner(scanner rowScanner, record *Deposi
 		&record.Unit,
 		&record.Type,
 		&record.Amount,
+		&record.OriginalAmount,
 		&record.NetAmount,
 		&record.Status,
 		&record.Provider,

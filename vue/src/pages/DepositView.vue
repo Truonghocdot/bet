@@ -569,6 +569,7 @@ async function handleCancel() {
   try {
     await deposit.cancelDeposit()
     await refreshDepositHistory(1)
+    await router.replace('/home')
   } catch {
     // error is handled in store
   }

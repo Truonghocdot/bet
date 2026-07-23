@@ -548,6 +548,7 @@ func (s *DepositService) toDomainTransaction(record repopg.DepositTransactionRec
 		Unit:             record.Unit,
 		Type:             record.Type,
 		Amount:           record.Amount,
+		OriginalAmount:   record.OriginalAmount,
 		NetAmount:        record.NetAmount,
 		Status:           record.Status,
 		Meta:             meta,

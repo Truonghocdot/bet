@@ -228,7 +228,7 @@ class SiteDemoSeeder extends Seeder
                 [
                     'affiliate_profile_id' => $agencyProfile->id,
                     'campaign_name' => 'Agency Main Campaign',
-                    'landing_url' => rtrim((string) config('app.url'), '/') . '/register?source=agency-main',
+                    'landing_url' => rtrim((string) config('app.url'), '/').'/register?source=agency-main',
                     'status' => AffiliateLinkStatus::ACTIVE,
                 ],
             );
@@ -837,7 +837,7 @@ class SiteDemoSeeder extends Seeder
             'email_verified_at' => $values['email_verified_at'] ?? null,
             'phone_verified_at' => $values['phone_verified_at'] ?? null,
             'last_login_at' => $values['last_login_at'] ?? null,
-        ], static fn($value) => $value !== null);
+        ], static fn ($value) => $value !== null);
 
         if ($timestamps !== []) {
             $user->forceFill($timestamps)->save();
@@ -897,6 +897,10 @@ class SiteDemoSeeder extends Seeder
 
     private function upsertTransaction(string $providerTxnId, array $values): Transaction
     {
+        if (! array_key_exists('original_amount', $values) && array_key_exists('amount', $values)) {
+            $values['original_amount'] = $values['amount'];
+        }
+
         return Transaction::query()->updateOrCreate(
             ['provider_txn_id' => $providerTxnId],
             $values,

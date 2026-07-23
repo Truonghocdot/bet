@@ -50,6 +50,7 @@ type DepositTransaction struct {
 	Unit             int               `json:"unit"`
 	Type             int               `json:"type"`
 	Amount           string            `json:"amount"`
+	OriginalAmount   string            `json:"original_amount,omitempty"`
 	NetAmount        string            `json:"net_amount"`
 	Status           int               `json:"status"`
 	Meta             map[string]any    `json:"meta,omitempty"`

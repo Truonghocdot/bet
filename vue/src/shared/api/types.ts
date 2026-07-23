@@ -120,6 +120,7 @@ export type DepositTransaction = {
   provider: string
   provider_txn_id?: string | null
   amount: string
+  original_amount?: string
   unit: number
   type: number
   status: number

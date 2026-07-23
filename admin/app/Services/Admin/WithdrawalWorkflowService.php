@@ -6,11 +6,10 @@ use App\Enum\Transaction\TransactionStatus;
 use App\Enum\Transaction\TypeTransaction;
 use App\Enum\Transaction\WithdrawalStatus;
 use App\Enum\Wallet\LedgerDirection;
-use App\Enum\Wallet\WalletStatus;
 use App\Models\Transaction\Transaction;
 use App\Models\Transaction\WithdrawalRequest;
-use App\Models\Wallet\WalletLedgerEntry;
 use App\Models\User;
+use App\Models\Wallet\WalletLedgerEntry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -129,6 +128,7 @@ class WithdrawalWorkflowService
                 'unit' => $request->unit,
                 'type' => TypeTransaction::WITHDRAW,
                 'amount' => $request->amount,
+                'original_amount' => $request->amount,
                 'fee' => $request->fee,
                 'net_amount' => $request->net_amount,
                 'status' => TransactionStatus::COMPLETED,
