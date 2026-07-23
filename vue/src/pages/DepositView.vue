@@ -568,7 +568,9 @@ async function refreshStatus() {
 async function handleCancel() {
   try {
     await deposit.cancelDeposit()
-    await refreshDepositHistory(1)
+    await refreshDepositHistory(1).catch(() => {
+      // best effort only
+    })
     await router.replace('/home')
   } catch {
     // error is handled in store
