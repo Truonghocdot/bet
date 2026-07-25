@@ -17,22 +17,22 @@
 }
 
 @theme {
-  --color-background: #fff6f4;
-  --color-surface: #ffffff;
-  --color-surface-soft: #fff0ee;
-  --color-surface-container: #ffe0dc;
-  --color-surface-container-low: #fff6f4;
-  --color-surface-container-high: #ffd1cc;
-  --color-surface-container-lowest: #ffffff;
-  --color-primary: #da251d;
-  --color-primary-dim: #b91c1c;
-  --color-primary-container: #fecaca;
+  --color-background: #292a2c;
+  --color-surface: #38393b;
+  --color-surface-soft: #333436;
+  --color-surface-container: #434447;
+  --color-surface-container-low: #303133;
+  --color-surface-container-high: #4b4c4f;
+  --color-surface-container-lowest: #242527;
+  --color-primary: #f2ad00;
+  --color-primary-dim: #d89500;
+  --color-primary-container: #9a6900;
   --color-secondary: #24b561;
-  --color-tertiary: #f6c32d;
-  --color-on-surface: #2c2f33;
-  --color-on-surface-variant: #595c60;
-  --color-outline-variant: #f0c3bd;
-  --color-on-tertiary-container: #7b5a00;
+  --color-tertiary: #ffc928;
+  --color-on-surface: #f4f4f2;
+  --color-on-surface-variant: #b9babd;
+  --color-outline-variant: #595a5d;
+  --color-on-tertiary-container: #241a00;
   --color-on-secondary-container: #0e6d39;
   --color-on-tertiary-fixed-variant: #7b5a00;
   --font-sans: "Plus Jakarta Sans", sans-serif;
@@ -45,7 +45,17 @@
 
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: dark;
+    --fh-bg: #292a2c;
+    --fh-surface: #38393b;
+    --fh-surface-soft: #323335;
+    --fh-surface-raised: #434447;
+    --fh-line: rgba(255, 255, 255, 0.1);
+    --fh-text: #f4f4f2;
+    --fh-muted: #b9babd;
+    --fh-gold: #f2ad00;
+    --fh-gold-bright: #ffc928;
+    --fh-gold-deep: #a96f00;
   }
 
   html,
@@ -57,10 +67,7 @@
   body {
     min-width: 320px;
     @apply text-on-surface antialiased;
-    background:
-      radial-gradient(circle at top right, rgba(255, 204, 0, 0.15), transparent 28%),
-      radial-gradient(circle at left center, rgba(218, 37, 29, 0.1), transparent 24%),
-      #fff9f9;
+    background: #202123;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
   }
@@ -129,10 +136,11 @@
   /* ===== APP SHELL ===== */
   .app-shell {
     @apply relative min-h-dvh overflow-x-hidden;
+    background: var(--fh-bg);
   }
 
   .app-shell__decor {
-    @apply pointer-events-none fixed inset-0 z-0;
+    display: none;
   }
 
   .app-shell__blur {
@@ -156,7 +164,9 @@
   }
 
   .app-main-col {
-    @apply mx-auto flex min-h-dvh w-full max-w-[430px] flex-1 flex-col overflow-hidden bg-transparent;
+    @apply mx-auto flex min-h-dvh w-full max-w-[430px] flex-1 flex-col overflow-hidden;
+    background: var(--fh-bg);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 42px rgba(0, 0, 0, 0.4);
   }
 
   /* ===== MAIN ===== */
@@ -170,7 +180,10 @@
   }
 
   .app-card {
-    @apply rounded-2xl bg-white/95 shadow-[0_8px_20px_rgba(255,109,102,0.07)];
+    @apply rounded-2xl;
+    border: 1px solid var(--fh-line);
+    background: var(--fh-surface);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
   }
 
   .glass-panel {
@@ -190,9 +203,11 @@
   }
 
   .glass-bar {
-    @apply border-b border-white/20 bg-white/20 backdrop-blur-xl;
-    background: linear-gradient(180deg, rgba(218, 37, 29, 0.95), rgba(185, 28, 28, 0.98));
-    box-shadow: 0 8px 24px rgba(218, 37, 29, 0.25);
+    @apply border-b backdrop-blur-xl;
+    border-color: rgba(255, 255, 255, 0.1);
+    border-top: 3px solid var(--fh-gold);
+    background: rgba(52, 53, 55, 0.97);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   }
 
   .topbar-inner {
@@ -253,8 +268,9 @@
     top: -0.18rem;
     right: -0.18rem;
     height: 1rem;
-    background: linear-gradient(180deg, #ff7b72, #e64545);
-    box-shadow: 0 6px 14px rgba(230, 69, 69, 0.3);
+    color: #201600;
+    background: linear-gradient(180deg, var(--fh-gold-bright), var(--fh-gold));
+    box-shadow: 0 6px 14px rgba(242, 173, 0, 0.28);
   }
 
   .icon-btn--ghost {
@@ -276,7 +292,7 @@
 
   /* ===== BOTTOM NAV (mobile only) ===== */
   .bottom-nav {
-    @apply fixed bottom-0 left-1/2 z-30 grid w-full max-w-[430px] -translate-x-1/2 grid-cols-5 items-stretch gap-0 border-t border-white/10 bg-[#262626] px-1.5 pt-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom))];
+    @apply fixed bottom-0 left-1/2 z-30 grid w-full max-w-[430px] -translate-x-1/2 grid-cols-5 items-stretch gap-0 border-t border-white/10 bg-[#2b2c2e] px-1.5 pt-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom))];
     box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.28);
     overflow: visible;
   }
@@ -316,7 +332,7 @@
     top: 0;
     height: 2px;
     border-radius: 999px;
-    background: linear-gradient(90deg, #f6c32d, #ffffff);
+    background: var(--fh-gold);
   }
 
   .bottom-nav__icon {
@@ -333,7 +349,7 @@
   }
 
   .bottom-nav__item.is-active .bottom-nav__icon {
-    color: #ffffff;
+    color: var(--fh-gold-bright);
     font-variation-settings: 'FILL' 0, 'wght' 650, 'GRAD' 0, 'opsz' 24;
   }
 
@@ -363,7 +379,8 @@
   }
 
   .drawer__item--active {
-    @apply bg-white/8 text-white;
+    @apply bg-white/8;
+    color: var(--fh-gold-bright);
   }
 
   .page-section {
@@ -377,6 +394,149 @@
   .page-title {
     @apply text-[1.05rem] font-extrabold;
   }
+}
+
+/* Gray and gold compatibility layer for legacy light/red utility classes. */
+:where(.app-shell, body > .fixed) :where(
+  [class~="bg-white"],
+  [class~="bg-white/95"],
+  [class~="bg-white/90"],
+  [class~="bg-white/80"],
+  [class~="bg-white/70"],
+  [class~="bg-white/60"],
+  [class~="bg-white/50"]
+) {
+  background-color: var(--fh-surface) !important;
+}
+
+:where(.app-shell, body > .fixed) :where(
+  [class~="bg-slate-50"],
+  [class~="bg-slate-50/50"],
+  [class~="bg-slate-100"],
+  [class~="bg-slate-200"],
+  [class~="bg-[#fff9f9]"],
+  [class~="bg-[#fff8f8]"],
+  [class~="bg-[#fff7f6]"],
+  [class~="bg-[#fff5f5]"],
+  [class~="bg-[#fff4f3]"],
+  [class~="bg-[#fff4f1]"],
+  [class~="bg-[#ffefef]"],
+  [class~="bg-[#f8fafc]"],
+  [class~="bg-[#f8f0f0]"],
+  [class~="bg-[#f7f0f0]"],
+  [class~="bg-[#f6ede7]"]
+) {
+  background-color: var(--fh-surface-soft) !important;
+}
+
+:where(.app-shell, body > .fixed) :where(
+  [class~="text-slate-900"],
+  [class~="text-slate-800"],
+  [class~="text-slate-700"],
+  [class~="text-slate-600"],
+  [class~="text-[#2b211f]"],
+  [class~="text-[#201816]"],
+  [class~="text-[#1c1c1c]"],
+  [class~="text-[#1a1a1a]"]
+) {
+  color: var(--fh-text) !important;
+}
+
+:where(.app-shell, body > .fixed) :where(
+  [class~="text-slate-500"],
+  [class~="text-slate-400"],
+  [class~="text-slate-300"],
+  [class~="text-[#64748b]"],
+  [class~="text-[#abadb2]"]
+) {
+  color: var(--fh-muted) !important;
+}
+
+:where(.app-shell, body > .fixed) :where(
+  [class~="border-slate-50"],
+  [class~="border-slate-100"],
+  [class~="border-slate-100/50"],
+  [class~="border-slate-200"],
+  [class~="border-slate-200/90"],
+  [class~="border-slate-200/80"],
+  [class~="border-slate-200/60"],
+  [class~="border-slate-300"],
+  [class~="border-[#f0e0e0]"],
+  [class~="border-[#f1d9d9]"],
+  [class~="border-[#e3d8d0]"]
+) {
+  border-color: var(--fh-line) !important;
+}
+
+:where(.app-shell, body > .fixed) :where([class~="divide-slate-50"], [class~="divide-slate-100"]) > :not(:last-child) {
+  border-color: var(--fh-line) !important;
+}
+
+:where(.app-shell, body > .fixed) :where([class~="from-[#ff6d66]"], [class~="from-[#ff6e67]"]) {
+  --tw-gradient-from: #494a4d !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-via-stops, var(--tw-gradient-to)) !important;
+}
+
+:where(.app-shell, body > .fixed) [class~="via-[#ff867d]"] {
+  --tw-gradient-via: #3d3e40 !important;
+}
+
+:where(.app-shell, body > .fixed) :where([class~="to-[#ffd4d0]"], [class~="to-[#ffd6d6]"]) {
+  --tw-gradient-to: #2d2e30 !important;
+}
+
+:where(.app-shell, body > .fixed) :where([class~="from-[#ff8a00]"], [class~="from-[#ff7b71]"], [class~="from-[#ff8b7e]"]) {
+  --tw-gradient-from: var(--fh-gold-bright) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-via-stops, var(--tw-gradient-to)) !important;
+}
+
+:where(.app-shell, body > .fixed) :where([class~="to-[#e52e2e]"], [class~="to-[#e73d47]"], [class~="to-[#c92435]"]) {
+  --tw-gradient-to: var(--fh-gold-deep) !important;
+}
+
+:where(.app-shell, body > .fixed) :where(
+  [class~="bg-[linear-gradient(180deg,#da251d_0%,#a81b14_100%)]"],
+  [class~="bg-red-950"]
+) {
+  background: #303133 !important;
+  border-color: rgba(242, 173, 0, 0.4) !important;
+}
+
+:where(.app-shell, body > .fixed) [class~="bg-[radial-gradient(circle_at_top,#ffddd8_0%,#fff4f2_38%,#fff_100%)]"] {
+  background: #343537 !important;
+}
+
+:where(.app-shell, body > .fixed) :where([class~="bg-red-50"], [class~="bg-red-50/80"], [class~="bg-rose-50"]) {
+  background-color: rgba(239, 68, 68, 0.11) !important;
+}
+
+:where(.app-shell, body > .fixed) :where([class~="border-red-100"], [class~="border-red-200"]) {
+  border-color: rgba(239, 68, 68, 0.28) !important;
+}
+
+:where(.app-shell, body > .fixed) :where([class~="bg-primary"], [class*="from-primary"]) [class~="material-symbols-outlined"],
+:where(.app-shell, body > .fixed) :where(button, a)[class~="bg-primary"][class~="text-white"],
+:where(.app-shell, body > .fixed) :where(button, a)[class*="from-primary"][class~="text-white"] {
+  color: #241900 !important;
+}
+
+:where(.app-shell, body > .fixed) :where(input, select, textarea) {
+  color: var(--fh-text);
+  caret-color: var(--fh-gold-bright);
+}
+
+:where(.app-shell, body > .fixed) :where(input, textarea)::placeholder {
+  color: #8f9093;
+}
+
+:where(.app-shell, body > .fixed) input[type="checkbox"],
+:where(.app-shell, body > .fixed) input[type="radio"] {
+  accent-color: var(--fh-gold);
+}
+
+::selection {
+  color: #171717;
+  background: var(--fh-gold-bright);
 }
 
 @layer utilities {

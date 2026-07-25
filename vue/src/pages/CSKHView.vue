@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useWalletStore } from '@/stores/wallet'
 
-const router = useRouter()
 const walletStore = useWalletStore()
 
 const telegramLink = computed(() => walletStore.summary?.telegram_cskh_link || 'https://t.me/CSKH_FH88U')
@@ -13,8 +11,8 @@ function openTelegram() {
 }
 
 const channels = [
-  { icon: 'send', label: 'Telegram Hỗ Trợ', desc: 'Gặp trực tiếp kỹ thuật viên', color: '#2AABEE', action: openTelegram },
-  { icon: 'forum', label: 'Kênh Khiếu Nại', desc: 'Phản ánh chất lượng dịch vụ', color: '#ef4444', action: openTelegram },
+  { icon: 'send', label: 'Telegram Hỗ Trợ', desc: 'Gặp trực tiếp kỹ thuật viên', color: '#f2ad00', action: openTelegram },
+  { icon: 'forum', label: 'Kênh Khiếu Nại', desc: 'Phản ánh chất lượng dịch vụ', color: '#ffc928', action: openTelegram },
 ]
 
 const faqs = [
@@ -39,21 +37,9 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen bg-slate-50 pb-10">
-    <!-- Header -->
-    <div class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-3 bg-white px-4 py-3 text-on-surface shadow-sm">
-      <button
-        class="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-on-surface transition-transform active:scale-90"
-        @click="router.back()"
-      >
-        <span class="material-symbols-outlined">arrow_back</span>
-      </button>
-      <h1 class="flex-1 text-center text-[1rem] font-black uppercase tracking-wider">Hỗ Trợ Khách Hàng</h1>
-      <div class="h-10 w-10" />
-    </div>
-
     <!-- Hero container -->
-    <div class="pt-[64px]">
-      <div class="bg-gradient-to-br from-primary to-[#ff8a00] p-6 text-white overflow-hidden relative">
+    <div>
+      <div class="relative overflow-hidden border-y border-primary/30 bg-gradient-to-br from-[#4b4c4f] to-[#303133] p-6 text-white">
         <div class="relative z-10">
           <h2 class="text-[1.25rem] font-black leading-tight italic">Chúng tôi có thể giúp gì cho bạn?</h2>
           <p class="mt-2 text-[0.75rem] text-white/80 max-w-[200px]">Đội ngũ hỗ trợ fh88u luôn sẵn sàng giải đáp mọi thắc mắc của bạn 24/7.</p>

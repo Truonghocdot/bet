@@ -21,7 +21,7 @@ const messages = computed(() => {
 <template>
   <div
     v-if="marqueeEnabled && messages.length"
-    class="flex items-center gap-2 overflow-hidden bg-[rgba(232,64,74,0.08)] px-3 py-2.5 border-y border-[rgba(232,64,74,0.15)]"
+    class="flex items-center gap-2 overflow-hidden bg-[#323335] px-3 py-2.5 border-y border-white/10"
   >
     <span class="material-symbols-outlined flex-shrink-0 text-[1rem] text-primary">campaign</span>
     <div class="marquee-track flex-1 overflow-hidden">

@@ -55,7 +55,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="sso-loading min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-4">
+  <div class="sso-loading min-h-screen bg-[#242527] flex flex-col items-center justify-center p-4">
     <div v-if="loading" class="text-center">
       <!-- Premium Loading Animation -->
       <div class="w-16 h-16 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mx-auto mb-6"></div>

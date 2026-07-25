@@ -77,7 +77,7 @@ onMounted(() => {
         :alt="article.title"
         class="h-52 w-full object-cover md:h-60"
       >
-      <div v-else class="h-52 bg-gradient-to-br from-[#ff6d66] to-[#ff9f98] md:h-60"></div>
+      <div v-else class="h-52 bg-gradient-to-br from-[#595a5d] to-[#303133] md:h-60"></div>
       <div class="p-5 md:p-6">
         <div class="flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.08em] text-on-surface-variant">
           <span class="rounded-full bg-surface-container-low px-3 py-1 font-bold">Tin tức</span>
@@ -115,7 +115,7 @@ onMounted(() => {
             :alt="related.title"
             class="h-28 w-full object-cover"
           >
-          <div v-else class="h-28 bg-gradient-to-br from-[#ff6d66] to-[#ff9f98]"></div>
+          <div v-else class="h-28 bg-gradient-to-br from-[#595a5d] to-[#303133]"></div>
           <div class="p-4">
             <p class="m-0 text-[0.66rem] uppercase tracking-[0.08em] text-on-surface-variant">Tin tức</p>
             <h3 class="mt-2 text-[0.92rem] font-black leading-6">{{ related.title }}</h3>
@@ -162,7 +162,7 @@ onMounted(() => {
 }
 
 .news-content :deep(a) {
-  color: #ef4444;
+  color: #f2ad00;
   font-weight: 800;
   text-decoration: underline;
 }
@@ -174,8 +174,8 @@ onMounted(() => {
 
 .news-content :deep(blockquote) {
   margin: 1rem 0;
-  border-left: 4px solid #fecaca;
+  border-left: 4px solid #f2ad00;
   padding-left: 1rem;
-  color: #64748b;
+  color: #b9babd;
 }
 </style>

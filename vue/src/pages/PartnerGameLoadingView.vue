@@ -147,12 +147,12 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="min-h-[calc(100vh-8rem)] px-3 py-5">
-    <section class="relative overflow-hidden rounded-[30px] bg-[radial-gradient(circle_at_top,#ffddd8_0%,#fff4f2_38%,#fff_100%)] p-5 shadow-[0_18px_50px_rgba(218,37,29,0.12)]">
+    <section class="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#343537] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.3)]">
       <div class="absolute -left-10 top-8 h-32 w-32 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
       <div class="absolute -right-12 bottom-6 h-36 w-36 rounded-full bg-amber-300/25 blur-3xl" aria-hidden="true" />
 
       <div class="relative mx-auto flex max-w-[420px] flex-col items-center text-center">
-        <div class="mt-3 flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-[0_16px_35px_rgba(218,37,29,0.14)]">
+        <div class="mt-3 flex h-24 w-24 items-center justify-center rounded-full bg-[#292a2c] shadow-[0_16px_35px_rgba(0,0,0,0.3)]">
           <div class="flex h-16 w-16 items-center justify-center rounded-full border-[5px] border-primary/15 border-t-primary animate-spin">
             <span class="material-symbols-outlined text-[1.8rem] text-primary">sports_esports</span>
           </div>
@@ -172,7 +172,7 @@ onBeforeUnmount(() => {
 
           <div class="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
             <div
-              class="h-full rounded-full bg-gradient-to-r from-[#ff8b7e] via-primary to-[#c92435] transition-all duration-1000"
+              class="h-full rounded-full bg-gradient-to-r from-yellow-300 via-primary to-[#a96f00] transition-all duration-1000"
               :style="{ width: `${hasTimedOut ? 100 : ((60 - loadingSeconds) / 60) * 100}%` }"
             />
           </div>
@@ -198,7 +198,7 @@ onBeforeUnmount(() => {
           <button
             v-if="hasTimedOut"
             type="button"
-            class="min-h-12 flex-1 rounded-[18px] bg-gradient-to-r from-[#ff7b71] to-primary px-4 text-[0.88rem] font-black text-white shadow-[0_14px_28px_rgba(218,37,29,0.24)] transition-transform active:scale-[0.98]"
+            class="min-h-12 flex-1 rounded-[18px] bg-gradient-to-r from-yellow-300 to-primary px-4 text-[0.88rem] font-black text-[#241900] shadow-[0_14px_28px_rgba(242,173,0,0.2)] transition-transform active:scale-[0.98]"
             @click="retryLoading"
           >
             Tải lại sảnh game

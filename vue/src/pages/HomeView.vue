@@ -1075,18 +1075,18 @@ onBeforeUnmount(() => {
 <template>
   <div class="pb-4">
 
-    <div class="mt-4 bg-[linear-gradient(180deg,#fff1f1_0%,#fff7f7_18%,#ffffff_100%)] pb-4 md:mt-0">
+    <div class="mt-4 bg-[linear-gradient(180deg,#303133_0%,#292a2c_24%,#292a2c_100%)] pb-4 md:mt-0">
       <div class="px-3 pt-2">
         <MarqueeBar />
       </div>
 
       <div class="px-3 pt-2">
-        <div class="overflow-hidden rounded-[26px] border border-red-100 bg-white shadow-[0_10px_30px_rgba(218,37,29,0.14)]">
+        <div class="overflow-hidden rounded-[26px] border border-white/10 bg-surface shadow-[0_10px_30px_rgba(0,0,0,0.24)]">
           <BannerCarousel :banners="homeBanners" />
         </div>
       </div>
 
-      <section class="mx-3 mt-3 overflow-hidden rounded-[24px] bg-gradient-to-br from-red-700 via-primary to-red-800 p-4 text-white shadow-[0_14px_30px_rgba(218,37,29,0.3)]">
+      <section class="mx-3 mt-3 overflow-hidden rounded-[24px] border border-primary/35 bg-gradient-to-br from-[#4b4c4f] via-[#38393b] to-[#2b2c2e] p-4 text-white shadow-[0_14px_30px_rgba(0,0,0,0.32)]">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <p class="text-[0.68rem] font-black uppercase tracking-[0.14em] text-white/75">Số dư ví VND</p>
@@ -1113,7 +1113,7 @@ onBeforeUnmount(() => {
           </RouterLink>
           <RouterLink
             to="/deposit"
-            class="flex min-h-12 items-center justify-center rounded-[14px] bg-gradient-to-r from-[#ff6d66] to-primary px-3 text-[0.9rem] font-black text-white shadow-[inset_0_-3px_0_rgba(0,0,0,0.12)] transition-transform active:scale-95"
+            class="flex min-h-12 items-center justify-center rounded-[14px] bg-gradient-to-r from-primary to-[#ffc928] px-3 text-[0.9rem] font-black text-[#241900] shadow-[inset_0_-3px_0_rgba(0,0,0,0.16)] transition-transform active:scale-95"
           >
             Nạp tiền
           </RouterLink>
@@ -1129,7 +1129,7 @@ onBeforeUnmount(() => {
               :key="item.key"
               type="button"
               class="home-lobby-mobile__nav-item flex w-full flex-col items-center justify-center gap-1 rounded-[14px] px-1.5 py-2.5 text-center transition-all duration-200"
-              :class="activeMobileLobbyKey === item.key ? 'bg-[linear-gradient(180deg,#da251d_0%,#a81b14_100%)] text-white shadow-[0_8px_16px_rgba(218,37,29,0.3)]' : 'bg-transparent text-slate-700'"
+              :class="activeMobileLobbyKey === item.key ? 'bg-primary text-[#241900] shadow-[0_8px_16px_rgba(242,173,0,0.24)]' : 'bg-transparent text-slate-300'"
               @click="selectMobileLobbyItem(item.key)"
             >
               <span class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-[12px]" :class="activeMobileLobbyKey === item.key ? 'bg-white/20' : 'bg-transparent'">
@@ -1141,7 +1141,7 @@ onBeforeUnmount(() => {
         </aside>
 
         <div class="home-lobby-mobile__panel min-w-0">
-          <div class="mb-4 flex items-center justify-around border-b border-red-100 pb-2">
+          <div class="mb-4 flex items-center justify-around border-b border-white/10 pb-2">
             <button 
               class="relative text-[0.85rem] font-bold transition-colors"
               :class="activeMobileLobbyTab === 'category' ? 'text-primary' : 'text-slate-500 hover:text-primary/70'"
@@ -1448,7 +1448,7 @@ onBeforeUnmount(() => {
 
     <!-- ===== CORPORATE FOOTER ===== -->
     <section class="mx-3 mb-5 rounded-[24px] bg-[#f6ede7] px-4 py-4 shadow-[0_10px_30px_rgba(83,55,44,0.08)]">
-      <div class="rounded-[20px] bg-red-950 px-4 py-4 text-white shadow-[0_12px_24px_rgba(218,37,29,0.25)] border border-red-900/50">
+      <div class="rounded-[20px] bg-[#303133] px-4 py-4 text-white shadow-[0_12px_24px_rgba(0,0,0,0.25)] border border-primary/35">
         <p class="text-[0.72rem] font-black uppercase tracking-[0.08em] text-yellow-500/90">Thông tin truy cập</p>
         <p class="mt-2 text-[0.88rem] font-semibold leading-7 text-white/92">
           <b>FH88U </b>
@@ -1456,7 +1456,7 @@ onBeforeUnmount(() => {
         </p>
         <button
           type="button"
-          class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 px-4 py-2.5 text-[0.8rem] font-black text-red-900 shadow-[0_10px_20px_rgba(255,204,0,0.25)] transition-transform active:scale-95"
+          class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 px-4 py-2.5 text-[0.8rem] font-black text-[#241900] shadow-[0_10px_20px_rgba(255,204,0,0.2)] transition-transform active:scale-95"
           @click="openTelegram()"
         >
           <span class="material-symbols-outlined text-[1rem]">headset_mic</span>
@@ -1526,7 +1526,7 @@ onBeforeUnmount(() => {
 }
 
 .home-lobby-mobile__nav-item {
-  border: 1px solid rgba(218, 37, 29, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   min-height: 5.1rem;
 }
 
@@ -1537,6 +1537,6 @@ onBeforeUnmount(() => {
 }
 .home-lobby-mobile__card img {
   border-radius: 16px;
-  box-shadow: 0 6px 16px rgba(218, 37, 29, 0.12);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
 }
 </style>

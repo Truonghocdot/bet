@@ -88,7 +88,7 @@ async function handleRegister() {
 
       <div class="flex flex-row w-full items-center justify-center">
         <button
-          class="min-h-14 rounded-[18px] px-2 bg-red-500 font-black text-white shadow-[0_8px_20px_rgba(255,109,102,0.18)] transition-transform active:scale-95 disabled:opacity-60"
+          class="min-h-14 rounded-[18px] bg-primary px-4 font-black text-[#241900] shadow-[0_8px_20px_rgba(0,0,0,0.22)] transition-transform active:scale-95 disabled:opacity-60"
           type="submit"
           :disabled="auth.loading || !canSubmit"
         >
