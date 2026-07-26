@@ -537,23 +537,23 @@ function historySecondaryBadgeClass(row: PlayRoomHistoryResponse['items'][number
 
 <template>
   <div class="mx-3 mt-2 rounded-[16px] bg-white shadow-sm border border-slate-100 overflow-hidden">
-    <div class="flex border-b border-white/10 bg-surface-container-low">
+    <div class="flex bg-[#fff5f5] border-b border-[#f0e0e0]">
       <button
         type="button"
         class="flex-1 py-2.5 text-[0.72rem] font-semibold border-b-2 transition-all"
-        :class="props.activeHistoryTab === 'history' ? 'border-primary bg-surface text-primary' : 'border-transparent text-slate-500'"
+        :class="props.activeHistoryTab === 'history' ? 'border-[#e8404a] text-[#e8404a] bg-white' : 'border-transparent text-slate-500'"
         @click="emit('change-tab', 'history')"
       >Lịch sử trò chơi</button>
       <button
         type="button"
         class="flex-1 py-2.5 text-[0.72rem] font-semibold border-b-2 transition-all"
-        :class="props.activeHistoryTab === 'chart' ? 'border-primary bg-surface text-primary' : 'border-transparent text-slate-500'"
+        :class="props.activeHistoryTab === 'chart' ? 'border-[#e8404a] text-[#e8404a] bg-white' : 'border-transparent text-slate-500'"
         @click="emit('change-tab', 'chart')"
       >Biểu đồ</button>
       <button
         type="button"
         class="flex-1 py-2.5 text-[0.72rem] font-semibold border-b-2 transition-all"
-        :class="props.activeHistoryTab === 'mine' ? 'border-primary bg-surface text-primary' : 'border-transparent text-slate-500'"
+        :class="props.activeHistoryTab === 'mine' ? 'border-[#e8404a] text-[#e8404a] bg-white' : 'border-transparent text-slate-500'"
         @click="emit('change-tab', 'mine')"
       >Lịch sử của tôi</button>
     </div>
@@ -787,7 +787,7 @@ function historySecondaryBadgeClass(row: PlayRoomHistoryResponse['items'][number
       <span class="text-[0.75rem] text-slate-500 font-semibold">{{ activePage }} / {{ activeTotalPages }}</span>
       <button
         type="button"
-        class="flex h-8 w-8 items-center justify-center rounded-full border border-primary bg-primary text-[#241900] disabled:opacity-30 transition-all"
+        class="flex h-8 w-8 items-center justify-center rounded-full border border-[#e8404a] bg-[#e8404a] text-white disabled:opacity-30 transition-all"
         :disabled="activePage >= activeTotalPages"
         @click="setPage(Math.min(activeTotalPages, activePage + 1))"
       >

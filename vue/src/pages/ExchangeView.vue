@@ -92,7 +92,7 @@ function setMax() {
           <span class="text-[10px] font-bold text-slate-400">Số dư: <span class="text-slate-800">{{ formatViMoney(fromWallet?.balance || '0', fromUnit === 1 ? 0 : 2) }}</span></span>
         </div>
         <div class="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-          <div class="h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center font-black text-xs" :class="fromUnit === 1 ? 'text-primary' : 'text-tertiary'">
+          <div class="h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center font-black text-xs" :class="fromUnit === 1 ? 'text-blue-500' : 'text-green-500'">
             {{ fromUnit === 1 ? 'VND' : 'USDT' }}
           </div>
           <div class="flex-1">
@@ -105,7 +105,7 @@ function setMax() {
       <!-- SWAP BUTTON -->
       <div class="relative h-4 flex items-center justify-center my-4">
         <div class="absolute inset-x-0 h-[1px] bg-slate-100"></div>
-        <button @click="swapCurrencies" class="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-surface-container-high text-primary shadow-lg transition-transform duration-500 active:rotate-180">
+        <button @click="swapCurrencies" class="relative z-10 h-10 w-10 rounded-full bg-slate-800 text-white shadow-lg flex items-center justify-center transition-transform active:rotate-180 duration-500">
           <span class="material-symbols-outlined text-xl">swap_vert</span>
         </button>
       </div>
@@ -117,7 +117,7 @@ function setMax() {
           <span class="text-[10px] font-bold text-slate-400">Ước tính nhận</span>
         </div>
         <div class="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-          <div class="h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center font-black text-xs" :class="toUnit === 1 ? 'text-primary' : 'text-tertiary'">
+          <div class="h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center font-black text-xs" :class="toUnit === 1 ? 'text-blue-500' : 'text-green-500'">
             {{ toUnit === 1 ? 'VND' : 'USDT' }}
           </div>
           <div class="flex-1">
@@ -127,9 +127,9 @@ function setMax() {
       </div>
 
       <!-- RATE INFO -->
-      <div class="mt-6 flex items-center gap-3 rounded-2xl border border-primary/25 bg-primary/10 p-4">
-        <span class="material-symbols-outlined text-primary">info</span>
-        <div class="text-[11px] font-bold text-on-surface">
+      <div class="mt-6 p-4 rounded-2xl bg-blue-50 border border-blue-100/50 flex items-center gap-3">
+        <span class="material-symbols-outlined text-blue-500">info</span>
+        <div class="text-[11px] font-bold text-blue-700">
           Tỷ giá hiện tại: <span class="font-black">1 USDT = {{ formatViMoney(RATE, 0) }} VND</span>
         </div>
       </div>
@@ -138,7 +138,7 @@ function setMax() {
       <button 
         @click="handleExchange"
         :disabled="loading || !amount || parseFloat(amount) <= 0"
-        class="mt-6 h-14 w-full rounded-2xl bg-gradient-to-br from-primary to-[#ffc928] font-black text-[#241900] shadow-lg disabled:opacity-50 transition-all active:scale-[0.98]"
+        class="w-full mt-6 h-14 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-white font-black shadow-lg shadow-slate-200 disabled:opacity-50 transition-all active:scale-[0.98]"
       >
         <div v-if="loading" class="flex items-center justify-center gap-2">
           <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

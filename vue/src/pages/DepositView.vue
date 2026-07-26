@@ -627,7 +627,7 @@ async function logout() {
 <template>
   <div class="space-y-5 pb-10">
     <!-- HEADER SECTION -->
-    <section class="overflow-hidden rounded-[28px] border border-primary/35 bg-gradient-to-br from-[#4b4c4f] via-[#38393b] to-[#2b2c2e] p-4 text-white shadow-[0_18px_40px_rgba(0,0,0,0.3)] md:p-5">
+    <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff7b5d] via-primary to-[#f44956] p-4 text-white shadow-[0_18px_40px_rgba(244,73,86,0.24)] md:p-5">
       <header class="grid min-h-12 grid-cols-[36px_1fr_60px] items-center md:min-h-[52px]">
         <button class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white transition-transform active:scale-95" type="button" @click="router.back()">
           <span class="material-symbols-outlined">arrow_back</span>

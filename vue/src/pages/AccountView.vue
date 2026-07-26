@@ -43,7 +43,7 @@ const walletCards = computed(() => [
     unit: 2,
     label: 'Ví USDT',
     symbol: 'currency_bitcoin',
-    accent: 'from-[#6a6b6e] to-[#3c3d3f]',
+    accent: 'from-[#ff6d66] to-[#ffd4d0]',
     wallet: usdtWallet.value,
     fractionDigits: 2,
     helper: 'Dùng cho nạp USDT và các giao dịch crypto.',
@@ -136,7 +136,7 @@ onMounted(() => {
 
 <template>
   <div class="space-y-3.5 md:space-y-5">
-    <section class="grid grid-cols-[auto_1fr_auto] items-center gap-3.5 rounded-[26px] border border-primary/30 bg-gradient-to-br from-[#4b4c4f] via-[#38393b] to-[#2b2c2e] p-[18px] text-white shadow-[0_12px_32px_rgba(0,0,0,0.28)] md:p-5">
+    <section class="grid grid-cols-[auto_1fr_auto] items-center gap-3.5 rounded-[26px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-[18px] text-white shadow-[0_12px_32px_rgba(255,109,102,0.16)] md:p-5">
       <div class="grid h-16 w-16 place-items-center rounded-full bg-white/18 font-extrabold text-white">
         {{ profile?.name?.slice(0, 2).toUpperCase() || 'FF' }}
       </div>
@@ -234,7 +234,7 @@ onMounted(() => {
           <span class="material-symbols-outlined">notifications</span>
         </div>
         <span class="font-extrabold">Thông báo</span>
-        <span class="grid h-6 min-w-6 place-items-center rounded-full bg-primary px-1 text-[0.7rem] font-extrabold text-[#241900]">
+        <span class="grid h-6 min-w-6 place-items-center rounded-full bg-[#e64545] px-1 text-[0.7rem] font-extrabold text-white">
           {{ unreadNotifications }}
         </span>
       </RouterLink>

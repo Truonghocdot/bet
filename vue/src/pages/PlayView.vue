@@ -2826,10 +2826,10 @@
   </script>
 
   <template>
-    <div class="min-h-dvh bg-background">
+    <div class="min-h-dvh bg-[#f7f0f0]">
       <div v-if="room && selectedVariant" class="min-h-dvh pb-28">
       <!-- ===== HEADER GRADIENT ===== -->
-      <header class="flex items-center justify-between border-t-[3px] border-primary bg-[#38393b] px-4 py-3 text-white shadow-lg">
+      <header class="flex items-center justify-between bg-gradient-to-r from-[#ff8a00] to-[#e52e2e] px-4 py-3 text-white shadow-lg">
         <button class="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white transition-transform active:scale-95" type="button" @click="navigateBack">
           <span class="material-symbols-outlined text-[1.6rem]">arrow_back</span>
         </button>
@@ -2863,7 +2863,7 @@
           <RouterLink to="/account" class="flex items-center justify-center gap-1.5 rounded-full border-2 border-primary bg-white py-2.5 text-[0.82rem] font-black text-primary active:scale-95 transition-transform">
             Rút tiền
           </RouterLink>
-          <RouterLink to="/deposit" class="flex items-center justify-center gap-1.5 rounded-full bg-primary py-2.5 text-[0.82rem] font-black text-[#241900] shadow-[0_6px_16px_rgba(0,0,0,0.24)] active:scale-95 transition-transform">
+          <RouterLink to="/deposit" class="flex items-center justify-center gap-1.5 rounded-full bg-primary py-2.5 text-[0.82rem] font-black text-white shadow-[0_6px_16px_rgba(255,109,102,0.3)] active:scale-95 transition-transform">
             Nạp tiền
           </RouterLink>
         </div>
@@ -2895,7 +2895,7 @@
               :key="variant.code"
               type="button"
           class="flex flex-1 flex-col items-center gap-1.5 rounded-[14px] py-2 px-1 transition-all active:scale-[0.97]"
-          :class="variant.code === selectedVariant.code ? 'bg-primary' : 'bg-transparent'"
+          :class="variant.code === selectedVariant.code ? 'bg-[#e8404a]' : 'bg-transparent'"
               @click="activeVariantCode = variant.code"
             >
           <div
@@ -2904,12 +2904,12 @@
           >
             <span
               class="material-symbols-outlined text-[1.2rem]"
-            :class="variant.code === selectedVariant.code ? 'text-[#241900]' : 'text-slate-400'"
+              :class="variant.code === selectedVariant.code ? 'text-white' : 'text-slate-400'"
             >schedule</span>
           </div>
           <span
             class="text-center text-[0.6rem] font-bold leading-tight whitespace-nowrap"
-            :class="variant.code === selectedVariant.code ? 'text-[#241900]' : 'text-slate-500'"
+            :class="variant.code === selectedVariant.code ? 'text-white' : 'text-slate-500'"
           >
             {{ room.title }}<br>{{ variant.durationLabel }}
           </span>
@@ -3179,7 +3179,7 @@
               :key="tab"
               type="button"
               class="flex-shrink-0 rounded-full border-[1.5px] px-3.5 py-1.5 text-[0.72rem] font-semibold transition-all"
-              :class="activeK3SubTab === tab ? 'border-primary bg-primary text-[#241900]' : 'border-slate-200 bg-white text-slate-500'"
+              :class="activeK3SubTab === tab ? 'border-[#e8404a] bg-[#e8404a] text-white' : 'border-slate-200 bg-white text-slate-500'"
               @click="activeK3SubTab = tab"
             >{{ tab }}</button>
           </div>
@@ -3310,7 +3310,7 @@
               :key="tab"
               type="button"
               class="min-w-[52px] rounded-t-[12px] border border-b-0 px-3 py-2 text-[0.82rem] font-black transition-all"
-              :class="activeLotterySubTab === tab ? 'border-primary bg-primary text-[#241900] shadow-sm' : 'border-slate-200 bg-surface-container-high text-on-surface-variant'"
+              :class="activeLotterySubTab === tab ? 'border-[#ff6b66] bg-[#ff6b66] text-white shadow-sm' : 'border-slate-200 bg-[#d8dae8] text-white'"
               @click="activeLotterySubTab = tab"
             >{{ tab }}</button>
           </div>
@@ -3329,8 +3329,8 @@
                   :key="option.key"
                   type="button"
                   class="rounded-[10px] px-2 py-2.5 text-[0.82rem] font-black text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                  :class="isSelectedOption(lotteryPropertyGroup.title, option.key, lotteryPropertyGroup.subTab) ? 'ring-2 ring-primary/45 ring-offset-2 shadow-sm' : ''"
-                  :style="{ background: isSelectedOption(lotteryPropertyGroup.title, option.key, lotteryPropertyGroup.subTab) ? option.accent : '#595a5d' }"
+                  :class="isSelectedOption(lotteryPropertyGroup.title, option.key, lotteryPropertyGroup.subTab) ? 'ring-2 ring-[#ff6b66]/45 ring-offset-2 shadow-sm' : ''"
+                  :style="{ background: isSelectedOption(lotteryPropertyGroup.title, option.key, lotteryPropertyGroup.subTab) ? option.accent : '#d8dae8' }"
                   :disabled="!canBet"
                   @click="selectOption(lotteryPropertyGroup.title, option.key, option.label, lotteryPropertyGroup.subTab)"
                 >
@@ -3356,7 +3356,7 @@
                 >
                   <div
                     class="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border bg-white text-[1rem] font-black text-slate-400 transition-all"
-                    :class="isSelectedOption(lotteryNumberGroup.title, option.key, lotteryNumberGroup.subTab) ? 'border-primary ring-2 ring-primary/30 ring-offset-2 shadow-sm' : 'border-outline-variant'"
+                    :class="isSelectedOption(lotteryNumberGroup.title, option.key, lotteryNumberGroup.subTab) ? 'border-[#ff6b66] ring-2 ring-[#ff6b66]/30 ring-offset-2 shadow-sm' : 'border-[#cfd5e2]'"
                   >
                     <img
                       v-if="wingoBallImageSrc(betOptionBallNumber(option) ?? -1)"

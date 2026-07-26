@@ -356,7 +356,7 @@ function formatWithdrawPolicyPlain(value: string | number | null | undefined) {
         </button>
       </div>
 
-      <div class="mt-4 rounded-[18px] border border-primary/30 bg-gradient-to-br from-[#4b4c4f] to-[#303133] px-4 py-5 text-white">
+      <div class="mt-4 rounded-[18px] bg-gradient-to-br from-[#ff6d66] to-[#ffd4d0] px-4 py-5 text-white">
         <p class="m-0 text-sm opacity-80">Số dư khả dụng</p>
         <p class="m-0 mt-1 text-2xl font-black">
           {{ method === 'vnd' ? formatViMoney(currentWallets.vnd?.balance || 0, 0) : formatViMoney(currentWallets.usdt?.balance || 0, 2) }}

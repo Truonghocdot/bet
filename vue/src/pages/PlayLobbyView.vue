@@ -64,7 +64,7 @@ onMounted(() => {
 
 <template>
   <div class="space-y-5 pb-6">
-    <section class="overflow-hidden rounded-[28px] border border-primary/30 bg-gradient-to-br from-[#4b4c4f] via-[#38393b] to-[#2b2c2e] p-5 text-white shadow-[0_12px_30px_rgba(0,0,0,0.3)]">
+    <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff6d66] via-[#ff867d] to-[#ffd4d0] p-5 text-white shadow-[0_12px_30px_rgba(255,109,102,0.2)]">
       <div class="grid gap-4">
         <div class="min-w-0 space-y-4">
           <div class="flex flex-wrap items-center gap-2">
@@ -117,13 +117,13 @@ onMounted(() => {
           :key="item.category"
           type="button"
           class="flex items-center gap-2 rounded-full px-4 py-2.5 text-[0.78rem] font-bold transition-all"
-          :class="item.category === activeCategory ? 'bg-primary text-[#241900] shadow-[0_8px_20px_rgba(0,0,0,0.2)]' : 'bg-surface-container-low text-on-surface-variant'"
+          :class="item.category === activeCategory ? 'bg-primary text-white shadow-[0_12px_32px_rgba(255,109,102,0.12)]' : 'bg-surface-container-low text-on-surface-variant'"
           @click="activeCategory = item.category"
         >
           <span>{{ item.category }}</span>
           <span
             class="rounded-full px-2 py-0.5 text-[0.65rem]"
-            :class="item.category === activeCategory ? 'bg-black/15 text-[#241900]' : 'bg-white text-on-surface-variant'"
+            :class="item.category === activeCategory ? 'bg-white/18 text-white' : 'bg-white text-on-surface-variant'"
           >
             {{ item.count }}
           </span>
@@ -202,7 +202,7 @@ onMounted(() => {
 
           <RouterLink
             :to="room.status === 'OPEN' ? { path: `/play/${room.code}`, query: { from: route.fullPath } } : '/promotion'"
-            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-[#ffc928] px-4 text-[0.82rem] font-black text-[#241900] transition-transform active:scale-95"
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-[16px] bg-gradient-to-br from-primary to-primary-container px-4 text-[0.82rem] font-black text-white transition-transform active:scale-95"
             @pointerenter="maybePrefetchRoom(room.status)"
             @focus="maybePrefetchRoom(room.status)"
             @touchstart.passive="maybePrefetchRoom(room.status)"

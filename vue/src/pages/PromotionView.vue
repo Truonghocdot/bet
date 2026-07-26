@@ -229,7 +229,7 @@ watch(
     </section>
 
     <section v-if="activeTab === 'affiliate'" class="flex flex-col gap-3 px-3">
-      <div class="rounded-[18px] border border-primary/30 bg-gradient-to-br from-[#4b4c4f] to-[#303133] p-4 text-white">
+      <div class="rounded-[18px] bg-gradient-to-br from-[#ff6d66] to-[#ff9f98] p-4 text-white">
         <p class="m-0 text-[0.7rem] uppercase tracking-[0.08em] text-white/80">
           {{ isAgency ? 'Khu vực Đại lý' : 'Chương trình Đại lý' }}
         </p>

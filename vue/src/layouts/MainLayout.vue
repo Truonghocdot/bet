@@ -332,7 +332,7 @@ onBeforeUnmount(() => {
 
     <!-- ===== GLOBAL LOADING OVERLAY ===== -->
     <Transition name="fade">
-      <div v-if="isLoading" class="fixed inset-0 z-[100] grid place-items-center bg-[#252628]/90 backdrop-blur-md">
+      <div v-if="isLoading" class="fixed inset-0 z-[100] grid place-items-center bg-white/80 backdrop-blur-md">
           <div class="flex flex-col items-center gap-4">
           <div class="relative">
             <div class="absolute inset-0 animate-ping rounded-full bg-primary/20" />
@@ -351,7 +351,7 @@ onBeforeUnmount(() => {
       <div v-if="activePopup" class="fixed inset-0 z-[90] grid place-items-center bg-black/45 px-4 backdrop-blur-sm">
         <div
           :class="[
-            'w-full overflow-hidden bg-surface shadow-[0_20px_60px_rgba(0,0,0,0.42)]',
+            'w-full overflow-hidden bg-white shadow-[0_20px_60px_rgba(15,23,42,0.25)]',
             isLatestNewsPopup
               ? 'max-w-[360px] rounded-[6px] border border-slate-200'
               : 'max-w-[540px] rounded-[24px]',
@@ -484,7 +484,7 @@ onBeforeUnmount(() => {
             </RouterLink>
           </div>
         </div>
-        <div class="mt-2 grid grid-cols-2 gap-2 px-3 pb-3">
+        <div class="mt-3 grid grid-cols-2 gap-2">
           <RouterLink
             v-for="item in historyShortcutItems"
             :key="item.label"
@@ -592,10 +592,10 @@ onBeforeUnmount(() => {
 
             <button
               v-if="auth.isAuthenticated"
-              class="drawer__item text-primary"
+              class="drawer__item text-[#e64545]"
               @click="handleLogout"
             >
-              <span class="material-symbols-outlined text-[1.2rem] text-primary">logout</span>
+              <span class="material-symbols-outlined text-[1.2rem] text-[#e64545]">logout</span>
               <span>Đăng xuất</span>
             </button>
             <template v-else>

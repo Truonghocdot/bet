@@ -742,7 +742,7 @@ onMounted(() => {
             class="flex w-full items-center gap-1.5 rounded-[14px] px-1.5 py-2 text-left transition-all duration-200"
             :class="
               activeProvider?.sidebarKey === provider.sidebarKey
-                ? 'bg-primary text-[#241900] shadow-[0_8px_16px_rgba(242,173,0,0.24)]'
+                ? 'bg-[linear-gradient(180deg,#da251d_0%,#a81b14_100%)] text-white shadow-[0_8px_16px_rgba(218,37,29,0.28)]'
                 : 'bg-white text-slate-600 shadow-sm'
             "
             @click="selectProvider(provider)"
@@ -798,7 +798,7 @@ onMounted(() => {
               />
               <div
                 v-else
-                class="flex aspect-square w-full items-center justify-center bg-[#303133]"
+                class="flex aspect-square w-full items-center justify-center bg-[radial-gradient(circle_at_top,#ffded8_0%,#fff4f1_100%)]"
               >
                 <span class="material-symbols-outlined text-[2rem] text-primary/60">casino</span>
               </div>
