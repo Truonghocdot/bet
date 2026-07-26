@@ -383,18 +383,6 @@ func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int
 
 	// Cho phép bấm hủy để đóng luôn một lệnh đã auto-cancel (5) trên app.
 	if record.Status == 5 {
-		if record.OriginalAmount != "" && record.Amount != record.OriginalAmount {
-			if _, err := tx.ExecContext(ctx, `
-				update transactions
-				set amount = coalesce(original_amount, amount), updated_at = now()
-				where id = $1
-			`, record.ID); err != nil {
-				return DepositTransactionRecord{}, err
-			}
-
-			record.Amount = record.OriginalAmount
-		}
-
 		if err := tx.Commit(); err != nil {
 			return DepositTransactionRecord{}, err
 		}
@@ -410,7 +398,6 @@ func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int
 	if _, err := tx.ExecContext(ctx, `
 		update transactions
 		set status = 5,
-		    amount = coalesce(original_amount, amount),
 		    reason_failed = 'Người dùng tự hủy',
 		    updated_at = now()
 		where id = $1
@@ -423,9 +410,6 @@ func (r *DepositRepository) CancelDeposit(ctx context.Context, userID, txnID int
 	}
 
 	record.Status = 5
-	if record.OriginalAmount != "" {
-		record.Amount = record.OriginalAmount
-	}
 	return record, nil
 }
 
