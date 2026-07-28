@@ -132,55 +132,6 @@ func (s *TCGRuntimeService) LaunchGame(ctx context.Context, userID int64, reques
 	}
 
 	transferredAmount := "0"
-	if !s.config.PreviewZeroBalance && (activeState == nil || activeState.ProductType != request.ProductType) {
-		wallet, err := s.walletRepository.FindByUserAndUnit(ctx, userID, user.WalletUnitVND)
-		if err != nil {
-			return TCGLaunchResponse{}, err
-		}
-
-		if isPositiveNumeric(wallet.Balance) {
-			referenceNo := buildTCGReference("FT")
-			transferResponse, transferErr := s.tcg.Transfer(ctx, gateclient.TransferTCGRequest{
-				Username:    username,
-				ProductType: request.ProductType,
-				FundType:    "1",
-				Amount:      wallet.Balance,
-				ReferenceNo: referenceNo,
-			})
-			if transferErr != nil || transferResponse.Status != 0 {
-				statusResponse, statusErr := s.tcg.CheckTransferStatus(ctx, gateclient.TransferStatusTCGRequest{
-					ProductType: request.ProductType,
-					ReferenceNo: referenceNo,
-				})
-				if statusErr != nil || strings.ToUpper(strings.TrimSpace(statusResponse.TransactionStatus)) != "SUCCESS" {
-					if transferErr != nil {
-						return TCGLaunchResponse{}, transferErr
-					}
-					if strings.TrimSpace(transferResponse.ErrorDesc) != "" {
-						return TCGLaunchResponse{}, fmt.Errorf("%s", transferResponse.ErrorDesc)
-					}
-					if strings.TrimSpace(statusResponse.ErrorDesc) != "" {
-						return TCGLaunchResponse{}, fmt.Errorf("%s", statusResponse.ErrorDesc)
-					}
-					return TCGLaunchResponse{}, fmt.Errorf("không thể chuyển tiền vào ví game")
-				}
-			}
-			transferredAmount = wallet.Balance
-			if err := s.walletRepository.DebitByUserAndUnit(ctx, userID, user.WalletUnitVND, wallet.Balance, "tcg_transfer", fmt.Sprintf("Chuyển sang TCG product %d", request.ProductType)); err != nil {
-				return TCGLaunchResponse{}, err
-			}
-			activeState = &tcgActiveProductState{
-				ProductType:     request.ProductType,
-				GameType:        strings.TrimSpace(request.GameType),
-				LastTransferRef: referenceNo,
-				UpdatedAt:       clock.Now(),
-			}
-			_ = s.saveActiveState(ctx, userID, *activeState)
-			if s.walletService != nil {
-				_ = s.walletService.PublishSummary(ctx, userID)
-			}
-		}
-	}
 
 	launchResponse, launchErr := s.tcg.LaunchGame(ctx, gateclient.LaunchGameTCGRequest{
 		Username:    username,
