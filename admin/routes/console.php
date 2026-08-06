@@ -19,3 +19,7 @@ Schedule::command('payment:prime-receiving-accounts')
 Schedule::command('finance:generate-fake-transactions')
     ->everyFiveSeconds()
     ->withoutOverlapping();
+
+Schedule::command('backup:create --prune')
+    ->dailyAt((string) config('backup.schedule', '02:15'))
+    ->withoutOverlapping(180);
