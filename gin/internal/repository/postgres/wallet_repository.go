@@ -152,7 +152,7 @@ func (r *WalletRepository) Exchange(ctx context.Context, userID int64, fromUnit,
 
 	// 3. Update From Wallet
 	if _, err := tx.ExecContext(ctx, `
-		update wallets set balance = balance - $1::numeric(20,8), updated_at = now()
+		update wallets set balance = balance - $1::numeric(30,8), updated_at = now()
 		where id = $2
 	`, fromAmount, fromWalletID); err != nil {
 		return err
@@ -160,7 +160,7 @@ func (r *WalletRepository) Exchange(ctx context.Context, userID int64, fromUnit,
 
 	// 4. Update To Wallet
 	if _, err := tx.ExecContext(ctx, `
-		update wallets set balance = balance + $1::numeric(20,8), updated_at = now()
+		update wallets set balance = balance + $1::numeric(30,8), updated_at = now()
 		where id = $2
 	`, toAmount, toWalletID); err != nil {
 		return err
@@ -169,14 +169,14 @@ func (r *WalletRepository) Exchange(ctx context.Context, userID int64, fromUnit,
 	// 5. Ledger entries
 	if _, err := tx.ExecContext(ctx, `
 		insert into wallet_ledger_entries (wallet_id, user_id, direction, amount, balance_before, balance_after, reference_type, note, created_at)
-		values ($1, $2, 2, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8), 'exchange', $6, now())
+		values ($1, $2, 2, $3::numeric(30,8), $4::numeric, $5::numeric, 'exchange', $6, now())
 	`, fromWalletID, userID, fromAmount, fromBalanceBefore, fromBalanceAfter, fmt.Sprintf("Chuyển đổi sang %d", toUnit)); err != nil {
 		return err
 	}
 
 	if _, err := tx.ExecContext(ctx, `
 		insert into wallet_ledger_entries (wallet_id, user_id, direction, amount, balance_before, balance_after, reference_type, note, created_at)
-		values ($1, $2, 1, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8), 'exchange', $6, now())
+		values ($1, $2, 1, $3::numeric(30,8), $4::numeric, $5::numeric, 'exchange', $6, now())
 	`, toWalletID, userID, toAmount, toBalanceBefore, toBalanceAfter, fmt.Sprintf("Nhận từ chuyển đổi ví %d", fromUnit)); err != nil {
 		return err
 	}
@@ -222,7 +222,7 @@ func (r *WalletRepository) applyBalanceDelta(ctx context.Context, userID int64, 
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `
-			update wallets set balance = balance + $1::numeric(20,8), updated_at = now()
+			update wallets set balance = balance + $1::numeric(30,8), updated_at = now()
 			where id = $2
 		`, amount, walletID); err != nil {
 			return err
@@ -233,7 +233,7 @@ func (r *WalletRepository) applyBalanceDelta(ctx context.Context, userID int64, 
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `
-			update wallets set balance = balance - $1::numeric(20,8), updated_at = now()
+			update wallets set balance = balance - $1::numeric(30,8), updated_at = now()
 			where id = $2
 		`, amount, walletID); err != nil {
 			return err
@@ -242,7 +242,7 @@ func (r *WalletRepository) applyBalanceDelta(ctx context.Context, userID int64, 
 
 	if _, err := tx.ExecContext(ctx, `
 		insert into wallet_ledger_entries (wallet_id, user_id, direction, amount, balance_before, balance_after, reference_type, note, created_at)
-		values ($1, $2, $3, $4::numeric(20,8), $5::numeric(20,8), $6::numeric(20,8), $7, $8, now())
+		values ($1, $2, $3, $4::numeric(30,8), $5::numeric, $6::numeric, $7, $8, now())
 	`, walletID, userID, direction, amount, balanceBefore, balanceAfter, referenceType, note); err != nil {
 		return err
 	}

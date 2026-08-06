@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
@@ -252,7 +251,7 @@ func (r *DepositRepository) CreateDepositIntent(ctx context.Context, params Crea
 			status, provider, provider_txn_id, receiving_account_id, meta,
 			created_at, updated_at
 		)
-		values ($1, $2, $3, $4, $5, $6::numeric(20,8), $6::numeric(20,8), 0, $6::numeric(20,8), $7, $8, $9, $10, $11, now(), now())
+		values ($1, $2, $3, $4, $5, $6::numeric(30,8), $6::numeric(30,8), 0, $6::numeric(30,8), $7, $8, $9, $10, $11, now(), now())
 		on conflict (client_ref) do update
 		set updated_at = excluded.updated_at
 		returning id, user_id, wallet_id, client_ref, unit, type, amount::text, original_amount::text, net_amount::text,
@@ -524,27 +523,23 @@ func (r *DepositRepository) ApplyDeposit(ctx context.Context, params ApplyDeposi
 
 	if _, err := tx.ExecContext(ctx, `
 		update wallets
-		set balance = balance + $1::numeric(20,8), updated_at = now()
+		set balance = balance + $1::numeric(30,8), updated_at = now()
 		where id = $2
 	`, params.Amount, walletID); err != nil {
 		return DepositApplyResult{}, err
 	}
 
-	bAmount, ok1 := new(big.Float).SetString(params.Amount)
-	bBefore, ok2 := new(big.Float).SetString(balanceBefore)
-	if !ok1 || !ok2 {
-		return DepositApplyResult{}, fmt.Errorf("failed to parse balance or amount as numeric: amount=%q balance=%q", params.Amount, balanceBefore)
+	balanceAfter, err := addNumeric(balanceBefore, params.Amount)
+	if err != nil {
+		return DepositApplyResult{}, fmt.Errorf("failed to add deposit amount to balance: amount=%q balance=%q: %w", params.Amount, balanceBefore, err)
 	}
-
-	bAfter := new(big.Float).Add(bBefore, bAmount)
-	balanceAfter := bAfter.Text('f', 8)
 
 	if _, err := tx.ExecContext(ctx, `
 		insert into wallet_ledger_entries (
 			wallet_id, user_id, direction, amount, balance_before, balance_after,
 			reference_type, reference_id, note, created_at
 		)
-		values ($1, $2, $3, $4, $5, $6,
+			values ($1, $2, $3, $4::numeric(30,8), $5::numeric, $6::numeric,
 		        $7, $8, $9, now())
 	`, walletID, record.UserID, 1, params.Amount, balanceBefore, balanceAfter,
 		"App\\Models\\Transaction\\Transaction", record.ID, "Nạp tiền thành công"); err != nil {

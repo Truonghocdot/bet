@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,13 +22,25 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
+var releaseRoomEngineLockScript = goredis.NewScript(`
+	if redis.call("GET", KEYS[1]) == ARGV[1] then
+		return redis.call("DEL", KEYS[1])
+	end
+	return 0
+`)
+
+func isContextDone(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
 type RoomEngineService struct {
-	gameRepository  *repopg.GameRepository
-	redis           *goredis.Client
-	tickInterval    time.Duration
-	playRoomService *PlayRoomService
-	walletService   *WalletService
-	broker          *realtime.Broker
+	gameRepository    *repopg.GameRepository
+	redis             *goredis.Client
+	tickInterval      time.Duration
+	settlementEnabled bool
+	playRoomService   *PlayRoomService
+	walletService     *WalletService
+	broker            *realtime.Broker
 }
 
 func NewRoomEngineService(
@@ -36,29 +50,35 @@ func NewRoomEngineService(
 	walletService *WalletService,
 	broker *realtime.Broker,
 	tickInterval time.Duration,
+	settlementEnabled bool,
 ) *RoomEngineService {
 	if tickInterval <= 0 {
 		tickInterval = time.Second
 	}
 	return &RoomEngineService{
-		gameRepository:  gameRepository,
-		redis:           redisClient,
-		tickInterval:    tickInterval,
-		playRoomService: playRoomService,
-		walletService:   walletService,
-		broker:          broker,
+		gameRepository:    gameRepository,
+		redis:             redisClient,
+		tickInterval:      tickInterval,
+		settlementEnabled: settlementEnabled,
+		playRoomService:   playRoomService,
+		walletService:     walletService,
+		broker:            broker,
 	}
 }
 
-func (s *RoomEngineService) Run(ctx context.Context) error {
+func (s *RoomEngineService) Run(ctx context.Context) (err error) {
 	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[engine][panic] stage=run panic=%v stack=%s", r, string(debug.Stack()))
+		if recovered := recover(); recovered != nil {
+			log.Printf("[engine][panic] stage=run panic=%v stack=%s", recovered, string(debug.Stack()))
+			err = fmt.Errorf("room engine panic: %v", recovered)
 		}
 	}()
+	if !s.settlementEnabled {
+		log.Printf("[engine][settlement.disabled]")
+	}
 
-	if err := s.runTick(ctx); err != nil {
-		if !errors.Is(err, context.Canceled) {
+	if err := s.runTickSafely(ctx); err != nil {
+		if !isContextDone(err) {
 			log.Printf("[engine] tick lỗi ban đầu: %v", err)
 		}
 	}
@@ -72,13 +92,24 @@ func (s *RoomEngineService) Run(ctx context.Context) error {
 			log.Printf("[engine][stop] reason=context_canceled")
 			return nil
 		case <-ticker.C:
-			if err := s.runTick(ctx); err != nil {
-				if !errors.Is(err, context.Canceled) {
+			if err := s.runTickSafely(ctx); err != nil {
+				if !isContextDone(err) {
 					log.Printf("[engine] tick lỗi: %v", err)
 				}
 			}
 		}
 	}
+}
+
+func (s *RoomEngineService) runTickSafely(ctx context.Context) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			log.Printf("[engine][panic] stage=tick panic=%v stack=%s", recovered, string(debug.Stack()))
+			err = fmt.Errorf("room engine tick panic: %v", recovered)
+		}
+	}()
+
+	return s.runTick(ctx)
 }
 
 func (s *RoomEngineService) runTick(ctx context.Context) error {
@@ -95,9 +126,26 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 
 	for _, room := range rooms {
 		lockKey := fmt.Sprintf("engine:room:ensure:%s", room.Code)
-		acquired, err := s.acquireLock(ctx, lockKey, 3*time.Second)
+		acquired, err := s.withLock(ctx, lockKey, 3*time.Second, func() error {
+			createdPeriods, ensureErr := s.gameRepository.EnsureRoomPeriods(ctx, room, now)
+			if ensureErr != nil {
+				if isContextDone(ensureErr) {
+					return ensureErr
+				}
+				log.Printf("[engine] ensure period lỗi room=%s err=%v", room.Code, ensureErr)
+				return nil
+			}
+			if len(createdPeriods) > 0 {
+				if refreshErr := s.refreshRoomState(ctx, room.Code, "period.created"); refreshErr != nil {
+					if isContextDone(refreshErr) {
+						return refreshErr
+					}
+				}
+			}
+			return nil
+		})
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
+			if isContextDone(err) {
 				return err
 			}
 			log.Printf("[engine] không lock được room %s: %v", room.Code, err)
@@ -106,45 +154,30 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 		if !acquired {
 			continue
 		}
-
-		createdPeriods, err := s.gameRepository.EnsureRoomPeriods(ctx, room, now)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return err
-			}
-			log.Printf("[engine] ensure period lỗi room=%s err=%v", room.Code, err)
-		} else if len(createdPeriods) > 0 {
-			if err := s.refreshRoomState(ctx, room.Code, "period.created"); err != nil {
-				if errors.Is(err, context.Canceled) {
-					return err
-				}
-			}
-		}
-		s.releaseLock(ctx, lockKey)
 	}
 
 	openedRooms, err := s.gameRepository.MoveScheduledToOpen(ctx, now)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if isContextDone(err) {
 			return err
 		}
 		log.Printf("[engine] chuyển SCHEDULED->OPEN lỗi: %v", err)
 	} else {
 		for _, roomCode := range openedRooms {
-			if err := s.refreshRoomState(ctx, roomCode, "period.opened"); err != nil && !errors.Is(err, context.Canceled) {
+			if err := s.refreshRoomState(ctx, roomCode, "period.opened"); err != nil && !isContextDone(err) {
 				log.Printf("[engine][room.refresh.error] room_code=%s source=period.opened err=%v", roomCode, err)
 			}
 		}
 	}
 	lockedRooms, err := s.gameRepository.MoveOpenToLocked(ctx, now)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if isContextDone(err) {
 			return err
 		}
 		log.Printf("[engine] chuyển OPEN->LOCKED lỗi: %v", err)
 	} else {
 		for _, roomCode := range lockedRooms {
-			if err := s.refreshRoomState(ctx, roomCode, "period.locked"); err != nil && !errors.Is(err, context.Canceled) {
+			if err := s.refreshRoomState(ctx, roomCode, "period.locked"); err != nil && !isContextDone(err) {
 				log.Printf("[engine][room.refresh.error] room_code=%s source=period.locked err=%v", roomCode, err)
 			}
 		}
@@ -152,79 +185,112 @@ func (s *RoomEngineService) runTick(ctx context.Context) error {
 
 	lockedPeriods, err := s.gameRepository.ListLockedPeriodsForDraw(ctx, now, 200)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if isContextDone(err) {
 			return err
 		}
 		return err
 	}
 	for _, period := range lockedPeriods {
 		lockKey := fmt.Sprintf("engine:period:draw:%d", period.ID)
-		acquired, err := s.acquireLock(ctx, lockKey, 5*time.Second)
-		if err != nil || !acquired {
-			if errors.Is(err, context.Canceled) {
-				return err
+		acquired, err := s.withLock(ctx, lockKey, 5*time.Second, func() error {
+			draw, drawErr := s.generateDraw(period)
+			if drawErr != nil {
+				if isContextDone(drawErr) {
+					return drawErr
+				}
+				log.Printf("[engine] sinh kết quả lỗi period=%d err=%v", period.ID, drawErr)
+				return nil
 			}
-			continue
-		}
 
-		draw, err := s.generateDraw(period)
+			if markErr := s.gameRepository.MarkPeriodDrawn(ctx, period, draw); markErr != nil {
+				if isContextDone(markErr) {
+					return markErr
+				}
+				log.Printf("[engine] đánh dấu DRAWN lỗi period=%d err=%v", period.ID, markErr)
+			} else if refreshErr := s.refreshRoomState(ctx, period.RoomCode, "period.drawn"); refreshErr != nil && !isContextDone(refreshErr) {
+				log.Printf("[engine][room.refresh.error] room_code=%s source=period.drawn err=%v", period.RoomCode, refreshErr)
+			} else if isContextDone(refreshErr) {
+				return refreshErr
+			}
+			return nil
+		})
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
+			if isContextDone(err) {
 				return err
 			}
-			log.Printf("[engine] sinh kết quả lỗi period=%d err=%v", period.ID, err)
-			s.releaseLock(ctx, lockKey)
+			log.Printf("[engine][lock.acquire.error] key=%s err=%v", lockKey, err)
 			continue
 		}
-
-		if err := s.gameRepository.MarkPeriodDrawn(ctx, period, draw); err != nil {
-			if errors.Is(err, context.Canceled) {
-				return err
-			}
-			log.Printf("[engine] đánh dấu DRAWN lỗi period=%d err=%v", period.ID, err)
-		} else if err := s.refreshRoomState(ctx, period.RoomCode, "period.drawn"); err != nil && !errors.Is(err, context.Canceled) {
-			log.Printf("[engine][room.refresh.error] room_code=%s source=period.drawn err=%v", period.RoomCode, err)
+		if !acquired {
+			continue
 		}
-		s.releaseLock(ctx, lockKey)
+	}
+
+	return s.settleDrawnPeriods(ctx)
+}
+
+func (s *RoomEngineService) settleDrawnPeriods(ctx context.Context) error {
+	if !s.settlementEnabled {
+		return nil
 	}
 
 	drawnPeriods, err := s.gameRepository.ListDrawnPeriodsForSettlement(ctx, 200)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if isContextDone(err) {
 			return err
 		}
 		return err
 	}
 	for _, period := range drawnPeriods {
 		lockKey := fmt.Sprintf("engine:period:settle:%d", period.ID)
-		acquired, err := s.acquireLock(ctx, lockKey, 5*time.Second)
-		if err != nil || !acquired {
-			if errors.Is(err, context.Canceled) {
-				return err
+		acquired, err := s.withLock(ctx, lockKey, 5*time.Second, func() error {
+			userIDs, settleErr := s.gameRepository.SettlePeriod(ctx, period)
+			if settleErr != nil {
+				if isContextDone(settleErr) {
+					return settleErr
+				}
+				log.Printf("[engine] settlement lỗi period=%d err=%v", period.ID, settleErr)
+				if recordErr := s.gameRepository.RecordPeriodSettlementFailure(ctx, period.ID, settleErr); recordErr != nil {
+					log.Printf("[engine][period.settle.failure_record.error] period_id=%d err=%v", period.ID, recordErr)
+					if isContextDone(recordErr) {
+						return recordErr
+					}
+				}
+				return nil
 			}
-			continue
-		}
-		userIDs, err := s.gameRepository.SettlePeriod(ctx, period)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return err
-			}
-			log.Printf("[engine] settlement lỗi period=%d err=%v", period.ID, err)
-		} else {
-			if err := s.refreshRoomState(ctx, period.RoomCode, "period.settled"); err != nil && !errors.Is(err, context.Canceled) {
-				log.Printf("[engine][room.refresh.error] room_code=%s source=period.settled err=%v", period.RoomCode, err)
+
+			if refreshErr := s.refreshRoomState(ctx, period.RoomCode, "period.settled"); refreshErr != nil {
+				if isContextDone(refreshErr) {
+					return refreshErr
+				}
+				log.Printf("[engine][room.refresh.error] room_code=%s source=period.settled err=%v", period.RoomCode, refreshErr)
 			}
 			for _, userID := range userIDs {
-				if err := s.publishWalletSummary(ctx, userID, "period.settled"); err != nil && !errors.Is(err, context.Canceled) {
-					log.Printf("[engine][wallet.refresh.error] user_id=%d source=period.settled err=%v", userID, err)
+				if publishErr := s.publishWalletSummary(ctx, userID, "period.settled"); publishErr != nil {
+					if isContextDone(publishErr) {
+						return publishErr
+					}
+					log.Printf("[engine][wallet.refresh.error] user_id=%d source=period.settled err=%v", userID, publishErr)
 				}
-				// Publish bets update event
-				if err := s.publishBetsUpdate(ctx, period.RoomCode, userID); err != nil && !errors.Is(err, context.Canceled) {
-					log.Printf("[engine][bets.update.error] room_code=%s user_id=%d err=%v", period.RoomCode, userID, err)
+				if publishErr := s.publishBetsUpdate(ctx, period.RoomCode, userID); publishErr != nil {
+					if isContextDone(publishErr) {
+						return publishErr
+					}
+					log.Printf("[engine][bets.update.error] room_code=%s user_id=%d err=%v", period.RoomCode, userID, publishErr)
 				}
 			}
+			return nil
+		})
+		if err != nil {
+			if isContextDone(err) {
+				return err
+			}
+			log.Printf("[engine][lock.acquire.error] key=%s err=%v", lockKey, err)
+			continue
 		}
-		s.releaseLock(ctx, lockKey)
+		if !acquired {
+			continue
+		}
 	}
 
 	return nil
@@ -285,12 +351,40 @@ func (s *RoomEngineService) publishBetsUpdate(ctx context.Context, roomCode stri
 	return nil
 }
 
-func (s *RoomEngineService) acquireLock(ctx context.Context, key string, ttl time.Duration) (bool, error) {
-	return s.redis.SetNX(ctx, key, "1", ttl).Result()
+func (s *RoomEngineService) withLock(ctx context.Context, key string, ttl time.Duration, operation func() error) (bool, error) {
+	token, acquired, err := s.acquireLock(ctx, key, ttl)
+	if err != nil || !acquired {
+		return acquired, err
+	}
+	defer s.releaseLock(ctx, key, token)
+
+	return true, operation()
 }
 
-func (s *RoomEngineService) releaseLock(ctx context.Context, key string) {
-	_, _ = s.redis.Del(ctx, key).Result()
+func (s *RoomEngineService) acquireLock(ctx context.Context, key string, ttl time.Duration) (string, bool, error) {
+	tokenBytes := make([]byte, 16)
+	if _, err := cryptorand.Read(tokenBytes); err != nil {
+		return "", false, fmt.Errorf("generate lock token: %w", err)
+	}
+	token := hex.EncodeToString(tokenBytes)
+
+	acquired, err := s.redis.SetNX(ctx, key, token, ttl).Result()
+	if err != nil {
+		return "", false, err
+	}
+	return token, acquired, nil
+}
+
+func (s *RoomEngineService) releaseLock(ctx context.Context, key, token string) {
+	if strings.TrimSpace(key) == "" || strings.TrimSpace(token) == "" {
+		return
+	}
+
+	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
+	if _, err := releaseRoomEngineLockScript.Run(releaseCtx, s.redis, []string{key}, token).Result(); err != nil {
+		log.Printf("[engine][lock.release.error] key=%s err=%v", key, err)
+	}
 }
 
 func (s *RoomEngineService) generateDraw(period repopg.GamePeriodRecord) (repopg.DrawResult, error) {

@@ -141,8 +141,8 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 
 	if _, err := tx.ExecContext(ctx, `
 		update wallets
-		set balance = balance - $1::numeric(20,8),
-		    locked_balance = locked_balance + $1::numeric(20,8),
+		set balance = balance - $1::numeric(30,8),
+		    locked_balance = locked_balance + $1::numeric(30,8),
 		    updated_at = $2
 		where id = $3
 	`, amount, now, walletID); err != nil {
@@ -154,7 +154,7 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 		insert into withdrawal_requests (
 			user_id, wallet_id, account_withdrawal_info_id, unit, amount, fee, net_amount, status, created_at, updated_at
 		) values (
-			$1, $2, $3, $4, $5::numeric(20,8), $6::numeric(20,8), $7::numeric(20,8), 1, $8, $8
+			$1, $2, $3, $4, $5::numeric(30,8), $6::numeric(30,8), $7::numeric(30,8), 1, $8, $8
 		) returning id
 	`, userID, walletID, accountID, unit, amount, fee, netAmount, now).Scan(&requestID); err != nil {
 		return 0, err
@@ -170,7 +170,7 @@ func (r *WithdrawalRepository) CreateWithdrawalRequest(ctx context.Context, user
 			wallet_id, user_id, direction, amount, balance_before, balance_after,
 			reference_type, reference_id, note, created_at
 		) values (
-			$1, $2, 2, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8),
+			$1, $2, 2, $3::numeric(30,8), $4::numeric, $5::numeric,
 			'App\\Models\\Transaction\\WithdrawalRequest', $6, 'Khóa tiền tạo lệnh rút', $7
 		)
 	`, walletID, userID, amount, balanceBefore, balanceAfter, requestID, now); err != nil {

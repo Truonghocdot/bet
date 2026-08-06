@@ -44,7 +44,7 @@ func main() {
 	broker := realtime.NewBroker(redisClient)
 	walletService := service.NewWalletService(walletRepository, broker, redisClient, config.ContentAssetBaseURL)
 	playRoomService := service.NewPlayRoomService(gameRepository, walletRepository, walletService, redisClient, broker)
-	engineService := service.NewRoomEngineService(gameRepository, redisClient, playRoomService, walletService, broker, time.Second)
+	engineService := service.NewRoomEngineService(gameRepository, redisClient, playRoomService, walletService, broker, time.Second, config.EngineSettlementEnabled)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

@@ -51,6 +51,7 @@ const (
 	PeriodBetLocked                   = "Kỳ cược đã khóa lệnh, vui lòng chờ kỳ tiếp theo"
 	InsufficientBalancePlay           = "Số dư không đủ để vào phòng chơi"
 	InsufficientBalanceBet            = "Số dư không đủ để đặt lệnh"
+	BetAmountInvalid                  = "Số tiền cược không hợp lệ hoặc vượt giới hạn hệ thống"
 	DepositAmountRequired             = "Thiếu số tiền nạp"
 	DepositAmountInvalid              = "Số tiền nạp không hợp lệ"
 	DepositReceivingAccountMissing    = "Không tìm thấy tài khoản nhận tiền phù hợp"

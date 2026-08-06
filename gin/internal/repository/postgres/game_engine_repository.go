@@ -17,7 +17,10 @@ import (
 	"gin/internal/support/clock"
 )
 
-const periodGenerationBufferCount = 3
+const (
+	periodGenerationBufferCount    = 3
+	settlementFailureMaxErrorRunes = 2000
+)
 
 type DrawResult struct {
 	Result      string
@@ -213,13 +216,9 @@ func (r *GameRepository) ListLockedPeriodsForDraw(ctx context.Context, now time.
 
 	rows, err := r.db.QueryContext(ctx, `
 		select id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
-		from (
-			select distinct on (room_code) id, room_code, game_type, period_no, period_index, open_at, bet_lock_at, draw_at, status, manual_result
-			from game_periods
-			where status = $1
-			  and draw_at <= $2
-			order by room_code asc, draw_at asc, id asc
-		) due_periods
+		from game_periods
+		where status = $1
+		  and draw_at <= $2
 		order by draw_at asc, id asc
 		limit $3
 	`, periodStatusLocked, now, limit)
@@ -272,6 +271,9 @@ func (r *GameRepository) MarkPeriodDrawn(ctx context.Context, period GamePeriodR
 		    draw_source = 1,
 		    result_payload = $2::jsonb,
 		    result_hash = $3,
+		    settlement_attempts = 0,
+		    settlement_last_error = null,
+		    settlement_next_retry_at = null,
 		    updated_at = $4
 		where id = $5 and status = $6
 	`, periodStatusDrawn, draw.PayloadJSON, hashValue, now, period.ID, periodStatusLocked)
@@ -315,13 +317,10 @@ func (r *GameRepository) ListDrawnPeriodsForSettlement(ctx context.Context, limi
 
 	rows, err := r.db.QueryContext(ctx, `
 		select id, room_code, period_no, game_type, result_payload, draw_at
-		from (
-			select distinct on (room_code) id, room_code, period_no, game_type, result_payload, draw_at
-			from game_periods
-			where status = $1
-			  and result_payload is not null
-			order by room_code asc, draw_at asc, id asc
-		) due_periods
+		from game_periods
+		where status = $1
+		  and result_payload is not null
+		  and (settlement_next_retry_at is null or settlement_next_retry_at <= now())
 		order by draw_at asc, id asc
 		limit $2
 	`, periodStatusDrawn, limit)
@@ -340,6 +339,31 @@ func (r *GameRepository) ListDrawnPeriodsForSettlement(ctx context.Context, limi
 	}
 
 	return periods, rows.Err()
+}
+
+func (r *GameRepository) RecordPeriodSettlementFailure(ctx context.Context, periodID int64, cause error) error {
+	lastError := "unknown settlement error"
+	if cause != nil {
+		lastError = trimToVarchar(cause.Error(), settlementFailureMaxErrorRunes)
+		if lastError == "" {
+			lastError = "unknown settlement error"
+		}
+	}
+
+	_, err := r.db.ExecContext(ctx, `
+		update game_periods
+		set settlement_attempts = least(coalesce(settlement_attempts, 0), 2147483646) + 1,
+		    settlement_last_error = $1,
+		    settlement_next_retry_at = now() + (
+		        least(
+		            300,
+		            power(2, least(greatest(coalesce(settlement_attempts, 0), 0), 9))::integer
+		        ) * interval '1 second'
+		    ),
+		    updated_at = now()
+		where id = $2 and status = $3
+	`, lastError, periodID, periodStatusDrawn)
+	return err
 }
 
 func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSettlementRecord) ([]int64, error) {
@@ -383,7 +407,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		       items
 		from bet_tickets
 		where period_id = $1 and status = $2
-		order by id asc
+		order by wallet_id asc, id asc
 		for update
 	`, period.ID, betStatusPending)
 	if err != nil {
@@ -464,7 +488,9 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			return nil, err
 		}
 		if compareNumeric(lockedAfter, "0") < 0 {
-			lockedAfter = "0"
+			err := fmt.Errorf("locked balance invariant violated: locked_before=%s original_amount=%s", lockedBefore, originalAmount)
+			log.Printf("[engine][period.settle.invariant] period_id=%d ticket_id=%d wallet_id=%d action=reject err=%v", period.ID, ticket.ID, ticket.WalletID, err)
+			return nil, err
 		}
 
 		balanceAfter, err := addNumeric(balanceBefore, payoutTotal)
@@ -472,14 +498,23 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=add_balance err=%v", period.ID, ticket.ID, err)
 			return nil, err
 		}
+		for field, amount := range map[string]string{
+			"payout_total":    payoutTotal,
+			"original_amount": originalAmount,
+		} {
+			if _, err := normalizeMoneyForStorage(amount); err != nil {
+				log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=validate_money field=%s value=%s err=%v", period.ID, ticket.ID, field, amount, err)
+				return nil, fmt.Errorf("settlement %s exceeds storage capacity: %w", field, err)
+			}
+		}
 
 		if _, err := tx.ExecContext(ctx, `
 			update wallets
-			set balance = balance + $1::numeric(20,8),
-			    locked_balance = locked_balance - $2::numeric(20,8),
+			set balance = $1::numeric,
+			    locked_balance = $2::numeric,
 			    updated_at = $3
 			where id = $4
-		`, payoutTotal, originalAmount, now, ticket.WalletID); err != nil {
+		`, balanceAfter, lockedAfter, now, ticket.WalletID); err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=update_wallet err=%v", period.ID, ticket.ID, err)
 			return nil, err
 		}
@@ -492,7 +527,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 			if _, err := tx.ExecContext(ctx, `
 				update bet_items
 				set result = $1,
-				    payout_amount = $2::numeric(20,8),
+				    payout_amount = $2::numeric(30,8),
 				    settled_at = $3,
 				    updated_at = $3
 				where ticket_id = $4
@@ -508,7 +543,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		if _, err := tx.ExecContext(ctx, `
 			update bet_tickets
 			set status = $1,
-			    actual_payout = $2::numeric(20,8),
+			    actual_payout = $2::numeric(30,8),
 			    settled_at = $3,
 			    updated_at = $3
 			where id = $4
@@ -527,7 +562,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 				ticket_id, period_id, settlement_type, before_status, after_status,
 				payout_amount, profit_loss, note, created_at
 			)
-			values ($1, $2, 1, $3, $4, $5::numeric(20,8), $6::numeric(20,8), $7, $8)
+			values ($1, $2, 1, $3, $4, $5::numeric(30,8), $6::numeric(30,8), $7, $8)
 		`, ticket.ID, period.ID, betStatusPending, statusAfter, payoutTotal, profitLoss, "Engine settlement tự động", now); err != nil {
 			log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=insert_settlement err=%v", period.ID, ticket.ID, err)
 			return nil, err
@@ -539,7 +574,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 					wallet_id, user_id, direction, amount, balance_before, balance_after,
 					reference_type, reference_id, note, created_at
 				)
-				values ($1, $2, 1, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8),
+				values ($1, $2, 1, $3::numeric(30,8), $4::numeric, $5::numeric,
 				        $6, $7, $8, $9)
 			`, ticket.WalletID, ticket.UserID, payoutTotal, balanceBefore, balanceAfter, "App\\Models\\Bet\\BetTicket", ticket.ID, "Cộng tiền thắng cược", now); err != nil {
 				log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=insert_ledger err=%v", period.ID, ticket.ID, err)
@@ -552,7 +587,7 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 					wallet_id, user_id, direction, amount, balance_before, balance_after,
 					reference_type, reference_id, note, created_at
 				)
-				values ($1, $2, 3, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8),
+				values ($1, $2, 3, $3::numeric(30,8), $4::numeric, $5::numeric,
 				        $6, $7, $8, $9)
 			`, ticket.WalletID, ticket.UserID, "0", balanceBefore, balanceAfter, "App\\Models\\Bet\\BetTicket", ticket.ID, "Giải phóng tiền cược (Thua)", now); err != nil {
 				log.Printf("[engine][period.settle.error] period_id=%d ticket_id=%d stage=insert_ledger_lost err=%v", period.ID, ticket.ID, err)
@@ -565,6 +600,9 @@ func (r *GameRepository) SettlePeriod(ctx context.Context, period GamePeriodSett
 		update game_periods
 		set status = $1,
 		    settled_at = $2,
+		    settlement_attempts = 0,
+		    settlement_last_error = null,
+		    settlement_next_retry_at = null,
 		    updated_at = $2
 		where id = $3 and status = $4
 	`, periodStatusSettled, now, period.ID, periodStatusDrawn); err != nil {

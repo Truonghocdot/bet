@@ -8,7 +8,9 @@ use App\Enum\Wallet\WalletStatus;
 use App\Models\User;
 use App\Models\Wallet\Wallet;
 use App\Models\Wallet\WalletLedgerEntry;
+use App\Support\Decimal;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class UserWalletBalanceService
 {
@@ -48,7 +50,7 @@ class UserWalletBalanceService
 
                 $balanceBefore = $this->normalizeDecimal($wallet->balance);
 
-                if (bccomp($balanceBefore, $targetBalance, 8) === 0) {
+                if (bccomp($balanceBefore, $targetBalance, Decimal::SCALE) === 0) {
                     continue;
                 }
 
@@ -57,12 +59,12 @@ class UserWalletBalanceService
                     'status' => WalletStatus::ACTIVE,
                 ])->save();
 
-                $delta = bcsub($targetBalance, $balanceBefore, 8);
+                $delta = bcsub($targetBalance, $balanceBefore, Decimal::SCALE);
 
                 WalletLedgerEntry::query()->create([
                     'wallet_id' => $wallet->id,
                     'user_id' => $user->id,
-                    'direction' => bccomp($delta, '0.00000000', 8) >= 0
+                    'direction' => bccomp($delta, Decimal::ZERO, Decimal::SCALE) >= 0
                         ? LedgerDirection::CREDIT
                         : LedgerDirection::DEBIT,
                     'amount' => $this->absoluteDecimal($delta),
@@ -81,8 +83,8 @@ class UserWalletBalanceService
     {
         $delta = $this->normalizeSignedDecimal($deltaValue);
 
-        if (bccomp($delta, '0.00000000', 8) === 0) {
-            return '0.00000000';
+        if (bccomp($delta, Decimal::ZERO, Decimal::SCALE) === 0) {
+            return Decimal::ZERO;
         }
 
         DB::transaction(function () use ($user, $unit, $delta, $actor): void {
@@ -108,7 +110,7 @@ class UserWalletBalanceService
             }
 
             $balanceBefore = $this->normalizeDecimal($wallet->balance);
-            $balanceAfter = $this->normalizeDecimal(bcadd($balanceBefore, $delta, 8));
+            $balanceAfter = $this->normalizeDecimal(bcadd($balanceBefore, $delta, Decimal::SCALE));
 
             $wallet->forceFill([
                 'balance' => $balanceAfter,
@@ -118,7 +120,7 @@ class UserWalletBalanceService
             WalletLedgerEntry::query()->create([
                 'wallet_id' => $wallet->id,
                 'user_id' => $user->id,
-                'direction' => bccomp($delta, '0.00000000', 8) >= 0
+                'direction' => bccomp($delta, Decimal::ZERO, Decimal::SCALE) >= 0
                     ? LedgerDirection::CREDIT
                     : LedgerDirection::DEBIT,
                 'amount' => $this->absoluteDecimal($delta),
@@ -169,24 +171,26 @@ class UserWalletBalanceService
 
     private function normalizeDecimal(mixed $value): string
     {
-        $normalized = str_replace([',', ' '], ['', ''], trim((string) $value));
-
-        if ($normalized === '' || ! is_numeric($normalized)) {
-            return '0.00000000';
+        $normalized = Decimal::normalize($value);
+        if ($normalized === null) {
+            throw ValidationException::withMessages([
+                'balance' => 'Số dư phải là số không âm với tối đa 8 chữ số thập phân.',
+            ]);
         }
 
-        return number_format((float) $normalized, 8, '.', '');
+        return $normalized;
     }
 
     private function normalizeSignedDecimal(mixed $value): string
     {
-        $normalized = str_replace([',', ' '], ['', ''], trim((string) $value));
-
-        if ($normalized === '' || ! preg_match('/^[+-]?\d+(?:\.\d+)?$/', $normalized)) {
-            return '0.00000000';
+        $normalized = Decimal::normalize($value, signed: true);
+        if ($normalized === null) {
+            throw ValidationException::withMessages([
+                'balance' => 'Số điều chỉnh phải có tối đa 8 chữ số thập phân.',
+            ]);
         }
 
-        return number_format((float) $normalized, 8, '.', '');
+        return $normalized;
     }
 
     private function absoluteDecimal(string $value): string

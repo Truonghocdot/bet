@@ -14,6 +14,7 @@ use App\Models\Transaction\Transaction;
 use App\Models\Transaction\WithdrawalRequest;
 use App\Models\User;
 use App\Models\Wallet\Wallet;
+use App\Services\Admin\DepositWorkflowService;
 use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
 
@@ -61,6 +62,31 @@ class FakeFinanceFeedHooksTest extends TestCase
             'approved_at' => now()->addMinute(),
         ]);
 
+        $this->assertDatabaseCount('fake_deposit_transactions', 1);
+    }
+
+    public function test_manual_deposit_approval_only_credits_once_for_stale_models(): void
+    {
+        $user = User::factory()->create();
+        $wallet = $this->createWallet($user);
+        $transaction = Transaction::query()->create([
+            'user_id' => $user->id,
+            'wallet_id' => $wallet->id,
+            'unit' => UnitTransaction::VND,
+            'type' => TypeTransaction::DEPOSIT,
+            'amount' => '150000.00000000',
+            'fee' => '0.00000000',
+            'net_amount' => '150000.00000000',
+            'status' => TransactionStatus::PENDING,
+        ]);
+        $staleTransaction = Transaction::query()->findOrFail($transaction->id);
+
+        $service = app(DepositWorkflowService::class);
+        self::assertTrue($service->approve($transaction));
+        self::assertFalse($service->approve($staleTransaction));
+
+        self::assertSame('150000.00000000', $wallet->fresh()->balance);
+        $this->assertDatabaseCount('wallet_ledger_entries', 1);
         $this->assertDatabaseCount('fake_deposit_transactions', 1);
     }
 
@@ -143,6 +169,7 @@ class FakeFinanceFeedHooksTest extends TestCase
         return [
             base_path('database/migrations/0001_01_01_000000_create_users_table.php'),
             base_path('database/migrations/2026_04_09_000002_create_wallets_table.php'),
+            base_path('database/migrations/2026_04_09_000003_create_wallet_ledger_entries_table.php'),
             base_path('database/migrations/2026_04_09_000004_create_transactions_table.php'),
             base_path('database/migrations/2026_04_09_000005_create_account_withdrawal_infos_table.php'),
             base_path('database/migrations/2026_04_09_000006_create_withdrawal_requests_table.php'),

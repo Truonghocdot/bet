@@ -40,6 +40,7 @@ var (
 	ErrPeriodNotFound          = errors.New(message.PeriodNotFound)
 	ErrPeriodNotOpen           = errors.New(message.PeriodNotOpen)
 	ErrPeriodBetLocked         = errors.New(message.PeriodBetLocked)
+	ErrInvalidBetAmount        = errors.New(message.BetAmountInvalid)
 )
 
 type GameRepository struct {
@@ -491,26 +492,38 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		return BetTicketRecord{}, ErrGameRoomNotFound
 	}
 
-	itemsJSON, err := json.Marshal(params.Items)
+	normalizedItems, itemsTotal, err := normalizeBetTicketItems(params.Items)
 	if err != nil {
 		return BetTicketRecord{}, err
 	}
 
-	stakeAmount, err := parseNumeric(params.TotalStake)
+	originalAmountDB, err := normalizeMoneyForStorage(params.TotalStake)
+	if err != nil {
+		return BetTicketRecord{}, fmt.Errorf("%w: %v", ErrInvalidBetAmount, err)
+	}
+	if originalAmountDB != itemsTotal {
+		return BetTicketRecord{}, fmt.Errorf("%w: item total does not match ticket total", ErrInvalidBetAmount)
+	}
+	itemsJSON, err := json.Marshal(normalizedItems)
 	if err != nil {
 		return BetTicketRecord{}, err
 	}
-	originalAmountDB := stakeAmount.FloatString(8)
+
 	taxAmountDB, netAmountDB, err := calculateBetTaxAndNet(originalAmountDB)
 	if err != nil {
-		return BetTicketRecord{}, err
+		return BetTicketRecord{}, fmt.Errorf("%w: %v", ErrInvalidBetAmount, err)
 	}
 	if compareNumeric(netAmountDB, "0") <= 0 {
-		return BetTicketRecord{}, fmt.Errorf("số tiền cược sau thuế không hợp lệ")
+		return BetTicketRecord{}, fmt.Errorf("%w: số tiền cược sau thuế không hợp lệ", ErrInvalidBetAmount)
 	}
-	potentialPayoutDB, err := estimateBetPotentialPayout(params.Items, taxAmountDB)
+	potentialPayoutDB, err := estimateBetPotentialPayout(normalizedItems, taxAmountDB)
 	if err != nil {
 		return BetTicketRecord{}, err
+	}
+	for _, amount := range []string{taxAmountDB, netAmountDB, potentialPayoutDB} {
+		if _, err := normalizeMoneyForStorage(amount); err != nil {
+			return BetTicketRecord{}, fmt.Errorf("%w: %v", ErrInvalidBetAmount, err)
+		}
 	}
 	log.Printf("[engine][bet.tax] room_code=%s original_amount=%s tax_amount=%s net_amount=%s potential_payout=%s", params.RoomCode, originalAmountDB, taxAmountDB, netAmountDB, potentialPayoutDB)
 
@@ -581,7 +594,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		return BetTicketRecord{}, ErrPeriodBetLocked
 	}
 
-	walletID, balanceBefore, _, err := r.lockWalletForBet(ctx, tx, params.UserID)
+	walletID, balanceBefore, lockedBefore, err := r.lockWalletForBet(ctx, tx, params.UserID)
 	if err != nil {
 		return BetTicketRecord{}, err
 	}
@@ -593,6 +606,18 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 	balanceAfter, err := subtractNumeric(balanceBefore, originalAmountDB)
 	if err != nil {
 		return BetTicketRecord{}, err
+	}
+	lockedAfter, err := addNumeric(lockedBefore, originalAmountDB)
+	if err != nil {
+		return BetTicketRecord{}, err
+	}
+
+	pendingPayout, err := r.pendingPotentialPayoutTx(ctx, tx, walletID)
+	if err != nil {
+		return BetTicketRecord{}, err
+	}
+	if _, err := normalizePendingPayoutExposure(pendingPayout, potentialPayoutDB); err != nil {
+		return BetTicketRecord{}, fmt.Errorf("%w: payout exposure exceeds storage capacity", ErrInvalidBetAmount)
 	}
 
 	ticketNo := buildTicketNo()
@@ -612,13 +637,13 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 		)
 		values (
 			$1, $2, $3, $4, $5, 1, $6,
-			$7, $8, $9::numeric(20,8), $9::numeric(20,8), $9::numeric(20,8), $10::numeric(20,8), $11::numeric(20,8), 1::numeric(14,6), $12::numeric(20,8),
+			$7, $8, $9::numeric(30,8), $9::numeric(30,8), $9::numeric(30,8), $10::numeric(30,8), $11::numeric(30,8), 1::numeric(14,6), $12::numeric(30,8),
 			$13, nullif($14, ''), nullif($15, ''), $16::jsonb, $17, $17
 		)
 		returning id, user_id, wallet_id, game_type, period_id, request_id, connection_id,
 		          total_stake::text, original_amount::text, tax_amount::text, net_amount::text,
 		          coalesce(actual_payout, 0)::text, status, items, created_at, updated_at
-	`, ticketNo, params.UserID, walletID, nullIfEmpty(params.RequestID), nullIfEmpty(params.ConnectionID), period.GameType, period.ID, betType, originalAmountDB, taxAmountDB, netAmountDB, potentialPayoutDB, betStatusPending, placedIP, placedDevice, itemsJSON, now)
+		`, ticketNo, params.UserID, walletID, nullIfEmpty(params.RequestID), nullIfEmpty(params.ConnectionID), period.GameType, period.ID, betType, originalAmountDB, taxAmountDB, netAmountDB, potentialPayoutDB, betStatusPending, placedIP, placedDevice, itemsJSON, now)
 
 	var record BetTicketRecord
 	if err := row.Scan(
@@ -667,15 +692,15 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 
 	if _, err := tx.ExecContext(ctx, `
 		update wallets
-		set balance = balance - $1::numeric(20,8),
-		    locked_balance = locked_balance + $1::numeric(20,8),
+		set balance = $1::numeric,
+		    locked_balance = $2::numeric,
 		    updated_at = now()
-		where id = $2
-	`, params.TotalStake, walletID); err != nil {
+		where id = $3
+	`, balanceAfter, lockedAfter, walletID); err != nil {
 		return BetTicketRecord{}, err
 	}
 
-	for _, item := range params.Items {
+	for _, item := range normalizedItems {
 		optionTypeValue := mapOptionType(item.OptionType)
 		stakeValue, err := parseNumeric(item.Stake)
 		if err != nil {
@@ -691,7 +716,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 			)
 			values (
 				$1, $2, $3, $4, $5,
-				1::numeric(12,4), $6::numeric(20,8), 1, $7, $7
+				1::numeric(12,4), $6::numeric(30,8), 1, $7, $7
 			)
 		`, record.ID, period.ID, optionTypeValue, optionKey, optionLabel, stakeValueDB, now); err != nil {
 			return BetTicketRecord{}, err
@@ -703,7 +728,7 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 			wallet_id, user_id, direction, amount, balance_before, balance_after,
 			reference_type, reference_id, note, created_at
 		)
-		values ($1, $2, 2, $3::numeric(20,8), $4::numeric(20,8), $5::numeric(20,8),
+		values ($1, $2, 2, $3::numeric(30,8), $4::numeric, $5::numeric,
 		        $6, $7, $8, now())
 	`, walletID, params.UserID, originalAmountDB, balanceBefore, balanceAfter, "App\\Models\\Bet\\BetTicket", record.ID, "Giảm số dư khả dụng khi đặt cược (khóa tiền)"); err != nil {
 		return BetTicketRecord{}, err
@@ -714,6 +739,46 @@ func (r *GameRepository) CreateBetTicket(ctx context.Context, params CreateBetTi
 	}
 
 	return record, nil
+}
+
+func normalizeBetTicketItems(items []BetTicketItemRecord) ([]BetTicketItemRecord, string, error) {
+	if len(items) == 0 {
+		return nil, "", fmt.Errorf("%w: no bet items", ErrInvalidBetAmount)
+	}
+
+	normalized := make([]BetTicketItemRecord, 0, len(items))
+	total := new(big.Rat)
+	for _, item := range items {
+		stake, err := normalizeBetStake(item.Stake)
+		if err != nil {
+			return nil, "", err
+		}
+		stakeValue, _ := parseNumeric(stake)
+		total.Add(total, stakeValue)
+		normalized = append(normalized, BetTicketItemRecord{
+			OptionType: strings.TrimSpace(item.OptionType),
+			OptionKey:  strings.TrimSpace(item.OptionKey),
+			Stake:      stake,
+		})
+	}
+
+	totalValue, err := normalizeMoneyForStorage(total.FloatString(moneyScale))
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %v", ErrInvalidBetAmount, err)
+	}
+	return normalized, totalValue, nil
+}
+
+func (r *GameRepository) pendingPotentialPayoutTx(ctx context.Context, tx *sql.Tx, walletID int64) (string, error) {
+	var pending string
+	if err := tx.QueryRowContext(ctx, `
+		select coalesce(sum(coalesce(potential_payout, 0)), 0)::text
+		from bet_tickets
+		where wallet_id = $1 and status = $2
+	`, walletID, betStatusPending).Scan(&pending); err != nil {
+		return "", err
+	}
+	return pending, nil
 }
 
 func (r *GameRepository) ListRoomBetTickets(ctx context.Context, userID int64, roomCode string, page, pageSize int) ([]BetTicketRecord, int, error) {

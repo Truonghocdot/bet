@@ -10,6 +10,7 @@ use App\Models\Transaction\Transaction;
 use App\Models\Transaction\WithdrawalRequest;
 use App\Models\User;
 use App\Models\Wallet\WalletLedgerEntry;
+use App\Support\Decimal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -18,7 +19,9 @@ class WithdrawalWorkflowService
     public function approve(WithdrawalRequest $request, User $actor): WithdrawalRequest
     {
         return DB::transaction(function () use ($request, $actor): WithdrawalRequest {
-            $request->refresh();
+            $request = WithdrawalRequest::query()
+                ->lockForUpdate()
+                ->findOrFail($request->getKey());
 
             if ($request->status !== WithdrawalStatus::PENDING) {
                 throw ValidationException::withMessages([
@@ -39,38 +42,51 @@ class WithdrawalWorkflowService
     public function reject(WithdrawalRequest $request, User $actor, ?string $reason = null): WithdrawalRequest
     {
         return DB::transaction(function () use ($request, $actor, $reason): WithdrawalRequest {
-            $request->refresh();
+            $request = WithdrawalRequest::query()
+                ->lockForUpdate()
+                ->findOrFail($request->getKey());
 
-            if (in_array($request->status, [WithdrawalStatus::PAID, WithdrawalStatus::CANCELED], true)) {
+            if (! in_array($request->status, [WithdrawalStatus::PENDING, WithdrawalStatus::APPROVED], true)) {
                 throw ValidationException::withMessages([
                     'status' => 'Yêu cầu rút đã được xử lý xong, không thể từ chối.',
                 ]);
             }
 
             $wallet = $request->wallet()->lockForUpdate()->first();
-            if ($wallet) {
-                $balanceBefore = $wallet->balance;
-                $lockedBefore = $wallet->locked_balance;
-
-                // Hoàn tiền: Cộng lại vào balance khả dụng, trừ ở tiền khóa
-                $wallet->forceFill([
-                    'balance' => $balanceBefore + $request->amount,
-                    'locked_balance' => max(0, $lockedBefore - $request->amount),
-                ])->save();
-
-                WalletLedgerEntry::create([
-                    'wallet_id' => $wallet->id,
-                    'user_id' => $request->user_id,
-                    'direction' => LedgerDirection::CREDIT,
-                    'amount' => $request->amount,
-                    'balance_before' => $balanceBefore,
-                    'balance_after' => $balanceBefore + $request->amount,
-                    'reference_type' => WithdrawalRequest::class,
-                    'reference_id' => $request->id,
-                    'note' => 'Hoàn tiền do từ chối yêu cầu rút',
-                    'created_at' => now(),
+            if (! $wallet) {
+                throw ValidationException::withMessages([
+                    'wallet' => 'Không tìm thấy ví của yêu cầu rút.',
                 ]);
             }
+
+            $balanceBefore = $this->normalizeDecimal($wallet->balance, 'balance');
+            $lockedBefore = $this->normalizeDecimal($wallet->locked_balance, 'locked_balance');
+            $amount = $this->normalizeDecimal($request->amount, 'amount');
+            if (bccomp($lockedBefore, $amount, Decimal::SCALE) < 0) {
+                throw ValidationException::withMessages([
+                    'locked_balance' => 'Số dư khóa không đủ để từ chối và hoàn tiền yêu cầu rút.',
+                ]);
+            }
+
+            $balanceAfter = bcadd($balanceBefore, $amount, Decimal::SCALE);
+            $lockedAfter = bcsub($lockedBefore, $amount, Decimal::SCALE);
+            $wallet->forceFill([
+                'balance' => $balanceAfter,
+                'locked_balance' => $lockedAfter,
+            ])->save();
+
+            WalletLedgerEntry::create([
+                'wallet_id' => $wallet->id,
+                'user_id' => $request->user_id,
+                'direction' => LedgerDirection::CREDIT,
+                'amount' => $amount,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'reference_type' => WithdrawalRequest::class,
+                'reference_id' => $request->id,
+                'note' => 'Hoàn tiền do từ chối yêu cầu rút',
+                'created_at' => now(),
+            ]);
 
             $request->forceFill([
                 'status' => WithdrawalStatus::REJECTED,
@@ -90,7 +106,9 @@ class WithdrawalWorkflowService
         ?string $proofPath = null,
     ): WithdrawalRequest {
         return DB::transaction(function () use ($request, $actor, $transferReference, $proofPath): WithdrawalRequest {
-            $request->refresh();
+            $request = WithdrawalRequest::query()
+                ->lockForUpdate()
+                ->findOrFail($request->getKey());
 
             if ($request->status !== WithdrawalStatus::APPROVED) {
                 throw ValidationException::withMessages([
@@ -99,28 +117,38 @@ class WithdrawalWorkflowService
             }
 
             $wallet = $request->wallet()->lockForUpdate()->first();
-            if ($wallet) {
-                $balanceBefore = $wallet->balance;
-                $lockedBefore = $wallet->locked_balance;
-
-                // Khi chi trả: Tiền khóa "bay màu", balance khả dụng giữ nguyên (vì đã trừ lúc tạo lệnh)
-                $wallet->forceFill([
-                    'locked_balance' => max(0, $lockedBefore - $request->amount),
-                ])->save();
-
-                WalletLedgerEntry::create([
-                    'wallet_id' => $wallet->id,
-                    'user_id' => $request->user_id,
-                    'direction' => LedgerDirection::NEUTRAL, // Trung tính vì balance khả dụng không đổi thêm
-                    'amount' => $request->amount,
-                    'balance_before' => $balanceBefore,
-                    'balance_after' => $balanceBefore,
-                    'reference_type' => WithdrawalRequest::class,
-                    'reference_id' => $request->id,
-                    'note' => 'Giải phóng tiền khóa: Đã chi trả xong lệnh rút',
-                    'created_at' => now(),
+            if (! $wallet) {
+                throw ValidationException::withMessages([
+                    'wallet' => 'Không tìm thấy ví của yêu cầu rút.',
                 ]);
             }
+
+            $balanceBefore = $this->normalizeDecimal($wallet->balance, 'balance');
+            $lockedBefore = $this->normalizeDecimal($wallet->locked_balance, 'locked_balance');
+            $amount = $this->normalizeDecimal($request->amount, 'amount');
+            if (bccomp($lockedBefore, $amount, Decimal::SCALE) < 0) {
+                throw ValidationException::withMessages([
+                    'locked_balance' => 'Số dư khóa không đủ để xác nhận đã chi trả yêu cầu rút.',
+                ]);
+            }
+
+            $lockedAfter = bcsub($lockedBefore, $amount, Decimal::SCALE);
+            $wallet->forceFill([
+                'locked_balance' => $lockedAfter,
+            ])->save();
+
+            WalletLedgerEntry::create([
+                'wallet_id' => $wallet->id,
+                'user_id' => $request->user_id,
+                'direction' => LedgerDirection::NEUTRAL,
+                'amount' => $amount,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceBefore,
+                'reference_type' => WithdrawalRequest::class,
+                'reference_id' => $request->id,
+                'note' => 'Giải phóng tiền khóa: Đã chi trả xong lệnh rút',
+                'created_at' => now(),
+            ]);
 
             Transaction::create([
                 'user_id' => $request->user_id,
@@ -148,5 +176,17 @@ class WithdrawalWorkflowService
 
             return $request->refresh();
         });
+    }
+
+    private function normalizeDecimal(mixed $value, string $field): string
+    {
+        $normalized = Decimal::normalize($value);
+        if ($normalized === null) {
+            throw ValidationException::withMessages([
+                $field => 'Giá trị tiền không hợp lệ hoặc có quá 8 chữ số thập phân.',
+            ]);
+        }
+
+        return $normalized;
     }
 }

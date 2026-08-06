@@ -19,6 +19,7 @@ type Config struct {
 	DBConnMaxLifetime                time.Duration
 	DBConnMaxIdleTime                time.Duration
 	DatabaseURL                      string
+	EngineSettlementEnabled          bool
 	AuthSecret                       string
 	AuthTTL                          time.Duration
 	RegisterURL                      string
@@ -73,6 +74,7 @@ func LoadConfig() Config {
 		DBConnMaxLifetime:                getEnvDuration("DB_CONN_MAX_LIFETIME", 30*time.Minute),
 		DBConnMaxIdleTime:                getEnvDuration("DB_CONN_MAX_IDLE_TIME", 5*time.Minute),
 		DatabaseURL:                      getEnv("DATABASE_URL", ""),
+		EngineSettlementEnabled:          getEnvBool("ENGINE_SETTLEMENT_ENABLED", true),
 		AuthSecret:                       getEnv("AUTH_TOKEN_SECRET", ""),
 		AuthTTL:                          getEnvDuration("AUTH_TOKEN_TTL", 24*time.Hour),
 		RegisterURL:                      getEnv("PUBLIC_REGISTER_URL", "http://localhost:3000/register"),

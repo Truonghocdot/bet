@@ -16,18 +16,23 @@ class DepositWorkflowService
      */
     public function approve(Transaction $transaction): bool
     {
-        if ($transaction->status !== TransactionStatus::PENDING) {
-            return false;
-        }
-
         return DB::transaction(function () use ($transaction) {
-            $wallet = $transaction->wallet;
+            $transaction = Transaction::query()
+                ->lockForUpdate()
+                ->findOrFail($transaction->getKey());
+
+            if ($transaction->status !== TransactionStatus::PENDING) {
+                return false;
+            }
 
             // Khóa ví để cập nhật số dư an toàn
             $wallet = DB::table('wallets')
-                ->where('id', $wallet->id)
+                ->where('id', $transaction->wallet_id)
                 ->lockForUpdate()
                 ->first();
+            if (! $wallet) {
+                return false;
+            }
 
             $balanceBefore = $wallet->balance;
             $balanceAfter = bcadd($balanceBefore, $transaction->amount, 8);
@@ -70,15 +75,21 @@ class DepositWorkflowService
      */
     public function reject(Transaction $transaction, ?string $reason = null): bool
     {
-        if ($transaction->status !== TransactionStatus::PENDING) {
-            return false;
-        }
+        return DB::transaction(function () use ($transaction, $reason): bool {
+            $transaction = Transaction::query()
+                ->lockForUpdate()
+                ->findOrFail($transaction->getKey());
 
-        return $transaction->update([
-            'status' => TransactionStatus::FAILED,
-            'reason_failed' => $reason ?? 'Quản trị viên từ chối lệnh nạp',
-            'approved_by' => Auth::id(),
-            'approved_at' => now(),
-        ]);
+            if ($transaction->status !== TransactionStatus::PENDING) {
+                return false;
+            }
+
+            return $transaction->update([
+                'status' => TransactionStatus::FAILED,
+                'reason_failed' => $reason ?? 'Quản trị viên từ chối lệnh nạp',
+                'approved_by' => Auth::id(),
+                'approved_at' => now(),
+            ]);
+        });
     }
 }

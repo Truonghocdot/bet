@@ -120,13 +120,13 @@ type wsRoomEventPayload struct {
 }
 
 type wsRoomActionPayload struct {
-	Action    string         `json:"action"`
-	RequestID string         `json:"request_id"`
-	PeriodID  string         `json:"period_id"`
-	ConnectionID string      `json:"connection_id"`
-	Page      int            `json:"page"`
-	PageSize  int            `json:"page_size"`
-	Items     []game.BetItem `json:"items"`
+	Action       string         `json:"action"`
+	RequestID    string         `json:"request_id"`
+	PeriodID     string         `json:"period_id"`
+	ConnectionID string         `json:"connection_id"`
+	Page         int            `json:"page"`
+	PageSize     int            `json:"page_size"`
+	Items        []game.BetItem `json:"items"`
 }
 
 var playWSUpgrader = websocket.Upgrader{
@@ -252,13 +252,13 @@ func (h *PlayRoomHandler) RoomStateWS(w http.ResponseWriter, r *http.Request) {
 				_ = conn.WriteJSON(wsRoomEventPayload{
 					Event: "history.page",
 					Data: map[string]any{
-						"request_id": action.RequestID,
-						"message":    response.Message,
-						"page":       response.Page,
-						"page_size":  response.PageSize,
-						"total":      response.Total,
+						"request_id":  action.RequestID,
+						"message":     response.Message,
+						"page":        response.Page,
+						"page_size":   response.PageSize,
+						"total":       response.Total,
 						"total_pages": response.TotalPages,
-						"items":      response.Items,
+						"items":       response.Items,
 					},
 				})
 			case "place_bet":
@@ -467,8 +467,8 @@ func (h *PlayRoomHandler) handlePlaceBetAction(
 		userClaims.UserID,
 		roomCode,
 		req,
-		"",            // X-Forwarded-For (not available from WebSocket)
-		"WebSocket",   // User-Agent
+		"",          // X-Forwarded-For (not available from WebSocket)
+		"WebSocket", // User-Agent
 		connectionID,
 	)
 
@@ -588,6 +588,8 @@ func playRoomErrorMessage(err error) string {
 		return message.PeriodBetLocked
 	case errors.Is(err, repopg.ErrInsufficientBetBalance):
 		return message.InsufficientBalanceBet
+	case errors.Is(err, repopg.ErrInvalidBetAmount):
+		return message.BetAmountInvalid
 	case errors.Is(err, repopg.ErrInsufficientPlayBalance):
 		return message.InsufficientBalancePlay
 	default:

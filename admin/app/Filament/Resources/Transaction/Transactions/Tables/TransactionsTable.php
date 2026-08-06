@@ -8,6 +8,7 @@ use App\Enum\User\RoleUser;
 use App\Enum\Wallet\LedgerDirection;
 use App\Models\Transaction\Transaction;
 use App\Models\Wallet\WalletLedgerEntry;
+use App\Support\Decimal;
 use App\Support\Filament\EnumPresenter;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
@@ -190,7 +191,9 @@ class TransactionsTable
     private static function updateTransactionRecord(Transaction $record, array $data): void
     {
         DB::transaction(function () use ($record, $data): void {
-            $record->refresh();
+            $record = Transaction::query()
+                ->lockForUpdate()
+                ->findOrFail($record->getKey());
 
             $currentAmount = self::normalizeDecimal($record->amount);
             $newAmount = self::normalizeDecimal($data['amount'] ?? $record->amount);
@@ -272,13 +275,14 @@ class TransactionsTable
 
     private static function normalizeDecimal(mixed $value): string
     {
-        $normalized = str_replace([',', ' '], ['', ''], trim((string) $value));
-
-        if ($normalized === '' || ! is_numeric($normalized)) {
-            return '0.00000000';
+        $normalized = Decimal::normalize($value);
+        if ($normalized === null) {
+            throw ValidationException::withMessages([
+                'amount' => 'Số tiền phải là số không âm với tối đa 8 chữ số thập phân.',
+            ]);
         }
 
-        return number_format((float) $normalized, 8, '.', '');
+        return $normalized;
     }
 
     private static function absoluteDecimal(string $value): string

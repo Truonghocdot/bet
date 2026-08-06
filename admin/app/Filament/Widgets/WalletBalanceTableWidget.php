@@ -7,6 +7,7 @@ use App\Enum\User\UserStatus;
 use App\Enum\Wallet\UnitTransaction;
 use App\Models\User;
 use App\Services\Admin\UserWalletBalanceService;
+use App\Support\Decimal;
 use App\Support\Filament\EnumPresenter;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
@@ -204,12 +205,17 @@ class WalletBalanceTableWidget extends TableWidget
 
     private function normalizeDecimal(mixed $value): string
     {
-        $normalized = str_replace([',', ' '], ['', ''], trim((string) $value));
-
-        if ($normalized === '' || ! is_numeric($normalized)) {
-            return '0.00000000';
+        if ($value === null || trim((string) $value) === '') {
+            return Decimal::ZERO;
         }
 
-        return number_format((float) $normalized, 8, '.', '');
+        $normalized = Decimal::normalize($value);
+        if ($normalized === null) {
+            throw ValidationException::withMessages([
+                'state' => 'Số dư phải là số không âm với tối đa 8 chữ số thập phân.',
+            ]);
+        }
+
+        return $normalized;
     }
 }

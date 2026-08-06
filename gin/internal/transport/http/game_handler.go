@@ -163,6 +163,8 @@ func gameErrorMessage(err error) string {
 		return message.PeriodBetLocked
 	case errors.Is(err, repopg.ErrInsufficientBetBalance):
 		return message.InsufficientBalanceBet
+	case errors.Is(err, repopg.ErrInvalidBetAmount):
+		return message.BetAmountInvalid
 	case errors.Is(err, repopg.ErrInsufficientPlayBalance):
 		return message.InsufficientBalancePlay
 	default:
