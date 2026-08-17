@@ -39,7 +39,7 @@ let reconnectTimer: number | null = null
 let stopped = false
 
 const canSend = computed(() => body.value.trim().length > 0 && body.value.length <= 280 && !sending.value)
-const connectionLabel = computed(() => connected.value ? 'Đang kết nối' : 'Đang kết nối lại')
+const connectionLabel = computed(() => connected.value ? 'Nghiêm cấm cung cấp thông tin và quảng bá.' : 'Đang kết nối lại')
 
 function close() {
   if (props.popup) emit('close')
@@ -192,7 +192,7 @@ onBeforeUnmount(() => {
       : 'mx-auto flex min-h-[calc(100dvh-11rem)] w-full max-w-3xl flex-col bg-white pb-4'"
     :role="props.popup ? 'dialog' : undefined"
     :aria-modal="props.popup ? 'true' : undefined"
-    aria-label="Chat Global"
+    aria-label="Chat"
     @click.self="close"
   >
     <div
