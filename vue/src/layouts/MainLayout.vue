@@ -8,6 +8,7 @@ import { formatViMoney } from '@/shared/lib/money'
 import { useLoading } from '@/shared/lib/loading'
 import { request } from '@/shared/api/http'
 import { env } from '@/shared/config/env'
+import ChatView from '@/pages/ChatView.vue'
 import bottomNavLeftArt from '@/assets/bottom/icon_btm_jr.avif'
 import bottomNavRightArt from '@/assets/bottom/icon_btm_jr2.avif'
 import defaultHeaderLogo from '@/assets/logo-mobile.webp'
@@ -20,6 +21,7 @@ const wallet = useWalletStore()
 const { isLoading, setLoading } = useLoading()
 
 const isDrawerOpen = ref(false)
+const isChatOpen = ref(false)
 type PopupSlot = 'message' | 'latest_news'
 type PopupItem = {
   slot: PopupSlot
@@ -82,6 +84,8 @@ const isActive = (path: string) => {
 }
 
 const isNavItemActive = (item: { to: string; query?: Record<string, string> }) => {
+  if (item.to === '/chat') return isChatOpen.value
+
   if (!isActive(item.to)) return false
 
   if (item.to === '/promotion' && item.query?.tab) {
@@ -168,6 +172,20 @@ function copyReferralLink() {
 
 function openDrawer() { isDrawerOpen.value = true }
 function closeDrawer() { isDrawerOpen.value = false }
+
+function openChat() {
+  closeDrawer()
+  if (!auth.isAuthenticated) {
+    void router.push({ name: 'auth', query: { next: route.fullPath } })
+    return
+  }
+
+  isChatOpen.value = true
+}
+
+function closeChat() {
+  isChatOpen.value = false
+}
 
 function popupStorageKey(slot: PopupSlot): string {
   return `fh88u:popup:dismissed:${auth.user?.id ?? 0}:${slot}`
@@ -256,6 +274,10 @@ function closeActivePopup() {
 
 function navigateDrawer(target: RouteLocationRaw) {
   closeDrawer()
+  if (typeof target !== 'string' && target.path === '/chat') {
+    openChat()
+    return
+  }
   setLoading(true)
   void router.push(target).finally(() => {
     setTimeout(() => setLoading(false), 300)
@@ -311,11 +333,25 @@ async function syncRealtimeState() {
 watch(
   () => auth.isAuthenticated,
   () => {
+    if (!auth.isAuthenticated) closeChat()
     void syncRealtimeState()
     syncPopupQueue()
   },
   { immediate: true },
 )
+
+watch(isChatOpen, (open) => {
+  if (typeof document === 'undefined') return
+  document.body.classList.toggle('overflow-hidden', open)
+})
+
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && isChatOpen.value) closeChat()
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', handleGlobalKeydown)
+}
 
 watch(
   () => [wallet.summary?.popup?.message, wallet.summary?.popup?.latest_news] as const,
@@ -326,6 +362,8 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  closeChat()
+  if (typeof window !== 'undefined') window.removeEventListener('keydown', handleGlobalKeydown)
   wallet.disconnectStream()
   notifications.disconnectStream()
 })
@@ -436,6 +474,8 @@ onBeforeUnmount(() => {
       </div>
     </Transition>
 
+    <ChatView v-if="isChatOpen" popup @close="closeChat" />
+
     <!-- ===== MAIN COLUMN ===== -->
     <div class="app-main-col">
 
@@ -517,16 +557,28 @@ onBeforeUnmount(() => {
       <nav class="bottom-nav" :style="bottomNavGridStyle">
         <img :src="bottomNavLeftArt" alt="" class="bottom-nav__side-art bottom-nav__side-art--left" aria-hidden="true" />
         <img :src="bottomNavRightArt" alt="" class="bottom-nav__side-art bottom-nav__side-art--right" aria-hidden="true" />
-        <RouterLink
-          v-for="item in primaryNavItems"
-          :key="`${item.to}-${item.query?.tab ?? 'default'}`"
-          :to="{ path: item.to, query: item.query }"
-          class="bottom-nav__item"
-          :class="{ 'is-active': isNavItemActive(item) }"
-        >
-          <span class="material-symbols-outlined bottom-nav__icon">{{ item.icon }}</span>
-          <span class="bottom-nav__label">{{ item.label }}</span>
-        </RouterLink>
+        <template v-for="item in primaryNavItems" :key="`${item.to}-${item.query?.tab ?? 'default'}`">
+          <button
+            v-if="item.to === '/chat'"
+            type="button"
+            class="bottom-nav__item"
+            :class="{ 'is-active': isNavItemActive(item) }"
+            aria-label="Mở chat"
+            @click="openChat"
+          >
+            <span class="material-symbols-outlined bottom-nav__icon">{{ item.icon }}</span>
+            <span class="bottom-nav__label">{{ item.label }}</span>
+          </button>
+          <RouterLink
+            v-else
+            :to="{ path: item.to, query: item.query }"
+            class="bottom-nav__item"
+            :class="{ 'is-active': isNavItemActive(item) }"
+          >
+            <span class="material-symbols-outlined bottom-nav__icon">{{ item.icon }}</span>
+            <span class="bottom-nav__label">{{ item.label }}</span>
+          </RouterLink>
+        </template>
       </nav>
     </div>
 

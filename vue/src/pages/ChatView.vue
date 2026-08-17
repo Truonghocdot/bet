@@ -18,6 +18,11 @@ type ChatHistoryResponse = {
   next_cursor?: number | null
 }
 
+const props = withDefaults(defineProps<{ popup?: boolean }>(), {
+  popup: false,
+})
+const emit = defineEmits<{ close: [] }>()
+
 const auth = useAuthStore()
 const messages = ref<ChatMessage[]>([])
 const nextCursor = ref<number | null>(null)
@@ -35,6 +40,10 @@ let stopped = false
 
 const canSend = computed(() => body.value.trim().length > 0 && body.value.length <= 280 && !sending.value)
 const connectionLabel = computed(() => connected.value ? 'Đang kết nối' : 'Đang kết nối lại')
+
+function close() {
+  if (props.popup) emit('close')
+}
 
 function mergeMessages(items: ChatMessage[], mode: 'replace' | 'prepend' | 'append') {
   const byID = new Map(messages.value.map((item) => [item.id, item]))
@@ -177,48 +186,67 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="mx-auto flex min-h-[calc(100dvh-11rem)] w-full max-w-3xl flex-col bg-white pb-4">
-    <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-      <div class="min-w-0">
-        <h1 class="text-[1rem] font-bold text-slate-900">Chat Global</h1>
-        <p class="mt-0.5 text-[0.72rem] text-slate-500">{{ connectionLabel }}</p>
-      </div>
-      <span class="h-2.5 w-2.5 rounded-full" :class="connected ? 'bg-emerald-500' : 'bg-amber-400'" aria-hidden="true" />
-    </header>
-
-    <p v-if="error" class="mx-4 mt-3 border border-red-200 bg-red-50 px-3 py-2 text-[0.8rem] text-red-700">
-      {{ error }}
-    </p>
-
-    <div ref="messageList" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" @scroll="handleScroll">
-      <div v-if="loading" class="py-12 text-center text-[0.82rem] text-slate-500">Đang tải tin nhắn...</div>
-      <button v-else-if="nextCursor" type="button" class="mx-auto block text-[0.78rem] font-semibold text-primary" :disabled="loadingOlder" @click="loadOlder">
-        {{ loadingOlder ? 'Đang tải...' : 'Tải tin cũ hơn' }}
-      </button>
-      <p v-else-if="!messages.length" class="py-12 text-center text-[0.82rem] text-slate-500">Chưa có tin nhắn nào.</p>
-
-      <article v-for="message in messages" :key="message.id" class="flex gap-2.5">
-        <div class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500">
-          <span class="material-symbols-outlined text-[1rem]">person</span>
-        </div>
+  <section
+    :class="props.popup
+      ? 'fixed inset-0 z-[120] flex items-end bg-black/45 p-2 backdrop-blur-sm sm:items-center sm:justify-center'
+      : 'mx-auto flex min-h-[calc(100dvh-11rem)] w-full max-w-3xl flex-col bg-white pb-4'"
+    :role="props.popup ? 'dialog' : undefined"
+    :aria-modal="props.popup ? 'true' : undefined"
+    aria-label="Chat Global"
+    @click.self="close"
+  >
+    <div
+      :class="props.popup
+        ? 'flex h-[min(680px,calc(100dvh-1rem))] w-full max-w-md flex-col overflow-hidden rounded-t-[8px] bg-white shadow-2xl sm:rounded-[8px]'
+        : 'flex min-h-[calc(100dvh-11rem)] w-full flex-col'"
+    >
+      <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
         <div class="min-w-0">
-          <div class="flex items-baseline gap-2">
-            <strong class="truncate text-[0.78rem] font-semibold text-slate-800">{{ message.display_name }}</strong>
-            <time class="shrink-0 text-[0.67rem] text-slate-400">{{ new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) }}</time>
-          </div>
-          <p class="mt-1 whitespace-pre-wrap break-words text-[0.88rem] leading-5 text-slate-700">{{ message.body }}</p>
+          <h1 class="text-[1rem] font-bold text-slate-900">Chat Global</h1>
+          <p class="mt-0.5 text-[0.72rem] text-slate-500">{{ connectionLabel }}</p>
         </div>
-      </article>
-    </div>
+        <div class="flex items-center gap-3">
+          <span class="h-2.5 w-2.5 rounded-full" :class="connected ? 'bg-emerald-500' : 'bg-amber-400'" aria-hidden="true" />
+          <button v-if="props.popup" type="button" class="grid h-9 w-9 place-items-center text-slate-500 transition-colors hover:bg-slate-100" aria-label="Đóng chat" @click="close">
+            <span class="material-symbols-outlined text-[1.1rem]">close</span>
+          </button>
+        </div>
+      </header>
 
-    <form class="border-t border-slate-200 px-4 py-3" @submit.prevent="send">
-      <div class="flex items-end gap-2">
-        <textarea v-model="body" rows="2" maxlength="280" class="min-h-11 flex-1 resize-none border border-slate-300 bg-white px-3 py-2 text-[0.88rem] text-slate-900 outline-none focus:border-primary" placeholder="Nhập tin nhắn" :disabled="sending" />
-        <button type="submit" class="grid h-11 w-11 shrink-0 place-items-center bg-primary text-white disabled:opacity-50" :disabled="!canSend" aria-label="Gửi tin nhắn">
-          <span class="material-symbols-outlined">send</span>
+      <p v-if="error" class="mx-4 mt-3 border border-red-200 bg-red-50 px-3 py-2 text-[0.8rem] text-red-700">
+        {{ error }}
+      </p>
+
+      <div ref="messageList" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" @scroll="handleScroll">
+        <div v-if="loading" class="py-12 text-center text-[0.82rem] text-slate-500">Đang tải tin nhắn...</div>
+        <button v-else-if="nextCursor" type="button" class="mx-auto block text-[0.78rem] font-semibold text-primary" :disabled="loadingOlder" @click="loadOlder">
+          {{ loadingOlder ? 'Đang tải...' : 'Tải tin cũ hơn' }}
         </button>
+        <p v-else-if="!messages.length" class="py-12 text-center text-[0.82rem] text-slate-500">Chưa có tin nhắn nào.</p>
+
+        <article v-for="message in messages" :key="message.id" class="flex gap-2.5">
+          <div class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500">
+            <span class="material-symbols-outlined text-[1rem]">person</span>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-baseline gap-2">
+              <strong class="truncate text-[0.78rem] font-semibold text-slate-800">{{ message.display_name }}</strong>
+              <time class="shrink-0 text-[0.67rem] text-slate-400">{{ new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) }}</time>
+            </div>
+            <p class="mt-1 whitespace-pre-wrap break-words text-[0.88rem] leading-5 text-slate-700">{{ message.body }}</p>
+          </div>
+        </article>
       </div>
-      <div class="mt-1 text-right text-[0.68rem] text-slate-400">{{ body.length }}/280</div>
-    </form>
+
+      <form class="border-t border-slate-200 px-4 py-3" @submit.prevent="send">
+        <div class="flex items-end gap-2">
+          <textarea v-model="body" rows="2" maxlength="280" class="min-h-11 flex-1 resize-none border border-slate-300 bg-white px-3 py-2 text-[0.88rem] text-slate-900 outline-none focus:border-primary" placeholder="Nhập tin nhắn" :disabled="sending" />
+          <button type="submit" class="grid h-11 w-11 shrink-0 place-items-center bg-primary text-white disabled:opacity-50" :disabled="!canSend" aria-label="Gửi tin nhắn">
+            <span class="material-symbols-outlined">send</span>
+          </button>
+        </div>
+        <div class="mt-1 text-right text-[0.68rem] text-slate-400">{{ body.length }}/280</div>
+      </form>
+    </div>
   </section>
 </template>
