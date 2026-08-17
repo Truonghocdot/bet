@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { env } from '@/shared/config/env'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { useAuthStore } from '@/stores/auth'
@@ -74,6 +75,12 @@ const routes: RouteRecordRaw[] = [
     name: 'notifications',
     component: () => import('../pages/NotificationsView.vue'),
     meta: { layout: 'main', title: 'Thông báo', requiresAuth: true },
+  },
+  {
+    path: '/chat',
+    name: 'chat',
+    component: () => import('../pages/ChatView.vue'),
+    meta: { layout: 'main', title: 'Chat Global', requiresAuth: true },
   },
   {
     path: '/news/:slug',
@@ -172,6 +179,10 @@ router.beforeEach((to) => {
   }
 
   // Client auth check
+  if (to.name === 'chat' && !env.chatGlobalEnabled) {
+    return { name: 'home' }
+  }
+
   if (to.meta.requiresAuth && !isAuthenticated) {
     return { name: 'auth' }
   }

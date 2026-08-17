@@ -20,6 +20,14 @@ Schedule::command('finance:generate-fake-transactions')
     ->everyFiveSeconds()
     ->withoutOverlapping();
 
+Schedule::command('chat:generate-bot-message')
+    ->everyTwentySeconds()
+    ->withoutOverlapping();
+
+Schedule::command('chat:prune')
+    ->dailyAt('03:10')
+    ->withoutOverlapping();
+
 Schedule::command('backup:create --prune')
     ->dailyAt((string) config('backup.schedule', '02:15'))
     ->withoutOverlapping(180);

@@ -26,6 +26,7 @@ func NewRouter(
 	playRoomService *service.PlayRoomService,
 	depositService *service.DepositService,
 	withdrawalService *service.WithdrawalService,
+	chatService *service.ChatService,
 	broker *realtime.Broker,
 	gameRepository *repopg.GameRepository,
 	redis *redis.Client,
@@ -45,6 +46,7 @@ func NewRouter(
 	playRoomHandler := NewPlayRoomHandler(playRoomService, broker)
 	depositHandler := NewDepositHandler(depositService, internalToken)
 	withdrawalHandler := NewWithdrawalHandler(withdrawalService)
+	chatHandler := NewChatHandler(chatService, broker)
 	mediaHandler := NewMediaHandler(popupVideoPath)
 	adminHandler := NewAdminHandler(gameRepository, broker, redis, authService)
 	authSSOHandler := NewAuthSSOHandler(authService, redis)
@@ -71,6 +73,9 @@ func NewRouter(
 	mux.Handle("POST /v1/wallets/exchange", authn.Require(http.HandlerFunc(walletHandler.Exchange)))
 	mux.Handle("GET /v1/wallets/stream", authn.Require(http.HandlerFunc(walletHandler.Stream)))
 	mux.Handle("GET /v1/notifications", authn.Require(http.HandlerFunc(notificationHandler.List)))
+	mux.Handle("GET /v1/chat/global/messages", authn.Require(http.HandlerFunc(chatHandler.List)))
+	mux.Handle("POST /v1/chat/global/messages", authn.Require(http.HandlerFunc(chatHandler.Create)))
+	mux.Handle("GET /v1/chat/global/ws", authn.Require(http.HandlerFunc(chatHandler.WebSocket)))
 	mux.Handle("GET /v1/notifications/stream", authn.Require(http.HandlerFunc(notificationHandler.Stream)))
 	mux.Handle("POST /v1/notifications/{id}/read", authn.Require(http.HandlerFunc(notificationHandler.MarkRead)))
 	mux.Handle("POST /v1/notifications/{id}/respond", authn.Require(http.HandlerFunc(notificationHandler.Respond)))

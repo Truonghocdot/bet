@@ -7,6 +7,7 @@ import { useWalletStore } from '@/stores/wallet'
 import { formatViMoney } from '@/shared/lib/money'
 import { useLoading } from '@/shared/lib/loading'
 import { request } from '@/shared/api/http'
+import { env } from '@/shared/config/env'
 import bottomNavLeftArt from '@/assets/bottom/icon_btm_jr.avif'
 import bottomNavRightArt from '@/assets/bottom/icon_btm_jr2.avif'
 import defaultHeaderLogo from '@/assets/logo-mobile.webp'
@@ -43,16 +44,24 @@ const activePopupHtml = computed(() => {
   return escapeHtml(content).replace(/\r\n|\r|\n/g, '<br>')
 })
 
-const primaryNavItems = [
-  { label: 'Trang chủ', icon: 'home', to: '/home' },
-  { label: 'Đại lý', icon: 'handshake', to: '/promotion', query: { tab: 'affiliate' } },
-  { label: 'Ưu đãi', icon: 'redeem', to: '/promotion', query: { tab: 'promotion' } },
-  { label: 'Vào chơi', icon: 'sports_esports', to: '/play' },
-  { label: 'CSKH', icon: 'support_agent', to: '/cskh' },
-]
+const primaryNavItems = computed(() => {
+  const items = [
+    { label: 'Trang chủ', icon: 'home', to: '/home' },
+    { label: 'Đại lý', icon: 'handshake', to: '/promotion', query: { tab: 'affiliate' } },
+    { label: 'Ưu đãi', icon: 'redeem', to: '/promotion', query: { tab: 'promotion' } },
+    { label: 'Vào chơi', icon: 'sports_esports', to: '/play' },
+    { label: 'CSKH', icon: 'support_agent', to: '/cskh' },
+  ]
+
+  if (env.chatGlobalEnabled) {
+    items.splice(4, 0, { label: 'Chat', icon: 'forum', to: '/chat' })
+  }
+
+  return items
+})
 
 const bottomNavGridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${primaryNavItems.length}, minmax(0, 1fr))`,
+  gridTemplateColumns: `repeat(${primaryNavItems.value.length}, minmax(0, 1fr))`,
 }))
 
 const utilityNavItems = [

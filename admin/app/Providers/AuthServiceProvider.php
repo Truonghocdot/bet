@@ -47,6 +47,12 @@ class AuthServiceProvider extends ServiceProvider
             'affiliate.affiliate-referrals' => [RoleUser::ADMIN, RoleUser::STAFF],
             'affiliate.affiliate-reward-settings' => [RoleUser::ADMIN],
             'affiliate.affiliate-reward-logs' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'chat.messages' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'chat.bot-profiles' => [RoleUser::ADMIN],
+            'chat.bot-templates' => [RoleUser::ADMIN],
+            'chat.bans' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'chat.moderation-actions' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'chat.rooms' => [RoleUser::ADMIN],
         ];
 
         foreach ($resourceAbilityMap as $prefix => $allowedRoles) {
@@ -68,6 +74,7 @@ class AuthServiceProvider extends ServiceProvider
             'affiliate.affiliate-reward-settings.manage' => [RoleUser::ADMIN],
             'system.exchange-rate-settings.manage' => [RoleUser::ADMIN],
             'agency.backoffice.view' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'chat.moderation.update' => [RoleUser::ADMIN, RoleUser::STAFF],
         ];
 
         foreach ($abilities as $ability => $allowedRoles) {

@@ -224,6 +224,10 @@ REDIS_ADDR=127.0.0.1:6379
 REDIS_PASSWORD=
 REDIS_DB=2
 
+# Chat global tắt mặc định. Bật đồng thời ở Gin, Laravel và Vue sau smoke test.
+CHAT_GLOBAL_ENABLED=false
+CHAT_ROOM_CODE=global
+
 GATE_BASE_URL=http://127.0.0.1:8082
 GIN_INTERNAL_TOKEN=$INTERNAL_TOKEN
 GATE_INTERNAL_TOKEN=$INTERNAL_TOKEN
@@ -372,6 +376,9 @@ REDIS_CACHE_DB=1
 REDIS_SHARED_DB=2
 REDIS_SHARED_PREFIX=
 
+CHAT_GLOBAL_ENABLED=false
+CHAT_ROOM_CODE=global
+
 USDT_VND_RATE_URL=https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=vnd
 USDT_VND_RATE_SOURCE_NAME=coingecko
 USDT_VND_RATE_TIMEOUT=10
@@ -421,6 +428,8 @@ cat >/app/vue/.env <<'EOF'
 VITE_API_BASE_URL=https://api.fh88u.win
 VITE_ALLOWED_HOSTS=fh88u.win
 VITE_ENABLE_DEVTOOLS=false
+VITE_CHAT_GLOBAL_ENABLED=false
+VITE_CHAT_ROOM_CODE=global
 DEV=false
 EOF
 
@@ -1021,3 +1030,34 @@ systemctl reload nginx
 ```bash
 supervisorctl restart 'fh88u:*'
 ```
+
+## 29. Bật Chat Global sau khi deploy
+
+Chat chỉ được bật sau khi migration đã chạy và đã có bot profile/câu mẫu trong admin. Không tạo bot trong bảng `users`.
+
+```bash
+cd /app/admin
+php artisan chat:import-templates /root/chat-templates.csv --dry-run
+php artisan chat:import-templates /root/chat-templates.csv
+php artisan chat:prune --message-days=30 --audit-days=90
+```
+
+Tạo 10-30 bot profile tại `https://admin.fh88u.win/admin`, kiểm tra tin nhắn và moderation trước. Sau smoke test hai tài khoản, đặt các biến sau thành `true` trong cả `/app/gin/.env`, `/app/admin/.env` và `/app/vue/.env`:
+
+```dotenv
+CHAT_GLOBAL_ENABLED=true
+VITE_CHAT_GLOBAL_ENABLED=true
+CHAT_ROOM_CODE=global
+VITE_CHAT_ROOM_CODE=global
+```
+
+Build lại Vue và restart process:
+
+```bash
+cd /app/vue
+pnpm build
+
+supervisorctl restart fh88u-gin-api fh88u-queue fh88u-scheduler
+```
+
+Rollback không xóa dữ liệu: đặt hai feature flag về `false`, build lại Vue, rồi restart ba process trên. Tin nhắn giữ tối đa 30 ngày; audit moderation giữ 90 ngày.

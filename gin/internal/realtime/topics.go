@@ -17,3 +17,7 @@ func WalletUserTopic(userID int64) string {
 func AdminRoomsTopic() string {
 	return "stream:admin:rooms"
 }
+
+func ChatGlobalTopic(roomCode string) string {
+	return fmt.Sprintf("stream:chat:global:%s", roomCode)
+}

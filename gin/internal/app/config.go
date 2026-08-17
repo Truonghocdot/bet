@@ -58,6 +58,8 @@ type Config struct {
 	TCGDefaultCurrency               string
 	TCGGameListRedisKey              string
 	TCGPreviewZeroBalance            bool
+	ChatEnabled                      bool
+	ChatRoomCode                     string
 }
 
 func LoadConfig() Config {
@@ -113,6 +115,8 @@ func LoadConfig() Config {
 		TCGDefaultCurrency:               getEnv("TCG_DEFAULT_CURRENCY", ""),
 		TCGGameListRedisKey:              getEnv("TCG_GAME_LIST_REDIS_KEY", "shared:tcg:game-list:v1"),
 		TCGPreviewZeroBalance:            getEnvBool("TCG_PREVIEW_ZERO_BALANCE", false),
+		ChatEnabled:                      getEnvBool("CHAT_GLOBAL_ENABLED", false),
+		ChatRoomCode:                     getEnv("CHAT_ROOM_CODE", "global"),
 	}
 }
 
