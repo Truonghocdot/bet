@@ -55,10 +55,6 @@ const primaryNavItems = computed(() => {
     { label: 'CSKH', icon: 'support_agent', to: '/cskh' },
   ]
 
-  if (env.chatGlobalEnabled) {
-    items.splice(4, 0, { label: 'Chat', icon: 'forum', to: '/chat' })
-  }
-
   return items
 })
 
@@ -84,8 +80,6 @@ const isActive = (path: string) => {
 }
 
 const isNavItemActive = (item: { to: string; query?: Record<string, string> }) => {
-  if (item.to === '/chat') return isChatOpen.value
-
   if (!isActive(item.to)) return false
 
   if (item.to === '/promotion' && item.query?.tab) {
@@ -274,10 +268,6 @@ function closeActivePopup() {
 
 function navigateDrawer(target: RouteLocationRaw) {
   closeDrawer()
-  if (typeof target !== 'string' && target.path === '/chat') {
-    openChat()
-    return
-  }
   setLoading(true)
   void router.push(target).finally(() => {
     setTimeout(() => setLoading(false), 300)
@@ -557,29 +547,28 @@ onBeforeUnmount(() => {
       <nav class="bottom-nav" :style="bottomNavGridStyle">
         <img :src="bottomNavLeftArt" alt="" class="bottom-nav__side-art bottom-nav__side-art--left" aria-hidden="true" />
         <img :src="bottomNavRightArt" alt="" class="bottom-nav__side-art bottom-nav__side-art--right" aria-hidden="true" />
-        <template v-for="item in primaryNavItems" :key="`${item.to}-${item.query?.tab ?? 'default'}`">
-          <button
-            v-if="item.to === '/chat'"
-            type="button"
-            class="bottom-nav__item"
-            :class="{ 'is-active': isNavItemActive(item) }"
-            aria-label="Mở chat"
-            @click="openChat"
-          >
-            <span class="material-symbols-outlined bottom-nav__icon">{{ item.icon }}</span>
-            <span class="bottom-nav__label">{{ item.label }}</span>
-          </button>
-          <RouterLink
-            v-else
-            :to="{ path: item.to, query: item.query }"
-            class="bottom-nav__item"
-            :class="{ 'is-active': isNavItemActive(item) }"
-          >
-            <span class="material-symbols-outlined bottom-nav__icon">{{ item.icon }}</span>
-            <span class="bottom-nav__label">{{ item.label }}</span>
-          </RouterLink>
-        </template>
+        <RouterLink
+          v-for="item in primaryNavItems"
+          :key="`${item.to}-${item.query?.tab ?? 'default'}`"
+          :to="{ path: item.to, query: item.query }"
+          class="bottom-nav__item"
+          :class="{ 'is-active': isNavItemActive(item) }"
+        >
+          <span class="material-symbols-outlined bottom-nav__icon">{{ item.icon }}</span>
+          <span class="bottom-nav__label">{{ item.label }}</span>
+        </RouterLink>
       </nav>
+
+      <button
+        v-if="env.chatGlobalEnabled"
+        type="button"
+        class="chat-fab"
+        title="Mở chat"
+        aria-label="Mở chat"
+        @click="openChat"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">forum</span>
+      </button>
     </div>
 
     <!-- ===== DRAWER OVERLAY ===== -->

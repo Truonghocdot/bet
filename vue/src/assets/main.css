@@ -337,6 +337,17 @@
     font-variation-settings: 'FILL' 0, 'wght' 650, 'GRAD' 0, 'opsz' 24;
   }
 
+  .chat-fab {
+    @apply fixed z-40 grid h-14 w-14 place-items-center rounded-full bg-primary text-white shadow-[0_10px_24px_rgba(218,37,29,0.36)] transition-transform active:scale-95;
+    bottom: calc(5.35rem + env(safe-area-inset-bottom));
+    right: max(1rem, calc((100vw - min(100vw, 430px)) / 2 + 1rem));
+  }
+
+  .chat-fab .material-symbols-outlined {
+    font-size: 1.45rem;
+    font-variation-settings: 'FILL' 1, 'wght' 560, 'GRAD' 0, 'opsz' 24;
+  }
+
   /* ===== DRAWER ===== */
   .drawer {
     @apply fixed left-0 top-0 bottom-0 z-[70] w-[300px] overflow-y-auto border-r border-white/8 bg-[#262626] text-white shadow-[10px_0_34px_rgba(0,0,0,0.34)];

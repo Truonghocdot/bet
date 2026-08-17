@@ -1,0 +1,22 @@
+[
+  {"display_name":"Tám Lì","active":true,"sort_order":10},
+  {"display_name":"Bé Mây","active":true,"sort_order":20},
+  {"display_name":"Bảy Còi","active":true,"sort_order":30},
+  {"display_name":"Linh Lửa","active":true,"sort_order":40},
+  {"display_name":"Tí Tôm","active":true,"sort_order":50},
+  {"display_name":"Hà Móm","active":true,"sort_order":60},
+  {"display_name":"Duy Gió","active":true,"sort_order":70},
+  {"display_name":"Nhi Mực","active":true,"sort_order":80},
+  {"display_name":"Khoa Kèo","active":true,"sort_order":90},
+  {"display_name":"Vy Sớm","active":true,"sort_order":100},
+  {"display_name":"Nam Nhẹ","active":true,"sort_order":110},
+  {"display_name":"Mít Đỏ","active":true,"sort_order":120},
+  {"display_name":"Thảo Chớp","active":true,"sort_order":130},
+  {"display_name":"Đức Cà Phê","active":true,"sort_order":140},
+  {"display_name":"Hân Gọn","active":true,"sort_order":150},
+  {"display_name":"Phúc Lắc","active":true,"sort_order":160},
+  {"display_name":"Yến Mơ","active":true,"sort_order":170},
+  {"display_name":"Bình Tĩnh","active":true,"sort_order":180},
+  {"display_name":"Sơn Đêm","active":true,"sort_order":190},
+  {"display_name":"An Vui","active":true,"sort_order":200}
+]

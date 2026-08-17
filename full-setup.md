@@ -1037,12 +1037,14 @@ Chat chỉ được bật sau khi migration đã chạy và đã có bot profile
 
 ```bash
 cd /app/admin
-php artisan chat:import-templates /root/chat-templates.csv --dry-run
-php artisan chat:import-templates /root/chat-templates.csv
-php artisan chat:prune --message-days=30 --audit-days=90
+php artisan chat:import-bot-profiles database/seeders/data/chat/bot-profiles.vi.json --dry-run
+php artisan chat:import-bot-profiles database/seeders/data/chat/bot-profiles.vi.json
+php artisan chat:import-templates database/seeders/data/chat/bot-templates.vi.json --dry-run
+php artisan chat:import-templates database/seeders/data/chat/bot-templates.vi.json
+php artisan chat:prune --message-hours=6 --audit-days=90
 ```
 
-Tạo 10-30 bot profile tại `https://admin.fh88u.win/admin`, kiểm tra tin nhắn và moderation trước. Sau smoke test hai tài khoản, đặt các biến sau thành `true` trong cả `/app/gin/.env`, `/app/admin/.env` và `/app/vue/.env`:
+Bộ mẫu có sẵn trong source có 20 profile và 117 câu chat tiếng Việt; có thể thay file template bằng `/root/chat-templates.csv` khi có bộ nội dung branding riêng. Kiểm tra tin nhắn và moderation trước. Sau smoke test hai tài khoản, đặt các biến sau thành `true` trong cả `/app/gin/.env`, `/app/admin/.env` và `/app/vue/.env`:
 
 ```dotenv
 CHAT_GLOBAL_ENABLED=true
@@ -1060,4 +1062,4 @@ pnpm build
 supervisorctl restart fh88u-gin-api fh88u-queue fh88u-scheduler
 ```
 
-Rollback không xóa dữ liệu: đặt hai feature flag về `false`, build lại Vue, rồi restart ba process trên. Tin nhắn giữ tối đa 30 ngày; audit moderation giữ 90 ngày.
+Rollback không xóa dữ liệu: đặt hai feature flag về `false`, build lại Vue, rồi restart ba process trên. Tin nhắn giữ tối đa 6 giờ; audit moderation giữ 90 ngày.

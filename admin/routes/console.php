@@ -25,7 +25,7 @@ Schedule::command('chat:generate-bot-message')
     ->withoutOverlapping();
 
 Schedule::command('chat:prune')
-    ->dailyAt('03:10')
+    ->everyMinute()
     ->withoutOverlapping();
 
 Schedule::command('backup:create --prune')

@@ -125,14 +125,14 @@ func (r *ChatRepository) InsertMessage(ctx context.Context, roomCode, actorType 
 	return item, nil
 }
 
-func (r *ChatRepository) DeleteExpired(ctx context.Context, messageDays, auditDays int) error {
-	if messageDays < 1 {
-		messageDays = 30
+func (r *ChatRepository) DeleteExpired(ctx context.Context, messageHours, auditDays int) error {
+	if messageHours < 1 {
+		messageHours = 6
 	}
 	if auditDays < 1 {
 		auditDays = 90
 	}
-	if _, err := r.db.ExecContext(ctx, `delete from chat_messages where created_at < now() - ($1 * interval '1 day')`, messageDays); err != nil {
+	if _, err := r.db.ExecContext(ctx, `delete from chat_messages where created_at < now() - ($1 * interval '1 hour')`, messageHours); err != nil {
 		return err
 	}
 	_, err := r.db.ExecContext(ctx, `delete from chat_moderation_actions where created_at < now() - ($1 * interval '1 day')`, auditDays)
