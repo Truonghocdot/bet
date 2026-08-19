@@ -13,7 +13,6 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -50,10 +49,6 @@ class WheelCampaignResource extends BaseResource
         return $schema->components([
             TextInput::make('name')->label('Tên chiến dịch')->required()->maxLength(160)->columnSpanFull(),
             Select::make('status')->label('Trạng thái')->options(['draft' => 'Bản nháp', 'active' => 'Đang mở', 'closed' => 'Đã đóng'])->default('draft')->required(),
-            DateTimePicker::make('opens_at')->label('Mở nhận lời mời')->seconds(false),
-            DateTimePicker::make('closes_at')->label('Đóng nhận lời mời')->seconds(false)->after('opens_at'),
-            TextInput::make('duration_seconds')->label('Thời hạn phiên')->default(300)->disabled()->dehydrated()->suffix('giây'),
-            TextInput::make('spin_duration_seconds')->label('Mỗi lượt quay')->default(5)->disabled()->dehydrated()->suffix('giây'),
             Repeater::make('roundTemplates')
                 ->label('Bốn lượt mẫu')
                 ->relationship()
@@ -85,7 +80,6 @@ class WheelCampaignResource extends BaseResource
                     'active' => 'success', 'closed' => 'gray', default => 'warning'
                 }),
                 TextColumn::make('invitations_count')->label('Lời mời')->counts('invitations')->badge(),
-                TextColumn::make('closes_at')->label('Đóng lúc')->dateTime('d/m/Y H:i', timezone: config('app.timezone'))->sortable(),
                 TextColumn::make('createdBy.name')->label('Người tạo'),
             ])
             ->recordActions([

@@ -83,7 +83,7 @@ class WheelInvitationResource extends BaseResource
             TextColumn::make('user.phone')->label('Số điện thoại')->searchable(),
             TextColumn::make('status')->label('Trạng thái')->badge(),
             TextColumn::make('session.current_round')->label('Lượt hiện tại')->default('—'),
-            TextColumn::make('expires_at')->label('Hết hạn')->dateTime('d/m/Y H:i', timezone: config('app.timezone')),
+            TextColumn::make('activated_at')->label('Kích hoạt lúc')->dateTime('d/m/Y H:i', timezone: config('app.timezone')),
         ])->recordActions([
             Action::make('activate')->label('Kích hoạt')->icon('heroicon-o-bolt')->color('success')->requiresConfirmation()->visible(fn (WheelInvitation $record): bool => self::canEdit($record) && $record->status === 'draft')->action(function (WheelInvitation $record): void {
                 app(WheelCampaignService::class)->activate($record);

@@ -59,7 +59,6 @@ class WheelCampaignServiceTest extends TestCase
             $table->unsignedBigInteger('activated_by')->nullable();
             $table->unsignedBigInteger('revoked_by')->nullable();
             $table->timestamps();
-            $table->unique(['campaign_id', 'user_id']);
         });
         Schema::create('wheel_invitation_rounds', function (Blueprint $table): void {
             $table->id();
@@ -120,6 +119,23 @@ class WheelCampaignServiceTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $round->update(['result_label' => 'Không được phép đổi']);
+    }
+
+    public function test_the_same_user_can_receive_multiple_invitations_in_one_campaign(): void
+    {
+        $campaign = $this->campaign();
+        DB::table('users')->insert(['id' => 203987, 'name' => 'Khách thử 3', 'phone' => '+84900000002', 'role' => 2]);
+
+        $count = $this->service()->inviteUsers($campaign, [203987, 203987]);
+
+        self::assertSame(1, $count);
+        self::assertCount(1, WheelInvitation::query()->where('campaign_id', $campaign->id)->where('user_id', 203987)->get());
+
+        $this->service()->inviteUsers($campaign, [203987]);
+
+        $invitations = WheelInvitation::query()->where('campaign_id', $campaign->id)->where('user_id', 203987)->get();
+        self::assertCount(2, $invitations);
+        self::assertNotSame($invitations[0]->public_id, $invitations[1]->public_id);
     }
 
     private function campaign(): WheelCampaign

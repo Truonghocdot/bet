@@ -15,7 +15,7 @@ function canOpen(item: WheelInvitation) {
 }
 
 function formatTime(value?: string | null) {
-  if (!value) return 'Theo thời hạn chiến dịch'
+  if (!value) return 'Đến khi quản trị viên đóng'
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
 
@@ -40,7 +40,7 @@ onMounted(() => void wheel.fetchInvitations())
         </div>
         <div class="min-w-0 flex-1">
           <h2 class="truncate text-sm font-black text-slate-900">{{ item.campaign_name }}</h2>
-          <p class="mt-1 text-xs text-slate-500">{{ statusLabel(item) }} · Hạn {{ formatTime(item.expires_at) }}</p>
+          <p class="mt-1 text-xs text-slate-500">{{ statusLabel(item) }} · {{ formatTime(item.expires_at) }}</p>
         </div>
         <button v-if="canOpen(item)" type="button" class="min-h-10 shrink-0 bg-primary px-3 text-xs font-bold text-white disabled:opacity-60" :disabled="wheel.launchingId === item.id" @click="wheel.launch(item)">
           {{ wheel.launchingId === item.id ? 'Đang mở' : 'Tham gia' }}

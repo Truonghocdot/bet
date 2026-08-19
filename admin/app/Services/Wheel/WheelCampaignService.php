@@ -32,13 +32,11 @@ class WheelCampaignService
                 if (! $users->has($userId)) {
                     continue;
                 }
-                $invitation = WheelInvitation::query()->firstOrCreate(
-                    ['campaign_id' => $campaign->id, 'user_id' => $userId],
-                    ['status' => 'draft'],
-                );
-                if ($invitation->status !== 'draft') {
-                    continue;
-                }
+                $invitation = WheelInvitation::query()->create([
+                    'campaign_id' => $campaign->id,
+                    'user_id' => $userId,
+                    'status' => 'draft',
+                ]);
                 $this->snapshotRounds($invitation, $campaign);
                 if ($activate) {
                     $this->activateLocked($invitation, $campaign);
@@ -102,9 +100,6 @@ class WheelCampaignService
         if ($activation && $campaign->status !== 'active') {
             throw ValidationException::withMessages(['status' => 'Chiến dịch phải ở trạng thái đang mở.']);
         }
-        if ($activation && $campaign->closes_at && $campaign->closes_at->isPast()) {
-            throw ValidationException::withMessages(['closes_at' => 'Chiến dịch đã hết thời gian nhận người chơi.']);
-        }
     }
 
     private function snapshotRounds(WheelInvitation $invitation, WheelCampaign $campaign): void
@@ -124,7 +119,7 @@ class WheelCampaignService
         $invitation->forceFill([
             'status' => 'pending',
             'activated_at' => now(),
-            'expires_at' => $campaign->closes_at,
+            'expires_at' => null,
             'activated_by' => Auth::id(),
         ])->save();
         $payload = ['invitation_id' => $invitation->public_id, 'campaign_name' => $campaign->name, 'expires_at' => $invitation->expires_at?->toISOString()];
