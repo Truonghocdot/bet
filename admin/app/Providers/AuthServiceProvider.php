@@ -53,6 +53,10 @@ class AuthServiceProvider extends ServiceProvider
             'chat.bans' => [RoleUser::ADMIN, RoleUser::STAFF],
             'chat.moderation-actions' => [RoleUser::ADMIN, RoleUser::STAFF],
             'chat.rooms' => [RoleUser::ADMIN],
+            'wheel.campaigns' => [RoleUser::ADMIN],
+            'wheel.invitations' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'wheel.rewards' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'wheel.audits' => [RoleUser::ADMIN, RoleUser::STAFF],
         ];
 
         foreach ($resourceAbilityMap as $prefix => $allowedRoles) {
@@ -75,6 +79,7 @@ class AuthServiceProvider extends ServiceProvider
             'system.exchange-rate-settings.manage' => [RoleUser::ADMIN],
             'agency.backoffice.view' => [RoleUser::ADMIN, RoleUser::STAFF],
             'chat.moderation.update' => [RoleUser::ADMIN, RoleUser::STAFF],
+            'wheel.rewards.retry' => [RoleUser::ADMIN],
         ];
 
         foreach ($abilities as $ability => $allowedRoles) {

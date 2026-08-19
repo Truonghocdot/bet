@@ -28,6 +28,14 @@ Schedule::command('chat:prune')
     ->everyMinute()
     ->withoutOverlapping();
 
+Schedule::command('wheel:maintain')
+    ->everyMinute()
+    ->withoutOverlapping();
+
+Schedule::command('wheel:publish-outbox')
+    ->everyFiveSeconds()
+    ->withoutOverlapping();
+
 Schedule::command('backup:create --prune')
     ->dailyAt((string) config('backup.schedule', '02:15'))
     ->withoutOverlapping(180);

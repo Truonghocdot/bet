@@ -27,6 +27,7 @@ func NewRouter(
 	depositService *service.DepositService,
 	withdrawalService *service.WithdrawalService,
 	chatService *service.ChatService,
+	wheelService *service.WheelService,
 	broker *realtime.Broker,
 	gameRepository *repopg.GameRepository,
 	redis *redis.Client,
@@ -47,6 +48,7 @@ func NewRouter(
 	depositHandler := NewDepositHandler(depositService, internalToken)
 	withdrawalHandler := NewWithdrawalHandler(withdrawalService)
 	chatHandler := NewChatHandler(chatService, broker)
+	wheelHandler := NewWheelHandler(wheelService, broker)
 	mediaHandler := NewMediaHandler(popupVideoPath)
 	adminHandler := NewAdminHandler(gameRepository, broker, redis, authService)
 	authSSOHandler := NewAuthSSOHandler(authService, redis)
@@ -79,6 +81,20 @@ func NewRouter(
 	mux.Handle("GET /v1/notifications/stream", authn.Require(http.HandlerFunc(notificationHandler.Stream)))
 	mux.Handle("POST /v1/notifications/{id}/read", authn.Require(http.HandlerFunc(notificationHandler.MarkRead)))
 	mux.Handle("POST /v1/notifications/{id}/respond", authn.Require(http.HandlerFunc(notificationHandler.Respond)))
+	mux.Handle("POST /v1/realtime/tickets", authn.Require(http.HandlerFunc(wheelHandler.MainSocketTicket)))
+	mux.HandleFunc("GET /v1/users/me/events/ws", wheelHandler.UserEventsWebSocket)
+	mux.Handle("GET /v1/wheel/invitations", authn.Require(http.HandlerFunc(wheelHandler.ListInvitations)))
+	mux.Handle("POST /v1/wheel/invitations/{id}/seen", authn.Require(http.HandlerFunc(wheelHandler.MarkSeen)))
+	mux.Handle("POST /v1/wheel/invitations/{id}/launch", authn.Require(http.HandlerFunc(wheelHandler.Launch)))
+	mux.HandleFunc("POST /v1/wheel/auth/exchange", wheelHandler.Exchange)
+	mux.HandleFunc("GET /v1/wheel/me", wheelHandler.Me)
+	mux.HandleFunc("POST /v1/wheel/session/start", wheelHandler.Start)
+	mux.HandleFunc("GET /v1/wheel/session/state", wheelHandler.Me)
+	mux.HandleFunc("POST /v1/wheel/session/rounds/{round}/spin", wheelHandler.Spin)
+	mux.HandleFunc("POST /v1/wheel/realtime/ticket", wheelHandler.SessionSocketTicket)
+	mux.HandleFunc("GET /v1/wheel/session/ws", wheelHandler.SessionWebSocket)
+	mux.HandleFunc("GET /v1/wheel/session/chat/messages", wheelHandler.ListChat)
+	mux.HandleFunc("POST /v1/wheel/session/chat/messages", wheelHandler.CreateChat)
 	mux.HandleFunc("GET /v1/content/home", contentHandler.Home)
 	mux.HandleFunc("GET /v1/content/promotions", contentHandler.Promotions)
 	mux.HandleFunc("GET /v1/content/news", contentHandler.News)

@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url("../assets/fonts/material-symbols-outlined-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("../assets/fonts/plus-jakarta-sans-latin-wght-normal.woff2") format("woff2");
+}
+
+@theme {
+  --color-event-red: #b71920;
+  --color-event-red-dark: #7f1016;
+  --color-event-gold: #f4bd32;
+  --color-event-ink: #191c20;
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+}
+
+@layer base {
+  :root { color-scheme: light; }
+  html, body, #event-app { min-height: 100%; }
+  body { margin: 0; min-width: 320px; background: #f5f5f3; color: #191c20; font-family: "Plus Jakarta Sans", sans-serif; }
+  button, input { font: inherit; }
+  button { -webkit-tap-highlight-color: transparent; }
+  .material-symbols-outlined {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-feature-settings: "liga";
+  }
+}
+
+.event-wheel {
+  background: conic-gradient(
+    #b71920 0deg 45deg,
+    #f4bd32 45deg 90deg,
+    #167c80 90deg 135deg,
+    #dc4f39 135deg 180deg,
+    #2f6cb0 180deg 225deg,
+    #f08d2f 225deg 270deg,
+    #268253 270deg 315deg,
+    #8f2c67 315deg 360deg
+  );
+  box-shadow: 0 0 0 8px #f4bd32, 0 0 0 12px #8c171c, 0 18px 42px rgba(73, 18, 19, 0.28);
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.12, 0.72, 0.08, 1);
+}
+
+.event-wheel::after {
+  content: "";
+  position: absolute;
+  inset: 14%;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.wheel-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28%;
+  color: white;
+  font-size: clamp(0.55rem, 2.5vw, 0.72rem);
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transform-origin: 0 0;
+}
+
+.event-scrollbar { scrollbar-width: thin; scrollbar-color: #d4d4d4 transparent; }

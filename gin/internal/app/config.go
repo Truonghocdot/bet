@@ -60,6 +60,9 @@ type Config struct {
 	TCGPreviewZeroBalance            bool
 	ChatEnabled                      bool
 	ChatRoomCode                     string
+	WheelEventEnabled                bool
+	WheelSiteCode                    string
+	WheelMicrositeURL                string
 }
 
 func LoadConfig() Config {
@@ -117,6 +120,9 @@ func LoadConfig() Config {
 		TCGPreviewZeroBalance:            getEnvBool("TCG_PREVIEW_ZERO_BALANCE", false),
 		ChatEnabled:                      getEnvBool("CHAT_GLOBAL_ENABLED", false),
 		ChatRoomCode:                     getEnv("CHAT_ROOM_CODE", "global"),
+		WheelEventEnabled:                getEnvBool("WHEEL_EVENT_ENABLED", false),
+		WheelSiteCode:                    getEnv("WHEEL_SITE_CODE", "fh88u"),
+		WheelMicrositeURL:                getEnv("WHEEL_MICROSITE_URL", "http://localhost:5173/event.html"),
 	}
 }
 

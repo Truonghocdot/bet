@@ -4,11 +4,11 @@ import { RouterLink, type RouteLocationRaw, useRoute, useRouter } from 'vue-rout
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useWalletStore } from '@/stores/wallet'
+import { useWheelInvitationsStore } from '@/stores/wheelInvitations'
 import { formatViMoney } from '@/shared/lib/money'
 import { useLoading } from '@/shared/lib/loading'
 import { request } from '@/shared/api/http'
 import { env } from '@/shared/config/env'
-import ChatView from '@/pages/ChatView.vue'
 import bottomNavLeftArt from '@/assets/bottom/icon_btm_jr.avif'
 import bottomNavRightArt from '@/assets/bottom/icon_btm_jr2.avif'
 import defaultHeaderLogo from '@/assets/logo-mobile.webp'
@@ -18,10 +18,10 @@ const router = useRouter()
 const auth = useAuthStore()
 const notifications = useNotificationsStore()
 const wallet = useWalletStore()
+const wheelInvitations = useWheelInvitationsStore()
 const { isLoading, setLoading } = useLoading()
 
 const isDrawerOpen = ref(false)
-const isChatOpen = ref(false)
 type PopupSlot = 'message' | 'latest_news'
 type PopupItem = {
   slot: PopupSlot
@@ -62,11 +62,12 @@ const bottomNavGridStyle = computed(() => ({
   gridTemplateColumns: `repeat(${primaryNavItems.value.length}, minmax(0, 1fr))`,
 }))
 
-const utilityNavItems = [
+const utilityNavItems = computed(() => [
   { label: 'Nạp tiền', icon: 'add_card', to: '/deposit' },
   { label: 'Tài khoản', icon: 'manage_accounts', to: '/account' },
   { label: 'Thông báo', icon: 'notifications', to: '/notifications' },
-]
+  ...(env.wheelEventEnabled ? [{ label: 'Sự kiện', icon: 'featured_seasonal_and_gifts', to: '/events' }] : []),
+])
 
 const historyShortcutItems = [
   { label: 'Lịch sử nạp', icon: 'payments', to: '/deposit', query: { section: 'history' } },
@@ -166,20 +167,6 @@ function copyReferralLink() {
 
 function openDrawer() { isDrawerOpen.value = true }
 function closeDrawer() { isDrawerOpen.value = false }
-
-function openChat() {
-  closeDrawer()
-  if (!auth.isAuthenticated) {
-    void router.push({ name: 'auth', query: { next: route.fullPath } })
-    return
-  }
-
-  isChatOpen.value = true
-}
-
-function closeChat() {
-  isChatOpen.value = false
-}
 
 function popupStorageKey(slot: PopupSlot): string {
   return `fh88u:popup:dismissed:${auth.user?.id ?? 0}:${slot}`
@@ -323,25 +310,13 @@ async function syncRealtimeState() {
 watch(
   () => auth.isAuthenticated,
   () => {
-    if (!auth.isAuthenticated) closeChat()
     void syncRealtimeState()
+    if (auth.isAuthenticated && env.wheelEventEnabled) wheelInvitations.start()
+    else wheelInvitations.reset()
     syncPopupQueue()
   },
   { immediate: true },
 )
-
-watch(isChatOpen, (open) => {
-  if (typeof document === 'undefined') return
-  document.body.classList.toggle('overflow-hidden', open)
-})
-
-function handleGlobalKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && isChatOpen.value) closeChat()
-}
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', handleGlobalKeydown)
-}
 
 watch(
   () => [wallet.summary?.popup?.message, wallet.summary?.popup?.latest_news] as const,
@@ -352,8 +327,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  closeChat()
-  if (typeof window !== 'undefined') window.removeEventListener('keydown', handleGlobalKeydown)
+  wheelInvitations.stop()
   wallet.disconnectStream()
   notifications.disconnectStream()
 })
@@ -464,7 +438,29 @@ onBeforeUnmount(() => {
       </div>
     </Transition>
 
-    <ChatView v-if="isChatOpen" popup @close="closeChat" />
+    <Transition name="fade">
+      <div v-if="wheelInvitations.activePopup" class="fixed inset-0 z-[95] grid place-items-center bg-black/55 px-4 backdrop-blur-sm">
+        <section role="dialog" aria-modal="true" aria-labelledby="wheel-invitation-title" class="w-full max-w-sm overflow-hidden rounded-[8px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
+          <div class="relative bg-[#b71920] px-5 pb-5 pt-6 text-white">
+            <button type="button" class="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-white/12" aria-label="Đóng lời mời" @click="wheelInvitations.dismiss(wheelInvitations.activePopup)">
+              <span class="material-symbols-outlined text-[1.1rem]">close</span>
+            </button>
+            <span class="material-symbols-outlined text-[2rem]">featured_seasonal_and_gifts</span>
+            <p class="mt-3 text-[0.7rem] font-bold uppercase text-white/70">Lời mời dành riêng</p>
+            <h2 id="wheel-invitation-title" class="mt-1 pr-8 text-xl font-black">{{ wheelInvitations.activePopup.campaign_name }}</h2>
+          </div>
+          <div class="px-5 py-5">
+            <p class="text-sm leading-6 text-slate-600">Bạn đã được chọn tham gia vòng quay đặc biệt. Phiên có bốn lượt quay liên tiếp và chỉ bắt đầu khi bạn xác nhận.</p>
+            <p v-if="wheelInvitations.error" class="mt-3 border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{{ wheelInvitations.error }}</p>
+            <button type="button" class="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-primary px-4 text-sm font-black text-white disabled:opacity-60" :disabled="wheelInvitations.launchingId === wheelInvitations.activePopup.id" @click="wheelInvitations.launch(wheelInvitations.activePopup)">
+              <span class="material-symbols-outlined text-[1.1rem]">open_in_new</span>
+              {{ wheelInvitations.launchingId ? 'Đang mở sự kiện...' : 'Tham gia ngay' }}
+            </button>
+            <RouterLink to="/events" class="mt-3 block text-center text-xs font-bold text-slate-500" @click="wheelInvitations.dismiss(wheelInvitations.activePopup)">Xem trong mục Sự kiện</RouterLink>
+          </div>
+        </section>
+      </div>
+    </Transition>
 
     <!-- ===== MAIN COLUMN ===== -->
     <div class="app-main-col">
@@ -505,6 +501,15 @@ onBeforeUnmount(() => {
 
           <!-- Right side actions -->
           <div class="topbar-inner__side topbar-inner__side--right">
+            <RouterLink
+              v-if="env.wheelEventEnabled"
+              class="icon-btn icon-btn--soft icon-btn--badge topbar-action-btn"
+              aria-label="Sự kiện"
+              to="/events"
+            >
+              <span class="material-symbols-outlined">featured_seasonal_and_gifts</span>
+              <span v-if="wheelInvitations.actionableCount" class="icon-btn__badge">{{ wheelInvitations.actionableCount > 9 ? '9+' : wheelInvitations.actionableCount }}</span>
+            </RouterLink>
             <RouterLink
               class="icon-btn icon-btn--soft icon-btn--badge topbar-action-btn"
               aria-label="Thông báo"
@@ -559,16 +564,6 @@ onBeforeUnmount(() => {
         </RouterLink>
       </nav>
 
-      <button
-        v-if="env.chatGlobalEnabled"
-        type="button"
-        class="chat-fab"
-        title="Mở chat"
-        aria-label="Mở chat"
-        @click="openChat"
-      >
-        <span class="material-symbols-outlined" aria-hidden="true">forum</span>
-      </button>
     </div>
 
     <!-- ===== DRAWER OVERLAY ===== -->

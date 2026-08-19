@@ -68,6 +68,7 @@ func New() (*App, error) {
 	depositRepository := repopg.NewDepositRepository(db)
 	withdrawalRepository := repopg.NewWithdrawalRepository(db)
 	chatRepository := repopg.NewChatRepository(db)
+	wheelRepository := repopg.NewWheelRepository(db)
 	limiter := ratelimit.New(redisClient)
 	notifier := gate.NewNotifier(config.GateBaseURL)
 	depositGateway := gate.NewDepositClient(config.GateBaseURL, config.GateInternalToken)
@@ -120,8 +121,12 @@ func New() (*App, error) {
 	})
 	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository, userRepository, redisClient)
 	chatService := service.NewChatService(chatRepository, broker, limiter, redisClient, config.ChatEnabled, config.ChatRoomCode)
+	wheelService := service.NewWheelService(wheelRepository, walletService, broker, redisClient, service.WheelConfig{
+		Enabled: config.WheelEventEnabled, SiteCode: config.WheelSiteCode, MicrositeURL: config.WheelMicrositeURL,
+		DurationSeconds: 300, SpinDurationSeconds: 5,
+	})
 	affiliateService := service.NewAffiliateService(userRepository, authService, depositService, withdrawalService)
-	router := httptransport.NewRouter(config.PopupVideoFilePath, authService, affiliateService, walletService, notificationService, contentService, financeFeedService, providerGameCatalogService, tcgRuntimeService, sessionService, betService, playRoomService, depositService, withdrawalService, chatService, broker, gameRepository, redisClient, config.InternalToken)
+	router := httptransport.NewRouter(config.PopupVideoFilePath, authService, affiliateService, walletService, notificationService, contentService, financeFeedService, providerGameCatalogService, tcgRuntimeService, sessionService, betService, playRoomService, depositService, withdrawalService, chatService, wheelService, broker, gameRepository, redisClient, config.InternalToken)
 
 	server := &http.Server{
 		Addr:        config.HTTPAddr,

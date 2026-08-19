@@ -13,7 +13,7 @@ class GenerateChatBotMessageCommand extends Command
 
     public function handle(): int
     {
-        if (! filter_var(env('CHAT_GLOBAL_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+        if (! config('wheel.enabled') && ! filter_var(env('CHAT_GLOBAL_ENABLED', false), FILTER_VALIDATE_BOOL)) {
             return self::SUCCESS;
         }
 

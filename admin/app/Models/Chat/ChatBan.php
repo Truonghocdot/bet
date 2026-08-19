@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ChatBan extends Model
 {
-    protected $fillable = ['user_id', 'created_by', 'reason', 'expires_at', 'revoked_at', 'revoked_by'];
+    protected $fillable = ['room_id', 'user_id', 'created_by', 'reason', 'expires_at', 'revoked_at', 'revoked_by'];
 
     protected function casts(): array
     {

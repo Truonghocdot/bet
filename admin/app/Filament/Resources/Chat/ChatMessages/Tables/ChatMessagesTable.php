@@ -39,7 +39,7 @@ class ChatMessagesTable
                 ->visible(fn (ChatMessage $record): bool => Gate::allows('chat.moderation.update') && $record->user_id)
                 ->schema([Textarea::make('reason')->label('Lý do')->maxLength(255)])
                 ->action(function (ChatMessage $record, array $data): void {
-                    ChatBan::query()->create(['user_id' => $record->user_id, 'created_by' => auth()->id(), 'reason' => $data['reason'] ?? null]);
+                    ChatBan::query()->create(['room_id' => $record->room_id, 'user_id' => $record->user_id, 'created_by' => auth()->id(), 'reason' => $data['reason'] ?? null]);
                     ChatModerationAction::query()->create(['actor_user_id' => auth()->id(), 'target_user_id' => $record->user_id, 'message_id' => $record->id, 'action' => 'ban', 'reason' => $data['reason'] ?? null]);
                     Notification::make()->title('Đã khóa quyền chat')->success()->send();
                 }),
@@ -52,7 +52,12 @@ class ChatMessagesTable
         $record->forceFill(['status' => $status, 'moderated_by' => auth()->id(), 'moderated_at' => now()])->save();
         ChatModerationAction::query()->create(['actor_user_id' => auth()->id(), 'target_user_id' => $record->user_id, 'message_id' => $record->id, 'action' => $action, 'reason' => $reason]);
         try {
-            app(ChatRedisPublisher::class)->publish('global', 'chat.message.'.($action === 'hidden' ? 'hidden' : 'deleted'), $record);
+            $record->loadMissing('room');
+            if ($record->room?->wheel_session_id) {
+                app(ChatRedisPublisher::class)->publishWheelSession((int) $record->room->wheel_session_id, 'chat.message.'.($action === 'hidden' ? 'hidden' : 'deleted'), $record);
+            } else {
+                app(ChatRedisPublisher::class)->publish('global', 'chat.message.'.($action === 'hidden' ? 'hidden' : 'deleted'), $record);
+            }
         } catch (\Throwable) { /* REST reflects the durable status. */
         }
         Notification::make()->title($action === 'hidden' ? 'Đã ẩn tin nhắn' : 'Đã xóa tin nhắn')->success()->send();

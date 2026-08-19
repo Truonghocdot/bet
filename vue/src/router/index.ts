@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { env } from '@/shared/config/env'
-import ChatView from '@/pages/ChatView.vue'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { useAuthStore } from '@/stores/auth'
@@ -78,10 +77,10 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'main', title: 'Thông báo', requiresAuth: true },
   },
   {
-    path: '/chat',
-    name: 'chat',
-    component: ChatView,
-    meta: { layout: 'main', title: 'Chat Global', requiresAuth: true },
+    path: '/events',
+    name: 'events',
+    component: () => import('../pages/EventsView.vue'),
+    meta: { layout: 'main', title: 'Sự kiện', requiresAuth: true },
   },
   {
     path: '/news/:slug',
