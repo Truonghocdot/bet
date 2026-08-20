@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -61,6 +62,7 @@ func (h *WheelHandler) Launch(w http.ResponseWriter, r *http.Request) {
 	}
 	response, err := h.service.Launch(r.Context(), strings.TrimSpace(r.PathValue("id")), claims.UserID)
 	if err != nil {
+		log.Printf("[wheel.launch] user_id=%d invitation=%q err=%v", claims.UserID, strings.TrimSpace(r.PathValue("id")), err)
 		h.writeError(w, err)
 		return
 	}
@@ -75,6 +77,7 @@ func (h *WheelHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 	}
 	response, err := h.service.Exchange(r.Context(), payload.LaunchCode)
 	if err != nil {
+		log.Printf("[wheel.exchange] err=%v", err)
 		h.writeError(w, err)
 		return
 	}

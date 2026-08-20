@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -50,6 +51,17 @@ type launchRecord struct {
 	UserID       int64 `json:"user_id"`
 	InvitationID int64 `json:"invitation_id"`
 }
+
+// Redis GETDEL was introduced in Redis 6.2, while the production baseline on
+// Ubuntu 22.04 is Redis 6.0. Lua keeps the read-and-delete operation atomic on
+// both versions, which is required for one-time launch and websocket tickets.
+var wheelGetDelScript = goredis.NewScript(`
+local value = redis.call("GET", KEYS[1])
+if value then
+  redis.call("DEL", KEYS[1])
+end
+return value
+`)
 
 func NewWheelService(repository *repopg.WheelRepository, wallet *WalletService, broker *realtime.Broker, redis *goredis.Client, config WheelConfig) *WheelService {
 	return &WheelService{repository: repository, wallet: wallet, broker: broker, redis: redis, config: config}
@@ -105,7 +117,7 @@ func (s *WheelService) Exchange(ctx context.Context, code string) (wheel.Exchang
 	if !s.Enabled() {
 		return wheel.ExchangeResponse{}, ErrWheelDisabled
 	}
-	raw, err := s.redis.GetDel(ctx, "wheel:launch:"+hashOpaqueToken(strings.TrimSpace(code))).Bytes()
+	raw, err := s.getAndDelete(ctx, "wheel:launch:"+hashOpaqueToken(strings.TrimSpace(code)))
 	if errors.Is(err, goredis.Nil) {
 		return wheel.ExchangeResponse{}, ErrWheelTokenInvalid
 	}
@@ -166,11 +178,18 @@ func (s *WheelService) CreateUserSocketTicket(ctx context.Context, userID int64)
 }
 
 func (s *WheelService) ConsumeUserSocketTicket(ctx context.Context, ticket string) (int64, error) {
-	value, err := s.redis.GetDel(ctx, "wheel:socket:user:"+hashOpaqueToken(strings.TrimSpace(ticket))).Int64()
+	raw, err := s.getAndDelete(ctx, "wheel:socket:user:"+hashOpaqueToken(strings.TrimSpace(ticket)))
 	if errors.Is(err, goredis.Nil) {
 		return 0, ErrWheelTokenInvalid
 	}
-	return value, err
+	if err != nil {
+		return 0, err
+	}
+	value, err := strconv.ParseInt(string(raw), 10, 64)
+	if err != nil || value <= 0 {
+		return 0, ErrWheelTokenInvalid
+	}
+	return value, nil
 }
 
 func (s *WheelService) CreateSessionSocketTicket(ctx context.Context, access wheel.Access) (wheel.SocketTicketResponse, error) {
@@ -190,7 +209,7 @@ func (s *WheelService) CreateSessionSocketTicket(ctx context.Context, access whe
 }
 
 func (s *WheelService) ConsumeSessionSocketTicket(ctx context.Context, ticket string) (wheel.Access, int64, error) {
-	raw, err := s.redis.GetDel(ctx, "wheel:socket:session:"+hashOpaqueToken(strings.TrimSpace(ticket))).Bytes()
+	raw, err := s.getAndDelete(ctx, "wheel:socket:session:"+hashOpaqueToken(strings.TrimSpace(ticket)))
 	if errors.Is(err, goredis.Nil) {
 		return wheel.Access{}, 0, ErrWheelTokenInvalid
 	}
@@ -206,6 +225,23 @@ func (s *WheelService) ConsumeSessionSocketTicket(ctx context.Context, ticket st
 		return wheel.Access{}, 0, ErrWheelTokenInvalid
 	}
 	return access, *record.SessionID, nil
+}
+
+func (s *WheelService) getAndDelete(ctx context.Context, key string) ([]byte, error) {
+	value, err := wheelGetDelScript.Run(ctx, s.redis, []string{key}).Result()
+	if err != nil {
+		return nil, err
+	}
+	switch typed := value.(type) {
+	case string:
+		return []byte(typed), nil
+	case []byte:
+		return typed, nil
+	case nil:
+		return nil, goredis.Nil
+	default:
+		return nil, fmt.Errorf("wheel token returned unexpected redis type %T", value)
+	}
 }
 
 func (s *WheelService) Start(ctx context.Context, access wheel.Access) (wheel.State, error) {
