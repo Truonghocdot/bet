@@ -29,6 +29,7 @@ export const useWheelInvitationsStore = defineStore('wheel-invitations', () => {
   const connected = ref(false)
   let socket: WebSocket | null = null
   let reconnectTimer: number | null = null
+  let pollTimer: number | null = null
   let stopped = true
 
   const activePopup = computed(() => items.value.find((item) => item.status === 'pending' && !item.seen_at) ?? null)
@@ -140,6 +141,9 @@ export const useWheelInvitationsStore = defineStore('wheel-invitations', () => {
     stopped = false
     void fetchInvitations()
     void connect()
+    pollTimer = window.setInterval(() => {
+      if (!stopped) void fetchInvitations()
+    }, 10000)
   }
 
   function stop() {
@@ -147,6 +151,8 @@ export const useWheelInvitationsStore = defineStore('wheel-invitations', () => {
     connected.value = false
     if (reconnectTimer !== null) window.clearTimeout(reconnectTimer)
     reconnectTimer = null
+    if (pollTimer !== null) window.clearInterval(pollTimer)
+    pollTimer = null
     socket?.close()
     socket = null
   }
