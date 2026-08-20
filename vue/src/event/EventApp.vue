@@ -54,6 +54,7 @@ const messageList = ref<HTMLElement | null>(null)
 let clockTimer = 0
 let revealTimer = 0
 let reconnectTimer = 0
+let readyTimer = 0
 let socket: WebSocket | null = null
 let stopped = false
 
@@ -67,6 +68,7 @@ const secondsLeft = computed(() => state.value?.ends_at ? Math.max(0, Math.ceil(
 const countdown = computed(() => `${String(Math.floor(secondsLeft.value / 60)).padStart(2, '0')}:${String(secondsLeft.value % 60).padStart(2, '0')}`)
 const nextReadyIn = computed(() => state.value?.next_round_available_at ? Math.max(0, Math.ceil((new Date(state.value.next_round_available_at).getTime() - serverNowMs.value) / 1000)) : 0)
 const canSpin = computed(() => isActive.value && currentRound.value?.status === 'ready' && !spinning.value && !submittingSpin.value && nextReadyIn.value === 0)
+const syncingNextRound = computed(() => isActive.value && currentRound.value?.status !== 'ready' && nextReadyIn.value === 0 && !spinning.value && !submittingSpin.value)
 const canSend = computed(() => isActive.value && chatBody.value.trim().length > 0 && chatBody.value.length <= 280 && !sending.value)
 const progress = computed(() => state.value?.rounds.filter((item) => item.status === 'spun').length ?? 0)
 const totalReward = computed(() => formatMoney(state.value?.total_reward ?? '0'))
@@ -83,6 +85,8 @@ function syncClock(serverNow: string) {
 function applyState(next: WheelState) {
   state.value = next
   syncClock(next.server_now)
+  const lastSpun = [...next.rounds].filter((item) => item.status === 'spun').pop()
+  if (!spinning.value && lastSpun) result.value = lastSpun
 }
 
 async function exchangeLaunchCode() {
@@ -122,6 +126,7 @@ async function bootstrap() {
 async function startSession() {
   starting.value = true
   error.value = ''
+  result.value = null
   try {
     const response = await api<WheelState>('POST', '/v1/wheel/session/start')
     applyState(response)
@@ -153,7 +158,15 @@ function spinToRound(round: Round, durationMs = 5000) {
     spinning.value = false
     spinningRoundNo.value = 0
     if (state.value?.session_status === 'completed') disconnectSocket()
+    else void refreshState()
   }, Math.max(100, durationMs))
+}
+
+function scheduleReadyRefresh(availableAt?: string | null) {
+  window.clearTimeout(readyTimer)
+  if (!availableAt) return
+  const delay = Math.max(0, new Date(availableAt).getTime() - serverNowMs.value + 80)
+  readyTimer = window.setTimeout(() => void refreshState(), Math.min(delay, 10000))
 }
 
 async function spin() {
@@ -168,8 +181,13 @@ async function spin() {
     spinToRound(response.result, 5000)
   } catch (cause) {
     const apiError = cause as ApiError
-    error.value = apiError.message || 'Không thể thực hiện lượt quay.'
-    if (apiError.status === 409) window.setTimeout(() => void refreshState(), 1000)
+    if (apiError.code === 'ROUND_NOT_READY') {
+      error.value = ''
+      scheduleReadyRefresh(apiError.available_at ?? state.value.next_round_available_at)
+    } else {
+      error.value = apiError.message || 'Không thể thực hiện lượt quay.'
+      if (apiError.status === 409) scheduleReadyRefresh(state.value.next_round_available_at)
+    }
     spinningRoundNo.value = 0
   } finally {
     submittingSpin.value = false
@@ -293,8 +311,13 @@ onBeforeUnmount(() => {
   stopped = true
   window.clearInterval(clockTimer)
   window.clearTimeout(revealTimer)
+  window.clearTimeout(readyTimer)
   disconnectSocket()
 })
+
+function preventDoubleTap(event: MouseEvent) {
+  if (event.detail > 1) event.preventDefault()
+}
 </script>
 
 <template>
@@ -326,23 +349,7 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <section v-if="isReadyToStart" class="mx-auto grid min-h-[calc(100dvh-4rem)] max-w-4xl place-items-center px-5 py-10">
-        <div class="w-full text-center">
-          <p class="text-xs font-bold uppercase text-event-red">Lời mời dành riêng cho bạn</p>
-          <h1 class="mx-auto mt-3 max-w-2xl text-3xl font-black text-event-ink sm:text-5xl">{{ state.campaign_name }}</h1>
-          <p class="mx-auto mt-4 max-w-xl text-sm leading-7 text-slate-600">Bốn lượt quay liên tiếp, mỗi lượt kéo dài 5 giây. Phiên chỉ bắt đầu khi bạn nhấn nút bên dưới.</p>
-          <div class="mx-auto mt-8 grid max-w-xl grid-cols-4 border-y border-slate-200 py-5">
-            <div v-for="roundNo in 4" :key="roundNo" class="border-r border-slate-200 last:border-r-0">
-              <p class="text-[0.65rem] font-bold uppercase text-slate-400">Lượt</p><p class="mt-1 text-xl font-black">{{ roundNo }}</p>
-            </div>
-          </div>
-          <button type="button" class="mt-8 inline-flex min-h-14 items-center justify-center gap-2 rounded-[6px] bg-event-red px-8 text-sm font-black text-white shadow-[0_12px_26px_rgba(183,25,32,0.28)] disabled:opacity-60" :disabled="starting" @click="startSession">
-            <span class="material-symbols-outlined">play_arrow</span>{{ starting ? 'Đang bắt đầu...' : 'Bắt đầu vòng quay' }}
-          </button>
-        </div>
-      </section>
-
-      <div v-else class="mx-auto grid max-w-6xl gap-0 border-x border-black/10 bg-white lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div class="mx-auto grid max-w-6xl gap-0 border-x border-black/10 bg-white lg:grid-cols-[minmax(0,1fr)_360px]">
         <section class="min-w-0 px-4 py-5 sm:px-7 sm:py-7">
           <div class="flex items-center justify-between border-b border-slate-200 pb-4">
             <div class="min-w-0"><p class="text-[0.68rem] font-bold uppercase text-event-red">Vòng quay đặc biệt</p><h1 class="truncate text-lg font-black">{{ state.campaign_name }}</h1></div>
@@ -371,9 +378,9 @@ onBeforeUnmount(() => {
           </div>
 
           <p v-if="error" class="mx-auto mt-2 max-w-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs text-red-700">{{ error }}</p>
-          <button v-if="isActive" type="button" class="mx-auto mt-4 flex min-h-14 w-full max-w-lg items-center justify-center gap-2 rounded-[6px] bg-event-red px-5 text-base font-black text-white shadow-[0_12px_28px_rgba(183,25,32,0.24)] disabled:bg-slate-300 disabled:shadow-none" :disabled="!canSpin" @click="spin">
-            <span class="material-symbols-outlined">casino</span>
-            {{ submittingSpin ? 'Đang xác nhận...' : spinning ? 'Đang quay...' : nextReadyIn > 0 ? `Lượt tiếp theo sau ${nextReadyIn}s` : `Quay lượt ${state.current_round}` }}
+          <button v-if="isActive || isReadyToStart" type="button" class="mx-auto mt-4 flex min-h-14 w-full max-w-lg items-center justify-center gap-2 rounded-[6px] bg-event-red px-5 text-base font-black text-white shadow-[0_12px_28px_rgba(183,25,32,0.24)] disabled:bg-slate-300 disabled:shadow-none" :disabled="isReadyToStart ? starting : !canSpin" @click="isReadyToStart ? startSession() : spin()" @dblclick.prevent="preventDoubleTap">
+            <span class="material-symbols-outlined">{{ isReadyToStart ? 'play_arrow' : 'casino' }}</span>
+            {{ starting ? 'Đang bắt đầu...' : submittingSpin ? 'Đang xác nhận...' : spinning ? 'Đang quay...' : isReadyToStart ? 'Bắt đầu vòng quay' : nextReadyIn > 0 ? `Lượt tiếp theo sau ${nextReadyIn}s` : syncingNextRound ? 'Đang đồng bộ lượt tiếp theo...' : `Quay lượt ${state.current_round}` }}
           </button>
 
           <div class="mt-7 flex items-center justify-between border-t border-slate-200 pt-4 text-sm">

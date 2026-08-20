@@ -6,6 +6,7 @@ export type ApiError = {
   status: number
   message: string
   code?: string
+  available_at?: string
 }
 
 // Global callback for session invalidation (set by auth store)
@@ -29,14 +30,15 @@ function joinUrl(base: string, path: string): string {
   return `${base}${path}`
 }
 
-async function readErrorBody(res: Response): Promise<{ message: string; code?: string }> {
+async function readErrorBody(res: Response): Promise<{ message: string; code?: string; available_at?: string }> {
   try {
     const data = (await res.json()) as any
     const message = (data && typeof data.message === 'string' && data.message.trim())
       ? data.message
       : (res.statusText || 'Lỗi không xác định')
     const code = (data && typeof data.code === 'string') ? data.code : undefined
-    return { message, code }
+    const availableAt = (data && typeof data.available_at === 'string') ? data.available_at : undefined
+    return { message, code, available_at: availableAt }
   } catch {
     return { message: res.statusText || 'Lỗi không xác định' }
   }
@@ -71,8 +73,8 @@ export async function request<T>(
     })
 
     if (!res.ok) {
-      const { message, code } = await readErrorBody(res)
-      const err: ApiError = { status: res.status, message, code }
+      const { message, code, available_at } = await readErrorBody(res)
+      const err: ApiError = { status: res.status, message, code, available_at }
       // Handle session invalidation globally
       if (res.status === 401 && (code === 'SESSION_INVALIDATED' || code === 'ACCOUNT_DISABLED')) {
         onSessionInvalidated?.(message, code)
