@@ -51,14 +51,34 @@ const chatError = ref('')
 const sending = ref(false)
 const connected = ref(false)
 const messageList = ref<HTMLElement | null>(null)
+const celebrationRound = ref<Round | null>(null)
+const celebrationVisible = ref(false)
 let clockTimer = 0
 let revealTimer = 0
 let reconnectTimer = 0
 let readyTimer = 0
+let celebrationTimer = 0
 let socket: WebSocket | null = null
 let stopped = false
 
-const wheelLabels = ['50 TRIỆU', 'MAY MẮN', '10 TRIỆU', 'CẢM ƠN', '5 TRIỆU', '2 TRIỆU', '1 TRIỆU', '500K']
+const wheelSegments = [
+  { key: 'jackpot_50m', label: '50 TRIỆU', index: 0 },
+  { key: 'try_again', label: 'MAY MẮN', index: 1 },
+  { key: 'reward_10m', label: '10 TRIỆU', index: 2 },
+  { key: 'thank_you', label: 'CẢM ƠN', index: 3 },
+  { key: 'reward_5m', label: '5 TRIỆU', index: 4 },
+  { key: 'reward_2m', label: '2 TRIỆU', index: 5 },
+  { key: 'reward_1m', label: '1 TRIỆU', index: 6 },
+  { key: 'reward_500k', label: '500K', index: 7 },
+]
+const confettiColors = ['#f4bd32', '#f97316', '#ef4444', '#22c55e', '#38bdf8', '#f8fafc']
+const confettiPieces = Array.from({ length: 34 }, (_, index) => ({
+  left: `${(index * 29) % 101}%`,
+  delay: `${(index % 9) * 0.08}s`,
+  duration: `${2.4 + (index % 5) * 0.25}s`,
+  color: confettiColors[index % confettiColors.length],
+  rotate: `${(index * 47) % 360}deg`,
+}))
 const currentRound = computed(() => state.value?.rounds.find((item) => item.round_no === state.value?.current_round) ?? null)
 const isReadyToStart = computed(() => state.value && !state.value.session_id && state.value.session_status === 'pending')
 const isActive = computed(() => state.value?.session_status === 'active')
@@ -142,9 +162,25 @@ async function startSession() {
   }
 }
 
-function segmentIndex(key = '') {
+function segmentIndex(round: Round) {
+  const key = String(round.segment_key ?? '').trim().toLocaleLowerCase('vi-VN')
+  const label = String(round.result_label ?? '').trim().toLocaleLowerCase('vi-VN')
+  const amount = Number(round.prize_amount ?? 0)
   const known: Record<string, number> = { jackpot_50m: 0, try_again: 1, reward_10m: 2, thank_you: 3, reward_5m: 4, reward_2m: 5, reward_1m: 6, reward_500k: 7 }
   if (key in known) return known[key]!
+
+  // Campaigns created before the fixed wheel palette may contain a custom key.
+  // Resolve the visual segment from the snapshotted prize before falling back
+  // to a deterministic key, so the wheel never animates to another prize.
+  const byAmount: Record<number, number> = { 50000000: 0, 10000000: 2, 5000000: 4, 2000000: 5, 1000000: 6, 500000: 7 }
+  if (byAmount[amount] !== undefined) return byAmount[amount]!
+  if (key.includes('50') || label.includes('50 triệu')) return 0
+  if (key.includes('10') || label.includes('10 triệu')) return 2
+  if (key.includes('5') || label.includes('5 triệu')) return 4
+  if (key.includes('2') || label.includes('2 triệu')) return 5
+  if (key.includes('1') || label.includes('1 triệu')) return 6
+  if (key.includes('500') || label.includes('500')) return 7
+  if (!key) return label.includes('cảm ơn') ? 3 : 1
   return [...key].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 8
 }
 
@@ -159,8 +195,10 @@ function displayResultLabel(round: Round) {
     reward_1m: '1 triệu đồng',
     reward_500k: '500.000 đồng',
   }
-  // A generic losing label left in the admin form must not hide a positive
-  // payout that was snapshotted for this round.
+  const amountCanonical: Record<number, string> = { 50000000: '50 triệu đồng', 10000000: '10 triệu đồng', 5000000: '5 triệu đồng', 2000000: '2 triệu đồng', 1000000: '1 triệu đồng', 500000: '500.000 đồng' }
+  // The amount is the source of truth for a paid result. This also repairs
+  // old snapshots where the label was accidentally left as "Chúc bạn may mắn".
+  if (amountCanonical[amount] !== undefined) return amountCanonical[amount]!
   if (amount > 0 && canonical[round.segment_key ?? ''] && ['chúc bạn may mắn', 'cảm ơn bạn đã tham gia'].includes(label.toLocaleLowerCase('vi-VN'))) {
     return canonical[round.segment_key ?? '']
   }
@@ -168,7 +206,7 @@ function displayResultLabel(round: Round) {
 }
 
 function spinToRound(round: Round, durationMs = 5000) {
-  const index = segmentIndex(round.segment_key)
+  const index = segmentIndex(round)
   const normalized = ((rotation.value % 360) + 360) % 360
   const target = 360 - (index * 45 + 22.5)
   const delta = ((target - normalized + 360) % 360) + 360 * 6
@@ -180,13 +218,28 @@ function spinToRound(round: Round, durationMs = 5000) {
     result.value = round
     spinning.value = false
     spinningRoundNo.value = 0
+    if (Number(round.prize_amount ?? 0) > 0) openCelebration(round)
     if (state.value?.session_status === 'completed') disconnectSocket()
     else void refreshState()
   }, Math.max(100, durationMs))
 }
 
+function openCelebration(round: Round) {
+  window.clearTimeout(celebrationTimer)
+  celebrationRound.value = round
+  celebrationVisible.value = true
+  celebrationTimer = window.setTimeout(closeCelebration, 5500)
+}
+
+function closeCelebration() {
+  celebrationVisible.value = false
+  window.clearTimeout(celebrationTimer)
+  celebrationTimer = 0
+}
+
 function scheduleReadyRefresh(availableAt?: string | null) {
   window.clearTimeout(readyTimer)
+  window.clearTimeout(celebrationTimer)
   if (!availableAt) return
   const delay = Math.max(0, new Date(availableAt).getTime() - serverNowMs.value + 80)
   readyTimer = window.setTimeout(() => void refreshState(), Math.min(delay, 10000))
@@ -346,93 +399,102 @@ function preventDoubleTap(event: MouseEvent) {
 </script>
 
 <template>
-  <main class="min-h-dvh bg-[#f5f5f3]">
-    <div v-if="booting" class="grid min-h-dvh place-items-center px-6">
-      <div class="text-center">
-        <img :src="logo" alt="fh88u" class="mx-auto h-16 w-auto object-contain">
-        <div class="mx-auto mt-6 h-1 w-36 overflow-hidden bg-slate-200"><div class="h-full w-1/2 animate-pulse bg-event-red" /></div>
-        <p class="mt-3 text-xs font-bold text-slate-500">Đang xác thực lời mời...</p>
-      </div>
+  <main class="event-shell min-h-dvh">
+    <div v-if="booting" class="event-loading">
+      <div class="event-loading__mark"><span class="material-symbols-outlined">casino</span></div>
+      <div class="event-loading__bar"><span /></div>
+      <p>Đang mở phòng sự kiện...</p>
     </div>
 
-    <div v-else-if="error && !state" class="grid min-h-dvh place-items-center px-5">
-      <section class="w-full max-w-md border border-red-200 bg-white p-6 text-center shadow-sm">
-        <span class="material-symbols-outlined text-4xl text-event-red">link_off</span>
-        <h1 class="mt-4 text-lg font-black">Không thể mở sự kiện</h1>
-        <p class="mt-2 text-sm leading-6 text-slate-600">{{ error }}</p>
+    <div v-else-if="error && !state" class="event-error">
+      <section class="event-error__card" role="alert">
+        <span class="material-symbols-outlined">link_off</span>
+        <h1>Không thể mở sự kiện</h1>
+        <p>{{ error }}</p>
+        <button type="button" class="event-button event-button--ghost" @click="bootstrap">Thử lại</button>
       </section>
     </div>
 
     <template v-else-if="state">
-      <header class="border-b border-black/10 bg-white">
-        <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <img :src="logo" alt="fh88u" class="h-10 w-auto object-contain">
-          <div class="text-right">
-            <p class="text-[0.65rem] font-bold uppercase text-slate-400">Thời gian còn lại</p>
-            <p class="font-mono text-xl font-black text-event-red">{{ countdown }}</p>
+      <header class="event-header">
+        <div class="event-container event-header__inner">
+          <div class="event-brand">
+            <div class="event-brand__logo"><img :src="logo" alt="fh88u"></div>
+            <div><p class="event-eyebrow">FH88U PRESENTS</p><p class="event-brand__title">{{ state.campaign_name }}</p></div>
+          </div>
+          <div class="event-countdown" :class="{ 'event-countdown--urgent': secondsLeft <= 30 && isActive }">
+            <span class="material-symbols-outlined">timer</span>
+            <div><span>THỜI GIAN CÒN LẠI</span><strong>{{ countdown }}</strong></div>
           </div>
         </div>
       </header>
 
-      <div class="mx-auto grid max-w-6xl gap-0 border-x border-black/10 bg-white lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section class="min-w-0 px-4 py-5 sm:px-7 sm:py-7">
-          <div class="flex items-center justify-between border-b border-slate-200 pb-4">
-            <div class="min-w-0"><p class="text-[0.68rem] font-bold uppercase text-event-red">Vòng quay đặc biệt</p><h1 class="truncate text-lg font-black">{{ state.campaign_name }}</h1></div>
-            <p class="shrink-0 text-sm font-black text-slate-700">{{ progress }}/4 lượt</p>
+      <div class="event-container event-layout">
+        <section class="event-stage">
+          <div class="event-stage__heading">
+            <div><p class="event-eyebrow event-eyebrow--gold">LUCKY WHEEL LIVE</p><h1>Vòng quay may mắn</h1></div>
+            <div class="event-round-badge"><span>{{ progress }}</span><small>/ 4 LƯỢT</small></div>
           </div>
 
-          <div class="mt-5 grid grid-cols-4 gap-2" aria-label="Tiến trình bốn lượt">
-            <div v-for="item in state.rounds" :key="item.round_no" class="h-1.5 bg-slate-200" :class="{ '!bg-emerald-500': item.status === 'spun', '!bg-event-gold': item.round_no === state.current_round && isActive }" />
+          <div class="event-progress" aria-label="Tiến trình vòng quay">
+            <div v-for="item in state.rounds" :key="item.round_no" class="event-progress__item" :class="{ 'is-complete': item.status === 'spun', 'is-current': item.round_no === state.current_round && isActive }"><span>LƯỢT {{ item.round_no }}</span></div>
           </div>
 
-          <div class="relative mx-auto mt-8 aspect-square w-[min(78vw,440px)] max-w-full">
-            <div class="absolute left-1/2 top-[-11px] z-20 -translate-x-1/2 text-event-red-dark"><span class="material-symbols-outlined text-[3rem] [font-variation-settings:'FILL'_1]">arrow_drop_down</span></div>
-            <div class="event-wheel absolute inset-3 rounded-full" :style="wheelStyle">
-              <span v-for="(label, index) in wheelLabels" :key="label" class="wheel-label" :style="{ transform: `rotate(${index * 45 + 22.5}deg) translate(42%, -50%)` }">{{ label }}</span>
+          <div class="event-wheel-area">
+            <div class="event-wheel-area__halo" />
+            <div class="event-pointer"><span class="material-symbols-outlined">arrow_drop_down</span></div>
+            <div class="event-wheel" :style="wheelStyle" :class="{ 'is-spinning': spinning }" aria-label="Vòng quay giải thưởng">
+              <span v-for="segment in wheelSegments" :key="segment.key" class="wheel-label" :style="{ '--segment-angle': `${segment.index * 45 + 22.5}deg`, '--counter-angle': `-${segment.index * 45 + 22.5}deg` }"><span class="wheel-label__text">{{ segment.label }}</span></span>
+              <div class="event-wheel__ring" />
             </div>
-            <div class="absolute left-1/2 top-1/2 z-10 grid h-[25%] w-[25%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[5px] border-event-gold bg-white shadow-lg">
-              <img :src="logo" alt="" class="w-[72%] object-contain">
-            </div>
+            <div class="event-wheel__hub"><img :src="logo" alt="fh88u"><span class="material-symbols-outlined">auto_awesome</span></div>
           </div>
 
-          <div class="mx-auto mt-8 min-h-24 max-w-lg text-center" aria-live="polite">
-            <template v-if="spinning || submittingSpin"><p class="text-xs font-bold uppercase text-slate-400">Lượt {{ spinningRoundNo || state.current_round }}</p><h2 class="mt-2 text-xl font-black text-event-red">{{ submittingSpin && !spinning ? 'Đang xác nhận lượt quay...' : 'Vòng quay đang chạy...' }}</h2></template>
-            <template v-else-if="result"><p class="text-xs font-bold uppercase text-slate-400">Kết quả lượt {{ result.round_no }}</p><h2 class="mt-2 text-2xl font-black text-event-ink">{{ displayResultLabel(result) }}</h2><p v-if="Number(result.prize_amount) > 0" class="mt-1 text-lg font-black text-emerald-600">+{{ formatMoney(result.prize_amount ?? 0) }}</p></template>
-            <template v-else-if="isFinished"><p class="text-xs font-bold uppercase text-slate-400">Phiên đã kết thúc</p><h2 class="mt-2 text-2xl font-black">Tổng thưởng {{ totalReward }}</h2></template>
-            <template v-else><p class="text-xs font-bold uppercase text-slate-400">Sẵn sàng</p><h2 class="mt-2 text-xl font-black">Lượt {{ state.current_round }} / 4</h2></template>
+          <div class="event-result" aria-live="polite">
+            <template v-if="spinning || submittingSpin">
+              <span class="event-result__icon event-result__icon--spin"><span class="material-symbols-outlined">sync</span></span>
+              <div class="event-result__copy"><p>LƯỢT {{ spinningRoundNo || state.current_round }}</p><h2>{{ submittingSpin && !spinning ? 'Đang xác nhận...' : 'Đang quay giải...' }}</h2></div>
+            </template>
+            <template v-else-if="result">
+              <span class="event-result__icon" :class="Number(result.prize_amount) > 0 ? 'event-result__icon--win' : 'event-result__icon--neutral'"><span class="material-symbols-outlined">{{ Number(result.prize_amount) > 0 ? 'workspace_premium' : 'sentiment_satisfied' }}</span></span>
+              <div class="event-result__copy"><p>KẾT QUẢ LƯỢT {{ result.round_no }}</p><h2>{{ displayResultLabel(result) }}</h2><strong v-if="Number(result.prize_amount) > 0">+{{ formatMoney(result.prize_amount ?? 0) }}</strong></div>
+            </template>
+            <template v-else-if="isFinished">
+              <span class="event-result__icon event-result__icon--neutral"><span class="material-symbols-outlined">flag</span></span><div class="event-result__copy"><p>PHIÊN ĐÃ KẾT THÚC</p><h2>Tổng thưởng {{ totalReward }}</h2></div>
+            </template>
+            <template v-else><span class="event-result__icon event-result__icon--neutral"><span class="material-symbols-outlined">touch_app</span></span><div class="event-result__copy"><p>SẴN SÀNG</p><h2>{{ isReadyToStart ? 'Bắt đầu để mở lượt 1' : `Lượt ${state.current_round} sẵn sàng` }}</h2></div></template>
           </div>
 
-          <p v-if="error" class="mx-auto mt-2 max-w-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs text-red-700">{{ error }}</p>
-          <button v-if="isActive || isReadyToStart" type="button" class="mx-auto mt-4 flex min-h-14 w-full max-w-lg items-center justify-center gap-2 rounded-[6px] bg-event-red px-5 text-base font-black text-white shadow-[0_12px_28px_rgba(183,25,32,0.24)] disabled:bg-slate-300 disabled:shadow-none" :disabled="isReadyToStart ? starting : !canSpin" @click="isReadyToStart ? startSession() : spin()" @dblclick.prevent="preventDoubleTap">
+          <p v-if="error" class="event-inline-error" role="alert"><span class="material-symbols-outlined">error</span>{{ error }}</p>
+          <button v-if="isActive || isReadyToStart" type="button" class="event-button event-button--primary" :disabled="isReadyToStart ? starting : !canSpin" @click="isReadyToStart ? startSession() : spin()" @dblclick.prevent="preventDoubleTap">
             <span class="material-symbols-outlined">{{ isReadyToStart ? 'play_arrow' : 'casino' }}</span>
-            {{ starting ? 'Đang bắt đầu...' : submittingSpin ? 'Đang xác nhận...' : spinning ? 'Đang quay...' : isReadyToStart ? 'Bắt đầu vòng quay' : nextReadyIn > 0 ? `Lượt tiếp theo sau ${nextReadyIn}s` : syncingNextRound ? 'Đang đồng bộ lượt tiếp theo...' : `Quay lượt ${state.current_round}` }}
+            {{ starting ? 'Đang bắt đầu...' : submittingSpin ? 'Đang xác nhận...' : spinning ? 'Đang quay...' : isReadyToStart ? 'Bắt đầu vòng quay' : nextReadyIn > 0 ? `Lượt tiếp theo sau ${nextReadyIn}s` : syncingNextRound ? 'Đang đồng bộ...' : `Quay lượt ${state.current_round}` }}
           </button>
-
-          <div class="mt-7 flex items-center justify-between border-t border-slate-200 pt-4 text-sm">
-            <span class="text-slate-500">Tổng thưởng đã nhận</span><strong class="text-lg text-emerald-600">{{ totalReward }}</strong>
-          </div>
+          <p class="event-stage__hint"><span class="material-symbols-outlined">lock</span>Kết quả được xác nhận an toàn từ máy chủ</p>
         </section>
 
-        <aside class="flex min-h-[520px] flex-col border-t border-slate-200 bg-[#fafafa] lg:min-h-[calc(100dvh-4rem)] lg:border-l lg:border-t-0">
-          <header class="flex h-16 items-center justify-between border-b border-slate-200 px-4">
-            <div><h2 class="text-sm font-black">Trò chuyện sự kiện</h2><p class="mt-0.5 text-[0.68rem] text-slate-500">{{ connected ? 'Đang trực tuyến' : isActive ? 'Đang kết nối lại' : 'Đã đóng' }}</p></div>
-            <span class="h-2.5 w-2.5 rounded-full" :class="connected ? 'bg-emerald-500' : 'bg-slate-300'" />
-          </header>
-          <div ref="messageList" class="event-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-            <p v-if="!messages.length" class="py-10 text-center text-xs text-slate-400">Tin nhắn sẽ xuất hiện tại đây.</p>
-            <div v-for="message in messages" :key="message.id" class="flex gap-2.5">
-              <div class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-200 text-xs font-black text-slate-600">{{ message.display_name.slice(0, 1).toUpperCase() }}</div>
-              <div class="min-w-0"><div class="flex items-baseline gap-2"><strong class="truncate text-xs text-slate-800">{{ message.display_name }}</strong><time class="text-[0.62rem] text-slate-400">{{ formatChatTime(message.created_at) }}</time></div><p class="mt-1 break-words text-[0.8rem] leading-5 text-slate-600">{{ message.body }}</p></div>
-            </div>
+        <aside class="event-chat">
+          <header class="event-chat__header"><div><p class="event-eyebrow event-eyebrow--gold">LIVE ROOM</p><h2>Phòng trò chuyện</h2></div><span class="event-chat__status" :class="{ 'is-online': connected }"><i />{{ connected ? 'Trực tuyến' : isActive ? 'Đang kết nối' : 'Đã đóng' }}</span></header>
+          <div ref="messageList" class="event-chat__messages">
+            <div v-if="!messages.length" class="event-chat__empty"><span class="material-symbols-outlined">forum</span><p>Phòng chat đang chờ những lời chúc đầu tiên.</p></div>
+            <div v-for="message in messages" :key="message.id" class="event-message"><div class="event-message__avatar">{{ message.display_name.slice(0, 1).toUpperCase() }}</div><div class="event-message__body"><div><strong>{{ message.display_name }}</strong><time>{{ formatChatTime(message.created_at) }}</time></div><p>{{ message.body }}</p></div></div>
           </div>
-          <form class="border-t border-slate-200 bg-white p-3" @submit.prevent="sendChat">
-            <p v-if="chatError" class="mb-2 text-xs text-red-600">{{ chatError }}</p>
-            <div class="flex items-center gap-2">
-              <input v-model="chatBody" type="text" maxlength="280" :disabled="!isActive" class="min-h-11 min-w-0 flex-1 border border-slate-300 bg-white px-3 text-sm outline-none focus:border-event-red disabled:bg-slate-100" :placeholder="isActive ? 'Nhập tin nhắn...' : 'Phiên chat đã kết thúc'">
-              <button type="submit" class="grid h-11 w-11 shrink-0 place-items-center rounded-[6px] bg-event-red text-white disabled:bg-slate-300" :disabled="!canSend" aria-label="Gửi tin nhắn"><span class="material-symbols-outlined">send</span></button>
-            </div>
-          </form>
+          <form class="event-chat__composer" @submit.prevent="sendChat"><p v-if="chatError" class="event-chat__error">{{ chatError }}</p><div class="event-chat__composer-row"><input v-model="chatBody" type="text" maxlength="280" :disabled="!isActive" :placeholder="isActive ? 'Gửi lời chúc...' : 'Phòng chat đã đóng'"><button type="submit" :disabled="!canSend" aria-label="Gửi tin nhắn"><span class="material-symbols-outlined">arrow_upward</span></button></div></form>
         </aside>
+      </div>
+
+      <div v-if="celebrationVisible && celebrationRound" class="celebration-backdrop" role="dialog" aria-modal="true" aria-labelledby="celebration-title" @click.self="closeCelebration">
+        <span v-for="(piece, index) in confettiPieces" :key="index" class="confetti-piece" :style="{ left: piece.left, animationDelay: piece.delay, animationDuration: piece.duration, backgroundColor: piece.color, transform: `rotate(${piece.rotate})` }" />
+        <section class="celebration-card">
+          <button type="button" class="celebration-card__close" aria-label="Đóng thông báo" @click="closeCelebration"><span class="material-symbols-outlined">close</span></button>
+          <div class="celebration-card__burst"><span class="material-symbols-outlined">workspace_premium</span></div>
+          <p class="event-eyebrow event-eyebrow--gold">CHÚC MỪNG BẠN</p>
+          <h2 id="celebration-title">Bạn vừa trúng thưởng!</h2>
+          <p class="celebration-card__label">{{ displayResultLabel(celebrationRound) }}</p>
+          <strong>+{{ formatMoney(celebrationRound.prize_amount ?? 0) }}</strong>
+          <p class="celebration-card__note"><span class="material-symbols-outlined">account_balance_wallet</span> Phần thưởng đã được cộng vào ví</p>
+          <button type="button" class="event-button event-button--primary" @click="closeCelebration"><span class="material-symbols-outlined">arrow_forward</span>Tiếp tục vòng quay</button>
+        </section>
       </div>
     </template>
   </main>
