@@ -58,7 +58,16 @@ class WheelInvitationResource extends BaseResource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Select::make('campaign_id')->label('Chiến dịch')->relationship('campaign', 'name')->required()->searchable()->disabled(fn (?WheelInvitation $record): bool => $record?->status !== null && $record->status !== 'draft'),
+            Select::make('campaign_id')
+                ->label('Chiến dịch')
+                ->relationship('campaign', 'name')
+                ->placeholder('Chọn chiến dịch')
+                ->searchable()
+                ->searchPrompt('Tìm chiến dịch...')
+                ->noSearchResultsMessage('Không tìm thấy chiến dịch')
+                ->preload()
+                ->optionsLimit(50)
+                ->disabled(fn (?WheelInvitation $record): bool => $record?->status !== null && $record->status !== 'draft'),
             Select::make('user_id')->label('Người chơi')->required()->searchable()
                 ->getSearchResultsUsing(fn (string $search): array => User::query()->whereIn('role', [2, 4])->where(fn (Builder $query) => $query->where('name', 'ilike', "%{$search}%")->orWhere('phone', 'ilike', "%{$search}%")->orWhereRaw('CAST(id AS TEXT) LIKE ?', ["%{$search}%"]))->limit(50)->get()->mapWithKeys(fn (User $user): array => [$user->id => "#{$user->id} - {$user->name} - ".($user->phone ?: 'không có SĐT')])->all())
                 ->getOptionLabelUsing(fn ($value): string => optional(User::find($value), fn (User $user): string => "#{$user->id} - {$user->name} - ".($user->phone ?: 'không có SĐT')) ?? (string) $value)
