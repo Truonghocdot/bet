@@ -87,11 +87,24 @@ class WheelCampaignResource extends BaseResource
                     ->label('Kích hoạt người chơi')->icon('heroicon-o-user-plus')->color('success')
                     ->visible(fn (WheelCampaign $record): bool => $record->status === 'active')
                     ->schema([
-                        Select::make('user_ids')->label('Người chơi')->multiple()->searchable()->required()
+                        Select::make('user_ids')
+                            ->label('Người chơi')
+                            ->multiple()
+                            ->searchable()
+                            ->required()
                             ->getSearchResultsUsing(fn (string $search): array => User::query()
                                 ->whereIn('role', [2, 4])
                                 ->where(fn (Builder $query) => $query->where('name', 'ilike', "%{$search}%")->orWhere('phone', 'ilike', "%{$search}%")->orWhereRaw('CAST(id AS TEXT) LIKE ?', ["%{$search}%"]))
-                                ->limit(50)->get()->mapWithKeys(fn (User $user): array => [$user->id => "#{$user->id} - {$user->name} - ".($user->phone ?: 'không có SĐT')])->all()),
+                                ->limit(50)
+                                ->get()
+                                ->mapWithKeys(fn (User $user): array => [$user->id => "#{$user->id} - {$user->name} - ".($user->phone ?: 'không có SĐT')])
+                                ->all())
+                            ->getOptionLabelsUsing(fn (array $values): array => User::query()
+                                ->whereIn('role', [2, 4])
+                                ->whereIn('id', $values)
+                                ->get(['id', 'name', 'phone'])
+                                ->mapWithKeys(fn (User $user): array => [$user->id => "#{$user->id} - {$user->name} - ".($user->phone ?: 'không có SĐT')])
+                                ->all()),
                     ])
                     ->action(function (WheelCampaign $record, array $data): void {
                         $count = app(WheelCampaignService::class)->inviteUsers($record, $data['user_ids'] ?? []);
