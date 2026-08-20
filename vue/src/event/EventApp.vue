@@ -104,8 +104,11 @@ async function loadState() {
   const response = await api<WheelState>('GET', '/v1/wheel/me')
   applyState(response)
   if (response.session_id) {
-    await Promise.all([loadChat(), connectSocket()])
     recoverAnimation(response)
+    // Chat and realtime are enhancements; they must not block the wheel from
+    // rendering while a socket handshake or a slow history query is pending.
+    void loadChat()
+    void connectSocket()
   }
 }
 
@@ -130,7 +133,8 @@ async function startSession() {
   try {
     const response = await api<WheelState>('POST', '/v1/wheel/session/start')
     applyState(response)
-    await Promise.all([loadChat(), connectSocket()])
+    void loadChat()
+    void connectSocket()
   } catch (cause) {
     error.value = (cause as ApiError).message || 'Không thể bắt đầu phiên.'
   } finally {
@@ -142,6 +146,25 @@ function segmentIndex(key = '') {
   const known: Record<string, number> = { jackpot_50m: 0, try_again: 1, reward_10m: 2, thank_you: 3, reward_5m: 4, reward_2m: 5, reward_1m: 6, reward_500k: 7 }
   if (key in known) return known[key]!
   return [...key].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 8
+}
+
+function displayResultLabel(round: Round) {
+  const label = String(round.result_label ?? '').trim()
+  const amount = Number(round.prize_amount ?? 0)
+  const canonical: Record<string, string> = {
+    jackpot_50m: '50 triệu đồng',
+    reward_10m: '10 triệu đồng',
+    reward_5m: '5 triệu đồng',
+    reward_2m: '2 triệu đồng',
+    reward_1m: '1 triệu đồng',
+    reward_500k: '500.000 đồng',
+  }
+  // A generic losing label left in the admin form must not hide a positive
+  // payout that was snapshotted for this round.
+  if (amount > 0 && canonical[round.segment_key ?? ''] && ['chúc bạn may mắn', 'cảm ơn bạn đã tham gia'].includes(label.toLocaleLowerCase('vi-VN'))) {
+    return canonical[round.segment_key ?? '']
+  }
+  return label || canonical[round.segment_key ?? ''] || 'Kết quả lượt quay'
 }
 
 function spinToRound(round: Round, durationMs = 5000) {
@@ -300,6 +323,7 @@ function formatChatTime(value: string) {
 }
 
 onMounted(() => {
+  document.addEventListener('dblclick', preventDoubleTap, { passive: false })
   clockTimer = window.setInterval(() => {
     nowMs.value = Date.now()
     if (state.value?.session_status === 'active' && secondsLeft.value === 0 && !spinning.value) void refreshState()
@@ -312,6 +336,7 @@ onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
   window.clearTimeout(revealTimer)
   window.clearTimeout(readyTimer)
+  document.removeEventListener('dblclick', preventDoubleTap)
   disconnectSocket()
 })
 
@@ -372,7 +397,7 @@ function preventDoubleTap(event: MouseEvent) {
 
           <div class="mx-auto mt-8 min-h-24 max-w-lg text-center" aria-live="polite">
             <template v-if="spinning || submittingSpin"><p class="text-xs font-bold uppercase text-slate-400">Lượt {{ spinningRoundNo || state.current_round }}</p><h2 class="mt-2 text-xl font-black text-event-red">{{ submittingSpin && !spinning ? 'Đang xác nhận lượt quay...' : 'Vòng quay đang chạy...' }}</h2></template>
-            <template v-else-if="result"><p class="text-xs font-bold uppercase text-slate-400">Kết quả lượt {{ result.round_no }}</p><h2 class="mt-2 text-2xl font-black text-event-ink">{{ result.result_label }}</h2><p v-if="Number(result.prize_amount) > 0" class="mt-1 text-lg font-black text-emerald-600">+{{ formatMoney(result.prize_amount ?? 0) }}</p></template>
+            <template v-else-if="result"><p class="text-xs font-bold uppercase text-slate-400">Kết quả lượt {{ result.round_no }}</p><h2 class="mt-2 text-2xl font-black text-event-ink">{{ displayResultLabel(result) }}</h2><p v-if="Number(result.prize_amount) > 0" class="mt-1 text-lg font-black text-emerald-600">+{{ formatMoney(result.prize_amount ?? 0) }}</p></template>
             <template v-else-if="isFinished"><p class="text-xs font-bold uppercase text-slate-400">Phiên đã kết thúc</p><h2 class="mt-2 text-2xl font-black">Tổng thưởng {{ totalReward }}</h2></template>
             <template v-else><p class="text-xs font-bold uppercase text-slate-400">Sẵn sàng</p><h2 class="mt-2 text-xl font-black">Lượt {{ state.current_round }} / 4</h2></template>
           </div>

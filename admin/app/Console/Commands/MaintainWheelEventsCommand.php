@@ -19,12 +19,24 @@ class MaintainWheelEventsCommand extends Command
         }
 
         DB::transaction(function () use ($publisher): void {
-            foreach (DB::table('wheel_sessions')->where('status', 'active')->where('ends_at', '<=', now())->lockForUpdate()->get() as $session) {
-                DB::table('wheel_sessions')->where('id', $session->id)->update(['status' => 'expired', 'expired_at' => now(), 'updated_at' => now()]);
-                DB::table('wheel_invitations')->where('id', $session->invitation_id)->update(['status' => 'expired', 'updated_at' => now()]);
-                DB::table('wheel_invitation_rounds')->where('invitation_id', $session->invitation_id)->where('status', 'pending')->update(['status' => 'expired', 'updated_at' => now()]);
-                DB::table('chat_rooms')->where('wheel_session_id', $session->id)->update(['enabled' => false, 'updated_at' => now()]);
-                DB::table('wheel_audit_logs')->insert(['invitation_id' => $session->invitation_id, 'session_id' => $session->id, 'action' => 'session.expired', 'new_values' => json_encode(['status' => 'expired'], JSON_THROW_ON_ERROR), 'created_at' => now()]);
+            // Gin writes session timestamps in UTC. The columns are PostgreSQL
+            // timestamp values without timezone, so the comparison must use the
+            // same UTC wall clock instead of Laravel's Asia/Ho_Chi_Minh clock.
+            $now = now('UTC');
+            foreach (DB::table('wheel_sessions')->where('status', 'expired')->where('ends_at', '>', $now)->lockForUpdate()->get() as $session) {
+                DB::table('wheel_sessions')->where('id', $session->id)->update(['status' => 'active', 'expired_at' => null, 'updated_at' => $now]);
+                DB::table('wheel_invitations')->where('id', $session->invitation_id)->update(['status' => 'started', 'updated_at' => $now]);
+                DB::table('wheel_invitation_rounds')->where('invitation_id', $session->invitation_id)->where('status', 'expired')->whereNull('spun_at')->update(['status' => 'pending', 'updated_at' => $now]);
+                DB::table('chat_rooms')->where('wheel_session_id', $session->id)->update(['enabled' => true, 'updated_at' => $now]);
+                DB::table('wheel_audit_logs')->insert(['invitation_id' => $session->invitation_id, 'session_id' => $session->id, 'action' => 'session.clock_repaired', 'new_values' => json_encode(['status' => 'active'], JSON_THROW_ON_ERROR), 'created_at' => $now]);
+                $publisher->queueForSession((int) $session->id, 'wheel.session.clock_repaired', ['session_id' => $session->public_id]);
+            }
+            foreach (DB::table('wheel_sessions')->where('status', 'active')->where('ends_at', '<=', $now)->lockForUpdate()->get() as $session) {
+                DB::table('wheel_sessions')->where('id', $session->id)->update(['status' => 'expired', 'expired_at' => $now, 'updated_at' => $now]);
+                DB::table('wheel_invitations')->where('id', $session->invitation_id)->update(['status' => 'expired', 'updated_at' => $now]);
+                DB::table('wheel_invitation_rounds')->where('invitation_id', $session->invitation_id)->where('status', 'pending')->update(['status' => 'expired', 'updated_at' => $now]);
+                DB::table('chat_rooms')->where('wheel_session_id', $session->id)->update(['enabled' => false, 'updated_at' => $now]);
+                DB::table('wheel_audit_logs')->insert(['invitation_id' => $session->invitation_id, 'session_id' => $session->id, 'action' => 'session.expired', 'new_values' => json_encode(['status' => 'expired'], JSON_THROW_ON_ERROR), 'created_at' => $now]);
                 $publisher->queueForSession((int) $session->id, 'wheel.session.expired', ['session_id' => $session->public_id]);
             }
         });
