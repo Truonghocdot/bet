@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Wheel\WheelAuditLog;
 use App\Models\Wheel\WheelCampaign;
 use App\Models\Wheel\WheelInvitation;
+use App\Models\Chat\ChatRoom;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -15,7 +16,7 @@ class WheelCampaignService
     public function __construct(private readonly WheelEventPublisher $publisher) {}
 
     /** @param array<int, int|string> $userIds */
-    public function inviteUsers(WheelCampaign $campaign, array $userIds, bool $activate = true): int
+    public function inviteUsers(WheelCampaign $campaign, array $userIds, bool $activate = true, bool $botChatEnabled = false): int
     {
         $ids = collect($userIds)->map(fn ($id): int => (int) $id)->filter()->unique()->values();
         if ($ids->isEmpty()) {
@@ -23,7 +24,7 @@ class WheelCampaignService
         }
 
         $count = 0;
-        DB::transaction(function () use ($campaign, $ids, $activate, &$count): void {
+        DB::transaction(function () use ($campaign, $ids, $activate, $botChatEnabled, &$count): void {
             $campaign = WheelCampaign::query()->with('roundTemplates')->lockForUpdate()->findOrFail($campaign->id);
             $this->validateCampaign($campaign, $activate);
             $users = User::query()->whereIn('id', $ids)->whereIn('role', [2, 4])->get()->keyBy('id');
@@ -36,6 +37,7 @@ class WheelCampaignService
                     'campaign_id' => $campaign->id,
                     'user_id' => $userId,
                     'status' => 'draft',
+                    'bot_chat_enabled' => $botChatEnabled,
                 ]);
                 $this->snapshotRounds($invitation, $campaign);
                 if ($activate) {
@@ -125,6 +127,17 @@ class WheelCampaignService
         $payload = ['invitation_id' => $invitation->public_id, 'campaign_name' => $campaign->name, 'expires_at' => $invitation->expires_at?->toISOString()];
         $this->audit($invitation, 'invitation.activated', ['status' => 'draft'], $payload);
         $this->publisher->queueForUser((int) $invitation->user_id, 'wheel.invitation.activated', $payload);
+        if ($invitation->bot_chat_enabled) {
+            ChatRoom::query()->updateOrCreate(
+                ['wheel_invitation_id' => $invitation->id],
+                [
+                    'code' => 'wheel-invitation-'.$invitation->id,
+                    'name' => 'Phòng sự kiện '.$campaign->name,
+                    'enabled' => true,
+                    'next_bot_at' => now()->addSeconds(random_int(8, 14)),
+                ],
+            );
+        }
         DB::afterCommit(fn () => $this->publisher->publishPending());
     }
 

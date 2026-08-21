@@ -52,6 +52,7 @@ class WheelCampaignServiceTest extends TestCase
             $table->unsignedBigInteger('campaign_id');
             $table->unsignedBigInteger('user_id');
             $table->string('status');
+            $table->boolean('bot_chat_enabled')->default(false);
             $table->timestamp('activated_at')->nullable();
             $table->timestamp('expires_at')->nullable();
             $table->timestamp('popup_seen_at')->nullable();

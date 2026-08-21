@@ -16,6 +16,7 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
@@ -71,6 +72,11 @@ class WheelInvitationResource extends BaseResource
             Select::make('user_id')->label('Người chơi')->required()->searchable()
                 ->getSearchResultsUsing(fn (string $search): array => User::query()->whereIn('role', [2, 4])->where(fn (Builder $query) => $query->where('name', 'ilike', "%{$search}%")->orWhere('phone', 'ilike', "%{$search}%")->orWhereRaw('CAST(id AS TEXT) LIKE ?', ["%{$search}%"]))->limit(50)->get()->mapWithKeys(fn (User $user): array => [$user->id => "#{$user->id} - {$user->name} - ".($user->phone ?: 'không có SĐT')])->all())
                 ->getOptionLabelUsing(fn ($value): string => optional(User::find($value), fn (User $user): string => "#{$user->id} - {$user->name} - ".($user->phone ?: 'không có SĐT')) ?? (string) $value)
+                ->disabled(fn (?WheelInvitation $record): bool => $record?->status !== null && $record->status !== 'draft'),
+            Toggle::make('bot_chat_enabled')
+                ->label('Bật bot chat cho người chơi')
+                ->default(false)
+                ->helperText('Bot phát tin sau 8–14 giây và hiển thị khi người chơi mở event.')
                 ->disabled(fn (?WheelInvitation $record): bool => $record?->status !== null && $record->status !== 'draft'),
             TextInput::make('status')->label('Trạng thái')->disabled()->dehydrated(false),
             Repeater::make('rounds')->label('Kết quả riêng của người chơi')->relationship()->schema([

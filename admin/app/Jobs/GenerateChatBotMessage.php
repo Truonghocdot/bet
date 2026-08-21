@@ -93,15 +93,32 @@ class GenerateChatBotMessage implements ShouldQueue
 
     private function generateForWheelSession(ChatRedisPublisher $publisher): bool
     {
+        $now = now('UTC');
         $room = ChatRoom::query()
-            ->whereNotNull('wheel_session_id')
             ->where('enabled', true)
-            ->where(fn ($query) => $query->whereNull('next_bot_at')->orWhere('next_bot_at', '<=', now()))
-            ->whereHas('wheelSession', fn ($query) => $query->where('status', 'active')->where('ends_at', '>', now()))
+            ->where(fn ($query) => $query->whereNull('next_bot_at')->orWhere('next_bot_at', '<=', $now))
+            ->where(function ($query) use ($now): void {
+                $query
+                    ->where(function ($query) use ($now): void {
+                        $query->whereNotNull('wheel_session_id')
+                            ->whereHas('wheelSession', fn ($sessionQuery) => $sessionQuery
+                                ->where('status', 'active')
+                                ->where('ends_at', '>', $now)
+                                ->whereHas('invitation', fn ($invitationQuery) => $invitationQuery->where('bot_chat_enabled', true)));
+                    })
+                    ->orWhere(function ($query): void {
+                        $query->whereNull('wheel_session_id')
+                            ->whereNotNull('wheel_invitation_id')
+                            ->where('bot_message_count', '<', 30)
+                            ->whereHas('wheelInvitation', fn ($invitationQuery) => $invitationQuery
+                                ->where('status', 'pending')
+                                ->where('bot_chat_enabled', true));
+                    });
+            })
             ->with('wheelSession')
             ->orderBy('next_bot_at')
             ->first();
-        if (! $room || ! $room->wheelSession) {
+        if (! $room) {
             return false;
         }
 
@@ -112,8 +129,16 @@ class GenerateChatBotMessage implements ShouldQueue
 
         try {
             $message = DB::transaction(function () use ($room): ?ChatMessage {
-                $lockedRoom = ChatRoom::query()->with('wheelSession')->lockForUpdate()->find($room->id);
-                if (! $lockedRoom || ! $lockedRoom->enabled || ! $lockedRoom->wheelSession || $lockedRoom->wheelSession->status !== 'active' || $lockedRoom->wheelSession->ends_at?->isPast()) {
+                $lockedRoom = ChatRoom::query()->with(['wheelSession', 'wheelInvitation'])->lockForUpdate()->find($room->id);
+                $sessionActive = $lockedRoom?->wheelSession
+                    && $lockedRoom->wheelSession->status === 'active'
+                    && $lockedRoom->wheelSession->ends_at?->isFuture()
+                    && $lockedRoom->wheelInvitation?->bot_chat_enabled;
+                $invitationPending = $lockedRoom?->wheel_session_id === null
+                    && $lockedRoom->wheelInvitation?->status === 'pending'
+                    && $lockedRoom->wheelInvitation?->bot_chat_enabled
+                    && ((int) $lockedRoom->bot_message_count < 30);
+                if (! $lockedRoom || ! $lockedRoom->enabled || (! $sessionActive && ! $invitationPending)) {
                     return null;
                 }
 
@@ -146,12 +171,15 @@ class GenerateChatBotMessage implements ShouldQueue
                     'status' => ChatMessage::STATUS_VISIBLE,
                 ]);
                 $template->forceFill(['last_used_at' => now(), 'usage_count' => ((int) $template->usage_count) + 1])->save();
-                $lockedRoom->forceFill(['next_bot_at' => now()->addSeconds(random_int(20, 55))])->save();
+                $lockedRoom->forceFill([
+                    'next_bot_at' => now('UTC')->addSeconds(random_int(8, 14)),
+                    'bot_message_count' => ((int) $lockedRoom->bot_message_count) + 1,
+                ])->save();
 
                 return $message;
             });
 
-            if ($message) {
+            if ($message && $room->wheel_session_id) {
                 $publisher->publishWheelSession((int) $room->wheel_session_id, 'chat.message.created', $message);
             }
 

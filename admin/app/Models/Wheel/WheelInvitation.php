@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 
 class WheelInvitation extends Model
 {
-    protected $fillable = ['public_id', 'campaign_id', 'user_id', 'status', 'activated_at', 'expires_at', 'popup_seen_at', 'revoked_at', 'activated_by', 'revoked_by'];
+    protected $fillable = ['public_id', 'campaign_id', 'user_id', 'status', 'bot_chat_enabled', 'activated_at', 'expires_at', 'popup_seen_at', 'revoked_at', 'activated_by', 'revoked_by'];
 
     protected static function booted(): void
     {
@@ -22,7 +22,7 @@ class WheelInvitation extends Model
 
     protected function casts(): array
     {
-        return ['activated_at' => 'datetime', 'expires_at' => 'datetime', 'popup_seen_at' => 'datetime', 'revoked_at' => 'datetime'];
+        return ['bot_chat_enabled' => 'boolean', 'activated_at' => 'datetime', 'expires_at' => 'datetime', 'popup_seen_at' => 'datetime', 'revoked_at' => 'datetime'];
     }
 
     public function campaign(): BelongsTo

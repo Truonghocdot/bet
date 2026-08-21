@@ -21,7 +21,7 @@ Schedule::command('finance:generate-fake-transactions')
     ->withoutOverlapping();
 
 Schedule::command('chat:generate-bot-message')
-    ->everyTwentySeconds()
+    ->everyFiveSeconds()
     ->withoutOverlapping();
 
 Schedule::command('chat:prune')

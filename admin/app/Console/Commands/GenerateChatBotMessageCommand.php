@@ -17,7 +17,10 @@ class GenerateChatBotMessageCommand extends Command
             return self::SUCCESS;
         }
 
-        GenerateChatBotMessage::dispatch()->delay(now()->addSeconds(random_int(0, 19)));
+        // The room controls its own 8-14 second jitter. Dispatch immediately
+        // so a short-lived event session is not delayed by another scheduler
+        // jitter window.
+        GenerateChatBotMessage::dispatch();
 
         return self::SUCCESS;
     }

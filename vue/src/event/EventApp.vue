@@ -58,6 +58,7 @@ let revealTimer = 0
 let reconnectTimer = 0
 let readyTimer = 0
 let celebrationTimer = 0
+let chatPollTimer = 0
 let socket: WebSocket | null = null
 let stopped = false
 
@@ -127,8 +128,12 @@ async function loadState() {
     recoverAnimation(response)
     // Chat and realtime are enhancements; they must not block the wheel from
     // rendering while a socket handshake or a slow history query is pending.
-    void loadChat()
-    void connectSocket()
+    void nextTick().then(() => {
+      void loadChat()
+      void connectSocket()
+    })
+  } else {
+    schedulePendingChatPoll()
   }
 }
 
@@ -152,9 +157,12 @@ async function startSession() {
   result.value = null
   try {
     const response = await api<WheelState>('POST', '/v1/wheel/session/start')
+    window.clearTimeout(chatPollTimer)
     applyState(response)
-    void loadChat()
-    void connectSocket()
+    void nextTick().then(() => {
+      void loadChat()
+      void connectSocket()
+    })
   } catch (cause) {
     error.value = (cause as ApiError).message || 'Không thể bắt đầu phiên.'
   } finally {
@@ -283,12 +291,20 @@ async function refreshState() {
 }
 
 async function loadChat() {
-  if (!state.value?.session_id) return
+  if (!state.value) return
   try {
     const response = await api<{ items: ChatMessage[] }>('GET', '/v1/wheel/session/chat/messages?limit=60')
     messages.value = response.items ?? []
     await scrollChat()
   } catch { /* Chat remains optional to the wheel flow. */ }
+}
+
+function schedulePendingChatPoll() {
+  window.clearTimeout(chatPollTimer)
+  if (stopped || state.value?.session_id || state.value?.session_status !== 'pending') return
+  chatPollTimer = window.setTimeout(() => {
+    void loadChat().finally(schedulePendingChatPoll)
+  }, 5000)
 }
 
 async function sendChat() {
@@ -389,6 +405,7 @@ onBeforeUnmount(() => {
   window.clearInterval(clockTimer)
   window.clearTimeout(revealTimer)
   window.clearTimeout(readyTimer)
+  window.clearTimeout(chatPollTimer)
   document.removeEventListener('dblclick', preventDoubleTap)
   disconnectSocket()
 })

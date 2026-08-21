@@ -178,12 +178,13 @@ func (r *WheelRepository) StartSession(ctx context.Context, invitationID, userID
 	defer tx.Rollback()
 
 	var invitationStatus, invitationPublicID, campaignName string
+	var botChatEnabled bool
 	var campaignID int64
 	var expiresAt sql.NullTime
 	err = tx.QueryRowContext(ctx, `
-		select wi.status, wi.public_id::text, wi.campaign_id, wc.name, wi.expires_at
+		select wi.status, wi.public_id::text, wi.campaign_id, wc.name, wi.expires_at, wi.bot_chat_enabled
 		from wheel_invitations wi join wheel_campaigns wc on wc.id = wi.campaign_id
-		where wi.id = $1 and wi.user_id = $2 for update`, invitationID, userID).Scan(&invitationStatus, &invitationPublicID, &campaignID, &campaignName, &expiresAt)
+		where wi.id = $1 and wi.user_id = $2 for update`, invitationID, userID).Scan(&invitationStatus, &invitationPublicID, &campaignID, &campaignName, &expiresAt, &botChatEnabled)
 	if errors.Is(err, sql.ErrNoRows) {
 		return WheelMutationResult{}, ErrWheelInvitationNotFound
 	}
@@ -233,7 +234,14 @@ func (r *WheelRepository) StartSession(ctx context.Context, invitationID, userID
 	if _, err := tx.ExecContext(ctx, `update wheel_invitations set status = 'started', updated_at = now() where id = $1`, invitationID); err != nil {
 		return WheelMutationResult{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `insert into chat_rooms (wheel_session_id, code, name, enabled, next_bot_at, created_at, updated_at) values ($1, $2, $3, true, now() + interval '20 seconds', now(), now())`, sessionID, fmt.Sprintf("wheel-session-%d", sessionID), "Phòng sự kiện "+campaignName); err != nil {
+	var roomID int64
+	err = tx.QueryRowContext(ctx, `select id from chat_rooms where wheel_invitation_id = $1 for update`, invitationID).Scan(&roomID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = tx.QueryRowContext(ctx, `insert into chat_rooms (wheel_session_id, wheel_invitation_id, code, name, enabled, next_bot_at, bot_message_count, created_at, updated_at) values ($1, null, $2, $3, true, case when $4 then now() + ((8 + floor(random() * 7)) * interval '1 second') else null end, 0, now(), now()) returning id`, sessionID, fmt.Sprintf("wheel-session-%d", sessionID), "Phòng sự kiện "+campaignName, botChatEnabled).Scan(&roomID)
+	} else if err == nil {
+		_, err = tx.ExecContext(ctx, `update chat_rooms set wheel_session_id = $1, enabled = true, next_bot_at = case when $2 then now() + ((8 + floor(random() * 7)) * interval '1 second') else null end, updated_at = now() where id = $3`, sessionID, botChatEnabled, roomID)
+	}
+	if err != nil {
 		return WheelMutationResult{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `insert into wheel_audit_logs (campaign_id,invitation_id,session_id,actor_user_id,action,new_values,created_at) values ($1,$2,$3,$4,'session.started',$5::jsonb,now())`, campaignID, invitationID, sessionID, userID, fmt.Sprintf(`{"ends_at":%q}`, formatWheelTime(endsAt))); err != nil {
@@ -549,8 +557,9 @@ func (r *WheelRepository) ListChat(ctx context.Context, invitationID, userID, be
 	rows, err := r.db.QueryContext(ctx, `
 		select cm.id, cm.display_name, cm.body, cm.actor_type, cm.created_at
 		from chat_messages cm join chat_rooms cr on cr.id = cm.room_id
-		join wheel_sessions ws on ws.id = cr.wheel_session_id
-		where ws.invitation_id = $1 and ws.user_id = $2 and cm.status = 1 and cm.created_at >= now() - interval '6 hours'
+		left join wheel_sessions ws on ws.id = cr.wheel_session_id
+		join wheel_invitations wi on wi.id = coalesce(cr.wheel_invitation_id, ws.invitation_id)
+		where wi.id = $1 and wi.user_id = $2 and cm.status = 1 and cm.created_at >= now() - interval '6 hours'
 		  and ($3::bigint = 0 or cm.id < $3)
 		order by cm.id desc limit $4`, invitationID, userID, before, limit+1)
 	if err != nil {

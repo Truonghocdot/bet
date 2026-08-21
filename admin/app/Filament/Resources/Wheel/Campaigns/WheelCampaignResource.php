@@ -15,6 +15,7 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
@@ -87,6 +88,11 @@ class WheelCampaignResource extends BaseResource
                     ->label('Kích hoạt người chơi')->icon('heroicon-o-user-plus')->color('success')
                     ->visible(fn (WheelCampaign $record): bool => $record->status === 'active')
                     ->schema([
+                        Toggle::make('bot_chat_enabled')
+                            ->label('Bật bot chat cho người chơi')
+                            ->default(true)
+                            ->helperText('Bot sẽ bắt đầu gửi tin ngẫu nhiên 8–14 giây sau khi người chơi mở phiên.')
+                            ->columnSpanFull(),
                         Select::make('user_ids')
                             ->label('Người chơi')
                             ->multiple()
@@ -113,7 +119,7 @@ class WheelCampaignResource extends BaseResource
                                 ->all()),
                     ])
                     ->action(function (WheelCampaign $record, array $data): void {
-                        $count = app(WheelCampaignService::class)->inviteUsers($record, $data['user_ids'] ?? []);
+                        $count = app(WheelCampaignService::class)->inviteUsers($record, $data['user_ids'] ?? [], true, (bool) ($data['bot_chat_enabled'] ?? false));
                         Notification::make()->success()->title("Đã kích hoạt {$count} người chơi")->send();
                     }),
                 EditAction::make(),
