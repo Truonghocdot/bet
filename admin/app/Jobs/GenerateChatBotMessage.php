@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use Carbon\CarbonImmutable;
 use App\Models\Chat\ChatBotProfile;
 use App\Models\Chat\ChatBotTemplate;
 use App\Models\Chat\ChatMessage;
@@ -74,9 +75,11 @@ class GenerateChatBotMessage implements ShouldQueue
                     'display_name' => $profile->display_name,
                     'body' => $template->body,
                     'status' => ChatMessage::STATUS_VISIBLE,
+                    'created_at' => now('UTC'),
+                    'updated_at' => now('UTC'),
                 ]);
                 $template->forceFill([
-                    'last_used_at' => now(),
+                    'last_used_at' => now('UTC'),
                     'usage_count' => ((int) $template->usage_count) + 1,
                 ])->save();
 
@@ -130,9 +133,11 @@ class GenerateChatBotMessage implements ShouldQueue
         try {
             $message = DB::transaction(function () use ($room): ?ChatMessage {
                 $lockedRoom = ChatRoom::query()->with(['wheelSession', 'wheelInvitation'])->lockForUpdate()->find($room->id);
+                $rawEndsAt = $lockedRoom?->wheelSession?->getRawOriginal('ends_at');
+                $endsAtUtc = $rawEndsAt ? CarbonImmutable::parse($rawEndsAt, 'UTC') : null;
                 $sessionActive = $lockedRoom?->wheelSession
                     && $lockedRoom->wheelSession->status === 'active'
-                    && $lockedRoom->wheelSession->ends_at?->isFuture()
+                    && $endsAtUtc?->isFuture()
                     && $lockedRoom->wheelInvitation?->bot_chat_enabled;
                 $invitationPending = $lockedRoom?->wheel_session_id === null
                     && $lockedRoom->wheelInvitation?->status === 'pending'
@@ -169,8 +174,10 @@ class GenerateChatBotMessage implements ShouldQueue
                     'display_name' => $profile->display_name,
                     'body' => $template->body,
                     'status' => ChatMessage::STATUS_VISIBLE,
+                    'created_at' => now('UTC'),
+                    'updated_at' => now('UTC'),
                 ]);
-                $template->forceFill(['last_used_at' => now(), 'usage_count' => ((int) $template->usage_count) + 1])->save();
+                $template->forceFill(['last_used_at' => now('UTC'), 'usage_count' => ((int) $template->usage_count) + 1])->save();
                 $lockedRoom->forceFill([
                     'next_bot_at' => now('UTC')->addSeconds(random_int(8, 14)),
                     'bot_message_count' => ((int) $lockedRoom->bot_message_count) + 1,

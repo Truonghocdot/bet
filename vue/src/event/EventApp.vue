@@ -133,6 +133,10 @@ async function loadState() {
       void connectSocket()
     })
   } else {
+    // The invitation room is created before the session starts. Load its
+    // bot history immediately, then poll while the user is on the landing
+    // state so chat does not appear to require clicking "Bắt đầu" first.
+    void loadChat()
     schedulePendingChatPoll()
   }
 }
@@ -304,7 +308,7 @@ function schedulePendingChatPoll() {
   if (stopped || state.value?.session_id || state.value?.session_status !== 'pending') return
   chatPollTimer = window.setTimeout(() => {
     void loadChat().finally(schedulePendingChatPoll)
-  }, 5000)
+  }, 2000)
 }
 
 async function sendChat() {

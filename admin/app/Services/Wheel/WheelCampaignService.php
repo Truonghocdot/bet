@@ -134,7 +134,9 @@ class WheelCampaignService
                     'code' => 'wheel-invitation-'.$invitation->id,
                     'name' => 'Phòng sự kiện '.$campaign->name,
                     'enabled' => true,
-                    'next_bot_at' => now()->addSeconds(random_int(8, 14)),
+                    // PostgreSQL stores these event timestamps as UTC wall-clock
+                    // values (the Gin service uses the same convention).
+                    'next_bot_at' => now('UTC')->addSeconds(random_int(8, 14)),
                 ],
             );
         }
