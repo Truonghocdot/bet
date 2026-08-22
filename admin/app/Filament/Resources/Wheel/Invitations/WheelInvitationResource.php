@@ -76,7 +76,7 @@ class WheelInvitationResource extends BaseResource
             Toggle::make('bot_chat_enabled')
                 ->label('Bật bot chat cho người chơi')
                 ->default(true)
-                ->helperText('Bot phát tin sau 8–14 giây từ lúc kích hoạt; người chơi mở event sẽ thấy lịch sử đã phát.')
+                ->helperText('Tạo ngay 4 tin mở đầu, sau đó bot tiếp tục gửi ngẫu nhiên mỗi 3–6 giây.')
                 ->disabled(fn (?WheelInvitation $record): bool => $record?->status !== null && $record->status !== 'draft'),
             TextInput::make('status')->label('Trạng thái')->disabled()->dehydrated(false),
             Repeater::make('rounds')->label('Kết quả riêng của người chơi')->relationship()->schema([

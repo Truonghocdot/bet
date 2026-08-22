@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"gin/internal/domain/chat"
 )
@@ -110,12 +111,13 @@ func (r *ChatRepository) InsertMessage(ctx context.Context, roomCode, actorType 
 	if botID > 0 {
 		botArg = botID
 	}
+	createdAtUTC := time.Now().UTC()
 	err := r.db.QueryRowContext(ctx, `
 		insert into chat_messages (room_id, actor_type, user_id, bot_profile_id, display_name, body, status, created_at, updated_at)
-		select r.id, $2, $3, $4, $5, $6, 1, now(), now()
+		select r.id, $2, $3, $4, $5, $6, 1, $7, $7
 		from chat_rooms r where r.code = $1
 		returning id, display_name, body, actor_type, created_at
-	`, roomCode, actorType, userArg, botArg, displayName, body).Scan(&item.ID, &item.DisplayName, &item.Body, &item.ActorType, &item.CreatedAt)
+	`, roomCode, actorType, userArg, botArg, displayName, body, createdAtUTC).Scan(&item.ID, &item.DisplayName, &item.Body, &item.ActorType, &item.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return chat.Message{}, ErrChatRoomNotFound
 	}
@@ -132,7 +134,7 @@ func (r *ChatRepository) DeleteExpired(ctx context.Context, messageHours, auditD
 	if auditDays < 1 {
 		auditDays = 90
 	}
-	if _, err := r.db.ExecContext(ctx, `delete from chat_messages where created_at < now() - ($1 * interval '1 hour')`, messageHours); err != nil {
+	if _, err := r.db.ExecContext(ctx, `delete from chat_messages where created_at < timezone('UTC', now()) - ($1 * interval '1 hour')`, messageHours); err != nil {
 		return err
 	}
 	_, err := r.db.ExecContext(ctx, `delete from chat_moderation_actions where created_at < now() - ($1 * interval '1 day')`, auditDays)

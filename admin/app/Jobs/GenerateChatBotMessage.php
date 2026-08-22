@@ -21,6 +21,12 @@ class GenerateChatBotMessage implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public const INITIAL_BURST_COUNT = 4;
+
+    public const MIN_INTERVAL_SECONDS = 3;
+
+    public const MAX_INTERVAL_SECONDS = 6;
+
     public function __construct(public readonly ?int $wheelRoomId = null) {}
 
     public function handle(ChatRedisPublisher $publisher): void
@@ -79,15 +85,16 @@ class GenerateChatBotMessage implements ShouldQueue
                     return null;
                 }
 
-                $message = ChatMessage::query()->create([
+                $timestamp = now('UTC');
+                $message = ChatMessage::query()->forceCreate([
                     'room_id' => $room->id,
                     'actor_type' => 'bot',
                     'bot_profile_id' => $profile->id,
                     'display_name' => $profile->display_name,
                     'body' => $template->body,
                     'status' => ChatMessage::STATUS_VISIBLE,
-                    'created_at' => now('UTC'),
-                    'updated_at' => now('UTC'),
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
                 ]);
                 $template->forceFill([
                     'last_used_at' => now('UTC'),
@@ -111,7 +118,10 @@ class GenerateChatBotMessage implements ShouldQueue
         $room = ChatRoom::query()
             ->where('enabled', true)
             ->when($onlyRoomId !== null, fn ($query) => $query->whereKey($onlyRoomId))
-            ->where(fn ($query) => $query->whereNull('next_bot_at')->orWhere('next_bot_at', '<=', $now))
+            ->where(fn ($query) => $query
+                ->whereNull('next_bot_at')
+                ->orWhere('next_bot_at', '<=', $now)
+                ->orWhere('bot_message_count', '<', self::INITIAL_BURST_COUNT))
             ->where(function ($query) use ($now): void {
                 $query
                     ->where(function ($query) use ($now): void {
@@ -143,11 +153,13 @@ class GenerateChatBotMessage implements ShouldQueue
         }
 
         try {
-            $message = DB::transaction(function () use ($room): ?ChatMessage {
+            $messages = DB::transaction(function () use ($room): array {
                 $lockedRoom = ChatRoom::query()->with(['wheelSession', 'wheelInvitation'])->lockForUpdate()->find($room->id);
                 $lockedNextAt = $lockedRoom?->getRawOriginal('next_bot_at');
-                if ($lockedNextAt && CarbonImmutable::parse($lockedNextAt, 'UTC')->isFuture()) {
-                    return null;
+                if ($lockedNextAt
+                    && CarbonImmutable::parse($lockedNextAt, 'UTC')->isFuture()
+                    && ((int) $lockedRoom?->bot_message_count >= self::INITIAL_BURST_COUNT)) {
+                    return [];
                 }
                 $rawEndsAt = $lockedRoom?->wheelSession?->getRawOriginal('ends_at');
                 $endsAtUtc = $rawEndsAt ? CarbonImmutable::parse($rawEndsAt, 'UTC') : null;
@@ -160,71 +172,86 @@ class GenerateChatBotMessage implements ShouldQueue
                     && $lockedRoom->wheelInvitation?->bot_chat_enabled
                     && ((int) $lockedRoom->bot_message_count < 30);
                 if (! $lockedRoom || ! $lockedRoom->enabled || (! $sessionActive && ! $invitationPending)) {
-                    return null;
+                    return [];
                 }
 
-                $profile = ChatBotProfile::query()->where('active', true)->inRandomOrder()->first();
-                if (! $profile) {
-                    $lockedRoom->forceFill(['next_bot_at' => now('UTC')->addSeconds(10)])->save();
-                    Log::warning('Wheel bot skipped: no active bot profile.', ['room_id' => $lockedRoom->id]);
-
-                    return null;
+                $remainingBurst = max(0, self::INITIAL_BURST_COUNT - (int) $lockedRoom->bot_message_count);
+                $generateCount = max(1, $remainingBurst);
+                if ($invitationPending) {
+                    $generateCount = min($generateCount, max(0, 30 - (int) $lockedRoom->bot_message_count));
                 }
-                $lastBotBody = ChatMessage::query()->where('room_id', $lockedRoom->id)->where('actor_type', 'bot')->latest('id')->value('body');
-                $template = ChatBotTemplate::query()
-                    ->where('active', true)
-                    ->where(function ($query) use ($profile): void {
-                        $query->whereNull('bot_profile_id')->orWhere('bot_profile_id', $profile->id);
-                    })
-                    ->when($lastBotBody, fn ($query) => $query->where('body', '<>', $lastBotBody))
-                    ->orderByRaw('last_used_at is not null')
-                    ->orderBy('last_used_at')
-                    ->orderBy('id')
-                    ->lockForUpdate()
-                    ->first();
-                if (! $template) {
-                    // A template may be assigned to another profile. Fall
-                    // back to any active template so one sparse profile does
-                    // not stop the entire event room.
+
+                $messages = [];
+                $lastProfileId = null;
+                for ($index = 0; $index < $generateCount; $index++) {
+                    $profile = ChatBotProfile::query()
+                        ->where('active', true)
+                        ->when($lastProfileId, fn ($query) => $query->where('id', '<>', $lastProfileId))
+                        ->inRandomOrder()
+                        ->first();
+                    if (! $profile) {
+                        Log::warning('Wheel bot skipped: no active bot profile.', ['room_id' => $lockedRoom->id]);
+                        break;
+                    }
+                    $lastProfileId = (int) $profile->id;
+
+                    $lastBotBody = ChatMessage::query()->where('room_id', $lockedRoom->id)->where('actor_type', 'bot')->latest('id')->value('body');
                     $template = ChatBotTemplate::query()
                         ->where('active', true)
+                        ->where(function ($query) use ($profile): void {
+                            $query->whereNull('bot_profile_id')->orWhere('bot_profile_id', $profile->id);
+                        })
                         ->when($lastBotBody, fn ($query) => $query->where('body', '<>', $lastBotBody))
                         ->orderByRaw('last_used_at is not null')
                         ->orderBy('last_used_at')
                         ->orderBy('id')
                         ->lockForUpdate()
                         ->first();
-                }
-                if (! $template) {
-                    $lockedRoom->forceFill(['next_bot_at' => now('UTC')->addSeconds(10)])->save();
-                    Log::warning('Wheel bot skipped: no active bot template.', ['room_id' => $lockedRoom->id]);
+                    if (! $template) {
+                        $template = ChatBotTemplate::query()
+                            ->where('active', true)
+                            ->when($lastBotBody, fn ($query) => $query->where('body', '<>', $lastBotBody))
+                            ->orderByRaw('last_used_at is not null')
+                            ->orderBy('last_used_at')
+                            ->orderBy('id')
+                            ->lockForUpdate()
+                            ->first();
+                    }
+                    if (! $template) {
+                        Log::warning('Wheel bot skipped: no active bot template.', ['room_id' => $lockedRoom->id]);
+                        break;
+                    }
 
-                    return null;
+                    $timestamp = now('UTC');
+                    $message = ChatMessage::query()->forceCreate([
+                        'room_id' => $lockedRoom->id,
+                        'actor_type' => 'bot',
+                        'bot_profile_id' => $profile->id,
+                        'display_name' => $profile->display_name,
+                        'body' => $template->body,
+                        'status' => ChatMessage::STATUS_VISIBLE,
+                        'created_at' => $timestamp,
+                        'updated_at' => $timestamp,
+                    ]);
+                    $template->forceFill(['last_used_at' => $timestamp, 'usage_count' => ((int) $template->usage_count) + 1])->save();
+                    $messages[] = $message;
                 }
 
-                $message = ChatMessage::query()->create([
-                    'room_id' => $lockedRoom->id,
-                    'actor_type' => 'bot',
-                    'bot_profile_id' => $profile->id,
-                    'display_name' => $profile->display_name,
-                    'body' => $template->body,
-                    'status' => ChatMessage::STATUS_VISIBLE,
-                    'created_at' => now('UTC'),
-                    'updated_at' => now('UTC'),
-                ]);
-                $template->forceFill(['last_used_at' => now('UTC'), 'usage_count' => ((int) $template->usage_count) + 1])->save();
                 $lockedRoom->forceFill([
-                    'next_bot_at' => now('UTC')->addSeconds(random_int(8, 14)),
-                    'bot_message_count' => ((int) $lockedRoom->bot_message_count) + 1,
+                    'next_bot_at' => now('UTC')->addSeconds(random_int(self::MIN_INTERVAL_SECONDS, self::MAX_INTERVAL_SECONDS)),
+                    'bot_message_count' => ((int) $lockedRoom->bot_message_count) + count($messages),
                 ])->save();
 
-                return $message;
+                return $messages;
             });
 
-            if ($message && $room->wheel_session_id) {
-                $publisher->publishWheelSession((int) $room->wheel_session_id, 'chat.message.created', $message);
-            } elseif ($message && $room->wheel_invitation_id) {
-                $publisher->publishWheelInvitation((int) $room->wheel_invitation_id, 'chat.message.created', $message);
+            $room->refresh();
+            foreach ($messages as $message) {
+                if ($room->wheel_session_id) {
+                    $publisher->publishWheelSession((int) $room->wheel_session_id, 'chat.message.created', $message);
+                } elseif ($room->wheel_invitation_id) {
+                    $publisher->publishWheelInvitation((int) $room->wheel_invitation_id, 'chat.message.created', $message);
+                }
             }
 
             if ($room->wheel_invitation_id) {
@@ -245,7 +272,9 @@ class GenerateChatBotMessage implements ShouldQueue
         }
 
         $rawNextAt = $room->getRawOriginal('next_bot_at');
-        if ($rawNextAt && CarbonImmutable::parse($rawNextAt, 'UTC')->isFuture()) {
+        if ($rawNextAt
+            && CarbonImmutable::parse($rawNextAt, 'UTC')->isFuture()
+            && ((int) $room->bot_message_count >= self::INITIAL_BURST_COUNT)) {
             $this->queueNextWheelMessage($roomId);
 
             return;

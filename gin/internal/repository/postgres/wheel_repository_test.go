@@ -103,7 +103,7 @@ func TestWheelCreateChatAllowsPendingInvitationRoom(t *testing.T) {
 		WithArgs(int64(203985)).
 		WillReturnRows(sqlmock.NewRows([]string{"display_name"}).AddRow("Khách may mắn"))
 	mock.ExpectQuery("insert into chat_messages").
-		WithArgs(int64(44), int64(203985), "Khách may mắn", "Chào phòng sự kiện").
+		WithArgs(int64(44), int64(203985), "Khách may mắn", "Chào phòng sự kiện", sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), now))
 	mock.ExpectQuery("insert into wheel_outbox_events").
 		WithArgs("stream:wheel:invitation:11", "chat.message.created", sqlmock.AnyArg()).

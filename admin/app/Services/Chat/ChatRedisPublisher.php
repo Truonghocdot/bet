@@ -3,6 +3,7 @@
 namespace App\Services\Chat;
 
 use App\Models\Chat\ChatMessage;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Redis;
 
 class ChatRedisPublisher
@@ -18,7 +19,7 @@ class ChatRedisPublisher
                     'display_name' => $message->display_name,
                     'body' => $message->body,
                     'actor_type' => $message->actor_type,
-                    'created_at' => $message->created_at?->toISOString(),
+                    'created_at' => $this->createdAtUtc($message),
                 ],
                 'published_at' => now()->toISOString(),
             ], JSON_THROW_ON_ERROR),
@@ -36,7 +37,7 @@ class ChatRedisPublisher
                     'display_name' => $message->display_name,
                     'body' => $message->body,
                     'actor_type' => $message->actor_type,
-                    'created_at' => $message->created_at?->toISOString(),
+                    'created_at' => $this->createdAtUtc($message),
                 ],
                 'published_at' => now()->toISOString(),
             ], JSON_THROW_ON_ERROR),
@@ -54,10 +55,17 @@ class ChatRedisPublisher
                     'display_name' => $message->display_name,
                     'body' => $message->body,
                     'actor_type' => $message->actor_type,
-                    'created_at' => $message->created_at?->toISOString(),
+                    'created_at' => $this->createdAtUtc($message),
                 ],
                 'published_at' => now()->toISOString(),
             ], JSON_THROW_ON_ERROR),
         );
+    }
+
+    private function createdAtUtc(ChatMessage $message): ?string
+    {
+        $raw = $message->getRawOriginal('created_at');
+
+        return $raw ? CarbonImmutable::parse((string) $raw, 'UTC')->toISOString() : null;
     }
 }

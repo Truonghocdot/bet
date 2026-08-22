@@ -183,7 +183,7 @@ class WheelCampaignService
             'name' => 'Phòng sự kiện '.$campaign->name,
             'enabled' => true,
             // PostgreSQL stores event timestamps as UTC wall-clock values.
-            'next_bot_at' => $botEnabled ? now('UTC')->addSeconds(random_int(8, 14)) : null,
+            'next_bot_at' => $botEnabled ? now('UTC') : null,
         ])->save();
 
         return $room;

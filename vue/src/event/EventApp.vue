@@ -368,6 +368,8 @@ async function connectSocket() {
     socket.onopen = () => {
       connected.value = true
       window.clearTimeout(chatPollTimer)
+      // Close the REST/WebSocket handoff gap so the opening bot burst cannot be missed.
+      chatPollTimer = window.setTimeout(() => void loadChat(), 750)
     }
     socket.onmessage = (message) => handleSocket(String(message.data))
     socket.onerror = () => { connected.value = false }
@@ -412,7 +414,7 @@ function formatMoney(value: string | number) {
 }
 
 function formatChatTime(value: string) {
-  return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+  return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(value))
 }
 
 onMounted(() => {

@@ -237,9 +237,9 @@ func (r *WheelRepository) StartSession(ctx context.Context, invitationID, userID
 	var roomID int64
 	err = tx.QueryRowContext(ctx, `select id from chat_rooms where wheel_invitation_id = $1 for update`, invitationID).Scan(&roomID)
 	if errors.Is(err, sql.ErrNoRows) {
-		err = tx.QueryRowContext(ctx, `insert into chat_rooms (wheel_session_id, wheel_invitation_id, code, name, enabled, next_bot_at, bot_message_count, created_at, updated_at) values ($1, null, $2, $3, true, case when $4 then now() + ((8 + floor(random() * 7)) * interval '1 second') else null end, 0, now(), now()) returning id`, sessionID, fmt.Sprintf("wheel-session-%d", sessionID), "Phòng sự kiện "+campaignName, botChatEnabled).Scan(&roomID)
+		err = tx.QueryRowContext(ctx, `insert into chat_rooms (wheel_session_id, wheel_invitation_id, code, name, enabled, next_bot_at, bot_message_count, created_at, updated_at) values ($1, $2, $3, $4, true, case when $5 then timezone('UTC', now()) else null end, 0, timezone('UTC', now()), timezone('UTC', now())) returning id`, sessionID, invitationID, fmt.Sprintf("wheel-session-%d", sessionID), "Phòng sự kiện "+campaignName, botChatEnabled).Scan(&roomID)
 	} else if err == nil {
-		_, err = tx.ExecContext(ctx, `update chat_rooms set wheel_session_id = $1, enabled = true, next_bot_at = case when $2 then now() + ((8 + floor(random() * 7)) * interval '1 second') else null end, updated_at = now() where id = $3`, sessionID, botChatEnabled, roomID)
+		_, err = tx.ExecContext(ctx, `update chat_rooms set wheel_session_id = $1, enabled = true, next_bot_at = case when $2 then timezone('UTC', now()) else null end, updated_at = timezone('UTC', now()) where id = $3`, sessionID, botChatEnabled, roomID)
 	}
 	if err != nil {
 		return WheelMutationResult{}, err
@@ -639,7 +639,8 @@ func (r *WheelRepository) CreateChat(ctx context.Context, invitationID, userID i
 	_ = tx.QueryRowContext(ctx, `select display_name from chat_user_profiles where user_id = $1`, userID).Scan(&displayName)
 	var item wheel.ChatMessage
 	var createdAt time.Time
-	if err := tx.QueryRowContext(ctx, `insert into chat_messages (room_id,actor_type,user_id,display_name,body,status,created_at,updated_at) values ($1,'user',$2,$3,$4,1,now(),now()) returning id,created_at`, roomID, userID, displayName, body).Scan(&item.ID, &createdAt); err != nil {
+	createdAtUTC := time.Now().UTC()
+	if err := tx.QueryRowContext(ctx, `insert into chat_messages (room_id,actor_type,user_id,display_name,body,status,created_at,updated_at) values ($1,'user',$2,$3,$4,1,$5,$5) returning id,created_at`, roomID, userID, displayName, body, createdAtUTC).Scan(&item.ID, &createdAt); err != nil {
 		return wheel.ChatMessage{}, 0, err
 	}
 	item.DisplayName, item.Body, item.ActorType, item.CreatedAt = displayName, body, "user", formatWheelTime(createdAt)
