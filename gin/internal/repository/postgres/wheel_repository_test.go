@@ -77,3 +77,48 @@ func TestWheelHelpersPreserveMoneyAndUUIDShape(t *testing.T) {
 		t.Fatalf("unexpected UUID v4: %q, %v", value, err)
 	}
 }
+
+func TestWheelCreateChatAllowsPendingInvitationRoom(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("create SQL mock: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	now := time.Now().UTC()
+	mock.ExpectBegin()
+	mock.ExpectQuery("select cr.id, wi.status, ws.id, ws.status, ws.ends_at").
+		WithArgs(int64(11), int64(203985)).
+		WillReturnRows(sqlmock.NewRows([]string{"room_id", "invitation_status", "session_id", "session_status", "ends_at"}).AddRow(int64(44), "pending", nil, nil, nil))
+	mock.ExpectQuery("select exists\\(select 1 from chat_bans").
+		WithArgs(int64(203985), int64(44)).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectQuery("select body from chat_messages").
+		WithArgs(int64(44), int64(203985)).
+		WillReturnRows(sqlmock.NewRows([]string{"body"}))
+	mock.ExpectExec("insert into chat_user_profiles").
+		WithArgs(int64(203985), "Người chơi #203985").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("select display_name from chat_user_profiles").
+		WithArgs(int64(203985)).
+		WillReturnRows(sqlmock.NewRows([]string{"display_name"}).AddRow("Khách may mắn"))
+	mock.ExpectQuery("insert into chat_messages").
+		WithArgs(int64(44), int64(203985), "Khách may mắn", "Chào phòng sự kiện").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), now))
+	mock.ExpectQuery("insert into wheel_outbox_events").
+		WithArgs("stream:wheel:invitation:11", "chat.message.created", sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(501)))
+	mock.ExpectCommit()
+
+	repository := NewWheelRepository(db)
+	message, sessionID, err := repository.CreateChat(t.Context(), 11, 203985, "Chào phòng sự kiện")
+	if err != nil {
+		t.Fatalf("create pending chat: %v", err)
+	}
+	if sessionID != 0 || message.ID != 99 || message.DisplayName != "Khách may mắn" {
+		t.Fatalf("unexpected result: session=%d message=%#v", sessionID, message)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("SQL expectations: %v", err)
+	}
+}

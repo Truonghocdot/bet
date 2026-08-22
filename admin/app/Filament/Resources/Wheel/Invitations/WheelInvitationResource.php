@@ -16,8 +16,8 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -97,6 +97,11 @@ class WheelInvitationResource extends BaseResource
             TextColumn::make('user.name')->label('Người chơi')->searchable(),
             TextColumn::make('user.phone')->label('Số điện thoại')->searchable(),
             TextColumn::make('status')->label('Trạng thái')->badge(),
+            TextColumn::make('bot_chat_enabled')
+                ->label('Bot chat')
+                ->badge()
+                ->formatStateUsing(fn (bool $state): string => $state ? 'Đang bật' : 'Đang tắt')
+                ->color(fn (bool $state): string => $state ? 'success' : 'gray'),
             TextColumn::make('session.current_round')->label('Lượt hiện tại')->default('—'),
             TextColumn::make('activated_at')->label('Kích hoạt lúc')->dateTime('d/m/Y H:i', timezone: config('app.timezone')),
         ])->recordActions([
@@ -104,6 +109,18 @@ class WheelInvitationResource extends BaseResource
                 app(WheelCampaignService::class)->activate($record);
                 Notification::make()->success()->title('Đã kích hoạt lời mời')->send();
             }),
+            Action::make('enable_bot_chat')->label('Bật bot chat')->icon('heroicon-o-chat-bubble-left-right')->color('success')->requiresConfirmation()
+                ->visible(fn (WheelInvitation $record): bool => self::canEdit($record) && ! $record->bot_chat_enabled && in_array($record->status, ['pending', 'started'], true))
+                ->action(function (WheelInvitation $record): void {
+                    app(WheelCampaignService::class)->setBotChatEnabled($record, true);
+                    Notification::make()->success()->title('Đã bật bot và khởi động phòng chat')->send();
+                }),
+            Action::make('disable_bot_chat')->label('Tắt bot chat')->icon('heroicon-o-chat-bubble-left-ellipsis')->color('warning')->requiresConfirmation()
+                ->visible(fn (WheelInvitation $record): bool => self::canEdit($record) && $record->bot_chat_enabled && in_array($record->status, ['pending', 'started'], true))
+                ->action(function (WheelInvitation $record): void {
+                    app(WheelCampaignService::class)->setBotChatEnabled($record, false);
+                    Notification::make()->success()->title('Đã dừng bot chat')->send();
+                }),
             Action::make('revoke')->label('Thu hồi')->icon('heroicon-o-x-circle')->color('danger')->requiresConfirmation()->visible(fn (WheelInvitation $record): bool => self::canEdit($record) && in_array($record->status, ['draft', 'pending'], true))->action(function (WheelInvitation $record): void {
                 app(WheelCampaignService::class)->revoke($record);
                 Notification::make()->success()->title('Đã thu hồi lời mời')->send();

@@ -13,6 +13,10 @@ class WheelInvitation extends Model
 {
     protected $fillable = ['public_id', 'campaign_id', 'user_id', 'status', 'bot_chat_enabled', 'activated_at', 'expires_at', 'popup_seen_at', 'revoked_at', 'activated_by', 'revoked_by'];
 
+    protected $attributes = [
+        'bot_chat_enabled' => true,
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (self $model): void {

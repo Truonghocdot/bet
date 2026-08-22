@@ -187,7 +187,13 @@ func (h *WheelHandler) SessionWebSocket(w http.ResponseWriter, r *http.Request) 
 	if state, stateErr := h.service.State(r.Context(), access); stateErr == nil {
 		_ = conn.WriteJSON(map[string]any{"event": "wheel.state", "data": state})
 	}
-	h.streamTopic(r, conn, realtime.WheelSessionTopic(sessionID), true)
+	topic := realtime.WheelInvitationTopic(access.InvitationID)
+	closeOnCompletion := false
+	if sessionID != nil {
+		topic = realtime.WheelSessionTopic(*sessionID)
+		closeOnCompletion = true
+	}
+	h.streamTopic(r, conn, topic, closeOnCompletion)
 }
 
 func (h *WheelHandler) ListChat(w http.ResponseWriter, r *http.Request) {

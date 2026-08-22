@@ -2,12 +2,12 @@
 
 namespace App\Services\Wheel;
 
-use App\Models\User;
 use App\Jobs\GenerateChatBotMessage;
+use App\Models\Chat\ChatRoom;
+use App\Models\User;
 use App\Models\Wheel\WheelAuditLog;
 use App\Models\Wheel\WheelCampaign;
 use App\Models\Wheel\WheelInvitation;
-use App\Models\Chat\ChatRoom;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -17,7 +17,7 @@ class WheelCampaignService
     public function __construct(private readonly WheelEventPublisher $publisher) {}
 
     /** @param array<int, int|string> $userIds */
-    public function inviteUsers(WheelCampaign $campaign, array $userIds, bool $activate = true, bool $botChatEnabled = false): int
+    public function inviteUsers(WheelCampaign $campaign, array $userIds, bool $activate = true, bool $botChatEnabled = true): int
     {
         $ids = collect($userIds)->map(fn ($id): int => (int) $id)->filter()->unique()->values();
         if ($ids->isEmpty()) {
@@ -95,6 +95,39 @@ class WheelCampaignService
         });
     }
 
+    public function setBotChatEnabled(WheelInvitation $invitation, bool $enabled): void
+    {
+        $roomId = null;
+
+        DB::transaction(function () use ($invitation, $enabled, &$roomId): void {
+            $invitation = WheelInvitation::query()
+                ->with(['campaign', 'session'])
+                ->lockForUpdate()
+                ->findOrFail($invitation->id);
+
+            if (! in_array($invitation->status, ['pending', 'started'], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Chỉ có thể thay đổi bot chat khi lời mời đang chờ hoặc phiên đang chạy.',
+                ]);
+            }
+
+            $old = (bool) $invitation->bot_chat_enabled;
+            $invitation->forceFill(['bot_chat_enabled' => $enabled])->save();
+            $room = $this->ensureInvitationChatRoom($invitation, $invitation->campaign, $enabled);
+            $roomId = (int) $room->id;
+            $this->audit(
+                $invitation,
+                $enabled ? 'invitation.bot_chat_enabled' : 'invitation.bot_chat_disabled',
+                ['bot_chat_enabled' => $old],
+                ['bot_chat_enabled' => $enabled],
+            );
+        });
+
+        if ($enabled && $roomId) {
+            GenerateChatBotMessage::dispatch($roomId);
+        }
+    }
+
     private function validateCampaign(WheelCampaign $campaign, bool $activation): void
     {
         if ($campaign->roundTemplates->count() !== 4) {
@@ -128,21 +161,32 @@ class WheelCampaignService
         $payload = ['invitation_id' => $invitation->public_id, 'campaign_name' => $campaign->name, 'expires_at' => $invitation->expires_at?->toISOString()];
         $this->audit($invitation, 'invitation.activated', ['status' => 'draft'], $payload);
         $this->publisher->queueForUser((int) $invitation->user_id, 'wheel.invitation.activated', $payload);
+        $room = $this->ensureInvitationChatRoom($invitation, $campaign, (bool) $invitation->bot_chat_enabled);
         if ($invitation->bot_chat_enabled) {
-            $room = ChatRoom::query()->updateOrCreate(
-                ['wheel_invitation_id' => $invitation->id],
-                [
-                    'code' => 'wheel-invitation-'.$invitation->id,
-                    'name' => 'Phòng sự kiện '.$campaign->name,
-                    'enabled' => true,
-                    // PostgreSQL stores these event timestamps as UTC wall-clock
-                    // values (the Gin service uses the same convention).
-                    'next_bot_at' => now('UTC')->addSeconds(random_int(8, 14)),
-                ],
-            );
             DB::afterCommit(fn () => GenerateChatBotMessage::dispatch((int) $room->id));
         }
         DB::afterCommit(fn () => $this->publisher->publishPending());
+    }
+
+    private function ensureInvitationChatRoom(WheelInvitation $invitation, WheelCampaign $campaign, bool $botEnabled): ChatRoom
+    {
+        $room = ChatRoom::query()->where('wheel_invitation_id', $invitation->id)->first();
+        if (! $room && $invitation->session?->id) {
+            $room = ChatRoom::query()->where('wheel_session_id', $invitation->session->id)->first();
+        }
+        $room ??= new ChatRoom;
+
+        $room->forceFill([
+            'wheel_invitation_id' => $invitation->id,
+            'wheel_session_id' => $invitation->session?->id,
+            'code' => $room->exists ? $room->code : 'wheel-invitation-'.$invitation->id,
+            'name' => 'Phòng sự kiện '.$campaign->name,
+            'enabled' => true,
+            // PostgreSQL stores event timestamps as UTC wall-clock values.
+            'next_bot_at' => $botEnabled ? now('UTC')->addSeconds(random_int(8, 14)) : null,
+        ])->save();
+
+        return $room;
     }
 
     private function audit(WheelInvitation $invitation, string $action, ?array $old, ?array $new): void

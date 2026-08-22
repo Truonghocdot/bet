@@ -55,6 +55,8 @@ class ChatMessagesTable
             $record->loadMissing('room');
             if ($record->room?->wheel_session_id) {
                 app(ChatRedisPublisher::class)->publishWheelSession((int) $record->room->wheel_session_id, 'chat.message.'.($action === 'hidden' ? 'hidden' : 'deleted'), $record);
+            } elseif ($record->room?->wheel_invitation_id) {
+                app(ChatRedisPublisher::class)->publishWheelInvitation((int) $record->room->wheel_invitation_id, 'chat.message.'.($action === 'hidden' ? 'hidden' : 'deleted'), $record);
             } else {
                 app(ChatRedisPublisher::class)->publish('global', 'chat.message.'.($action === 'hidden' ? 'hidden' : 'deleted'), $record);
             }

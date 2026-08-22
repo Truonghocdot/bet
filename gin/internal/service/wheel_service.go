@@ -194,8 +194,11 @@ func (s *WheelService) ConsumeUserSocketTicket(ctx context.Context, ticket strin
 
 func (s *WheelService) CreateSessionSocketTicket(ctx context.Context, access wheel.Access) (wheel.SocketTicketResponse, error) {
 	record, err := s.repository.FindInvitationByID(ctx, access.InvitationID, access.UserID)
-	if err != nil || record.SessionID == nil {
-		return wheel.SocketTicketResponse{}, repopg.ErrWheelSessionNotStarted
+	if err != nil {
+		return wheel.SocketTicketResponse{}, err
+	}
+	if !wheelInvitationCanOpen(record) {
+		return wheel.SocketTicketResponse{}, repopg.ErrWheelInvitationInactive
 	}
 	ticket, err := randomOpaqueToken(28)
 	if err != nil {
@@ -208,23 +211,23 @@ func (s *WheelService) CreateSessionSocketTicket(ctx context.Context, access whe
 	return wheel.SocketTicketResponse{Ticket: ticket, ExpiresIn: 60}, nil
 }
 
-func (s *WheelService) ConsumeSessionSocketTicket(ctx context.Context, ticket string) (wheel.Access, int64, error) {
+func (s *WheelService) ConsumeSessionSocketTicket(ctx context.Context, ticket string) (wheel.Access, *int64, error) {
 	raw, err := s.getAndDelete(ctx, "wheel:socket:session:"+hashOpaqueToken(strings.TrimSpace(ticket)))
 	if errors.Is(err, goredis.Nil) {
-		return wheel.Access{}, 0, ErrWheelTokenInvalid
+		return wheel.Access{}, nil, ErrWheelTokenInvalid
 	}
 	if err != nil {
-		return wheel.Access{}, 0, err
+		return wheel.Access{}, nil, err
 	}
 	var access wheel.Access
 	if json.Unmarshal(raw, &access) != nil {
-		return wheel.Access{}, 0, ErrWheelTokenInvalid
+		return wheel.Access{}, nil, ErrWheelTokenInvalid
 	}
 	record, err := s.repository.FindInvitationByID(ctx, access.InvitationID, access.UserID)
-	if err != nil || record.SessionID == nil {
-		return wheel.Access{}, 0, ErrWheelTokenInvalid
+	if err != nil || !wheelInvitationCanOpen(record) {
+		return wheel.Access{}, nil, ErrWheelTokenInvalid
 	}
-	return access, *record.SessionID, nil
+	return access, record.SessionID, nil
 }
 
 func (s *WheelService) getAndDelete(ctx context.Context, key string) ([]byte, error) {
@@ -254,6 +257,10 @@ func (s *WheelService) Start(ctx context.Context, access wheel.Access) (wheel.St
 			_ = s.repository.MarkOutboxPublished(ctx, result.OutboxIDs)
 		}
 	}
+	// A microsite opened before the session listens on the invitation topic.
+	// This event tells every pending tab to refresh and switch to the session
+	// socket without requiring another click.
+	_ = s.broker.Publish(ctx, realtime.WheelInvitationTopic(access.InvitationID), "wheel.session.started", result.State)
 	return result.State, nil
 }
 
@@ -305,7 +312,11 @@ func (s *WheelService) CreateChat(ctx context.Context, access wheel.Access, ip, 
 	if err != nil {
 		return wheel.ChatCreateResponse{}, err
 	}
-	_ = s.broker.Publish(ctx, realtime.WheelSessionTopic(sessionID), "chat.message.created", item)
+	topic := realtime.WheelInvitationTopic(access.InvitationID)
+	if sessionID > 0 {
+		topic = realtime.WheelSessionTopic(sessionID)
+	}
+	_ = s.broker.Publish(ctx, topic, "chat.message.created", item)
 	return wheel.ChatCreateResponse{Message: item}, nil
 }
 

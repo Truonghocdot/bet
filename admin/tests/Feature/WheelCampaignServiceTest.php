@@ -8,6 +8,7 @@ use App\Services\Wheel\WheelCampaignService;
 use App\Services\Wheel\WheelEventPublisher;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Mockery;
@@ -18,6 +19,7 @@ class WheelCampaignServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Queue::fake();
 
         Schema::create('users', function (Blueprint $table): void {
             $table->unsignedBigInteger('id')->primary();
@@ -72,6 +74,24 @@ class WheelCampaignServiceTest extends TestCase
             $table->timestamp('spun_at')->nullable();
             $table->timestamps();
         });
+        Schema::create('wheel_sessions', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('invitation_id')->unique();
+            $table->unsignedBigInteger('user_id');
+            $table->string('status')->default('active');
+            $table->timestamps();
+        });
+        Schema::create('chat_rooms', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('wheel_invitation_id')->nullable()->unique();
+            $table->unsignedBigInteger('wheel_session_id')->nullable()->unique();
+            $table->string('code')->unique();
+            $table->string('name');
+            $table->boolean('enabled')->default(false);
+            $table->timestamp('next_bot_at')->nullable();
+            $table->unsignedSmallInteger('bot_message_count')->default(0);
+            $table->timestamps();
+        });
         Schema::create('wheel_audit_logs', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('campaign_id')->nullable();
@@ -89,6 +109,8 @@ class WheelCampaignServiceTest extends TestCase
     protected function tearDown(): void
     {
         Schema::dropIfExists('wheel_audit_logs');
+        Schema::dropIfExists('chat_rooms');
+        Schema::dropIfExists('wheel_sessions');
         Schema::dropIfExists('wheel_invitation_rounds');
         Schema::dropIfExists('wheel_invitations');
         Schema::dropIfExists('wheel_campaign_round_templates');
@@ -107,7 +129,9 @@ class WheelCampaignServiceTest extends TestCase
         self::assertSame(1, $count);
         $invitation = WheelInvitation::query()->with('rounds')->firstOrFail();
         self::assertSame('pending', $invitation->status);
+        self::assertTrue($invitation->bot_chat_enabled);
         self::assertCount(4, $invitation->rounds);
+        self::assertDatabaseHas('chat_rooms', ['wheel_invitation_id' => $invitation->id, 'enabled' => true]);
         self::assertSame('50000000', rtrim(rtrim((string) $invitation->rounds->firstWhere('round_no', 2)?->prize_amount, '0'), '.'));
     }
 
@@ -137,6 +161,22 @@ class WheelCampaignServiceTest extends TestCase
         $invitations = WheelInvitation::query()->where('campaign_id', $campaign->id)->where('user_id', 203987)->get();
         self::assertCount(2, $invitations);
         self::assertNotSame($invitations[0]->public_id, $invitations[1]->public_id);
+    }
+
+    public function test_bot_can_be_enabled_for_an_existing_pending_invitation(): void
+    {
+        $campaign = $this->campaign();
+        DB::table('users')->insert(['id' => 203988, 'name' => 'Khách thử 4', 'phone' => '+84900000003', 'role' => 2]);
+        $this->service()->inviteUsers($campaign, [203988], true, false);
+        $invitation = WheelInvitation::query()->firstOrFail();
+
+        self::assertFalse($invitation->bot_chat_enabled);
+        self::assertNull(DB::table('chat_rooms')->where('wheel_invitation_id', $invitation->id)->value('next_bot_at'));
+
+        $this->service()->setBotChatEnabled($invitation, true);
+
+        self::assertTrue($invitation->fresh()->bot_chat_enabled);
+        self::assertNotNull(DB::table('chat_rooms')->where('wheel_invitation_id', $invitation->id)->value('next_bot_at'));
     }
 
     private function campaign(): WheelCampaign

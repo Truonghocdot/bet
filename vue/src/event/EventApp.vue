@@ -90,7 +90,8 @@ const countdown = computed(() => `${String(Math.floor(secondsLeft.value / 60)).p
 const nextReadyIn = computed(() => state.value?.next_round_available_at ? Math.max(0, Math.ceil((new Date(state.value.next_round_available_at).getTime() - serverNowMs.value) / 1000)) : 0)
 const canSpin = computed(() => isActive.value && currentRound.value?.status === 'ready' && !spinning.value && !submittingSpin.value && nextReadyIn.value === 0)
 const syncingNextRound = computed(() => isActive.value && currentRound.value?.status !== 'ready' && nextReadyIn.value === 0 && !spinning.value && !submittingSpin.value)
-const canSend = computed(() => isActive.value && chatBody.value.trim().length > 0 && chatBody.value.length <= 280 && !sending.value)
+const chatOpen = computed(() => Boolean(isReadyToStart.value || isActive.value))
+const canSend = computed(() => chatOpen.value && chatBody.value.trim().length > 0 && chatBody.value.length <= 280 && !sending.value)
 const progress = computed(() => state.value?.rounds.filter((item) => item.status === 'spun').length ?? 0)
 const totalReward = computed(() => formatMoney(state.value?.total_reward ?? '0'))
 const wheelStyle = computed(() => ({ transform: `rotate(${rotation.value}deg)`, transitionDuration: spinning.value ? '5s' : '0s' }))
@@ -137,6 +138,7 @@ async function loadState() {
     // bot history immediately, then poll while the user is on the landing
     // state so chat does not appear to require clicking "Bắt đầu" first.
     void loadChat()
+    void connectSocket()
     schedulePendingChatPoll()
   }
 }
@@ -162,6 +164,7 @@ async function startSession() {
   try {
     const response = await api<WheelState>('POST', '/v1/wheel/session/start')
     window.clearTimeout(chatPollTimer)
+    disconnectSocket()
     applyState(response)
     void nextTick().then(() => {
       void loadChat()
@@ -291,7 +294,16 @@ function recoverAnimation(next: WheelState) {
 
 async function refreshState() {
   if (!accessToken.value || spinning.value) return
-  try { applyState(await api<WheelState>('GET', '/v1/wheel/session/state')) } catch { /* reconnect retries */ }
+  try {
+    const previousSessionID = state.value?.session_id
+    const response = await api<WheelState>('GET', '/v1/wheel/session/state')
+    applyState(response)
+    if (!previousSessionID && response.session_id) {
+      window.clearTimeout(chatPollTimer)
+      disconnectSocket()
+      void connectSocket()
+    }
+  } catch { /* reconnect retries */ }
 }
 
 async function loadChat() {
@@ -305,7 +317,7 @@ async function loadChat() {
 
 function schedulePendingChatPoll() {
   window.clearTimeout(chatPollTimer)
-  if (stopped || state.value?.session_id || state.value?.session_status !== 'pending') return
+  if (stopped || connected.value || state.value?.session_id || state.value?.session_status !== 'pending') return
   chatPollTimer = window.setTimeout(() => {
     void loadChat().finally(schedulePendingChatPoll)
   }, 2000)
@@ -349,17 +361,21 @@ function websocketURL(ticket: string) {
 }
 
 async function connectSocket() {
-  if (stopped || socket || !state.value?.session_id || state.value.session_status !== 'active') return
+  if (stopped || socket || !chatOpen.value) return
   try {
     const response = await api<{ ticket: string }>('POST', '/v1/wheel/realtime/ticket')
     socket = new WebSocket(websocketURL(response.ticket))
-    socket.onopen = () => { connected.value = true }
+    socket.onopen = () => {
+      connected.value = true
+      window.clearTimeout(chatPollTimer)
+    }
     socket.onmessage = (message) => handleSocket(String(message.data))
     socket.onerror = () => { connected.value = false }
     socket.onclose = () => {
       connected.value = false
       socket = null
-      if (!stopped && state.value?.session_status === 'active') reconnectTimer = window.setTimeout(() => void connectSocket(), 3500)
+      schedulePendingChatPoll()
+      if (!stopped && chatOpen.value) reconnectTimer = window.setTimeout(() => void connectSocket(), 3500)
     }
   } catch {
     if (!stopped) reconnectTimer = window.setTimeout(() => void connectSocket(), 3500)
@@ -382,8 +398,12 @@ function handleSocket(raw: string) {
 
 function disconnectSocket() {
   window.clearTimeout(reconnectTimer)
-  socket?.close()
+  const activeSocket = socket
   socket = null
+  if (activeSocket) {
+    activeSocket.onclose = null
+    activeSocket.close()
+  }
   connected.value = false
 }
 
@@ -495,12 +515,12 @@ function preventDoubleTap(event: MouseEvent) {
         </section>
 
         <aside class="event-chat">
-          <header class="event-chat__header"><div><p class="event-eyebrow event-eyebrow--gold">LIVE ROOM</p><h2>Phòng trò chuyện</h2></div><span class="event-chat__status" :class="{ 'is-online': connected }"><i />{{ connected ? 'Trực tuyến' : isActive ? 'Đang kết nối' : isReadyToStart ? 'Đang chuẩn bị' : 'Đã đóng' }}</span></header>
+          <header class="event-chat__header"><div><p class="event-eyebrow event-eyebrow--gold">LIVE ROOM</p><h2>Phòng trò chuyện</h2></div><span class="event-chat__status" :class="{ 'is-online': connected }"><i />{{ connected ? 'Trực tuyến' : chatOpen ? 'Đang kết nối' : 'Đã đóng' }}</span></header>
           <div ref="messageList" class="event-chat__messages">
             <div v-if="!messages.length" class="event-chat__empty"><span class="material-symbols-outlined">forum</span><p>Phòng chat đang chờ những lời chúc đầu tiên.</p></div>
             <div v-for="message in messages" :key="message.id" class="event-message"><div class="event-message__avatar">{{ message.display_name.slice(0, 1).toUpperCase() }}</div><div class="event-message__body"><div><strong>{{ message.display_name }}</strong><time>{{ formatChatTime(message.created_at) }}</time></div><p>{{ message.body }}</p></div></div>
           </div>
-          <form class="event-chat__composer" @submit.prevent="sendChat"><p v-if="chatError" class="event-chat__error">{{ chatError }}</p><div class="event-chat__composer-row"><input v-model="chatBody" type="text" maxlength="280" :disabled="!isActive" :placeholder="isActive ? 'Gửi lời chúc...' : 'Phòng chat đã đóng'"><button type="submit" :disabled="!canSend" aria-label="Gửi tin nhắn"><span class="material-symbols-outlined">arrow_upward</span></button></div></form>
+          <form class="event-chat__composer" @submit.prevent="sendChat"><p v-if="chatError" class="event-chat__error">{{ chatError }}</p><div class="event-chat__composer-row"><input v-model="chatBody" type="text" maxlength="280" :disabled="!chatOpen" :placeholder="chatOpen ? 'Gửi lời chúc...' : 'Phòng chat đã đóng'"><button type="submit" :disabled="!canSend" aria-label="Gửi tin nhắn"><span class="material-symbols-outlined">arrow_upward</span></button></div></form>
         </aside>
       </div>
 

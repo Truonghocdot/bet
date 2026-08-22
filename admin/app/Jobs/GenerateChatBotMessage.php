@@ -2,12 +2,12 @@
 
 namespace App\Jobs;
 
-use Carbon\CarbonImmutable;
 use App\Models\Chat\ChatBotProfile;
 use App\Models\Chat\ChatBotTemplate;
 use App\Models\Chat\ChatMessage;
 use App\Models\Chat\ChatRoom;
 use App\Services\Chat\ChatRedisPublisher;
+use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -223,6 +223,8 @@ class GenerateChatBotMessage implements ShouldQueue
 
             if ($message && $room->wheel_session_id) {
                 $publisher->publishWheelSession((int) $room->wheel_session_id, 'chat.message.created', $message);
+            } elseif ($message && $room->wheel_invitation_id) {
+                $publisher->publishWheelInvitation((int) $room->wheel_invitation_id, 'chat.message.created', $message);
             }
 
             if ($room->wheel_invitation_id) {

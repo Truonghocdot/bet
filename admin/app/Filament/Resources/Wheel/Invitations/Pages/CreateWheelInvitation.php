@@ -13,6 +13,7 @@ class CreateWheelInvitation extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['status'] = 'draft';
+        $data['bot_chat_enabled'] = (bool) ($data['bot_chat_enabled'] ?? true);
 
         return $data;
     }

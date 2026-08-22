@@ -15,8 +15,8 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -119,7 +119,7 @@ class WheelCampaignResource extends BaseResource
                                 ->all()),
                     ])
                     ->action(function (WheelCampaign $record, array $data): void {
-                        $count = app(WheelCampaignService::class)->inviteUsers($record, $data['user_ids'] ?? [], true, (bool) ($data['bot_chat_enabled'] ?? false));
+                        $count = app(WheelCampaignService::class)->inviteUsers($record, $data['user_ids'] ?? [], true, (bool) ($data['bot_chat_enabled'] ?? true));
                         Notification::make()->success()->title("Đã kích hoạt {$count} người chơi")->send();
                     }),
                 EditAction::make(),

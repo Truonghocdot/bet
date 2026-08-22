@@ -597,17 +597,27 @@ func (r *WheelRepository) CreateChat(ctx context.Context, invitationID, userID i
 		return wheel.ChatMessage{}, 0, err
 	}
 	defer tx.Rollback()
-	var roomID, sessionID int64
-	var status string
-	var endsAt time.Time
-	err = tx.QueryRowContext(ctx, `select cr.id, ws.id, ws.status, ws.ends_at from wheel_sessions ws join chat_rooms cr on cr.wheel_session_id = ws.id where ws.invitation_id = $1 and ws.user_id = $2 and cr.enabled = true for update`, invitationID, userID).Scan(&roomID, &sessionID, &status, &endsAt)
+	var roomID int64
+	var invitationStatus string
+	var sessionID sql.NullInt64
+	var sessionStatus sql.NullString
+	var endsAt sql.NullTime
+	err = tx.QueryRowContext(ctx, `
+		select cr.id, wi.status, ws.id, ws.status, ws.ends_at
+		from wheel_invitations wi
+		join chat_rooms cr on cr.wheel_invitation_id = wi.id and cr.enabled = true
+		left join wheel_sessions ws on ws.invitation_id = wi.id
+		where wi.id = $1 and wi.user_id = $2
+		for update of wi, cr`, invitationID, userID).Scan(&roomID, &invitationStatus, &sessionID, &sessionStatus, &endsAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return wheel.ChatMessage{}, 0, ErrWheelSessionNotStarted
 	}
 	if err != nil {
 		return wheel.ChatMessage{}, 0, err
 	}
-	if status != "active" || !time.Now().Before(endsAt) {
+	pending := invitationStatus == "pending" && !sessionID.Valid
+	active := invitationStatus == "started" && sessionID.Valid && sessionStatus.String == "active" && endsAt.Valid && time.Now().Before(endsAt.Time)
+	if !pending && !active {
 		return wheel.ChatMessage{}, 0, ErrWheelSessionExpired
 	}
 	var banned bool
@@ -634,13 +644,17 @@ func (r *WheelRepository) CreateChat(ctx context.Context, invitationID, userID i
 	}
 	item.DisplayName, item.Body, item.ActorType, item.CreatedAt = displayName, body, "user", formatWheelTime(createdAt)
 	payload, _ := json.Marshal(item)
-	if _, err := insertWheelOutboxTx(ctx, tx, fmt.Sprintf("stream:wheel:session:%d", sessionID), "chat.message.created", json.RawMessage(payload)); err != nil {
+	topic := fmt.Sprintf("stream:wheel:invitation:%d", invitationID)
+	if sessionID.Valid {
+		topic = fmt.Sprintf("stream:wheel:session:%d", sessionID.Int64)
+	}
+	if _, err := insertWheelOutboxTx(ctx, tx, topic, "chat.message.created", json.RawMessage(payload)); err != nil {
 		return wheel.ChatMessage{}, 0, err
 	}
 	if err := tx.Commit(); err != nil {
 		return wheel.ChatMessage{}, 0, err
 	}
-	return item, sessionID, nil
+	return item, sessionID.Int64, nil
 }
 
 func insertWheelOutboxTx(ctx context.Context, tx *sql.Tx, topic, event string, payload any) (int64, error) {
