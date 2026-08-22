@@ -17,10 +17,13 @@ class GenerateChatBotMessageCommand extends Command
             return self::SUCCESS;
         }
 
-        // The room controls its own 8-14 second jitter. Dispatch immediately
-        // so a short-lived event session is not delayed by another scheduler
-        // jitter window.
-        GenerateChatBotMessage::dispatch();
+        if (config('wheel.enabled') || filter_var(env('CHAT_GLOBAL_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+            // Each event room schedules its next job after a message is
+            // created. This generic dispatch is only a recovery sweep for
+            // rooms whose delayed job was lost or never created; it also
+            // handles the global room when that feature is enabled.
+            GenerateChatBotMessage::dispatch();
+        }
 
         return self::SUCCESS;
     }

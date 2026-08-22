@@ -779,6 +779,12 @@ server {
         add_header Cache-Control "no-cache, no-store, must-revalidate" always;
         try_files $uri =404;
     }
+    location = /event.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        expires -1;
+        try_files $uri =404;
+    }
     location / { try_files $uri $uri/ /index.html; }
     location ~* \.(css|js|png|jpe?g|gif|ico|svg|webp|woff2?|ttf|mp4)$ {
         expires 30d;

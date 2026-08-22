@@ -3,6 +3,7 @@
 namespace App\Services\Wheel;
 
 use App\Models\User;
+use App\Jobs\GenerateChatBotMessage;
 use App\Models\Wheel\WheelAuditLog;
 use App\Models\Wheel\WheelCampaign;
 use App\Models\Wheel\WheelInvitation;
@@ -128,7 +129,7 @@ class WheelCampaignService
         $this->audit($invitation, 'invitation.activated', ['status' => 'draft'], $payload);
         $this->publisher->queueForUser((int) $invitation->user_id, 'wheel.invitation.activated', $payload);
         if ($invitation->bot_chat_enabled) {
-            ChatRoom::query()->updateOrCreate(
+            $room = ChatRoom::query()->updateOrCreate(
                 ['wheel_invitation_id' => $invitation->id],
                 [
                     'code' => 'wheel-invitation-'.$invitation->id,
@@ -139,6 +140,7 @@ class WheelCampaignService
                     'next_bot_at' => now('UTC')->addSeconds(random_int(8, 14)),
                 ],
             );
+            DB::afterCommit(fn () => GenerateChatBotMessage::dispatch((int) $room->id));
         }
         DB::afterCommit(fn () => $this->publisher->publishPending());
     }

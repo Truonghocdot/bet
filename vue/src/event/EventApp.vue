@@ -495,7 +495,7 @@ function preventDoubleTap(event: MouseEvent) {
         </section>
 
         <aside class="event-chat">
-          <header class="event-chat__header"><div><p class="event-eyebrow event-eyebrow--gold">LIVE ROOM</p><h2>Phòng trò chuyện</h2></div><span class="event-chat__status" :class="{ 'is-online': connected }"><i />{{ connected ? 'Trực tuyến' : isActive ? 'Đang kết nối' : 'Đã đóng' }}</span></header>
+          <header class="event-chat__header"><div><p class="event-eyebrow event-eyebrow--gold">LIVE ROOM</p><h2>Phòng trò chuyện</h2></div><span class="event-chat__status" :class="{ 'is-online': connected }"><i />{{ connected ? 'Trực tuyến' : isActive ? 'Đang kết nối' : isReadyToStart ? 'Đang chuẩn bị' : 'Đã đóng' }}</span></header>
           <div ref="messageList" class="event-chat__messages">
             <div v-if="!messages.length" class="event-chat__empty"><span class="material-symbols-outlined">forum</span><p>Phòng chat đang chờ những lời chúc đầu tiên.</p></div>
             <div v-for="message in messages" :key="message.id" class="event-message"><div class="event-message__avatar">{{ message.display_name.slice(0, 1).toUpperCase() }}</div><div class="event-message__body"><div><strong>{{ message.display_name }}</strong><time>{{ formatChatTime(message.created_at) }}</time></div><p>{{ message.body }}</p></div></div>

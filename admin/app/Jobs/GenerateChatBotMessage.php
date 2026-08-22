@@ -15,15 +15,26 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class GenerateChatBotMessage implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public function __construct(public readonly ?int $wheelRoomId = null) {}
+
     public function handle(ChatRedisPublisher $publisher): void
     {
-        if (config('wheel.enabled') && $this->generateForWheelSession($publisher)) {
-            return;
+        if (config('wheel.enabled')) {
+            if ($this->wheelRoomId !== null) {
+                $this->generateForWheelRoom($publisher, $this->wheelRoomId);
+
+                return;
+            }
+
+            if ($this->generateForWheelSession($publisher)) {
+                return;
+            }
         }
 
         if (! filter_var(env('CHAT_GLOBAL_ENABLED', false), FILTER_VALIDATE_BOOL)) {
@@ -94,11 +105,12 @@ class GenerateChatBotMessage implements ShouldQueue
         }
     }
 
-    private function generateForWheelSession(ChatRedisPublisher $publisher): bool
+    private function generateForWheelSession(ChatRedisPublisher $publisher, ?int $onlyRoomId = null): bool
     {
         $now = now('UTC');
         $room = ChatRoom::query()
             ->where('enabled', true)
+            ->when($onlyRoomId !== null, fn ($query) => $query->whereKey($onlyRoomId))
             ->where(fn ($query) => $query->whereNull('next_bot_at')->orWhere('next_bot_at', '<=', $now))
             ->where(function ($query) use ($now): void {
                 $query
@@ -133,6 +145,10 @@ class GenerateChatBotMessage implements ShouldQueue
         try {
             $message = DB::transaction(function () use ($room): ?ChatMessage {
                 $lockedRoom = ChatRoom::query()->with(['wheelSession', 'wheelInvitation'])->lockForUpdate()->find($room->id);
+                $lockedNextAt = $lockedRoom?->getRawOriginal('next_bot_at');
+                if ($lockedNextAt && CarbonImmutable::parse($lockedNextAt, 'UTC')->isFuture()) {
+                    return null;
+                }
                 $rawEndsAt = $lockedRoom?->wheelSession?->getRawOriginal('ends_at');
                 $endsAtUtc = $rawEndsAt ? CarbonImmutable::parse($rawEndsAt, 'UTC') : null;
                 $sessionActive = $lockedRoom?->wheelSession
@@ -149,6 +165,9 @@ class GenerateChatBotMessage implements ShouldQueue
 
                 $profile = ChatBotProfile::query()->where('active', true)->inRandomOrder()->first();
                 if (! $profile) {
+                    $lockedRoom->forceFill(['next_bot_at' => now('UTC')->addSeconds(10)])->save();
+                    Log::warning('Wheel bot skipped: no active bot profile.', ['room_id' => $lockedRoom->id]);
+
                     return null;
                 }
                 $lastBotBody = ChatMessage::query()->where('room_id', $lockedRoom->id)->where('actor_type', 'bot')->latest('id')->value('body');
@@ -164,6 +183,22 @@ class GenerateChatBotMessage implements ShouldQueue
                     ->lockForUpdate()
                     ->first();
                 if (! $template) {
+                    // A template may be assigned to another profile. Fall
+                    // back to any active template so one sparse profile does
+                    // not stop the entire event room.
+                    $template = ChatBotTemplate::query()
+                        ->where('active', true)
+                        ->when($lastBotBody, fn ($query) => $query->where('body', '<>', $lastBotBody))
+                        ->orderByRaw('last_used_at is not null')
+                        ->orderBy('last_used_at')
+                        ->orderBy('id')
+                        ->lockForUpdate()
+                        ->first();
+                }
+                if (! $template) {
+                    $lockedRoom->forceFill(['next_bot_at' => now('UTC')->addSeconds(10)])->save();
+                    Log::warning('Wheel bot skipped: no active bot template.', ['room_id' => $lockedRoom->id]);
+
                     return null;
                 }
 
@@ -190,9 +225,61 @@ class GenerateChatBotMessage implements ShouldQueue
                 $publisher->publishWheelSession((int) $room->wheel_session_id, 'chat.message.created', $message);
             }
 
+            if ($room->wheel_invitation_id) {
+                $this->queueNextWheelMessage((int) $room->id);
+            }
+
             return true;
         } finally {
             optional($lock)->release();
         }
+    }
+
+    private function generateForWheelRoom(ChatRedisPublisher $publisher, int $roomId): void
+    {
+        $room = ChatRoom::query()->whereKey($roomId)->where('enabled', true)->first();
+        if (! $room) {
+            return;
+        }
+
+        $rawNextAt = $room->getRawOriginal('next_bot_at');
+        if ($rawNextAt && CarbonImmutable::parse($rawNextAt, 'UTC')->isFuture()) {
+            $this->queueNextWheelMessage($roomId);
+
+            return;
+        }
+
+        $this->generateForWheelSession($publisher, $roomId);
+    }
+
+    private function queueNextWheelMessage(int $roomId): void
+    {
+        $room = ChatRoom::query()->with(['wheelSession', 'wheelInvitation'])->find($roomId);
+        if (! $room || ! $room->enabled || ! $room->wheelInvitation?->bot_chat_enabled) {
+            return;
+        }
+
+        $sessionActive = false;
+        if ($room->wheelSession) {
+            $rawEndsAt = $room->wheelSession->getRawOriginal('ends_at');
+            $sessionActive = $room->wheelSession->status === 'active'
+                && $rawEndsAt
+                && CarbonImmutable::parse($rawEndsAt, 'UTC')->isFuture();
+        }
+        $invitationPending = $room->wheel_session_id === null
+            && $room->wheelInvitation->status === 'pending'
+            && ((int) $room->bot_message_count < 30);
+        if (! $sessionActive && ! $invitationPending) {
+            return;
+        }
+
+        $rawNextAt = $room->getRawOriginal('next_bot_at');
+        $nextAt = $rawNextAt ? CarbonImmutable::parse($rawNextAt, 'UTC') : now('UTC');
+        $delay = max(1, $nextAt->getTimestamp() - now('UTC')->getTimestamp());
+        $scheduleKey = 'chat:bot:wheel:scheduled:'.$roomId.':'.$nextAt->getTimestamp();
+        if (! Cache::add($scheduleKey, 1, $delay + 30)) {
+            return;
+        }
+        self::dispatch($roomId)->delay($delay);
     }
 }

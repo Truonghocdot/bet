@@ -559,7 +559,7 @@ func (r *WheelRepository) ListChat(ctx context.Context, invitationID, userID, be
 		from chat_messages cm join chat_rooms cr on cr.id = cm.room_id
 		left join wheel_sessions ws on ws.id = cr.wheel_session_id
 		join wheel_invitations wi on wi.id = coalesce(cr.wheel_invitation_id, ws.invitation_id)
-		where wi.id = $1 and wi.user_id = $2 and cm.status = 1 and cm.created_at >= now() - interval '6 hours'
+		where wi.id = $1 and wi.user_id = $2 and cm.status = 1 and cm.created_at >= timezone('UTC', now()) - interval '6 hours'
 		  and ($3::bigint = 0 or cm.id < $3)
 		order by cm.id desc limit $4`, invitationID, userID, before, limit+1)
 	if err != nil {
