@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 class ChatBotBulkImportService
 {
     /**
-     * @return array{lines:int,profiles_created:int,profiles_updated:int,templates_created:int,duplicates:int,invalid:int,profiles_deactivated:int}
+     * @return array{lines:int,profiles_created:int,profiles_updated:int,templates_created:int,templates_updated:int,templates_deactivated:int,duplicates:int,invalid:int,profiles_deactivated:int,cleanup_skipped:bool}
      */
     public function import(
         string $input,
@@ -17,6 +17,7 @@ class ChatBotBulkImportService
         string $language = 'vi',
         bool $active = true,
         bool $deactivateLegacyProfiles = true,
+        bool $replaceExistingTemplates = false,
     ): array {
         $category = mb_substr(trim($category) ?: 'event', 0, 60);
         $language = mb_substr(trim($language) ?: 'vi', 0, 12);
@@ -25,16 +26,20 @@ class ChatBotBulkImportService
             'profiles_created' => 0,
             'profiles_updated' => 0,
             'templates_created' => 0,
+            'templates_updated' => 0,
+            'templates_deactivated' => 0,
             'duplicates' => 0,
             'invalid' => 0,
             'profiles_deactivated' => 0,
+            'cleanup_skipped' => false,
         ];
 
         $lines = preg_split('/\R/u', $input) ?: [];
 
-        return DB::transaction(function () use ($lines, $category, $language, $active, $deactivateLegacyProfiles, $result): array {
+        return DB::transaction(function () use ($lines, $category, $language, $active, $deactivateLegacyProfiles, $replaceExistingTemplates, $result): array {
             $profilesByGameID = $this->profilesByGameID();
             $importedGameIDs = [];
+            $importedTemplateIDs = [];
 
             foreach ($lines as $rawLine) {
                 $line = trim((string) $rawLine);
@@ -79,20 +84,38 @@ class ChatBotBulkImportService
                     ? $duplicateQuery->where('bot_profile_id', $profile->id)
                     : $duplicateQuery->whereNull('bot_profile_id');
 
-                if ($duplicateQuery->exists()) {
+                $existingTemplate = $duplicateQuery->first();
+                if ($existingTemplate) {
+                    $importedTemplateIDs[] = (int) $existingTemplate->id;
+                    if ((bool) $existingTemplate->active !== $active) {
+                        $existingTemplate->forceFill(['active' => $active])->save();
+                        $result['templates_updated']++;
+                    }
                     $result['duplicates']++;
 
                     continue;
                 }
 
-                ChatBotTemplate::query()->create([
+                $template = ChatBotTemplate::query()->create([
                     'bot_profile_id' => $profile?->id,
                     'body' => $parsed['body'],
                     'category' => $category,
                     'language' => $language,
                     'active' => $active,
                 ]);
+                $importedTemplateIDs[] = (int) $template->id;
                 $result['templates_created']++;
+            }
+
+            if ($replaceExistingTemplates && $importedTemplateIDs !== []) {
+                if ($result['invalid'] > 0) {
+                    $result['cleanup_skipped'] = true;
+                } else {
+                    $result['templates_deactivated'] = ChatBotTemplate::query()
+                        ->where('active', true)
+                        ->whereNotIn('id', array_values(array_unique($importedTemplateIDs)))
+                        ->update(['active' => false, 'updated_at' => now('UTC')]);
+                }
             }
 
             if ($deactivateLegacyProfiles && $importedGameIDs !== []) {

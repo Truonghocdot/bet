@@ -43,6 +43,10 @@ class ListChatBotTemplates extends ListRecords
                         ->label('Chỉ dùng profile dạng ID game')
                         ->helperText('Tắt các profile tên cũ sau khi import để chat chỉ hiển thị ID game.')
                         ->default(true),
+                    Toggle::make('replace_existing_templates')
+                        ->label('Thay thế bộ câu mẫu đang dùng')
+                        ->helperText('Tắt, không xóa, mọi câu mẫu cũ không nằm trong danh sách vừa dán. Nếu có dòng lỗi, hệ thống sẽ bỏ qua bước làm sạch để bảo vệ dữ liệu.')
+                        ->default(true),
                 ])
                 ->action(function (array $data): void {
                     $result = app(ChatBotBulkImportService::class)->import(
@@ -51,18 +55,24 @@ class ListChatBotTemplates extends ListRecords
                         (string) ($data['language'] ?? 'vi'),
                         (bool) ($data['active'] ?? true),
                         (bool) ($data['only_game_ids'] ?? true),
+                        (bool) ($data['replace_existing_templates'] ?? true),
                     );
 
+                    $cleanupMessage = $result['cleanup_skipped']
+                        ? ' Chưa làm sạch câu cũ vì danh sách có dòng lỗi.'
+                        : sprintf(' %d câu cũ đã tắt.', $result['templates_deactivated']);
                     Notification::make()
                         ->title('Đã import danh sách câu mẫu')
                         ->body(sprintf(
-                            '%d câu mới, %d profile mới, %d profile cập nhật, %d câu trùng, %d dòng lỗi, %d profile tên cũ đã tắt.',
+                            '%d câu mới, %d câu cập nhật, %d profile mới, %d profile cập nhật, %d câu trùng, %d dòng lỗi, %d profile tên cũ đã tắt.%s',
                             $result['templates_created'],
+                            $result['templates_updated'],
                             $result['profiles_created'],
                             $result['profiles_updated'],
                             $result['duplicates'],
                             $result['invalid'],
                             $result['profiles_deactivated'],
+                            $cleanupMessage,
                         ))
                         ->success()
                         ->send();

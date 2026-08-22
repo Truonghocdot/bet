@@ -52,6 +52,15 @@ class ChatBotBulkImportServiceTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        DB::table('chat_bot_templates')->insert([
+            'body' => 'Câu mẫu cũ không còn dùng',
+            'category' => 'general',
+            'language' => 'vi',
+            'active' => true,
+            'usage_count' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         $input = implode("\n", [
             "người chơi# 258425\tNhìn thôi cũng muốn thử vận may",
             "người chơi# 195658\t🥰🥰🥰",
@@ -59,11 +68,13 @@ class ChatBotBulkImportServiceTest extends TestCase
             "người chơi# 999999\thttps://example.com không hợp lệ",
         ]);
 
-        $first = app(ChatBotBulkImportService::class)->import($input);
+        $first = app(ChatBotBulkImportService::class)->import($input, replaceExistingTemplates: true);
 
         self::assertSame(3, $first['templates_created']);
         self::assertSame(2, $first['profiles_created']);
         self::assertSame(1, $first['invalid']);
+        self::assertTrue($first['cleanup_skipped']);
+        self::assertSame(0, $first['templates_deactivated']);
         self::assertSame(1, $first['profiles_deactivated']);
         self::assertDatabaseHas('chat_bot_profiles', ['display_name' => 'ID game #258425', 'active' => true]);
         self::assertDatabaseHas('chat_bot_profiles', ['display_name' => 'ID game #195658', 'active' => true]);
@@ -73,10 +84,14 @@ class ChatBotBulkImportServiceTest extends TestCase
             ->where('chat_bot_profiles.display_name', 'ID game #258425')
             ->count());
 
-        $second = app(ChatBotBulkImportService::class)->import($input);
+        $cleanInput = implode("\n", array_slice(explode("\n", $input), 0, 3));
+        $second = app(ChatBotBulkImportService::class)->import($cleanInput, replaceExistingTemplates: true);
 
         self::assertSame(0, $second['templates_created']);
         self::assertSame(3, $second['duplicates']);
-        self::assertSame(3, DB::table('chat_bot_templates')->count());
+        self::assertSame(1, $second['templates_deactivated']);
+        self::assertFalse($second['cleanup_skipped']);
+        self::assertDatabaseHas('chat_bot_templates', ['body' => 'Câu mẫu cũ không còn dùng', 'active' => false]);
+        self::assertSame(4, DB::table('chat_bot_templates')->count());
     }
 }
