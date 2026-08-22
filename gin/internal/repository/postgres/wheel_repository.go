@@ -632,11 +632,10 @@ func (r *WheelRepository) CreateChat(ctx context.Context, invitationID, userID i
 	if lastBody.Valid && strings.EqualFold(strings.TrimSpace(lastBody.String), strings.TrimSpace(body)) {
 		return wheel.ChatMessage{}, 0, errors.New("wheel.chat.duplicate")
 	}
-	displayName := fmt.Sprintf("Người chơi #%06d", userID%1000000)
-	if _, err := tx.ExecContext(ctx, `insert into chat_user_profiles (user_id, display_name, created_at, updated_at) values ($1,$2,now(),now()) on conflict (user_id) do nothing`, userID, displayName); err != nil {
+	displayName := fmt.Sprintf("ID game #%d", userID)
+	if _, err := tx.ExecContext(ctx, `insert into chat_user_profiles (user_id, display_name, created_at, updated_at) values ($1,$2,now(),now()) on conflict (user_id) do update set display_name = excluded.display_name, updated_at = excluded.updated_at`, userID, displayName); err != nil {
 		return wheel.ChatMessage{}, 0, err
 	}
-	_ = tx.QueryRowContext(ctx, `select display_name from chat_user_profiles where user_id = $1`, userID).Scan(&displayName)
 	var item wheel.ChatMessage
 	var createdAt time.Time
 	createdAtUTC := time.Now().UTC()

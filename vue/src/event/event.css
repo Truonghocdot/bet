@@ -67,6 +67,25 @@
   background: linear-gradient(145deg, #17141f 0%, #0c0b11 72%);
 }
 
+.event-finished {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  background: #0c0b11;
+  text-align: center;
+}
+
+.event-finished h1 {
+  margin: 0;
+  color: #f4bd32;
+  font-size: clamp(4rem, 18vw, 11rem);
+  font-weight: 800;
+  line-height: .9;
+  letter-spacing: 0;
+  text-shadow: 0 8px 36px rgba(244, 189, 50, .2);
+}
+
 .event-container {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;

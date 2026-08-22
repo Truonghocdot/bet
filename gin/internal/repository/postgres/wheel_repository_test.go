@@ -97,13 +97,10 @@ func TestWheelCreateChatAllowsPendingInvitationRoom(t *testing.T) {
 		WithArgs(int64(44), int64(203985)).
 		WillReturnRows(sqlmock.NewRows([]string{"body"}))
 	mock.ExpectExec("insert into chat_user_profiles").
-		WithArgs(int64(203985), "Người chơi #203985").
+		WithArgs(int64(203985), "ID game #203985").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery("select display_name from chat_user_profiles").
-		WithArgs(int64(203985)).
-		WillReturnRows(sqlmock.NewRows([]string{"display_name"}).AddRow("Khách may mắn"))
 	mock.ExpectQuery("insert into chat_messages").
-		WithArgs(int64(44), int64(203985), "Khách may mắn", "Chào phòng sự kiện", sqlmock.AnyArg()).
+		WithArgs(int64(44), int64(203985), "ID game #203985", "Chào phòng sự kiện", sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), now))
 	mock.ExpectQuery("insert into wheel_outbox_events").
 		WithArgs("stream:wheel:invitation:11", "chat.message.created", sqlmock.AnyArg()).
@@ -115,7 +112,7 @@ func TestWheelCreateChatAllowsPendingInvitationRoom(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create pending chat: %v", err)
 	}
-	if sessionID != 0 || message.ID != 99 || message.DisplayName != "Khách may mắn" {
+	if sessionID != 0 || message.ID != 99 || message.DisplayName != "ID game #203985" {
 		t.Fatalf("unexpected result: session=%d message=%#v", sessionID, message)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

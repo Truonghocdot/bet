@@ -11,6 +11,7 @@ use BackedEnum;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
 class ChatMessageResource extends BaseResource
@@ -27,7 +28,7 @@ class ChatMessageResource extends BaseResource
 
     protected static UnitEnum|string|null $navigationGroup = 'Chat';
 
-    protected static ?string $navigationLabel = 'Tin nhắn';
+    protected static ?string $navigationLabel = 'Tin nhắn người chơi';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedChatBubbleLeftRight;
 
@@ -54,5 +55,16 @@ class ChatMessageResource extends BaseResource
     public static function getPages(): array
     {
         return ['index' => ListChatMessages::route('/')];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->where('actor_type', 'user')
+            ->whereNotNull('user_id')
+            ->whereHas('room', fn (Builder $query): Builder => $query
+                ->whereNotNull('wheel_invitation_id')
+                ->orWhereNotNull('wheel_session_id'))
+            ->with('room');
     }
 }

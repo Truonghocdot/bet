@@ -19,8 +19,8 @@ class ChatMessagesTable
     {
         return $table->columns([
             TextColumn::make('id')->label('ID')->sortable(),
-            TextColumn::make('display_name')->label('Tên chat')->searchable(),
-            TextColumn::make('actor_type')->label('Nguồn')->badge(),
+            TextColumn::make('user_id')->label('ID game')->formatStateUsing(fn ($state): string => 'ID game #'.$state)->sortable(),
+            TextColumn::make('room.wheel_invitation_id')->label('Lời mời')->formatStateUsing(fn ($state): string => '#'.$state),
             TextColumn::make('body')->label('Nội dung')->limit(80)->wrap(),
             TextColumn::make('status')->label('Trạng thái')->formatStateUsing(fn ($state): string => match ((int) $state) {
                 1 => 'Hiển thị', 2 => 'Ẩn', 3 => 'Đã xóa', default => 'Không rõ'

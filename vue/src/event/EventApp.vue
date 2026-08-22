@@ -61,6 +61,8 @@ let celebrationTimer = 0
 let chatPollTimer = 0
 let socket: WebSocket | null = null
 let stopped = false
+let refreshingState = false
+let refreshQueued = false
 
 const wheelSegments = [
   { key: 'jackpot_50m', label: '50 TRIỆU', index: 0 },
@@ -84,16 +86,19 @@ const currentRound = computed(() => state.value?.rounds.find((item) => item.roun
 const isReadyToStart = computed(() => state.value && !state.value.session_id && state.value.session_status === 'pending')
 const isActive = computed(() => state.value?.session_status === 'active')
 const isFinished = computed(() => state.value?.session_status === 'completed' || state.value?.session_status === 'expired')
+const showFinishedScreen = computed(() => isFinished.value && !spinning.value && !submittingSpin.value && !celebrationVisible.value)
 const serverNowMs = computed(() => nowMs.value + serverOffsetMs.value)
 const secondsLeft = computed(() => state.value?.ends_at ? Math.max(0, Math.ceil((new Date(state.value.ends_at).getTime() - serverNowMs.value) / 1000)) : 300)
 const countdown = computed(() => `${String(Math.floor(secondsLeft.value / 60)).padStart(2, '0')}:${String(secondsLeft.value % 60).padStart(2, '0')}`)
 const nextReadyIn = computed(() => state.value?.next_round_available_at ? Math.max(0, Math.ceil((new Date(state.value.next_round_available_at).getTime() - serverNowMs.value) / 1000)) : 0)
-const canSpin = computed(() => isActive.value && currentRound.value?.status === 'ready' && !spinning.value && !submittingSpin.value && nextReadyIn.value === 0)
-const syncingNextRound = computed(() => isActive.value && currentRound.value?.status !== 'ready' && nextReadyIn.value === 0 && !spinning.value && !submittingSpin.value)
+const canSpin = computed(() => {
+  const roundReady = currentRound.value?.status === 'ready'
+    || (currentRound.value?.status === 'pending' && Boolean(state.value?.next_round_available_at) && nextReadyIn.value === 0)
+  return isActive.value && roundReady && !spinning.value && !submittingSpin.value
+})
 const chatOpen = computed(() => Boolean(isReadyToStart.value || isActive.value))
 const canSend = computed(() => chatOpen.value && chatBody.value.trim().length > 0 && chatBody.value.length <= 280 && !sending.value)
 const progress = computed(() => state.value?.rounds.filter((item) => item.status === 'spun').length ?? 0)
-const totalReward = computed(() => formatMoney(state.value?.total_reward ?? '0'))
 const wheelStyle = computed(() => ({ transform: `rotate(${rotation.value}deg)`, transitionDuration: spinning.value ? '5s' : '0s' }))
 
 function api<T>(method: 'GET' | 'POST', path: string, body?: unknown) {
@@ -109,6 +114,12 @@ function applyState(next: WheelState) {
   syncClock(next.server_now)
   const lastSpun = [...next.rounds].filter((item) => item.status === 'spun').pop()
   if (!spinning.value && lastSpun) result.value = lastSpun
+  const nextRound = next.rounds.find((item) => item.round_no === next.current_round)
+  if (next.session_status === 'active' && nextRound?.status === 'pending') {
+    scheduleReadyRefresh(next.next_round_available_at)
+  } else {
+    window.clearTimeout(readyTimer)
+  }
 }
 
 async function exchangeLaunchCode() {
@@ -125,6 +136,10 @@ async function exchangeLaunchCode() {
 async function loadState() {
   const response = await api<WheelState>('GET', '/v1/wheel/me')
   applyState(response)
+  if (response.session_status === 'completed' || response.session_status === 'expired') {
+    disconnectSocket()
+    return
+  }
   if (response.session_id) {
     recoverAnimation(response)
     // Chat and realtime are enhancements; they must not block the wheel from
@@ -235,7 +250,10 @@ function spinToRound(round: Round, durationMs = 5000) {
     spinningRoundNo.value = 0
     if (Number(round.prize_amount ?? 0) > 0) openCelebration(round)
     if (state.value?.session_status === 'completed') disconnectSocket()
-    else void refreshState()
+    else {
+      refreshQueued = false
+      void refreshState()
+    }
   }, Math.max(100, durationMs))
 }
 
@@ -254,10 +272,10 @@ function closeCelebration() {
 
 function scheduleReadyRefresh(availableAt?: string | null) {
   window.clearTimeout(readyTimer)
-  window.clearTimeout(celebrationTimer)
-  if (!availableAt) return
-  const delay = Math.max(0, new Date(availableAt).getTime() - serverNowMs.value + 80)
-  readyTimer = window.setTimeout(() => void refreshState(), Math.min(delay, 10000))
+  if (stopped || state.value?.session_status !== 'active') return
+  const remaining = availableAt ? new Date(availableAt).getTime() - serverNowMs.value + 150 : 750
+  const delay = Math.min(10000, Math.max(750, remaining))
+  readyTimer = window.setTimeout(() => void refreshState(), delay)
 }
 
 async function spin() {
@@ -293,7 +311,16 @@ function recoverAnimation(next: WheelState) {
 }
 
 async function refreshState() {
-  if (!accessToken.value || spinning.value) return
+  if (!accessToken.value) return
+  if (spinning.value) {
+    refreshQueued = true
+    return
+  }
+  if (refreshingState) {
+    refreshQueued = true
+    return
+  }
+  refreshingState = true
   try {
     const previousSessionID = state.value?.session_id
     const response = await api<WheelState>('GET', '/v1/wheel/session/state')
@@ -303,7 +330,21 @@ async function refreshState() {
       disconnectSocket()
       void connectSocket()
     }
-  } catch { /* reconnect retries */ }
+  } catch {
+    if (state.value?.session_status === 'active') scheduleReadyRefresh()
+  } finally {
+    refreshingState = false
+    if (refreshQueued) {
+      refreshQueued = false
+      window.clearTimeout(readyTimer)
+      readyTimer = window.setTimeout(() => void refreshState(), 250)
+      return
+    }
+    const round = state.value?.rounds.find((item) => item.round_no === state.value?.current_round)
+    if (state.value?.session_status === 'active' && round?.status === 'pending') {
+      scheduleReadyRefresh(state.value.next_round_available_at)
+    }
+  }
 }
 
 async function loadChat() {
@@ -393,8 +434,9 @@ function handleSocket(raw: string) {
   } else if (payload.event === 'chat.message.hidden' || payload.event === 'chat.message.deleted') {
     const id = Number((payload.data as { id?: number })?.id)
     messages.value = messages.value.filter((item) => item.id !== id)
-  } else if (!spinning.value && payload.event?.startsWith('wheel.')) {
-    void refreshState()
+  } else if (payload.event?.startsWith('wheel.')) {
+    if (spinning.value) refreshQueued = true
+    else void refreshState()
   }
 }
 
@@ -415,6 +457,19 @@ function formatMoney(value: string | number) {
 
 function formatChatTime(value: string) {
   return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(value))
+}
+
+function chatGameID(message: ChatMessage) {
+  const numeric = message.display_name.match(/[0-9]{3,12}/)?.[0]
+  if (numeric) return `ID game #${Number(numeric)}`
+
+  let hash = 2166136261
+  const source = `${message.actor_type}:${message.display_name}`
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `ID game #${100000 + ((hash >>> 0) % 900000)}`
 }
 
 onMounted(() => {
@@ -459,6 +514,11 @@ function preventDoubleTap(event: MouseEvent) {
     </div>
 
     <template v-else-if="state">
+      <section v-if="showFinishedScreen" class="event-finished" role="status" aria-live="polite">
+        <h1>KẾT THÚC</h1>
+      </section>
+
+      <template v-else>
       <header class="event-header">
         <div class="event-container event-header__inner">
           <div class="event-brand">
@@ -502,16 +562,13 @@ function preventDoubleTap(event: MouseEvent) {
               <span class="event-result__icon" :class="Number(result.prize_amount) > 0 ? 'event-result__icon--win' : 'event-result__icon--neutral'"><span class="material-symbols-outlined">{{ Number(result.prize_amount) > 0 ? 'workspace_premium' : 'sentiment_satisfied' }}</span></span>
               <div class="event-result__copy"><p>KẾT QUẢ LƯỢT {{ result.round_no }}</p><h2>{{ displayResultLabel(result) }}</h2><strong v-if="Number(result.prize_amount) > 0">+{{ formatMoney(result.prize_amount ?? 0) }}</strong></div>
             </template>
-            <template v-else-if="isFinished">
-              <span class="event-result__icon event-result__icon--neutral"><span class="material-symbols-outlined">flag</span></span><div class="event-result__copy"><p>PHIÊN ĐÃ KẾT THÚC</p><h2>Tổng thưởng {{ totalReward }}</h2></div>
-            </template>
             <template v-else><span class="event-result__icon event-result__icon--neutral"><span class="material-symbols-outlined">touch_app</span></span><div class="event-result__copy"><p>SẴN SÀNG</p><h2>{{ isReadyToStart ? 'Bắt đầu để mở lượt 1' : `Lượt ${state.current_round} sẵn sàng` }}</h2></div></template>
           </div>
 
           <p v-if="error" class="event-inline-error" role="alert"><span class="material-symbols-outlined">error</span>{{ error }}</p>
           <button v-if="isActive || isReadyToStart" type="button" class="event-button event-button--primary" :disabled="isReadyToStart ? starting : !canSpin" @click="isReadyToStart ? startSession() : spin()" @dblclick.prevent="preventDoubleTap">
             <span class="material-symbols-outlined">{{ isReadyToStart ? 'play_arrow' : 'casino' }}</span>
-            {{ starting ? 'Đang bắt đầu...' : submittingSpin ? 'Đang xác nhận...' : spinning ? 'Đang quay...' : isReadyToStart ? 'Bắt đầu vòng quay' : nextReadyIn > 0 ? `Lượt tiếp theo sau ${nextReadyIn}s` : syncingNextRound ? 'Đang đồng bộ...' : `Quay lượt ${state.current_round}` }}
+            {{ starting ? 'Đang bắt đầu...' : submittingSpin ? 'Đang xác nhận...' : spinning ? 'Đang quay...' : isReadyToStart ? 'Bắt đầu vòng quay' : nextReadyIn > 0 ? `Lượt tiếp theo sau ${nextReadyIn}s` : `Quay lượt ${state.current_round}` }}
           </button>
           <p class="event-stage__hint"><span class="material-symbols-outlined">lock</span>Kết quả được xác nhận an toàn từ máy chủ</p>
         </section>
@@ -520,7 +577,7 @@ function preventDoubleTap(event: MouseEvent) {
           <header class="event-chat__header"><div><p class="event-eyebrow event-eyebrow--gold">LIVE ROOM</p><h2>Phòng trò chuyện</h2></div><span class="event-chat__status" :class="{ 'is-online': connected }"><i />{{ connected ? 'Trực tuyến' : chatOpen ? 'Đang kết nối' : 'Đã đóng' }}</span></header>
           <div ref="messageList" class="event-chat__messages">
             <div v-if="!messages.length" class="event-chat__empty"><span class="material-symbols-outlined">forum</span><p>Phòng chat đang chờ những lời chúc đầu tiên.</p></div>
-            <div v-for="message in messages" :key="message.id" class="event-message"><div class="event-message__avatar">{{ message.display_name.slice(0, 1).toUpperCase() }}</div><div class="event-message__body"><div><strong>{{ message.display_name }}</strong><time>{{ formatChatTime(message.created_at) }}</time></div><p>{{ message.body }}</p></div></div>
+            <div v-for="message in messages" :key="message.id" class="event-message"><div class="event-message__avatar">#</div><div class="event-message__body"><div><strong>{{ chatGameID(message) }}</strong><time>{{ formatChatTime(message.created_at) }}</time></div><p>{{ message.body }}</p></div></div>
           </div>
           <form class="event-chat__composer" @submit.prevent="sendChat"><p v-if="chatError" class="event-chat__error">{{ chatError }}</p><div class="event-chat__composer-row"><input v-model="chatBody" type="text" maxlength="280" :disabled="!chatOpen" :placeholder="chatOpen ? 'Gửi lời chúc...' : 'Phòng chat đã đóng'"><button type="submit" :disabled="!canSend" aria-label="Gửi tin nhắn"><span class="material-symbols-outlined">arrow_upward</span></button></div></form>
         </aside>
@@ -536,9 +593,10 @@ function preventDoubleTap(event: MouseEvent) {
           <p class="celebration-card__label">{{ displayResultLabel(celebrationRound) }}</p>
           <strong>+{{ formatMoney(celebrationRound.prize_amount ?? 0) }}</strong>
           <p class="celebration-card__note"><span class="material-symbols-outlined">account_balance_wallet</span> Phần thưởng đã được cộng vào ví</p>
-          <button type="button" class="event-button event-button--primary" @click="closeCelebration"><span class="material-symbols-outlined">arrow_forward</span>Tiếp tục vòng quay</button>
+          <button type="button" class="event-button event-button--primary" @click="closeCelebration"><span class="material-symbols-outlined">arrow_forward</span>{{ state.session_status === 'completed' ? 'Kết thúc' : 'Tiếp tục vòng quay' }}</button>
         </section>
       </div>
+      </template>
     </template>
   </main>
 </template>
