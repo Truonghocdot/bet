@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import logo from '@/assets/logo-mobile.webp'
 import { request, type ApiError } from '@/shared/api/http'
 import { env } from '@/shared/config/env'
+
+const logo = '/event-logo.webp'
 
 type Round = {
   round_no: number

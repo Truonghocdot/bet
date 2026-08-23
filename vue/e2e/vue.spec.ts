@@ -47,6 +47,37 @@ async function seedEventToken(page: import('@playwright/test').Page) {
   })
 }
 
+test('launch transition page renders without JavaScript', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto('/event-launching.html')
+
+  await expect(page.getByRole('heading', { name: 'Đang chuẩn bị vé tham gia...' })).toBeVisible()
+  for (const alt of ['Bình giữ nhiệt logo pp789i', 'AirPods Pro', 'Xe VinFast Limo Green']) {
+    await expect(page.getByRole('img', { name: alt })).toBeVisible()
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  )
+})
+
+test('launch failure stays visible instead of closing the tab', async ({ page }) => {
+  await page.goto('/event-launching.html?failed=1')
+
+  await expect(page.getByRole('heading', { name: 'Không thể mở sự kiện' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Đóng và thử lại' })).toBeVisible()
+})
+
+test('event html has an immediate boot preview before the app mounts', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.route(/\/assets\/event-[^/]+\.js$/, (route) => route.abort())
+
+  await page.goto('/event.html')
+
+  await expect(page.locator('#event-boot')).toBeVisible()
+  await expect(page.getByText('Đang xác thực vé tham gia của bạn')).toBeVisible()
+  await expect(page.locator('#event-boot img')).toHaveCount(4)
+})
+
 test('event loading previews the real prize assets', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 375, height: 812 })
   await seedEventToken(page)

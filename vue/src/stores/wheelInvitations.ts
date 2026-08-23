@@ -68,15 +68,15 @@ export const useWheelInvitationsStore = defineStore('wheel-invitations', () => {
     if (launchingId.value) return
     launchingId.value = invitation.id
     error.value = ''
-    const target = window.open('about:blank', '_blank')
+    const target = window.open('/event-launching.html', '_blank')
     if (target) target.opener = null
     try {
       const response = await request<{ url: string }>('POST', `/v1/wheel/invitations/${encodeURIComponent(invitation.id)}/launch`, { token: auth.accessToken })
-      if (target) target.location.href = response.url
+      if (target) target.location.replace(response.url)
       else window.location.href = response.url
       await dismiss(invitation)
     } catch (cause) {
-      target?.close()
+      if (target) target.location.replace('/event-launching.html?failed=1')
       error.value = (cause as ApiError).message || 'Không thể mở sự kiện.'
       throw cause
     } finally {
