@@ -17,6 +17,12 @@ use Tests\TestCase;
 
 class GenerateWheelBotMessageTest extends TestCase
 {
+    public function test_bot_message_interval_uses_one_to_three_second_jitter(): void
+    {
+        self::assertSame(1, GenerateChatBotMessage::MIN_INTERVAL_SECONDS);
+        self::assertSame(3, GenerateChatBotMessage::MAX_INTERVAL_SECONDS);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -110,7 +116,7 @@ class GenerateWheelBotMessageTest extends TestCase
         $createdAt = CarbonImmutable::parse((string) DB::table('chat_messages')->min('created_at'), 'UTC');
         self::assertLessThanOrEqual(5, abs($createdAt->diffInSeconds(now('UTC'), false)));
         $nextBotAt = CarbonImmutable::parse((string) $room->fresh()->getRawOriginal('next_bot_at'), 'UTC');
-        self::assertLessThanOrEqual(2, $nextBotAt->diffInSeconds(now('UTC')));
+        self::assertLessThanOrEqual(3, $nextBotAt->diffInSeconds(now('UTC')));
         Queue::assertPushed(GenerateChatBotMessage::class, fn (GenerateChatBotMessage $job): bool => $job->wheelRoomId === $room->id);
     }
 

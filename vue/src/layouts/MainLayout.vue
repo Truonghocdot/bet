@@ -450,7 +450,7 @@ onBeforeUnmount(() => {
             <h2 id="wheel-invitation-title" class="mt-1 pr-8 text-xl font-black">{{ wheelInvitations.activePopup.campaign_name }}</h2>
           </div>
           <div class="px-5 py-5">
-            <p class="text-sm leading-6 text-slate-600">Bạn đã được chọn tham gia vòng quay đặc biệt. Phiên có bốn lượt quay liên tiếp và chỉ bắt đầu khi bạn xác nhận.</p>
+            <p class="text-sm leading-6 text-slate-600">Bạn đã được chọn tham gia vòng quay đặc biệt. Phiên có ba lượt quay liên tiếp và chỉ bắt đầu khi bạn xác nhận.</p>
             <p v-if="wheelInvitations.error" class="mt-3 border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{{ wheelInvitations.error }}</p>
             <button type="button" class="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-primary px-4 text-sm font-black text-white disabled:opacity-60" :disabled="wheelInvitations.launchingId === wheelInvitations.activePopup.id" @click="wheelInvitations.launch(wheelInvitations.activePopup)">
               <span class="material-symbols-outlined text-[1.1rem]">open_in_new</span>

@@ -91,7 +91,7 @@ class WheelCampaignResource extends BaseResource
                         Toggle::make('bot_chat_enabled')
                             ->label('Bật bot chat cho người chơi')
                             ->default(true)
-                            ->helperText('Tạo ngay 4 tin mở đầu; khi khách bấm Tham gia, bot gửi khoảng 1 tin/giây liên tục trong cửa sổ sự kiện 5 phút.')
+                            ->helperText('Tạo ngay 4 tin mở đầu; khi khách bấm Tham gia, bot gửi ngẫu nhiên mỗi 1-3 giây trong cửa sổ sự kiện 5 phút.')
                             ->columnSpanFull(),
                         Select::make('user_ids')
                             ->label('Người chơi')
