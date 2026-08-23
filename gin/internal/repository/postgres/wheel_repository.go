@@ -23,6 +23,7 @@ var (
 	ErrWheelSessionCompleted   = errors.New("wheel.session.completed")
 	ErrWheelRoundOrder         = errors.New("wheel.round.invalid_order")
 	ErrWheelRoundNotReady      = errors.New("wheel.round.not_ready")
+	ErrWheelRoundConfiguration = errors.New("wheel.round.configuration_invalid")
 	ErrWheelChatBanned         = errors.New("wheel.chat.banned")
 )
 
@@ -241,7 +242,7 @@ func (r *WheelRepository) StartSession(ctx context.Context, invitationID, userID
 		return WheelMutationResult{}, err
 	}
 	if roundCount != wheelTotalRounds || requiredSecondRoundCount != 1 {
-		return WheelMutationResult{}, fmt.Errorf("wheel invitation requires three rounds with a 39m second round")
+		return WheelMutationResult{}, fmt.Errorf("%w: invitation_id=%d round_count=%d required_second_round_count=%d", ErrWheelRoundConfiguration, invitationID, roundCount, requiredSecondRoundCount)
 	}
 
 	now := time.Now().UTC()

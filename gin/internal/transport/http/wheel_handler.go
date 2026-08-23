@@ -136,9 +136,11 @@ func (h *WheelHandler) Start(w http.ResponseWriter, r *http.Request) {
 	}
 	state, err := h.service.Start(r.Context(), access)
 	if err != nil {
+		log.Printf("[wheel.start.error] user_id=%d invitation_id=%d err=%v", access.UserID, access.InvitationID, err)
 		h.writeError(w, err)
 		return
 	}
+	log.Printf("[wheel.start.ok] user_id=%d invitation_id=%d session_id=%v status=%s ends_at=%v", access.UserID, access.InvitationID, state.SessionID, state.SessionStatus, state.EndsAt)
 	writeJSON(w, http.StatusOK, state)
 }
 
@@ -306,6 +308,8 @@ func (h *WheelHandler) writeError(w http.ResponseWriter, err error) {
 		status, code, message = http.StatusConflict, "SESSION_COMPLETED", "Bạn đã hoàn thành vòng quay."
 	case errors.Is(err, repopg.ErrWheelRoundOrder):
 		status, code, message = http.StatusConflict, "ROUND_INVALID_ORDER", "Vui lòng quay đúng thứ tự."
+	case errors.Is(err, repopg.ErrWheelRoundConfiguration):
+		status, code, message = http.StatusConflict, "ROUND_CONFIGURATION_INVALID", "Cấu hình lượt quay chưa hợp lệ, vui lòng liên hệ hỗ trợ."
 	case errors.As(err, &notReady):
 		writeJSON(w, http.StatusConflict, map[string]any{"message": "Lượt tiếp theo chưa sẵn sàng.", "code": "ROUND_NOT_READY", "available_at": notReady.AvailableAt.UTC().Format(time.RFC3339Nano)})
 		return
