@@ -81,6 +81,26 @@ func TestWheelHelpersPreserveMoneyAndUUIDShape(t *testing.T) {
 	}
 }
 
+func TestWheelLaunchActivatesFiveMinuteBotWindow(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("create SQL mock: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	mock.ExpectExec("update chat_rooms as cr").
+		WithArgs(int64(11), int64(203985), 300).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	repository := NewWheelRepository(db)
+	if err := repository.ActivateInvitationChat(t.Context(), 11, 203985, 300); err != nil {
+		t.Fatalf("activate invitation chat: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("SQL expectations: %v", err)
+	}
+}
+
 func TestWheelCreateChatAllowsPendingInvitationRoom(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

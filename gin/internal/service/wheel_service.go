@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net/url"
 	"regexp"
@@ -102,6 +103,11 @@ func (s *WheelService) Launch(ctx context.Context, publicID string, userID int64
 	raw, _ := json.Marshal(launchRecord{UserID: userID, InvitationID: record.ID})
 	if err := s.redis.Set(ctx, "wheel:launch:"+hashOpaqueToken(code), raw, time.Minute).Err(); err != nil {
 		return wheel.LaunchResponse{}, err
+	}
+	if err := s.repository.ActivateInvitationChat(ctx, record.ID, userID, s.config.DurationSeconds); err != nil {
+		// Chat is auxiliary: a transient database error must not consume the
+		// one-time launch flow or prevent the player from entering the event.
+		log.Printf("[wheel.launch.chat] invitation_id=%d user_id=%d err=%v", record.ID, userID, err)
 	}
 	destination, err := url.Parse(strings.TrimSpace(s.config.MicrositeURL))
 	if err != nil {

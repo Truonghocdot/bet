@@ -172,6 +172,26 @@ func (r *WheelRepository) MarkInvitationSeen(ctx context.Context, publicID strin
 	return nil
 }
 
+func (r *WheelRepository) ActivateInvitationChat(ctx context.Context, invitationID, userID int64, durationSeconds int) error {
+	if durationSeconds < 1 {
+		durationSeconds = 300
+	}
+	_, err := r.db.ExecContext(ctx, `
+		update chat_rooms as cr
+		set enabled = true,
+			next_bot_at = timezone('UTC', now()),
+			bot_active_until = timezone('UTC', now()) + ($3 * interval '1 second'),
+			updated_at = timezone('UTC', now())
+		from wheel_invitations as wi
+		where cr.wheel_invitation_id = wi.id
+		  and wi.id = $1
+		  and wi.user_id = $2
+		  and wi.status in ('pending', 'started')
+		  and wi.bot_chat_enabled = true`, invitationID, userID, durationSeconds)
+
+	return err
+}
+
 func (r *WheelRepository) StartSession(ctx context.Context, invitationID, userID int64, durationSeconds int) (WheelMutationResult, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
@@ -243,9 +263,9 @@ func (r *WheelRepository) StartSession(ctx context.Context, invitationID, userID
 	var roomID int64
 	err = tx.QueryRowContext(ctx, `select id from chat_rooms where wheel_invitation_id = $1 for update`, invitationID).Scan(&roomID)
 	if errors.Is(err, sql.ErrNoRows) {
-		err = tx.QueryRowContext(ctx, `insert into chat_rooms (wheel_session_id, wheel_invitation_id, code, name, enabled, next_bot_at, bot_message_count, created_at, updated_at) values ($1, $2, $3, $4, true, case when $5 then timezone('UTC', now()) else null end, 0, timezone('UTC', now()), timezone('UTC', now())) returning id`, sessionID, invitationID, fmt.Sprintf("wheel-session-%d", sessionID), "Phòng sự kiện "+campaignName, botChatEnabled).Scan(&roomID)
+		err = tx.QueryRowContext(ctx, `insert into chat_rooms (wheel_session_id, wheel_invitation_id, code, name, enabled, next_bot_at, bot_active_until, bot_message_count, created_at, updated_at) values ($1, $2, $3, $4, true, case when $5 then timezone('UTC', now()) else null end, case when $5 then $6 else null end, 0, timezone('UTC', now()), timezone('UTC', now())) returning id`, sessionID, invitationID, fmt.Sprintf("wheel-session-%d", sessionID), "Phòng sự kiện "+campaignName, botChatEnabled, endsAt).Scan(&roomID)
 	} else if err == nil {
-		_, err = tx.ExecContext(ctx, `update chat_rooms set wheel_session_id = $1, enabled = true, next_bot_at = case when $2 then timezone('UTC', now()) else null end, updated_at = timezone('UTC', now()) where id = $3`, sessionID, botChatEnabled, roomID)
+		_, err = tx.ExecContext(ctx, `update chat_rooms set wheel_session_id = $1, enabled = true, next_bot_at = case when $2 then timezone('UTC', now()) else null end, bot_active_until = case when $2 then $3 else null end, updated_at = timezone('UTC', now()) where id = $4`, sessionID, botChatEnabled, endsAt, roomID)
 	}
 	if err != nil {
 		return WheelMutationResult{}, err

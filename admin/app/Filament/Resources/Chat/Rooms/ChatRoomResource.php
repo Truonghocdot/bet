@@ -57,6 +57,7 @@ class ChatRoomResource extends BaseResource
             TextColumn::make('code')->label('Mã')->sortable(),
             TextColumn::make('name')->label('Tên phòng'),
             IconColumn::make('enabled')->label('Mở')->boolean(),
+            TextColumn::make('bot_active_until')->label('Bot chạy đến')->dateTime('d/m/Y H:i:s', timezone: config('app.timezone')),
             TextColumn::make('updated_at')->label('Cập nhật')->dateTime('d/m/Y H:i'),
         ]);
     }

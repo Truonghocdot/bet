@@ -201,6 +201,9 @@ class WheelCampaignService
             'enabled' => true,
             // PostgreSQL stores event timestamps as UTC wall-clock values.
             'next_bot_at' => $botEnabled ? now('UTC') : null,
+            'bot_active_until' => $botEnabled && $invitation->session
+                ? $invitation->session->getRawOriginal('ends_at')
+                : null,
         ])->save();
 
         return $room;

@@ -134,7 +134,9 @@ class GenerateChatBotMessage implements ShouldQueue
                     ->orWhere(function ($query): void {
                         $query->whereNull('wheel_session_id')
                             ->whereNotNull('wheel_invitation_id')
-                            ->where('bot_message_count', '<', 30)
+                            ->where(fn ($pendingQuery) => $pendingQuery
+                                ->where('bot_message_count', '<', 30)
+                                ->orWhere('bot_active_until', '>', now('UTC')))
                             ->whereHas('wheelInvitation', fn ($invitationQuery) => $invitationQuery
                                 ->where('status', 'pending')
                                 ->where('bot_chat_enabled', true));
@@ -167,17 +169,20 @@ class GenerateChatBotMessage implements ShouldQueue
                     && $lockedRoom->wheelSession->status === 'active'
                     && $endsAtUtc?->isFuture()
                     && $lockedRoom->wheelInvitation?->bot_chat_enabled;
+                $rawBotActiveUntil = $lockedRoom?->getRawOriginal('bot_active_until');
+                $pendingWindowActive = $rawBotActiveUntil
+                    && CarbonImmutable::parse($rawBotActiveUntil, 'UTC')->isFuture();
                 $invitationPending = $lockedRoom?->wheel_session_id === null
                     && $lockedRoom->wheelInvitation?->status === 'pending'
                     && $lockedRoom->wheelInvitation?->bot_chat_enabled
-                    && ((int) $lockedRoom->bot_message_count < 30);
+                    && ($pendingWindowActive || (int) $lockedRoom->bot_message_count < 30);
                 if (! $lockedRoom || ! $lockedRoom->enabled || (! $sessionActive && ! $invitationPending)) {
                     return [];
                 }
 
                 $remainingBurst = max(0, self::INITIAL_BURST_COUNT - (int) $lockedRoom->bot_message_count);
                 $generateCount = max(1, $remainingBurst);
-                if ($invitationPending) {
+                if ($invitationPending && ! $pendingWindowActive) {
                     $generateCount = min($generateCount, max(0, 30 - (int) $lockedRoom->bot_message_count));
                 }
 
@@ -299,7 +304,11 @@ class GenerateChatBotMessage implements ShouldQueue
         }
         $invitationPending = $room->wheel_session_id === null
             && $room->wheelInvitation->status === 'pending'
-            && ((int) $room->bot_message_count < 30);
+            && (
+                (int) $room->bot_message_count < 30
+                || ($room->getRawOriginal('bot_active_until')
+                    && CarbonImmutable::parse($room->getRawOriginal('bot_active_until'), 'UTC')->isFuture())
+            );
         if (! $sessionActive && ! $invitationPending) {
             return;
         }

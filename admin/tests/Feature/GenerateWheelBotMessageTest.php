@@ -6,6 +6,7 @@ use App\Jobs\GenerateChatBotMessage;
 use App\Models\Chat\ChatRoom;
 use App\Services\Chat\ChatRedisPublisher;
 use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -45,6 +46,7 @@ class GenerateWheelBotMessageTest extends TestCase
             $table->string('name');
             $table->boolean('enabled')->default(true);
             $table->timestamp('next_bot_at')->nullable();
+            $table->timestamp('bot_active_until')->nullable();
             $table->unsignedSmallInteger('bot_message_count')->default(0);
             $table->timestamps();
         });
@@ -135,7 +137,32 @@ class GenerateWheelBotMessageTest extends TestCase
         self::assertSame(4, (int) $room->fresh()->bot_message_count);
     }
 
-    private function createPendingRoom(int $botMessageCount = 0): ChatRoom
+    public function test_pending_room_keeps_generating_after_the_preseed_cap_during_launch_window(): void
+    {
+        $room = $this->createPendingRoom(30, now('UTC')->addMinutes(5));
+        $publisher = Mockery::mock(ChatRedisPublisher::class);
+        $publisher->shouldReceive('publishWheelInvitation')->once();
+
+        (new GenerateChatBotMessage($room->id))->handle($publisher);
+
+        self::assertSame(1, DB::table('chat_messages')->where('room_id', $room->id)->where('actor_type', 'bot')->count());
+        self::assertSame(31, (int) $room->fresh()->bot_message_count);
+        Queue::assertPushed(GenerateChatBotMessage::class, fn (GenerateChatBotMessage $job): bool => $job->wheelRoomId === $room->id);
+    }
+
+    public function test_pending_room_stops_after_the_launch_window_expires(): void
+    {
+        $room = $this->createPendingRoom(30, now('UTC')->subSecond());
+        $publisher = Mockery::mock(ChatRedisPublisher::class);
+        $publisher->shouldNotReceive('publishWheelInvitation');
+
+        (new GenerateChatBotMessage($room->id))->handle($publisher);
+
+        self::assertSame(0, DB::table('chat_messages')->where('room_id', $room->id)->count());
+        self::assertSame(30, (int) $room->fresh()->bot_message_count);
+    }
+
+    private function createPendingRoom(int $botMessageCount = 0, ?DateTimeInterface $botActiveUntil = null): ChatRoom
     {
         DB::table('wheel_invitations')->insert([
             'id' => 11,
@@ -167,6 +194,7 @@ class GenerateWheelBotMessageTest extends TestCase
             'name' => 'Phòng thử nghiệm',
             'enabled' => true,
             'next_bot_at' => now('UTC'),
+            'bot_active_until' => $botActiveUntil,
             'bot_message_count' => $botMessageCount,
         ]);
     }

@@ -89,6 +89,7 @@ class WheelCampaignServiceTest extends TestCase
             $table->string('name');
             $table->boolean('enabled')->default(false);
             $table->timestamp('next_bot_at')->nullable();
+            $table->timestamp('bot_active_until')->nullable();
             $table->unsignedSmallInteger('bot_message_count')->default(0);
             $table->timestamps();
         });
