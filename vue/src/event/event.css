@@ -76,6 +76,10 @@
   text-align: center;
 }
 
+.event-finished__content { display: grid; width: min(100%, 560px); justify-items: center; gap: 24px; }
+.event-finished__content > img { width: 72px; height: 72px; padding: 6px; border-radius: 16px; background: #fff; object-fit: contain; }
+.event-finished__content .event-button { width: min(100%, 320px); min-height: 52px; margin-top: 8px; }
+
 .event-finished h1 {
   margin: 0;
   color: #f4bd32;
@@ -220,7 +224,7 @@
 .event-loading__mark { display: grid; width: 72px; height: 72px; place-items: center; border: 1px solid rgba(244, 189, 50, .4); border-radius: 22px; background: rgba(244, 189, 50, .12); color: #f4bd32; animation: burst-pulse 1.4s ease-in-out infinite; }
 .event-loading__mark .material-symbols-outlined { font-size: 38px; }
 .event-loading__prizes { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 64px; }
-.event-loading__prizes img { width: 64px; height: 64px; padding: 4px; border: 1px solid rgba(244, 189, 50, .16); border-radius: 8px; background: #fff; object-fit: contain; }
+.event-loading__prizes img { width: 64px; height: 64px; padding: 4px; border: 1px solid rgba(244, 189, 50, .16); border-radius: 8px; background: rgba(255, 255, 255, .04); object-fit: contain; }
 .event-loading__bar { width: 220px; height: 5px; overflow: hidden; margin: 16px auto 0; border-radius: 99px; background: rgba(255, 255, 255, .1); }
 .event-loading__bar span { display: block; width: 45%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f4bd32, #f97316); animation: loading-slide 1.1s ease-in-out infinite; }
 .event-loading .event-loading__title { margin: 16px 0 2px; color: #fff; font-size: 1.1rem; font-weight: 800; }

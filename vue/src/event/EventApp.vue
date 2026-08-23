@@ -5,6 +5,11 @@ import { request, type ApiError } from '@/shared/api/http'
 import { env } from '@/shared/config/env'
 
 const logo = '/event-logo.webp'
+const prizeAssets = {
+  bottle: '/bottle-8efc4df880.webp',
+  airpod: '/airpod-d7fbe03cbd.webp',
+  limoGreen: '/limo-green-3503c942a5.webp',
+} as const
 
 type Round = {
   round_no: number
@@ -66,13 +71,13 @@ let refreshingState = false
 let refreshQueued = false
 
 const wheelSegments = [
-  { key: 'bottle_pp789i', label: 'Bình giữ nhiệt logo pp789i', shortLabel: 'Bình pp789i', image: '/bottle.webp', index: 0 },
-  { key: 'airpods_pro', label: 'AirPods Pro', shortLabel: 'AirPods Pro', image: '/airpod.webp', index: 1 },
+  { key: 'bottle_pp789i', label: 'Bình giữ nhiệt logo pp789i', shortLabel: 'Bình pp789i', image: prizeAssets.bottle, index: 0 },
+  { key: 'airpods_pro', label: 'AirPods Pro', shortLabel: 'AirPods Pro', image: prizeAssets.airpod, index: 1 },
   { key: 'try_again', label: 'MAY MẮN', shortLabel: 'MAY MẮN', index: 2 },
   { key: 'reward_68m', label: '68 TRIỆU', shortLabel: '68 TRIỆU', index: 3 },
   { key: 'reward_39m', label: '39 TRIỆU', shortLabel: '39 TRIỆU', index: 4 },
   { key: 'reward_68k', label: '68K', shortLabel: '68K', index: 5 },
-  { key: 'car_limo_green', label: 'Xe oto VINFAST LIMO GREEN', shortLabel: 'ĐẶC BIỆT · LIMO', image: '/limo-green.webp', index: 6 },
+  { key: 'car_limo_green', label: 'Xe oto VINFAST LIMO GREEN', shortLabel: 'ĐẶC BIỆT · LIMO', image: prizeAssets.limoGreen, index: 6 },
   { key: 'try_again_2', label: 'MAY MẮN', shortLabel: 'MAY MẮN', index: 7 },
 ]
 const confettiColors = ['#f4bd32', '#f97316', '#ef4444', '#22c55e', '#38bdf8', '#f8fafc']
@@ -501,6 +506,12 @@ function chatGameID(message: ChatMessage) {
   return `ID game #${100000 + ((hash >>> 0) % 900000)}`
 }
 
+function returnHome() {
+  sessionStorage.removeItem(tokenKey)
+  const base = env.mainSiteUrl || window.location.origin
+  window.location.replace(new URL('/home', `${base}/`).toString())
+}
+
 onMounted(() => {
   document.addEventListener('dblclick', preventDoubleTap, { passive: false })
   clockTimer = window.setInterval(() => {
@@ -537,9 +548,9 @@ function preventDoubleTap(event: MouseEvent) {
         <div class="event-loading__mark"><span class="material-symbols-outlined">casino</span></div>
       </div>
       <div class="event-loading__prizes" aria-label="Phần thưởng nổi bật">
-        <img src="/bottle.webp" alt="Bình giữ nhiệt logo pp789i" width="64" height="64">
-        <img src="/airpod.webp" alt="AirPods Pro" width="64" height="64">
-        <img src="/limo-green.webp" alt="Xe VinFast Limo Green" width="64" height="64">
+        <img :src="prizeAssets.bottle" alt="Bình giữ nhiệt logo pp789i" width="64" height="64">
+        <img :src="prizeAssets.airpod" alt="AirPods Pro" width="64" height="64">
+        <img :src="prizeAssets.limoGreen" alt="Xe VinFast Limo Green" width="64" height="64">
       </div>
       <div class="event-loading__bar"><span /></div>
       <p class="event-loading__title">Đang mở phòng sự kiện...</p>
@@ -557,7 +568,13 @@ function preventDoubleTap(event: MouseEvent) {
 
     <template v-else-if="state">
       <section v-if="showFinishedScreen" class="event-finished" role="status" aria-live="polite">
-        <h1>KẾT THÚC</h1>
+        <div class="event-finished__content">
+          <img :src="logo" alt="fh88u" width="72" height="72">
+          <h1>KẾT THÚC</h1>
+          <button type="button" class="event-button event-button--primary" @click="returnHome">
+            <span class="material-symbols-outlined">home</span>Về trang chủ
+          </button>
+        </div>
       </section>
 
       <template v-else>

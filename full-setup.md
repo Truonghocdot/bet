@@ -426,6 +426,7 @@ chmod 640 /app/admin/.env
 ```bash
 cat >/app/vue/.env <<'EOF'
 VITE_API_BASE_URL=https://api.fh88u.win
+VITE_MAIN_SITE_URL=https://fh88u.win
 VITE_ALLOWED_HOSTS=fh88u.win
 VITE_ENABLE_DEVTOOLS=false
 VITE_CHAT_GLOBAL_ENABLED=false
@@ -780,6 +781,12 @@ server {
         try_files $uri =404;
     }
     location = /event.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        expires -1;
+        try_files $uri =404;
+    }
+    location = /event-launching.html {
         add_header Cache-Control "no-cache, no-store, must-revalidate" always;
         add_header Pragma "no-cache" always;
         expires -1;

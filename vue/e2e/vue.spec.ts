@@ -42,9 +42,14 @@ function eventState(overrides: Record<string, unknown> = {}) {
 }
 
 async function seedEventToken(page: import('@playwright/test').Page) {
-  await page.addInitScript(({ key }) => window.sessionStorage.setItem(key, 'e2e-wheel-token'), {
-    key: eventTokenKey,
-  })
+  await page.addInitScript(
+    ({ key }) => {
+      if (window.location.pathname.endsWith('/event.html')) {
+        window.sessionStorage.setItem(key, 'e2e-wheel-token')
+      }
+    },
+    { key: eventTokenKey },
+  )
 }
 
 test('launch transition page renders without JavaScript', async ({ page }) => {
@@ -105,6 +110,16 @@ test('event loading previews the real prize assets', async ({ page }, testInfo) 
     await expect
       .poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
       .toBeGreaterThan(0)
+    expect(
+      await image.evaluate((element: HTMLImageElement) => {
+        const canvas = document.createElement('canvas')
+        canvas.width = element.naturalWidth
+        canvas.height = element.naturalHeight
+        const context = canvas.getContext('2d')
+        context?.drawImage(element, 0, 0)
+        return context?.getImageData(0, 0, 1, 1).data[3]
+      }),
+    ).toBe(0)
   }
   await page.screenshot({ path: testInfo.outputPath('event-loading-preview.png'), fullPage: true })
 
@@ -157,7 +172,7 @@ test('stale pending round becomes clickable without reloading', async ({ page })
   await expect.poll(() => stateCalls).toBeGreaterThanOrEqual(2)
 })
 
-test('completed event only shows the terminal screen', async ({ page }) => {
+test('completed event only shows the terminal screen', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 375, height: 812 })
   await seedEventToken(page)
   const completed = eventState({
@@ -178,11 +193,18 @@ test('completed event only shows the terminal screen', async ({ page }) => {
   await page.goto('/event.html')
 
   await expect(page.getByRole('heading', { name: 'KẾT THÚC' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Về trang chủ' })).toBeVisible()
   await expect(page.getByText('Vòng quay may mắn')).toHaveCount(0)
   await expect(page.getByText('Phòng trò chuyện')).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   )
+  await page.screenshot({ path: testInfo.outputPath('event-finished-mobile.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Về trang chủ' }).click()
+  await expect(page).toHaveURL(/\/home$/)
+  await expect
+    .poll(() => page.evaluate((key) => window.sessionStorage.getItem(key), eventTokenKey))
+    .toBeNull()
 })
 
 test('the third reward leads to the locked terminal screen', async ({ page }) => {
