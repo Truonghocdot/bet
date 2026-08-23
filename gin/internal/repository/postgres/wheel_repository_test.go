@@ -69,6 +69,9 @@ func TestWheelSpinRejectsSkippedRound(t *testing.T) {
 }
 
 func TestWheelHelpersPreserveMoneyAndUUIDShape(t *testing.T) {
+	if wheelTotalRounds != 3 {
+		t.Fatalf("wheel event must end after three rounds, got %d", wheelTotalRounds)
+	}
 	if positiveNumeric("0.00000000") || !positiveNumeric("50000000.00000000") {
 		t.Fatal("positiveNumeric must distinguish zero and positive rewards")
 	}

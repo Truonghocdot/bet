@@ -65,14 +65,14 @@ let refreshingState = false
 let refreshQueued = false
 
 const wheelSegments = [
-  { key: 'jackpot_50m', label: '50 TRIỆU', index: 0 },
-  { key: 'try_again', label: 'MAY MẮN', index: 1 },
-  { key: 'reward_10m', label: '10 TRIỆU', index: 2 },
-  { key: 'thank_you', label: 'CẢM ƠN', index: 3 },
-  { key: 'reward_5m', label: '5 TRIỆU', index: 4 },
-  { key: 'reward_2m', label: '2 TRIỆU', index: 5 },
-  { key: 'reward_1m', label: '1 TRIỆU', index: 6 },
-  { key: 'reward_500k', label: '500K', index: 7 },
+  { key: 'bottle_pp789i', label: 'Bình giữ nhiệt logo pp789i', shortLabel: 'Bình pp789i', image: '/bottle.webp', index: 0 },
+  { key: 'airpods_pro', label: 'AirPods Pro', shortLabel: 'AirPods Pro', image: '/airpod.webp', index: 1 },
+  { key: 'try_again', label: 'MAY MẮN', shortLabel: 'MAY MẮN', index: 2 },
+  { key: 'reward_68m', label: '68 TRIỆU', shortLabel: '68 TRIỆU', index: 3 },
+  { key: 'reward_39m', label: '39 TRIỆU', shortLabel: '39 TRIỆU', index: 4 },
+  { key: 'reward_68k', label: '68K', shortLabel: '68K', index: 5 },
+  { key: 'car_limo_green', label: 'Xe oto VINFAST LIMO GREEN', shortLabel: 'ĐẶC BIỆT · LIMO', image: '/limo-green.webp', index: 6 },
+  { key: 'try_again_2', label: 'MAY MẮN', shortLabel: 'MAY MẮN', index: 7 },
 ]
 const confettiColors = ['#f4bd32', '#f97316', '#ef4444', '#22c55e', '#38bdf8', '#f8fafc']
 const confettiPieces = Array.from({ length: 34 }, (_, index) => ({
@@ -142,16 +142,13 @@ async function loadState() {
   }
   if (response.session_id) {
     recoverAnimation(response)
-    // Chat and realtime are enhancements; they must not block the wheel from
-    // rendering while a socket handshake or a slow history query is pending.
+    // Chat and realtime must not block the wheel from rendering.
     void nextTick().then(() => {
       void loadChat()
       void connectSocket()
     })
   } else {
-    // The invitation room is created before the session starts. Load its
-    // bot history immediately, then poll while the user is on the landing
-    // state so chat does not appear to require clicking "Bắt đầu" first.
+    // Invitation chat is available before the user starts the wheel session.
     void loadChat()
     void connectSocket()
     schedulePendingChatPoll()
@@ -193,24 +190,44 @@ async function startSession() {
 }
 
 function segmentIndex(round: Round) {
-  const key = String(round.segment_key ?? '').trim().toLocaleLowerCase('vi-VN')
-  const label = String(round.result_label ?? '').trim().toLocaleLowerCase('vi-VN')
+  const key = String(round.segment_key ?? '').trim().toLowerCase()
+  const label = String(round.result_label ?? '').trim().toLowerCase()
   const amount = Number(round.prize_amount ?? 0)
-  const known: Record<string, number> = { jackpot_50m: 0, try_again: 1, reward_10m: 2, thank_you: 3, reward_5m: 4, reward_2m: 5, reward_1m: 6, reward_500k: 7 }
+  const known: Record<string, number> = {
+    bottle_pp789i: 0,
+    airpods_pro: 1,
+    try_again: 2,
+    reward_68m: 3,
+    jackpot_50m: 3,
+    reward_39m: 4,
+    reward_10m: 4,
+    reward_68k: 5,
+    reward_500k: 5,
+    car_limo_green: 6,
+    reward_5m: 6,
+    try_again_2: 7,
+    thank_you: 7,
+  }
   if (key in known) return known[key]!
 
-  // Campaigns created before the fixed wheel palette may contain a custom key.
-  // Resolve the visual segment from the snapshotted prize before falling back
-  // to a deterministic key, so the wheel never animates to another prize.
-  const byAmount: Record<number, number> = { 50000000: 0, 10000000: 2, 5000000: 4, 2000000: 5, 1000000: 6, 500000: 7 }
+  const byAmount: Record<number, number> = {
+    68000000: 3,
+    50000000: 3,
+    39000000: 4,
+    10000000: 4,
+    68000: 5,
+    500000: 5,
+  }
   if (byAmount[amount] !== undefined) return byAmount[amount]!
-  if (key.includes('50') || label.includes('50 triệu')) return 0
-  if (key.includes('10') || label.includes('10 triệu')) return 2
-  if (key.includes('5') || label.includes('5 triệu')) return 4
-  if (key.includes('2') || label.includes('2 triệu')) return 5
-  if (key.includes('1') || label.includes('1 triệu')) return 6
-  if (key.includes('500') || label.includes('500')) return 7
-  if (!key) return label.includes('cảm ơn') ? 3 : 1
+
+  if (key.includes('bottle') || label.includes('bình')) return 0
+  if (key.includes('airpod') || label.includes('airpod')) return 1
+  if (key.includes('68m') || label.includes('68 triệu')) return 3
+  if (key.includes('39') || label.includes('39 triệu')) return 4
+  if (key.includes('68k') || label.includes('68k')) return 5
+  if (key.includes('limo') || key.includes('vinfast') || label.includes('limo') || label.includes('vinfast')) return 6
+  if (key.includes('try_again') || label.includes('may mắn')) return 2
+
   return [...key].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 8
 }
 
@@ -218,21 +235,31 @@ function displayResultLabel(round: Round) {
   const label = String(round.result_label ?? '').trim()
   const amount = Number(round.prize_amount ?? 0)
   const canonical: Record<string, string> = {
-    jackpot_50m: '50 triệu đồng',
-    reward_10m: '10 triệu đồng',
-    reward_5m: '5 triệu đồng',
-    reward_2m: '2 triệu đồng',
-    reward_1m: '1 triệu đồng',
-    reward_500k: '500.000 đồng',
+    reward_39m: '39 triệu đồng',
+    reward_68m: '68 triệu đồng',
+    reward_68k: '68.000 đồng',
+    bottle_pp789i: 'Bình giữ nhiệt logo pp789i',
+    airpods_pro: 'AirPods Pro',
+    car_limo_green: 'Xe oto VINFAST LIMO GREEN',
   }
-  const amountCanonical: Record<number, string> = { 50000000: '50 triệu đồng', 10000000: '10 triệu đồng', 5000000: '5 triệu đồng', 2000000: '2 triệu đồng', 1000000: '1 triệu đồng', 500000: '500.000 đồng' }
-  // The amount is the source of truth for a paid result. This also repairs
-  // old snapshots where the label was accidentally left as "Chúc bạn may mắn".
+  const amountCanonical: Record<number, string> = {
+    39000000: '39 triệu đồng',
+    68000000: '68 triệu đồng',
+    68000: '68.000 đồng',
+  }
   if (amountCanonical[amount] !== undefined) return amountCanonical[amount]!
-  if (amount > 0 && canonical[round.segment_key ?? ''] && ['chúc bạn may mắn', 'cảm ơn bạn đã tham gia'].includes(label.toLocaleLowerCase('vi-VN'))) {
+  if (amount > 0 && canonical[round.segment_key ?? ''] && ['chúc bạn may mắn', 'cảm ơn bạn đã tham gia'].includes(label.toLowerCase())) {
     return canonical[round.segment_key ?? '']
   }
   return label || canonical[round.segment_key ?? ''] || 'Kết quả lượt quay'
+}
+
+function prizeImage(round: Round) {
+  return wheelSegments.find((segment) => segment.key === round.segment_key)?.image
+}
+
+function isWinningRound(round: Round) {
+  return Number(round.prize_amount ?? 0) > 0 || Boolean(prizeImage(round))
 }
 
 function spinToRound(round: Round, durationMs = 5000) {
@@ -248,7 +275,7 @@ function spinToRound(round: Round, durationMs = 5000) {
     result.value = round
     spinning.value = false
     spinningRoundNo.value = 0
-    if (Number(round.prize_amount ?? 0) > 0) openCelebration(round)
+    if (isWinningRound(round)) openCelebration(round)
     if (state.value?.session_status === 'completed') disconnectSocket()
     else {
       refreshQueued = false
@@ -284,6 +311,7 @@ async function spin() {
   const roundNo = state.value.current_round
   submittingSpin.value = true
   spinningRoundNo.value = roundNo
+
   try {
     const response = await api<{ state: WheelState; result: Round }>('POST', `/v1/wheel/session/rounds/${roundNo}/spin`)
     applyState(response.state)
@@ -409,7 +437,7 @@ async function connectSocket() {
     socket.onopen = () => {
       connected.value = true
       window.clearTimeout(chatPollTimer)
-      // Close the REST/WebSocket handoff gap so the opening bot burst cannot be missed.
+      // Close the REST/WebSocket handoff gap so opening bot messages are not missed.
       chatPollTimer = window.setTimeout(() => void loadChat(), 750)
     }
     socket.onmessage = (message) => handleSocket(String(message.data))
@@ -499,9 +527,22 @@ function preventDoubleTap(event: MouseEvent) {
 <template>
   <main class="event-shell min-h-dvh">
     <div v-if="booting" class="event-loading">
-      <div class="event-loading__mark"><span class="material-symbols-outlined">casino</span></div>
+      <div class="event-loading__header">
+        <img :src="logo" alt="fh88u" class="event-loading__logo" />
+        <span class="event-eyebrow event-eyebrow--gold">FH88U PRESENTS</span>
+      </div>
+      <div class="event-loading__wheel-preview">
+        <div class="event-loading__spinner" />
+        <div class="event-loading__mark"><span class="material-symbols-outlined">casino</span></div>
+      </div>
+      <div class="event-loading__prizes" aria-label="Phần thưởng nổi bật">
+        <img src="/bottle.webp" alt="Bình giữ nhiệt logo pp789i" width="64" height="64">
+        <img src="/airpod.webp" alt="AirPods Pro" width="64" height="64">
+        <img src="/limo-green.webp" alt="Xe VinFast Limo Green" width="64" height="64">
+      </div>
       <div class="event-loading__bar"><span /></div>
-      <p>Đang mở phòng sự kiện...</p>
+      <p class="event-loading__title">Đang mở phòng sự kiện...</p>
+      <p class="event-loading__subtitle">Vui lòng chờ trong giây lát</p>
     </div>
 
     <div v-else-if="error && !state" class="event-error">
@@ -536,7 +577,7 @@ function preventDoubleTap(event: MouseEvent) {
         <section class="event-stage">
           <div class="event-stage__heading">
             <div><p class="event-eyebrow event-eyebrow--gold">LUCKY WHEEL LIVE</p><h1>Vòng quay may mắn</h1></div>
-            <div class="event-round-badge"><span>{{ progress }}</span><small>/ 4 LƯỢT</small></div>
+            <div class="event-round-badge"><span>{{ progress }}</span><small>/ 3 LƯỢT</small></div>
           </div>
 
           <div class="event-progress" aria-label="Tiến trình vòng quay">
@@ -547,7 +588,17 @@ function preventDoubleTap(event: MouseEvent) {
             <div class="event-wheel-area__halo" />
             <div class="event-pointer"><span class="material-symbols-outlined">arrow_drop_down</span></div>
             <div class="event-wheel" :style="wheelStyle" :class="{ 'is-spinning': spinning }" aria-label="Vòng quay giải thưởng">
-              <span v-for="segment in wheelSegments" :key="segment.key" class="wheel-label" :style="{ '--segment-angle': `${segment.index * 45 + 22.5}deg`, '--counter-angle': `-${segment.index * 45 + 22.5}deg` }"><span class="wheel-label__text">{{ segment.label }}</span></span>
+              <div
+                v-for="segment in wheelSegments"
+                :key="segment.key + segment.index"
+                class="wheel-label"
+                :style="{ '--segment-angle': `${segment.index * 45 + 22.5}deg`, '--counter-angle': `-${segment.index * 45 + 22.5}deg` }"
+              >
+                <div class="wheel-label__content">
+                  <img v-if="segment.image" :src="segment.image" :alt="segment.label" class="wheel-label__img" />
+                  <span class="wheel-label__text">{{ segment.shortLabel || segment.label }}</span>
+                </div>
+              </div>
               <div class="event-wheel__ring" />
             </div>
             <div class="event-wheel__hub"><img :src="logo" alt="fh88u"><span class="material-symbols-outlined">auto_awesome</span></div>
@@ -559,7 +610,7 @@ function preventDoubleTap(event: MouseEvent) {
               <div class="event-result__copy"><p>LƯỢT {{ spinningRoundNo || state.current_round }}</p><h2>{{ submittingSpin && !spinning ? 'Đang xác nhận...' : 'Đang quay giải...' }}</h2></div>
             </template>
             <template v-else-if="result">
-              <span class="event-result__icon" :class="Number(result.prize_amount) > 0 ? 'event-result__icon--win' : 'event-result__icon--neutral'"><span class="material-symbols-outlined">{{ Number(result.prize_amount) > 0 ? 'workspace_premium' : 'sentiment_satisfied' }}</span></span>
+              <span class="event-result__icon" :class="isWinningRound(result) ? 'event-result__icon--win' : 'event-result__icon--neutral'"><span class="material-symbols-outlined">{{ isWinningRound(result) ? 'workspace_premium' : 'sentiment_satisfied' }}</span></span>
               <div class="event-result__copy"><p>KẾT QUẢ LƯỢT {{ result.round_no }}</p><h2>{{ displayResultLabel(result) }}</h2><strong v-if="Number(result.prize_amount) > 0">+{{ formatMoney(result.prize_amount ?? 0) }}</strong></div>
             </template>
             <template v-else><span class="event-result__icon event-result__icon--neutral"><span class="material-symbols-outlined">touch_app</span></span><div class="event-result__copy"><p>SẴN SÀNG</p><h2>{{ isReadyToStart ? 'Bắt đầu để mở lượt 1' : `Lượt ${state.current_round} sẵn sàng` }}</h2></div></template>
@@ -587,12 +638,16 @@ function preventDoubleTap(event: MouseEvent) {
         <span v-for="(piece, index) in confettiPieces" :key="index" class="confetti-piece" :style="{ left: piece.left, animationDelay: piece.delay, animationDuration: piece.duration, backgroundColor: piece.color, transform: `rotate(${piece.rotate})` }" />
         <section class="celebration-card">
           <button type="button" class="celebration-card__close" aria-label="Đóng thông báo" @click="closeCelebration"><span class="material-symbols-outlined">close</span></button>
-          <div class="celebration-card__burst"><span class="material-symbols-outlined">workspace_premium</span></div>
+          <div class="celebration-card__burst">
+            <img v-if="prizeImage(celebrationRound)" :src="prizeImage(celebrationRound)" :alt="displayResultLabel(celebrationRound)">
+            <span v-else class="material-symbols-outlined">workspace_premium</span>
+          </div>
           <p class="event-eyebrow event-eyebrow--gold">CHÚC MỪNG BẠN</p>
           <h2 id="celebration-title">Bạn vừa trúng thưởng!</h2>
           <p class="celebration-card__label">{{ displayResultLabel(celebrationRound) }}</p>
-          <strong>+{{ formatMoney(celebrationRound.prize_amount ?? 0) }}</strong>
-          <p class="celebration-card__note"><span class="material-symbols-outlined">account_balance_wallet</span> Phần thưởng đã được cộng vào ví</p>
+          <strong v-if="Number(celebrationRound.prize_amount) > 0">+{{ formatMoney(celebrationRound.prize_amount ?? 0) }}</strong>
+          <strong v-else class="celebration-card__product">{{ displayResultLabel(celebrationRound) }}</strong>
+          <p class="celebration-card__note"><span class="material-symbols-outlined">{{ Number(celebrationRound.prize_amount) > 0 ? 'account_balance_wallet' : 'verified' }}</span> {{ Number(celebrationRound.prize_amount) > 0 ? 'Phần thưởng đã được cộng vào ví' : 'Giải thưởng đã được ghi nhận' }}</p>
           <button type="button" class="event-button event-button--primary" @click="closeCelebration"><span class="material-symbols-outlined">arrow_forward</span>{{ state.session_status === 'completed' ? 'Kết thúc' : 'Tiếp tục vòng quay' }}</button>
         </section>
       </div>

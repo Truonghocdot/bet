@@ -80,11 +80,11 @@ class WheelInvitationResource extends BaseResource
                 ->disabled(fn (?WheelInvitation $record): bool => $record?->status !== null && $record->status !== 'draft'),
             TextInput::make('status')->label('Trạng thái')->disabled()->dehydrated(false),
             Repeater::make('rounds')->label('Kết quả riêng của người chơi')->relationship()->schema([
-                Select::make('round_no')->label('Lượt')->options([1 => 'Lượt 1', 2 => 'Lượt 2', 3 => 'Lượt 3', 4 => 'Lượt 4'])->required()->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+                Select::make('round_no')->label('Lượt')->options([1 => 'Lượt 1', 2 => 'Lượt 2', 3 => 'Lượt 3'])->required()->disableOptionsWhenSelectedInSiblingRepeaterItems(),
                 TextInput::make('segment_key')->label('Mã ô')->required()->maxLength(64),
                 TextInput::make('result_label')->label('Kết quả')->required()->maxLength(160),
                 TextInput::make('prize_amount')->label('Thưởng VND')->numeric()->minValue(0)->required(),
-            ])->minItems(4)->maxItems(4)->reorderable(false)->columns(4)->columnSpanFull()->hiddenOn('create')->disabled(fn (?WheelInvitation $record): bool => $record?->status !== 'draft'),
+            ])->helperText('Chỉ có 3 lượt; lượt 2 luôn được lưu là giải 39.000.000 VND.')->minItems(3)->maxItems(3)->reorderable(false)->columns(4)->columnSpanFull()->hiddenOn('create')->disabled(fn (?WheelInvitation $record): bool => $record?->status !== 'draft'),
         ])->columns(2);
     }
 

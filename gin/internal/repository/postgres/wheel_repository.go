@@ -26,6 +26,8 @@ var (
 	ErrWheelChatBanned         = errors.New("wheel.chat.banned")
 )
 
+const wheelTotalRounds = 3
+
 type WheelRepository struct {
 	db *sql.DB
 }
@@ -210,12 +212,16 @@ func (r *WheelRepository) StartSession(ctx context.Context, invitationID, userID
 		return WheelMutationResult{}, ErrWheelInvitationInactive
 	}
 
-	var roundCount int
-	if err := tx.QueryRowContext(ctx, `select count(*) from wheel_invitation_rounds where invitation_id = $1`, invitationID).Scan(&roundCount); err != nil {
+	var roundCount, requiredSecondRoundCount int
+	if err := tx.QueryRowContext(ctx, `
+		select count(*), count(*) filter (
+			where round_no = 2 and segment_key = 'reward_39m' and prize_amount = 39000000
+		)
+		from wheel_invitation_rounds where invitation_id = $1`, invitationID).Scan(&roundCount, &requiredSecondRoundCount); err != nil {
 		return WheelMutationResult{}, err
 	}
-	if roundCount != 4 {
-		return WheelMutationResult{}, fmt.Errorf("wheel invitation requires exactly four rounds")
+	if roundCount != wheelTotalRounds || requiredSecondRoundCount != 1 {
+		return WheelMutationResult{}, fmt.Errorf("wheel invitation requires three rounds with a 39m second round")
 	}
 
 	now := time.Now().UTC()
@@ -296,7 +302,7 @@ func (r *WheelRepository) loadStateQuery(ctx context.Context, q queryer, invitat
 	state.ServerNow = formatWheelTime(now)
 	state.SpinDurationSeconds = spinDuration
 	state.TotalReward = "0"
-	state.Rounds = make([]wheel.Round, 0, 4)
+	state.Rounds = make([]wheel.Round, 0, wheelTotalRounds)
 	state.PaidRewards = make([]wheel.Reward, 0)
 	if sessionPublicID.Valid {
 		value := sessionPublicID.String
@@ -436,7 +442,7 @@ func (r *WheelRepository) Spin(ctx context.Context, invitationID, userID int64, 
 	if sessionStatus == "completed" {
 		return WheelMutationResult{}, ErrWheelSessionCompleted
 	}
-	if roundNo != currentRound || roundNo < 1 || roundNo > 4 {
+	if roundNo != currentRound || roundNo < 1 || roundNo > wheelTotalRounds {
 		return WheelMutationResult{}, ErrWheelRoundOrder
 	}
 
@@ -506,8 +512,8 @@ func (r *WheelRepository) Spin(ctx context.Context, invitationID, userID int64, 
 		}
 	}
 
-	if roundNo == 4 {
-		if _, err := tx.ExecContext(ctx, `update wheel_sessions set status = 'completed', current_round = 4, completed_at = now(), version = version + 1, updated_at = now() where id = $1`, sessionID); err != nil {
+	if roundNo == wheelTotalRounds {
+		if _, err := tx.ExecContext(ctx, `update wheel_sessions set status = 'completed', current_round = $2, completed_at = now(), version = version + 1, updated_at = now() where id = $1`, sessionID, wheelTotalRounds); err != nil {
 			return WheelMutationResult{}, err
 		}
 		if _, err := tx.ExecContext(ctx, `update wheel_invitations set status = 'completed', updated_at = now() where id = $1`, invitationID); err != nil {

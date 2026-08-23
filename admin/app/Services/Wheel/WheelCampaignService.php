@@ -8,12 +8,18 @@ use App\Models\User;
 use App\Models\Wheel\WheelAuditLog;
 use App\Models\Wheel\WheelCampaign;
 use App\Models\Wheel\WheelInvitation;
+use App\Support\Decimal;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class WheelCampaignService
 {
+    public const TOTAL_ROUNDS = 3;
+
+    public const SECOND_ROUND_PRIZE = '39000000.00000000';
+
     public function __construct(private readonly WheelEventPublisher $publisher) {}
 
     /** @param array<int, int|string> $userIds */
@@ -69,13 +75,11 @@ class WheelCampaignService
                 return;
             }
             $this->validateCampaign($invitation->campaign, true);
-            if ($invitation->rounds->count() !== 4) {
+            if ($invitation->rounds->count() !== self::TOTAL_ROUNDS) {
                 $this->snapshotRounds($invitation, $invitation->campaign);
                 $invitation->load('rounds');
             }
-            if ($invitation->rounds->count() !== 4) {
-                throw ValidationException::withMessages(['rounds' => 'Invitation phải có đúng 4 lượt quay.']);
-            }
+            $this->validateRoundSet($invitation->rounds, 'rounds', 'Lời mời');
             $this->activateLocked($invitation, $invitation->campaign);
         });
     }
@@ -130,9 +134,7 @@ class WheelCampaignService
 
     private function validateCampaign(WheelCampaign $campaign, bool $activation): void
     {
-        if ($campaign->roundTemplates->count() !== 4) {
-            throw ValidationException::withMessages(['rounds' => 'Chiến dịch phải có đúng 4 lượt mẫu.']);
-        }
+        $this->validateRoundSet($campaign->roundTemplates, 'rounds', 'Chiến dịch');
         if ($activation && $campaign->status !== 'active') {
             throw ValidationException::withMessages(['status' => 'Chiến dịch phải ở trạng thái đang mở.']);
         }
@@ -140,6 +142,7 @@ class WheelCampaignService
 
     private function snapshotRounds(WheelInvitation $invitation, WheelCampaign $campaign): void
     {
+        $invitation->rounds()->where('round_no', '>', self::TOTAL_ROUNDS)->delete();
         foreach ($campaign->roundTemplates as $template) {
             $invitation->rounds()->updateOrCreate(['round_no' => $template->round_no], [
                 'segment_key' => $template->segment_key,
@@ -147,6 +150,20 @@ class WheelCampaignService
                 'prize_amount' => $template->prize_amount,
                 'status' => 'pending',
             ]);
+        }
+    }
+
+    private function validateRoundSet(Collection $rounds, string $field, string $subject): void
+    {
+        $numbers = $rounds->pluck('round_no')->map(fn ($value): int => (int) $value)->sort()->values()->all();
+        if ($numbers !== range(1, self::TOTAL_ROUNDS)) {
+            throw ValidationException::withMessages([$field => "{$subject} phải có đúng 3 lượt quay theo thứ tự 1, 2, 3."]);
+        }
+
+        $secondRound = $rounds->firstWhere('round_no', 2);
+        $amount = Decimal::normalize((string) $secondRound?->prize_amount);
+        if ($amount !== self::SECOND_ROUND_PRIZE || $secondRound?->segment_key !== 'reward_39m') {
+            throw ValidationException::withMessages([$field => 'Lượt 2 bắt buộc là giải 39.000.000 VND (mã ô reward_39m).']);
         }
     }
 

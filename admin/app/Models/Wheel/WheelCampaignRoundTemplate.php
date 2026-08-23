@@ -17,6 +17,14 @@ class WheelCampaignRoundTemplate extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (self $round): void {
+            if ((int) $round->round_no === 2) {
+                $round->segment_key = 'reward_39m';
+                $round->result_label = '39 triệu';
+                $round->prize_amount = 39000000;
+            }
+        });
+
         $guard = function (self $round): void {
             if ($round->campaign()->whereHas('invitations', fn ($query) => $query->where('status', '<>', 'draft'))->exists()) {
                 throw ValidationException::withMessages(['roundTemplates' => 'Không thể sửa kết quả mẫu sau khi đã kích hoạt người chơi.']);

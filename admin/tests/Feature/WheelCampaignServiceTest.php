@@ -119,7 +119,7 @@ class WheelCampaignServiceTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_it_snapshots_four_rounds_and_activates_selected_user(): void
+    public function test_it_snapshots_three_rounds_and_activates_selected_user(): void
     {
         $campaign = $this->campaign();
         DB::table('users')->insert(['id' => 203985, 'name' => 'Khách thử', 'phone' => '+84900000000', 'role' => 2]);
@@ -130,9 +130,9 @@ class WheelCampaignServiceTest extends TestCase
         $invitation = WheelInvitation::query()->with('rounds')->firstOrFail();
         self::assertSame('pending', $invitation->status);
         self::assertTrue($invitation->bot_chat_enabled);
-        self::assertCount(4, $invitation->rounds);
+        self::assertCount(3, $invitation->rounds);
         self::assertDatabaseHas('chat_rooms', ['wheel_invitation_id' => $invitation->id, 'enabled' => true]);
-        self::assertSame('50000000', rtrim(rtrim((string) $invitation->rounds->firstWhere('round_no', 2)?->prize_amount, '0'), '.'));
+        self::assertSame('39000000', rtrim(rtrim((string) $invitation->rounds->firstWhere('round_no', 2)?->prize_amount, '0'), '.'));
     }
 
     public function test_snapshot_result_is_locked_after_activation(): void
@@ -144,6 +144,31 @@ class WheelCampaignServiceTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $round->update(['result_label' => 'Không được phép đổi']);
+    }
+
+    public function test_second_round_must_be_the_39m_reward(): void
+    {
+        $campaign = $this->campaign();
+        DB::table('wheel_campaign_round_templates')->where('campaign_id', $campaign->id)->where('round_no', 2)->update([
+            'segment_key' => 'reward_68m',
+            'prize_amount' => '68000000',
+        ]);
+        $campaign->load('roundTemplates');
+        DB::table('users')->insert(['id' => 203989, 'name' => 'Khách thử 5', 'phone' => '+84900000004', 'role' => 2]);
+
+        $this->expectException(ValidationException::class);
+        $this->service()->inviteUsers($campaign, [203989]);
+    }
+
+    public function test_second_round_model_normalizes_admin_input_to_39m(): void
+    {
+        $campaign = $this->campaign();
+        $secondRound = $campaign->roundTemplates->firstWhere('round_no', 2);
+
+        $secondRound->update(['segment_key' => 'reward_68m', 'result_label' => '68 triệu', 'prize_amount' => 68000000]);
+
+        self::assertSame('reward_39m', $secondRound->fresh()->segment_key);
+        self::assertSame('39000000', rtrim(rtrim((string) $secondRound->fresh()->prize_amount, '0'), '.'));
     }
 
     public function test_the_same_user_can_receive_multiple_invitations_in_one_campaign(): void
@@ -190,9 +215,8 @@ class WheelCampaignServiceTest extends TestCase
         ]);
         foreach ([
             [1, 'try_again', 'May mắn lần sau', '0'],
-            [2, 'jackpot_50m', 'Giải 50 triệu', '50000000'],
+            [2, 'reward_39m', 'Giải 39 triệu', '39000000'],
             [3, 'try_again', 'May mắn lần sau', '0'],
-            [4, 'thank_you', 'Cảm ơn', '0'],
         ] as [$roundNo, $segment, $label, $amount]) {
             $campaign->roundTemplates()->create(['round_no' => $roundNo, 'segment_key' => $segment, 'result_label' => $label, 'prize_amount' => $amount]);
         }

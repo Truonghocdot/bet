@@ -51,21 +51,21 @@ class WheelCampaignResource extends BaseResource
             TextInput::make('name')->label('Tên chiến dịch')->required()->maxLength(160)->columnSpanFull(),
             Select::make('status')->label('Trạng thái')->options(['draft' => 'Bản nháp', 'active' => 'Đang mở', 'closed' => 'Đã đóng'])->default('draft')->required(),
             Repeater::make('roundTemplates')
-                ->label('Bốn lượt mẫu')
+                ->label('Ba lượt mẫu')
                 ->relationship()
                 ->schema([
-                    Select::make('round_no')->label('Lượt')->options([1 => 'Lượt 1', 2 => 'Lượt 2', 3 => 'Lượt 3', 4 => 'Lượt 4'])->required()->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+                    Select::make('round_no')->label('Lượt')->options([1 => 'Lượt 1', 2 => 'Lượt 2', 3 => 'Lượt 3'])->required()->disableOptionsWhenSelectedInSiblingRepeaterItems(),
                     TextInput::make('segment_key')->label('Mã ô')->required()->maxLength(64),
                     TextInput::make('result_label')->label('Kết quả hiển thị')->required()->maxLength(160),
                     TextInput::make('prize_amount')->label('Thưởng VND')->numeric()->minValue(0)->default(0)->required(),
                 ])
                 ->default([
                     ['round_no' => 1, 'segment_key' => 'try_again', 'result_label' => 'Chúc bạn may mắn', 'prize_amount' => 0],
-                    ['round_no' => 2, 'segment_key' => 'jackpot_50m', 'result_label' => 'Giải thưởng 50 triệu', 'prize_amount' => 50000000],
+                    ['round_no' => 2, 'segment_key' => 'reward_39m', 'result_label' => '39 triệu', 'prize_amount' => 39000000],
                     ['round_no' => 3, 'segment_key' => 'try_again', 'result_label' => 'Chúc bạn may mắn', 'prize_amount' => 0],
-                    ['round_no' => 4, 'segment_key' => 'thank_you', 'result_label' => 'Cảm ơn bạn đã tham gia', 'prize_amount' => 0],
                 ])
-                ->minItems(4)->maxItems(4)->reorderable(false)->columns(4)->columnSpanFull(),
+                ->helperText('Chiến dịch có đúng 3 lượt; lượt 2 luôn được khóa ở giải 39.000.000 VND.')
+                ->minItems(3)->maxItems(3)->reorderable(false)->columns(4)->columnSpanFull(),
         ])->columns(2);
     }
 
