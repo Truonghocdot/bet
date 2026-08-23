@@ -127,7 +127,58 @@ test('event loading previews the real prize assets', async ({ page }, testInfo) 
   await expect(page.getByText('Vòng quay may mắn')).toBeVisible()
   await expect(page.getByText('39 TRIỆU')).toBeVisible()
   await expect(page.getByText('ĐẶC BIỆT · LIMO')).toBeVisible()
+  const giftImages = page.locator('.wheel-label__img')
+  await expect(giftImages).toHaveCount(3)
+  for (let index = 0; index < 3; index += 1) {
+    expect((await giftImages.nth(index).boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(45.9)
+  }
   await page.screenshot({ path: testInfo.outputPath('event-wheel-mobile.png'), fullPage: true })
+})
+
+test('event chat stays bounded and scrolls with many long messages', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedEventToken(page)
+  await page.route('**/v1/wheel/me', (route) => route.fulfill({ json: eventState() }))
+  await page.route('**/v1/wheel/session/chat/messages**', (route) =>
+    route.fulfill({
+      json: {
+        items: Array.from({ length: 60 }, (_, index) => ({
+          id: index + 1,
+          display_name: `ID game #${120000 + index}`,
+          body: `Tin nhắn ${index + 1}: ${'nội dung dài cần xuống dòng '.repeat(12)}`,
+          actor_type: 'bot',
+          created_at: new Date().toISOString(),
+        })),
+      },
+    }),
+  )
+  await page.route('**/v1/wheel/realtime/ticket', (route) =>
+    route.fulfill({ status: 503, json: { message: 'offline' } }),
+  )
+
+  await page.goto('/event.html')
+  await expect(page.getByText('Tin nhắn 60:', { exact: false })).toBeVisible()
+
+  const chat = page.locator('.event-chat')
+  const messages = page.locator('.event-chat__messages')
+  const composer = page.locator('.event-chat__composer')
+  const chatBox = await chat.boundingBox()
+  const composerBox = await composer.boundingBox()
+  const scrollState = await messages.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }))
+
+  expect(chatBox?.height ?? 0).toBeLessThanOrEqual(781)
+  expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight)
+  expect((composerBox?.y ?? 0) + (composerBox?.height ?? 0)).toBeLessThanOrEqual(
+    (chatBox?.y ?? 0) + (chatBox?.height ?? 0) + 1,
+  )
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThan(1800)
+  await page.screenshot({
+    path: testInfo.outputPath('event-chat-scroll-desktop.png'),
+    fullPage: true,
+  })
 })
 
 test('stale pending round becomes clickable without reloading', async ({ page }) => {

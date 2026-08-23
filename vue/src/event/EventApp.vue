@@ -613,7 +613,13 @@ function preventDoubleTap(event: MouseEvent) {
                 :style="{ '--segment-angle': `${segment.index * 45 + 22.5}deg`, '--counter-angle': `-${segment.index * 45 + 22.5}deg` }"
               >
                 <div class="wheel-label__content">
-                  <img v-if="segment.image" :src="segment.image" :alt="segment.label" class="wheel-label__img" />
+                  <img
+                    v-if="segment.image"
+                    :src="segment.image"
+                    :alt="segment.label"
+                    class="wheel-label__img"
+                    :class="{ 'wheel-label__img--wide': segment.key === 'car_limo_green' }"
+                  />
                   <span class="wheel-label__text">{{ segment.shortLabel || segment.label }}</span>
                 </div>
               </div>
