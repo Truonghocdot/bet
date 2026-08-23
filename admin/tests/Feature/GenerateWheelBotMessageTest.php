@@ -107,6 +107,8 @@ class GenerateWheelBotMessageTest extends TestCase
         self::assertSame(4, (int) $room->fresh()->bot_message_count);
         $createdAt = CarbonImmutable::parse((string) DB::table('chat_messages')->min('created_at'), 'UTC');
         self::assertLessThanOrEqual(5, abs($createdAt->diffInSeconds(now('UTC'), false)));
+        $nextBotAt = CarbonImmutable::parse((string) $room->fresh()->getRawOriginal('next_bot_at'), 'UTC');
+        self::assertLessThanOrEqual(2, $nextBotAt->diffInSeconds(now('UTC')));
         Queue::assertPushed(GenerateChatBotMessage::class, fn (GenerateChatBotMessage $job): bool => $job->wheelRoomId === $room->id);
     }
 

@@ -20,7 +20,7 @@ return new class extends Migration
         SQL);
 
         // Make every enabled event room immediately eligible. The worker
-        // seeds four messages atomically, then schedules the 3-6 second flow.
+        // seeds four messages atomically, then follows the current bot cadence.
         DB::statement(<<<'SQL'
             UPDATE chat_rooms AS cr
             SET next_bot_at = timezone('UTC', now()),

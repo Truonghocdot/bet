@@ -23,9 +23,9 @@ class GenerateChatBotMessage implements ShouldQueue
 
     public const INITIAL_BURST_COUNT = 4;
 
-    public const MIN_INTERVAL_SECONDS = 3;
+    public const MIN_INTERVAL_SECONDS = 1;
 
-    public const MAX_INTERVAL_SECONDS = 6;
+    public const MAX_INTERVAL_SECONDS = 1;
 
     public function __construct(public readonly ?int $wheelRoomId = null) {}
 
