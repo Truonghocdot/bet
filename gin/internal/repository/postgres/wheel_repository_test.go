@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,6 +99,15 @@ func TestWheelLaunchActivatesFiveMinuteBotWindow(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("SQL expectations: %v", err)
+	}
+}
+
+func TestWheelSessionChatRoomQueriesCastConditionalTimestamps(t *testing.T) {
+	if !strings.Contains(insertWheelSessionChatRoomSQL, "$6::timestamp") {
+		t.Fatal("insert query must cast bot_active_until to timestamp")
+	}
+	if !strings.Contains(updateWheelSessionChatRoomSQL, "$3::timestamp") {
+		t.Fatal("update query must cast bot_active_until to timestamp")
 	}
 }
 

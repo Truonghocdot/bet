@@ -29,6 +29,10 @@ var (
 
 const wheelTotalRounds = 3
 
+const insertWheelSessionChatRoomSQL = `insert into chat_rooms (wheel_session_id, wheel_invitation_id, code, name, enabled, next_bot_at, bot_active_until, bot_message_count, created_at, updated_at) values ($1, $2, $3, $4, true, case when $5 then timezone('UTC', now()) else null end, case when $5 then $6::timestamp else null::timestamp end, 0, timezone('UTC', now()), timezone('UTC', now())) returning id`
+
+const updateWheelSessionChatRoomSQL = `update chat_rooms set wheel_session_id = $1, enabled = true, next_bot_at = case when $2 then timezone('UTC', now()) else null end, bot_active_until = case when $2 then $3::timestamp else null::timestamp end, updated_at = timezone('UTC', now()) where id = $4`
+
 type WheelRepository struct {
 	db *sql.DB
 }
@@ -264,9 +268,9 @@ func (r *WheelRepository) StartSession(ctx context.Context, invitationID, userID
 	var roomID int64
 	err = tx.QueryRowContext(ctx, `select id from chat_rooms where wheel_invitation_id = $1 for update`, invitationID).Scan(&roomID)
 	if errors.Is(err, sql.ErrNoRows) {
-		err = tx.QueryRowContext(ctx, `insert into chat_rooms (wheel_session_id, wheel_invitation_id, code, name, enabled, next_bot_at, bot_active_until, bot_message_count, created_at, updated_at) values ($1, $2, $3, $4, true, case when $5 then timezone('UTC', now()) else null end, case when $5 then $6 else null end, 0, timezone('UTC', now()), timezone('UTC', now())) returning id`, sessionID, invitationID, fmt.Sprintf("wheel-session-%d", sessionID), "Phòng sự kiện "+campaignName, botChatEnabled, endsAt).Scan(&roomID)
+		err = tx.QueryRowContext(ctx, insertWheelSessionChatRoomSQL, sessionID, invitationID, fmt.Sprintf("wheel-session-%d", sessionID), "Phòng sự kiện "+campaignName, botChatEnabled, endsAt).Scan(&roomID)
 	} else if err == nil {
-		_, err = tx.ExecContext(ctx, `update chat_rooms set wheel_session_id = $1, enabled = true, next_bot_at = case when $2 then timezone('UTC', now()) else null end, bot_active_until = case when $2 then $3 else null end, updated_at = timezone('UTC', now()) where id = $4`, sessionID, botChatEnabled, endsAt, roomID)
+		_, err = tx.ExecContext(ctx, updateWheelSessionChatRoomSQL, sessionID, botChatEnabled, endsAt, roomID)
 	}
 	if err != nil {
 		return WheelMutationResult{}, err
