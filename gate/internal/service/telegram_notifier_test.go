@@ -44,7 +44,7 @@ func TestFormatDepositMessageIncludesManualApprovalAndUnmatchedWarning(t *testin
 	}
 
 	matched := formatDepositMessage(notification)
-	for _, expected := range []string{"[NẠP TIỀN SEPAY]", "50.000 VND", "#123", "CHỜ DUYỆT THỦ CÔNG"} {
+	for _, expected := range []string{"[NẠP TIỀN]", "50.000 VND", "#123", "CHỜ DUYỆT THỦ CÔNG"} {
 		if !contains(matched, expected) {
 			t.Fatalf("matched message missing %q: %s", expected, matched)
 		}
@@ -52,10 +52,13 @@ func TestFormatDepositMessageIncludesManualApprovalAndUnmatchedWarning(t *testin
 
 	notification.Lookup = event.DepositNotificationLookup{}
 	unmatched := formatDepositMessage(notification)
-	for _, expected := range []string{"[CẢNH BÁO TIỀN VÀO CHƯA KHỚP]", "Mã SePay: FT26103263302800", "Không tìm thấy lệnh nạp"} {
+	for _, expected := range []string{"[CẢNH BÁO TIỀN VÀO CHƯA KHỚP]", "Mã giao dịch: FT26103263302800", "Không tìm thấy lệnh nạp"} {
 		if !contains(unmatched, expected) {
 			t.Fatalf("unmatched message missing %q: %s", expected, unmatched)
 		}
+	}
+	if contains(matched, "SEPAY") || contains(unmatched, "SEPAY") || contains(matched, "SePay") || contains(unmatched, "SePay") {
+		t.Fatalf("telegram messages must not expose provider name: matched=%s unmatched=%s", matched, unmatched)
 	}
 }
 

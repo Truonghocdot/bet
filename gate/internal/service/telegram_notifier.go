@@ -409,7 +409,7 @@ func formatDepositMessage(notification depositNotificationEvent) string {
 			"[CẢNH BÁO TIỀN VÀO CHƯA KHỚP]",
 			"Số tiền: " + amount + " VND",
 			"Thời gian: " + when,
-			"Mã SePay: " + sepayID,
+			"Mã giao dịch: " + sepayID,
 			"Nội dung CK: " + firstNonEmpty(notification.Content, "—"),
 			"Lý do: Không tìm thấy lệnh nạp tương ứng",
 		}, "\n")
@@ -432,10 +432,10 @@ func formatDepositMessage(notification depositNotificationEvent) string {
 	}
 	account := strings.Join(accountValues, " - ")
 	lines := []string{
-		"[NẠP TIỀN SEPAY]",
+		"[NẠP TIỀN]",
 		"Số tiền: " + amount + " VND",
 		"Thời gian: " + when,
-		"Mã SePay: " + sepayID,
+		"Mã giao dịch: " + sepayID,
 		"Mã lệnh nạp: " + firstNonEmpty(lookup.ClientRef, notification.ClientRef, "—"),
 		"User: " + user,
 		"Tài khoản nhận: " + account,
