@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"gin/internal/domain/deposit"
+	"gin/internal/domain/telegram"
 	"gin/internal/domain/user"
 	gateclient "gin/internal/integration/gate"
 	repopg "gin/internal/repository/postgres"
@@ -388,6 +390,41 @@ func (s *DepositService) ApplyDeposit(ctx context.Context, request deposit.Apply
 		ClientRef: request.ClientRef,
 		Status:    status,
 		AppliedAt: request.PaidAt,
+	}, nil
+}
+
+func (s *DepositService) LookupDepositForNotification(ctx context.Context, request telegram.LookupRequest) (telegram.LookupResponse, error) {
+	provider := strings.TrimSpace(request.Provider)
+	if provider == "sepay" {
+		provider = string(deposit.DepositProviderSepayVietQR)
+	}
+	if provider == "" {
+		provider = string(deposit.DepositProviderSepayVietQR)
+	}
+
+	record, err := s.repository.FindDepositForNotification(ctx, provider, request.ProviderTxnID, request.ClientRef)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return telegram.LookupResponse{Matched: false}, nil
+		}
+		return telegram.LookupResponse{}, err
+	}
+
+	return telegram.LookupResponse{
+		Matched:              true,
+		TransactionID:        record.TransactionID,
+		UserID:               record.UserID,
+		UserName:             record.UserName,
+		UserPhone:            record.UserPhone,
+		ClientRef:            record.ClientRef,
+		ProviderTxnID:        record.ProviderTxnID,
+		Provider:             record.Provider,
+		Amount:               record.Amount,
+		Status:               record.Status,
+		CreatedAt:            record.CreatedAt,
+		ReceivingBank:        record.ReceivingBank,
+		ReceivingAccountName: record.ReceivingAccountName,
+		ReceivingAccount:     record.ReceivingAccount,
 	}, nil
 }
 

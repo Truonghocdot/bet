@@ -63,4 +63,11 @@ return [
         'default_currency' => env('TCG_DEFAULT_CURRENCY', 'VND'),
     ],
 
+    'telegram' => [
+        'site_code' => env('TELEGRAM_SITE_CODE', env('WHEEL_SITE_CODE', 'fh88u')),
+        'gate_base_url' => env('TELEGRAM_GATE_BASE_URL', env('TCG_GATE_BASE_URL', 'http://127.0.0.1:8082')),
+        'gate_internal_token' => env('TELEGRAM_GATE_INTERNAL_TOKEN', env('GIN_INTERNAL_TOKEN', '')),
+        'timeout' => (int) env('TELEGRAM_GATE_TIMEOUT', 10),
+    ],
+
 ];

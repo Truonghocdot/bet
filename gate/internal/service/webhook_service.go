@@ -34,6 +34,7 @@ type WebhookConfig struct {
 	NowPaymentsIPNSecret     string
 	NowPaymentsPayCurrency   string
 	NowPaymentsPriceCurrency string
+	SepayAutoApply           bool
 }
 
 type CreateNowPaymentsDepositRequest struct {
@@ -63,6 +64,8 @@ type WebhookService struct {
 	fallbackIPNSecret   string
 	payCurrency         string
 	priceCurrency       string
+	sepayAutoApply      bool
+	telegramNotifier    *TelegramNotifier
 }
 
 func NewWebhookService(
@@ -78,11 +81,16 @@ func NewWebhookService(
 		fallbackIPNSecret: strings.TrimSpace(config.NowPaymentsIPNSecret),
 		payCurrency:       strings.ToLower(strings.TrimSpace(config.NowPaymentsPayCurrency)),
 		priceCurrency:     strings.ToLower(strings.TrimSpace(config.NowPaymentsPriceCurrency)),
+		sepayAutoApply:    config.SepayAutoApply,
 	}
 }
 
 func (s *WebhookService) InternalToken() string {
 	return s.internalToken
+}
+
+func (s *WebhookService) SetTelegramNotifier(notifier *TelegramNotifier) {
+	s.telegramNotifier = notifier
 }
 
 func (s *WebhookService) SetCredentialsProvider(provider NowPaymentsCredentialsProvider) {
@@ -185,6 +193,30 @@ func (s *WebhookService) HandleDepositWebhook(
 	}
 
 	fmt.Printf("[gate][debug] RECEIVED WEBHOOK provider=%s payload_keys=%d\n", normalizedProvider, len(payload))
+
+	if normalizedProvider == providerSepay {
+		request, err := s.buildApplyRequest(normalizedProvider, payload)
+		if err != nil {
+			return webhookEvent, err
+		}
+		if !s.sepayAutoApply {
+			if s.telegramNotifier != nil {
+				if err := s.telegramNotifier.EnqueueDeposit(ctx, request); err != nil {
+					return webhookEvent, err
+				}
+			}
+			return webhookEvent, nil
+		}
+		if request.ClientRef == "" && request.ProviderTxnID == "" {
+			return webhookEvent, fmt.Errorf("sepay: transaction reference is required")
+		}
+		if s.ginClient != nil {
+			if err := s.ginClient.ApplyDeposit(ctx, request); err != nil {
+				return webhookEvent, err
+			}
+		}
+		return webhookEvent, nil
+	}
 
 	if s.ginClient != nil {
 		request, err := s.buildApplyRequest(normalizedProvider, payload)
@@ -327,12 +359,12 @@ func firstNonEmptyString(payload map[string]any, keys []string) string {
 			var trimmed string
 			switch v := value.(type) {
 			case float64:
-                // Tránh số mũ e+09 cho ID lớn
+				// Tránh số mũ e+09 cho ID lớn
 				trimmed = fmt.Sprintf("%.0f", v)
 			default:
 				trimmed = strings.TrimSpace(fmt.Sprint(value))
 			}
-			
+
 			if trimmed != "" && trimmed != "<nil>" {
 				return trimmed
 			}
@@ -375,6 +407,9 @@ func (s *WebhookService) buildSepayApplyRequest(payload map[string]any) (event.D
 
 	// ── 4. Status: "in" = finished (money received) ───────────────────────────
 	transferType := strings.ToLower(strings.TrimSpace(fmt.Sprint(payload["transferType"])))
+	if transferType == "" {
+		transferType = strings.ToLower(strings.TrimSpace(fmt.Sprint(payload["transfer_type"])))
+	}
 	providerStatus := "pending"
 	if transferType == "in" {
 		providerStatus = "finished"
@@ -382,10 +417,6 @@ func (s *WebhookService) buildSepayApplyRequest(payload map[string]any) (event.D
 
 	log.Printf("[gate][sepay] client_ref=%q provider_txn_id=%q amount=%q status=%s",
 		clientRef, providerTxnID, amount, providerStatus)
-
-	if clientRef == "" && providerTxnID == "" {
-		return event.DepositApplyRequest{}, fmt.Errorf("sepay: could not extract client_ref from content and no id/referenceCode found")
-	}
 
 	return event.DepositApplyRequest{
 		Provider:       providerSepay,

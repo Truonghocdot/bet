@@ -6,7 +6,7 @@ import (
 	"gate/internal/service"
 )
 
-func NewRouter(webhookService *service.WebhookService, notificationService *service.NotificationService, tcgService *service.TCGService) http.Handler {
+func NewRouter(webhookService *service.WebhookService, notificationService *service.NotificationService, tcgService *service.TCGService, telegramNotifier *service.TelegramNotifier) http.Handler {
 	mux := http.NewServeMux()
 
 	healthHandler := NewHealthHandler()
@@ -14,9 +14,12 @@ func NewRouter(webhookService *service.WebhookService, notificationService *serv
 	nowPaymentsHandler := NewNowPaymentsHandler(webhookService)
 	notificationHandler := NewNotificationHandler(notificationService)
 	tcgHandler := NewTCGHandler(tcgService, webhookService.InternalToken())
+	telegramHandler := NewTelegramHandler(telegramNotifier, webhookService.InternalToken())
 
 	mux.HandleFunc("GET /healthz", healthHandler.ServeHTTP)
 	mux.HandleFunc("POST /v1/webhooks/deposits/", webhookHandler.ServeHTTP)
+	mux.HandleFunc("POST /v1/webhooks/telegram", telegramHandler.ServeHTTP)
+	mux.HandleFunc("POST /internal/v1/telegram/test", telegramHandler.Test)
 	mux.HandleFunc("POST /internal/v1/nowpayments/deposits/create", nowPaymentsHandler.CreateDeposit)
 	mux.HandleFunc("POST /internal/v1/tcg/players/register", tcgHandler.RegisterPlayer)
 	mux.HandleFunc("POST /internal/v1/tcg/wallets/balance", tcgHandler.Balance)

@@ -53,6 +53,7 @@ class AuthServiceProvider extends ServiceProvider
             'chat.bans' => [RoleUser::ADMIN, RoleUser::STAFF],
             'chat.moderation-actions' => [RoleUser::ADMIN, RoleUser::STAFF],
             'chat.rooms' => [RoleUser::ADMIN],
+            'telegram.chat-destinations' => [RoleUser::SUPER_ADMIN],
             'wheel.campaigns' => [RoleUser::ADMIN],
             'wheel.invitations' => [RoleUser::ADMIN, RoleUser::STAFF],
             'wheel.rewards' => [RoleUser::ADMIN, RoleUser::STAFF],

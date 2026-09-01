@@ -66,6 +66,7 @@ func New() (*App, error) {
 	financeFeedRepository := repopg.NewFinanceFeedRepository(db)
 	gameRepository := repopg.NewGameRepository(db)
 	depositRepository := repopg.NewDepositRepository(db)
+	telegramRepository := repopg.NewTelegramRepository(db)
 	withdrawalRepository := repopg.NewWithdrawalRepository(db)
 	chatRepository := repopg.NewChatRepository(db)
 	wheelRepository := repopg.NewWheelRepository(db)
@@ -119,6 +120,7 @@ func New() (*App, error) {
 	depositService := service.NewDepositService(depositRepository, redisClient, walletService, depositGateway, service.DepositConfig{
 		ReceivingAccountsRedisKey: config.PaymentReceivingAccountsRedisKey,
 	})
+	telegramService := service.NewTelegramService(telegramRepository, config.WheelSiteCode)
 	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository, userRepository, redisClient)
 	chatService := service.NewChatService(chatRepository, broker, limiter, redisClient, config.ChatEnabled, config.ChatRoomCode)
 	wheelService := service.NewWheelService(wheelRepository, walletService, broker, redisClient, service.WheelConfig{
@@ -126,7 +128,7 @@ func New() (*App, error) {
 		DurationSeconds: 300, SpinDurationSeconds: 5,
 	})
 	affiliateService := service.NewAffiliateService(userRepository, authService, depositService, withdrawalService)
-	router := httptransport.NewRouter(config.PopupVideoFilePath, authService, affiliateService, walletService, notificationService, contentService, financeFeedService, providerGameCatalogService, tcgRuntimeService, sessionService, betService, playRoomService, depositService, withdrawalService, chatService, wheelService, broker, gameRepository, redisClient, config.InternalToken)
+	router := httptransport.NewRouter(config.PopupVideoFilePath, authService, affiliateService, walletService, notificationService, contentService, financeFeedService, providerGameCatalogService, tcgRuntimeService, sessionService, betService, playRoomService, depositService, withdrawalService, chatService, wheelService, telegramService, broker, gameRepository, redisClient, config.InternalToken)
 
 	server := &http.Server{
 		Addr:        config.HTTPAddr,

@@ -12,6 +12,7 @@ import (
 
 	authmiddleware "gin/internal/auth/middleware"
 	"gin/internal/domain/deposit"
+	"gin/internal/domain/telegram"
 	repopg "gin/internal/repository/postgres"
 	"gin/internal/service"
 	"gin/internal/support/message"
@@ -171,6 +172,25 @@ func (h *DepositHandler) Apply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusAccepted, response)
+}
+
+func (h *DepositHandler) LookupForNotification(w http.ResponseWriter, r *http.Request) {
+	if h.internalToken == "" || r.Header.Get("X-Internal-Token") != h.internalToken {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": message.DepositInternalTokenInvalid})
+		return
+	}
+
+	var request telegram.LookupRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": message.InvalidDepositPayload})
+		return
+	}
+	response, err := h.depositService.LookupDepositForNotification(r.Context(), request)
+	if err != nil {
+		h.writeError(r, w, err, "lookup-for-notification")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *DepositHandler) handleInitVietQR(w http.ResponseWriter, r *http.Request) {

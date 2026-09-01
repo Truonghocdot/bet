@@ -21,6 +21,7 @@ type App struct {
 	server                 *http.Server
 	redis                  *goredis.Client
 	tcgGameListSyncService *service.TCGGameListSyncService
+	telegramNotifier       *service.TelegramNotifier
 }
 
 func New() (*App, error) {
@@ -53,6 +54,7 @@ func New() (*App, error) {
 		NowPaymentsIPNSecret:     config.NowPaymentsIPNKey,
 		NowPaymentsPayCurrency:   config.NowPaymentsPayCode,
 		NowPaymentsPriceCurrency: config.NowPaymentsPrice,
+		SepayAutoApply:           config.SepayAutoApply,
 	})
 	webhookService.SetFallbackAPIKey(config.NowPaymentsAPIKey)
 	webhookService.SetCredentialsProvider(
@@ -66,6 +68,17 @@ func New() (*App, error) {
 			},
 		),
 	)
+	telegramNotifier := service.NewTelegramNotifier(ginClient, sharedRedis, service.TelegramNotifierConfig{
+		Enabled:       config.TelegramEnabled,
+		SiteCode:      config.TelegramSiteCode,
+		WebhookSecret: config.TelegramWebhookSecret,
+		BotToken:      config.TelegramBotToken,
+		Stream:        config.TelegramStream,
+		Group:         config.TelegramConsumerGroup,
+		Consumer:      config.TelegramConsumerName,
+		MaxRetries:    config.TelegramMaxRetries,
+	})
+	webhookService.SetTelegramNotifier(telegramNotifier)
 	notificationService := service.NewNotificationService()
 	tcgService := service.NewTCGService(tcgClient, service.TCGConfig{
 		Enabled: config.TCGEnabled,
@@ -83,7 +96,7 @@ func New() (*App, error) {
 		Page:             config.TCGGameListPage,
 		PageSize:         config.TCGGameListPageSize,
 	})
-	router := httptransport.NewRouter(webhookService, notificationService, tcgService)
+	router := httptransport.NewRouter(webhookService, notificationService, tcgService, telegramNotifier)
 
 	server := &http.Server{
 		Addr:         config.HTTPAddr,
@@ -97,6 +110,7 @@ func New() (*App, error) {
 		server:                 server,
 		redis:                  sharedRedis,
 		tcgGameListSyncService: tcgGameListSyncService,
+		telegramNotifier:       telegramNotifier,
 	}, nil
 }
 
@@ -108,6 +122,9 @@ func (a *App) Run() error {
 
 	if a.tcgGameListSyncService != nil {
 		a.tcgGameListSyncService.Start(ctx)
+	}
+	if a.telegramNotifier != nil {
+		a.telegramNotifier.Start(ctx)
 	}
 
 	go func() {

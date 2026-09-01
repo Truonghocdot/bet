@@ -1,34 +1,8 @@
-package event
+package telegram
 
 import "time"
 
-type WebhookEvent struct {
-	Provider   string         `json:"provider"`
-	Type       string         `json:"type"`
-	ReceivedAt time.Time      `json:"received_at"`
-	Payload    map[string]any `json:"payload"`
-}
-
-type NotificationRequest struct {
-	Channel string         `json:"channel"`
-	Target  string         `json:"target"`
-	Subject string         `json:"subject"`
-	Message string         `json:"message"`
-	Meta    map[string]any `json:"meta"`
-}
-
-type DepositApplyRequest struct {
-	Provider       string         `json:"provider"`
-	ProviderStatus string         `json:"provider_status"`
-	ClientRef      string         `json:"client_ref"`
-	ProviderTxnID  string         `json:"provider_txn_id"`
-	Amount         string         `json:"amount"`
-	Currency       string         `json:"currency"`
-	PaidAt         time.Time      `json:"paid_at"`
-	Raw            map[string]any `json:"raw"`
-}
-
-type TelegramGroupEvent struct {
+type GroupEvent struct {
 	SiteCode   string    `json:"site_code"`
 	UpdateID   int64     `json:"update_id"`
 	ChatID     int64     `json:"chat_id"`
@@ -39,7 +13,7 @@ type TelegramGroupEvent struct {
 	OccurredAt time.Time `json:"occurred_at"`
 }
 
-type TelegramTarget struct {
+type Target struct {
 	ID       int64  `json:"id"`
 	ChatID   int64  `json:"chat_id"`
 	ChatType string `json:"chat_type"`
@@ -47,13 +21,19 @@ type TelegramTarget struct {
 	Username string `json:"username,omitempty"`
 }
 
-type DepositNotificationLookupRequest struct {
+type TargetError struct {
+	SiteCode string `json:"site_code"`
+	ChatID   int64  `json:"chat_id"`
+	Error    string `json:"error"`
+}
+
+type LookupRequest struct {
 	Provider      string `json:"provider"`
 	ProviderTxnID string `json:"provider_txn_id,omitempty"`
 	ClientRef     string `json:"client_ref,omitempty"`
 }
 
-type DepositNotificationLookup struct {
+type LookupResponse struct {
 	Matched              bool      `json:"matched"`
 	TransactionID        int64     `json:"transaction_id,omitempty"`
 	UserID               int64     `json:"user_id,omitempty"`
@@ -68,10 +48,4 @@ type DepositNotificationLookup struct {
 	ReceivingBank        string    `json:"receiving_bank,omitempty"`
 	ReceivingAccountName string    `json:"receiving_account_name,omitempty"`
 	ReceivingAccount     string    `json:"receiving_account,omitempty"`
-}
-
-type TelegramTargetError struct {
-	SiteCode string `json:"site_code"`
-	ChatID   int64  `json:"chat_id"`
-	Error    string `json:"error"`
 }

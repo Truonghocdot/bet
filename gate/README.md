@@ -31,6 +31,31 @@ internal/transport/http
 - `POST /v1/webhooks/deposits/{provider}`
 - `POST /v1/notifications/email`
 - `POST /v1/notifications/push`
+- `POST /v1/webhooks/telegram`
+
+## Telegram SePay notify-only
+
+When `SEPAY_AUTO_APPLY=false`, incoming SePay transfers are looked up in Gin and
+queued to the site-specific Telegram bot. The transaction remains pending until
+an administrator approves it in Filament; the Gate never updates the wallet.
+
+Required production variables:
+
+```dotenv
+TELEGRAM_ENABLED=true
+TELEGRAM_SITE_CODE=fh88u
+TELEGRAM_BOT_TOKEN=<bot-token>
+TELEGRAM_WEBHOOK_SECRET=<random-secret>
+SEPAY_AUTO_APPLY=false
+```
+
+Configure Telegram after the public HTTPS endpoint is live:
+
+```bash
+curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://gate.example.com/v1/webhooks/telegram","secret_token":"<random-secret>","allowed_updates":["my_chat_member"]}'
+```
 
 ## Env toi thieu
 

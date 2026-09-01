@@ -88,6 +88,10 @@ Webhook:
 - Webhook callback **không cần xác thực**.
 - `gate` chuyển callback sang `gin` internal endpoint để apply giao dịch.
 
+Khi `SEPAY_AUTO_APPLY=false`, callback SePay chỉ được tra cứu để gửi thông báo
+Telegram. Giao dịch vẫn ở trạng thái `PENDING`; chỉ thao tác duyệt thủ công trong
+admin mới cộng tiền vào ví. Luồng NOWPayments không bị thay đổi.
+
 ## 3. Account nhận tiền
 
 - Danh sách account nhận tiền do quản trị viên cấu hình trong ERP.

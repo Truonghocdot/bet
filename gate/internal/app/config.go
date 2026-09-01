@@ -49,6 +49,15 @@ type Config struct {
 	TCGGameListLanguage     string
 	TCGGameListPage         int
 	TCGGameListPageSize     int
+	TelegramEnabled         bool
+	TelegramSiteCode        string
+	TelegramBotToken        string
+	TelegramWebhookSecret   string
+	TelegramStream          string
+	TelegramConsumerGroup   string
+	TelegramConsumerName    string
+	TelegramMaxRetries      int
+	SepayAutoApply          bool
 }
 
 func LoadConfig() Config {
@@ -95,6 +104,15 @@ func LoadConfig() Config {
 		TCGGameListLanguage:     getEnv("TCG_GAME_LIST_LANGUAGE", ""),
 		TCGGameListPage:         getEnvInt("TCG_GAME_LIST_PAGE", 0),
 		TCGGameListPageSize:     getEnvInt("TCG_GAME_LIST_PAGE_SIZE", 0),
+		TelegramEnabled:         getEnvBool("TELEGRAM_ENABLED", false),
+		TelegramSiteCode:        getEnv("TELEGRAM_SITE_CODE", getEnv("APP_NAME", "fh88u")),
+		TelegramBotToken:        getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramWebhookSecret:   getEnv("TELEGRAM_WEBHOOK_SECRET", ""),
+		TelegramStream:          getEnv("TELEGRAM_STREAM", ""),
+		TelegramConsumerGroup:   getEnv("TELEGRAM_CONSUMER_GROUP", ""),
+		TelegramConsumerName:    getEnv("TELEGRAM_CONSUMER_NAME", ""),
+		TelegramMaxRetries:      getEnvInt("TELEGRAM_MAX_RETRIES", 3),
+		SepayAutoApply:          getEnvBool("SEPAY_AUTO_APPLY", false),
 	}
 }
 

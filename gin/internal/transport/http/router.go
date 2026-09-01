@@ -28,6 +28,7 @@ func NewRouter(
 	withdrawalService *service.WithdrawalService,
 	chatService *service.ChatService,
 	wheelService *service.WheelService,
+	telegramService *service.TelegramService,
 	broker *realtime.Broker,
 	gameRepository *repopg.GameRepository,
 	redis *redis.Client,
@@ -49,6 +50,7 @@ func NewRouter(
 	withdrawalHandler := NewWithdrawalHandler(withdrawalService)
 	chatHandler := NewChatHandler(chatService, broker)
 	wheelHandler := NewWheelHandler(wheelService, broker)
+	telegramHandler := NewTelegramHandler(telegramService, depositService, internalToken)
 	mediaHandler := NewMediaHandler(popupVideoPath)
 	adminHandler := NewAdminHandler(gameRepository, broker, redis, authService)
 	authSSOHandler := NewAuthSSOHandler(authService, redis)
@@ -125,6 +127,10 @@ func NewRouter(
 	mux.Handle("GET /v1/withdrawals/", authn.Require(http.HandlerFunc(withdrawalHandler.ServeHTTP)))
 	mux.Handle("DELETE /v1/withdrawals/", authn.Require(http.HandlerFunc(withdrawalHandler.ServeHTTP)))
 	mux.HandleFunc("POST /internal/v1/deposits/apply", depositHandler.Apply)
+	mux.HandleFunc("POST /internal/v1/deposits/lookup-for-notification", depositHandler.LookupForNotification)
+	mux.HandleFunc("POST /internal/v1/telegram/group-events", telegramHandler.GroupEvent)
+	mux.HandleFunc("GET /internal/v1/telegram/targets", telegramHandler.Targets)
+	mux.HandleFunc("POST /internal/v1/telegram/target-errors", telegramHandler.TargetError)
 
 	// Admin control routes
 	requireAdmin := func(next http.Handler) http.Handler {
