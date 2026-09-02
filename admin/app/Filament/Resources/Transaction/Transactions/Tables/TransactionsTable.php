@@ -93,6 +93,13 @@ class TransactionsTable
                     })
                     ->copyable()
                     ->fontFamily('mono'),
+                TextColumn::make('provider_txn_id')
+                    ->label('Mã giao dịch')
+                    ->searchable()
+                    ->toggleable()
+                    ->placeholder('—')
+                    ->copyable()
+                    ->fontFamily('mono'),
                 TextColumn::make('status')
                     ->label('Trạng thái')
                     ->badge()
