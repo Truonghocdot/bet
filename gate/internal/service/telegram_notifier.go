@@ -45,14 +45,13 @@ type TelegramNotifier struct {
 }
 
 type depositNotificationEvent struct {
-	EventKey      string                          `json:"event_key"`
-	SiteCode      string                          `json:"site_code"`
-	ProviderTxnID string                          `json:"provider_txn_id,omitempty"`
-	ClientRef     string                          `json:"client_ref,omitempty"`
-	Amount        string                          `json:"amount,omitempty"`
-	Content       string                          `json:"content,omitempty"`
-	PaidAt        time.Time                       `json:"paid_at"`
-	Lookup        event.DepositNotificationLookup `json:"lookup"`
+	EventKey  string                          `json:"event_key"`
+	SiteCode  string                          `json:"site_code"`
+	ClientRef string                          `json:"client_ref,omitempty"`
+	Amount    string                          `json:"amount,omitempty"`
+	Content   string                          `json:"content,omitempty"`
+	PaidAt    time.Time                       `json:"paid_at"`
+	Lookup    event.DepositNotificationLookup `json:"lookup"`
 }
 
 type telegramUpdate struct {
@@ -190,17 +189,19 @@ func (n *TelegramNotifier) EnqueueDeposit(ctx context.Context, request event.Dep
 	if err != nil {
 		return err
 	}
+	// The provider transaction ID is used only for the internal lookup. Keep it
+	// out of the queued Telegram payload and the message shown to operators.
+	lookup.ProviderTxnID = ""
 
 	eventKey := n.eventKey(request)
 	notification := depositNotificationEvent{
-		EventKey:      eventKey,
-		SiteCode:      n.siteCode,
-		ProviderTxnID: request.ProviderTxnID,
-		ClientRef:     request.ClientRef,
-		Amount:        request.Amount,
-		Content:       sanitizeLine(rawString(request.Raw, "content"), 240),
-		PaidAt:        request.PaidAt,
-		Lookup:        lookup,
+		EventKey:  eventKey,
+		SiteCode:  n.siteCode,
+		ClientRef: request.ClientRef,
+		Amount:    request.Amount,
+		Content:   sanitizeLine(rawString(request.Raw, "content"), 240),
+		PaidAt:    request.PaidAt,
+		Lookup:    lookup,
 	}
 	payload, err := json.Marshal(notification)
 	if err != nil {
@@ -402,14 +403,12 @@ func formatDepositMessage(notification depositNotificationEvent) string {
 	if amount == "0" && lookup.Amount != "" {
 		amount = formatVND(lookup.Amount)
 	}
-	sepayID := firstNonEmpty(notification.ProviderTxnID, "—")
 	when := notification.PaidAt.Local().Format("02/01/2006 15:04:05")
 	if !lookup.Matched {
 		return strings.Join([]string{
 			"[CẢNH BÁO TIỀN VÀO CHƯA KHỚP]",
 			"Số tiền: " + amount + " VND",
 			"Thời gian: " + when,
-			"Mã giao dịch: " + sepayID,
 			"Nội dung CK: " + firstNonEmpty(notification.Content, "—"),
 			"Lý do: Không tìm thấy lệnh nạp tương ứng",
 		}, "\n")
@@ -435,7 +434,6 @@ func formatDepositMessage(notification depositNotificationEvent) string {
 		"[NẠP TIỀN]",
 		"Số tiền: " + amount + " VND",
 		"Thời gian: " + when,
-		"Mã giao dịch: " + sepayID,
 		"Mã lệnh nạp: " + firstNonEmpty(lookup.ClientRef, notification.ClientRef, "—"),
 		"User: " + user,
 		"Tài khoản nhận: " + account,

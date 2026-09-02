@@ -25,13 +25,13 @@ func TestSepayNotifyOnlyDoesNotApplyDeposit(t *testing.T) {
 
 func TestFormatDepositMessageIncludesManualApprovalAndUnmatchedWarning(t *testing.T) {
 	notification := depositNotificationEvent{
-		ProviderTxnID: "FT26103263302800",
-		ClientRef:     "DEP-abc12345",
-		Amount:        "50000",
-		Content:       "DEPabc12345",
-		PaidAt:        time.Date(2026, time.September, 1, 7, 30, 12, 0, time.UTC),
+		ClientRef: "DEP-abc12345",
+		Amount:    "50000",
+		Content:   "DEPabc12345",
+		PaidAt:    time.Date(2026, time.September, 1, 7, 30, 12, 0, time.UTC),
 		Lookup: event.DepositNotificationLookup{
 			Matched:          true,
+			ProviderTxnID:    "FT26245882755059",
 			UserID:           123,
 			UserName:         "Nguyen Van A",
 			UserPhone:        "0900000000",
@@ -52,13 +52,16 @@ func TestFormatDepositMessageIncludesManualApprovalAndUnmatchedWarning(t *testin
 
 	notification.Lookup = event.DepositNotificationLookup{}
 	unmatched := formatDepositMessage(notification)
-	for _, expected := range []string{"[CẢNH BÁO TIỀN VÀO CHƯA KHỚP]", "Mã giao dịch: FT26103263302800", "Không tìm thấy lệnh nạp"} {
+	for _, expected := range []string{"[CẢNH BÁO TIỀN VÀO CHƯA KHỚP]", "Nội dung CK: DEPabc12345", "Không tìm thấy lệnh nạp"} {
 		if !contains(unmatched, expected) {
 			t.Fatalf("unmatched message missing %q: %s", expected, unmatched)
 		}
 	}
 	if contains(matched, "SEPAY") || contains(unmatched, "SEPAY") || contains(matched, "SePay") || contains(unmatched, "SePay") {
 		t.Fatalf("telegram messages must not expose provider name: matched=%s unmatched=%s", matched, unmatched)
+	}
+	if contains(matched, "FT26245882755059") || contains(unmatched, "FT26245882755059") {
+		t.Fatalf("telegram messages must not expose provider transaction ID: matched=%s unmatched=%s", matched, unmatched)
 	}
 }
 

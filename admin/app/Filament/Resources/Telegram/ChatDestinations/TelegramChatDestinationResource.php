@@ -54,13 +54,13 @@ class TelegramChatDestinationResource extends BaseResource
                 IconColumn::make('is_active')->label('Nhận thông báo')->boolean(),
                 TextColumn::make('last_error')->label('Lỗi gần nhất')->limit(60)->toggleable(),
                 TextColumn::make('last_seen_at')->label('Nhìn thấy lần cuối')->dateTime('d/m/Y H:i:s', timezone: config('app.timezone'))->sortable(),
-                TextColumn::make('activated_at')->label('Active lúc')->dateTime('d/m/Y H:i:s', timezone: config('app.timezone'))->toggleable(),
+                TextColumn::make('activated_at')->label('Kích hoạt lúc')->dateTime('d/m/Y H:i:s', timezone: config('app.timezone'))->toggleable(),
             ])
             ->defaultSort('id', 'desc')
             ->poll(5000)
             ->recordActions([
                 Action::make('activate')
-                    ->label('Active')
+                    ->label('Kích hoạt nhóm')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
