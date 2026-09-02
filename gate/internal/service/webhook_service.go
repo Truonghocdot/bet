@@ -27,6 +27,8 @@ const (
 // sepayClientRefRe extracts a DEP/WD transaction code from SePay's content string.
 // SePay content looks like: "DEPed9e4061cb1320e083ade36e566ad947   Ma giao dich  Trace..."
 var sepayClientRefRe = regexp.MustCompile(`(?i)(DEP|WD)[-]?([a-zA-Z0-9]+)`)
+var readableDepositClientRefRe = regexp.MustCompile(`(?i)\b([A-Z]{2}[A-HJ-NP-Z2-9]{10})\b`)
+var readableDepositCodeRe = regexp.MustCompile(`^[A-Z]{2}[A-HJ-NP-Z2-9]{10}$`)
 
 type WebhookConfig struct {
 	GateInternalToken        string
@@ -393,9 +395,17 @@ func (s *WebhookService) buildSepayApplyRequest(payload map[string]any) (event.D
 		content := strings.TrimSpace(fmt.Sprint(raw))
 		if match := sepayClientRefRe.FindStringSubmatch(content); len(match) == 3 {
 			prefix := strings.ToUpper(match[1])
-			idPart := strings.ToLower(match[2])
+			idPart := match[2]
+			if prefix == "DEP" && readableDepositCodeRe.MatchString(strings.ToUpper(idPart)) {
+				idPart = strings.ToUpper(idPart)
+			} else {
+				idPart = strings.ToLower(idPart)
+			}
 			clientRef = prefix + "-" + idPart
 			log.Printf("[gate][sepay] extracted client_ref=%s from content=%q", clientRef, content)
+		} else if match := readableDepositClientRefRe.FindStringSubmatch(content); len(match) == 2 {
+			clientRef = "DEP-" + strings.ToUpper(match[1])
+			log.Printf("[gate][sepay] extracted readable client_ref=%s from content=%q", clientRef, content)
 		}
 	}
 

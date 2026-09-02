@@ -119,6 +119,7 @@ func New() (*App, error) {
 	playRoomService := service.NewPlayRoomService(gameRepository, walletRepository, walletService, redisClient, broker)
 	depositService := service.NewDepositService(depositRepository, redisClient, walletService, depositGateway, service.DepositConfig{
 		ReceivingAccountsRedisKey: config.PaymentReceivingAccountsRedisKey,
+		ReferencePrefix:           config.WheelSiteCode,
 	})
 	telegramService := service.NewTelegramService(telegramRepository, config.WheelSiteCode)
 	withdrawalService := service.NewWithdrawalService(withdrawalRepository, walletRepository, userRepository, redisClient)

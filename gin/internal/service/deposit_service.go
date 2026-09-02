@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -33,6 +34,7 @@ const pendingDepositCacheTTL = 30 * 24 * time.Hour
 
 type DepositConfig struct {
 	ReceivingAccountsRedisKey string
+	ReferencePrefix           string
 }
 
 type DepositService struct {
@@ -461,7 +463,7 @@ func (s *DepositService) initDeposit(
 		return deposit.DepositInitResponse{}, err
 	}
 
-	clientRef := "DEP-" + id.New()
+	clientRef := newReadableDepositClientRef(s.config.ReferencePrefix)
 	meta := map[string]any{
 		"method":              method,
 		"provider":            provider,
@@ -502,9 +504,10 @@ func (s *DepositService) initDeposit(
 
 	switch method {
 	case deposit.DepositMethodVietQR:
-		response.Instructions = "Quét QR hoặc chuyển khoản đúng nội dung để hệ thống tự động đối soát."
-		response.QRContent = buildQRContent(selected, amount, clientRef)
-		response.QRCodeURL = buildVietQrImageURL(selected, amount, clientRef)
+		response.Instructions = "Quét QR hoặc chuyển khoản đúng nội dung để hệ thống nhận diện giao dịch."
+		transferContent := readableDepositClientRef(clientRef)
+		response.QRContent = buildQRContent(selected, amount, transferContent)
+		response.QRCodeURL = buildVietQrImageURL(selected, amount, transferContent)
 		response.PayURL = ""
 	}
 
@@ -675,6 +678,49 @@ func buildQRContent(account repopg.ReceivingAccountRecord, amount string, client
 		amount,
 		clientRef,
 	}, "|")
+}
+
+const readableDepositAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+func newReadableDepositClientRef(prefix string) string {
+	prefix = strings.ToUpper(strings.TrimSpace(prefix))
+	if prefix == "" {
+		prefix = "FH"
+	}
+	if len(prefix) > 2 {
+		prefix = prefix[:2]
+	}
+	for len(prefix) < 2 {
+		prefix += "X"
+	}
+
+	bytes := make([]byte, 10)
+	if _, err := cryptorand.Read(bytes); err != nil {
+		// crypto/rand failure is exceptionally rare; keep a readable fallback
+		// while preserving the existing DEP namespace.
+		fallback := strings.ToUpper(id.New())
+		for len(fallback) < 10 {
+			fallback += "X"
+		}
+		return "DEP-" + prefix + fallback[:10]
+	}
+
+	var code strings.Builder
+	code.Grow(12)
+	code.WriteString(prefix)
+	for _, value := range bytes {
+		code.WriteByte(readableDepositAlphabet[int(value)&31])
+	}
+
+	return "DEP-" + code.String()
+}
+
+func readableDepositClientRef(clientRef string) string {
+	trimmed := strings.TrimSpace(clientRef)
+	if len(trimmed) >= 4 && strings.EqualFold(trimmed[:4], "DEP-") {
+		return trimmed[4:]
+	}
+	return trimmed
 }
 
 func buildVietQrImageURL(account repopg.ReceivingAccountRecord, amount string, clientRef string) string {

@@ -174,10 +174,10 @@ function formatPendingDepositAmount(value: string | number | null | undefined) {
   const normalized = String(value ?? '').replace(/[^\d.]/g, '')
   const numericValue = Number(normalized)
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    return '0.0'
+    return '0'
   }
 
-  return `${Math.trunc(numericValue)}.0`
+  return String(Math.trunc(numericValue))
 }
 
 function formatPendingDepositAmountForCopy(value: string | number | null | undefined) {
@@ -193,9 +193,6 @@ function scrollToHistorySection(behavior: ScrollBehavior = 'smooth') {
 }
 
 async function copyIntentValue(key: string, value: string | null | undefined) {
-  if( key == 'amount') {
-    value =  value?.slice(0, -2) + '0';
-  }
   const text = String(value ?? '').trim()
   if (!text) return
   try {
