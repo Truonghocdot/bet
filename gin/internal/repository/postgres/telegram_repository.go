@@ -30,8 +30,20 @@ func (r *TelegramRepository) UpsertGroupEvent(ctx context.Context, event telegra
 		insert into telegram_chat_destinations (
 			site_code, telegram_chat_id, chat_type, title, username, bot_status,
 			is_active, discovered_at, last_seen_at, removed_at, created_at, updated_at
-		) values ($1, $2, $3, $4, nullif($5, ''), $6,
-			false, $7, $7, case when $6 in ('left', 'kicked') then $7 else null end, $7, $7)
+		) values (
+			$1::varchar(32),
+			$2::bigint,
+			$3::varchar(20),
+			nullif($4::text, '')::varchar(160),
+			nullif($5::text, '')::varchar(80),
+			$6::varchar(32),
+			false,
+			$7::timestamp,
+			$7::timestamp,
+			case when $6::text in ('left', 'kicked') then $7::timestamp else null::timestamp end,
+			$7::timestamp,
+			$7::timestamp
+		)
 		on conflict (site_code, telegram_chat_id) do update set
 			chat_type = excluded.chat_type,
 			title = excluded.title,
