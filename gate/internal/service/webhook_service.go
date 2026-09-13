@@ -216,11 +216,14 @@ func (s *WebhookService) HandleDepositWebhook(
 		if s.ginClient == nil {
 			return webhookEvent, fmt.Errorf("gin client is unavailable")
 		}
-		if err := s.ginClient.ApplyDeposit(ctx, request); err != nil {
+		result, err := s.ginClient.ApplyDeposit(ctx, request)
+		if err != nil {
 			return webhookEvent, err
 		}
+		notificationStatus := depositNotificationStatusFromApplyResult(result.Status)
+		log.Printf("[gate][sepay.apply] client_ref=%s provider_txn_id=%s result=%s", request.ClientRef, request.ProviderTxnID, result.Status)
 		if s.telegramNotifier != nil {
-			if err := s.telegramNotifier.EnqueueDeposit(ctx, request, depositNotificationAutoCompleted); err != nil {
+			if err := s.telegramNotifier.EnqueueDeposit(ctx, request, notificationStatus); err != nil {
 				return webhookEvent, err
 			}
 		}
@@ -232,12 +235,23 @@ func (s *WebhookService) HandleDepositWebhook(
 		if err != nil {
 			return webhookEvent, err
 		}
-		if err := s.ginClient.ApplyDeposit(ctx, request); err != nil {
+		if _, err := s.ginClient.ApplyDeposit(ctx, request); err != nil {
 			return webhookEvent, err
 		}
 	}
 
 	return webhookEvent, nil
+}
+
+func depositNotificationStatusFromApplyResult(status string) depositNotificationCompletionStatus {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "completed":
+		return depositNotificationAutoCompleted
+	case "failed":
+		return depositNotificationAutoFailed
+	default:
+		return depositNotificationAutoPending
+	}
 }
 
 func (s *WebhookService) isSepayAutoApplyEnabled(ctx context.Context, amount string) bool {

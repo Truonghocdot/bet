@@ -20,6 +20,10 @@ type Client struct {
 	client  *http.Client
 }
 
+type ApplyDepositResponse struct {
+	Status string `json:"status"`
+}
+
 func NewClient(baseURL, token string) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
@@ -30,19 +34,19 @@ func NewClient(baseURL, token string) *Client {
 	}
 }
 
-func (c *Client) ApplyDeposit(ctx context.Context, request event.DepositApplyRequest) error {
+func (c *Client) ApplyDeposit(ctx context.Context, request event.DepositApplyRequest) (ApplyDepositResponse, error) {
 	if c.baseURL == "" {
-		return fmt.Errorf("gin internal base url is required")
+		return ApplyDepositResponse{}, fmt.Errorf("gin internal base url is required")
 	}
 
 	body, err := json.Marshal(request)
 	if err != nil {
-		return err
+		return ApplyDepositResponse{}, err
 	}
 
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/internal/v1/deposits/apply", bytes.NewReader(body))
 	if err != nil {
-		return err
+		return ApplyDepositResponse{}, err
 	}
 
 	httpRequest.Header.Set("Content-Type", "application/json")
@@ -50,16 +54,21 @@ func (c *Client) ApplyDeposit(ctx context.Context, request event.DepositApplyReq
 
 	response, err := c.client.Do(httpRequest)
 	if err != nil {
-		return err
+		return ApplyDepositResponse{}, err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(response.Body)
-		return fmt.Errorf("gin internal deposit apply returned status %d: %s", response.StatusCode, string(bodyBytes))
+		return ApplyDepositResponse{}, fmt.Errorf("gin internal deposit apply returned status %d: %s", response.StatusCode, string(bodyBytes))
 	}
 
-	return nil
+	var result ApplyDepositResponse
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return ApplyDepositResponse{}, fmt.Errorf("decode gin deposit apply response: %w", err)
+	}
+
+	return result, nil
 }
 
 func (c *Client) LookupDepositForNotification(ctx context.Context, request event.DepositNotificationLookupRequest) (event.DepositNotificationLookup, error) {

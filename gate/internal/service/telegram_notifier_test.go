@@ -71,6 +71,12 @@ func TestFormatDepositMessageIncludesManualApprovalAndUnmatchedWarning(t *testin
 	if !contains(automatic, "ĐÃ HOÀN THÀNH TỰ ĐỘNG") {
 		t.Fatalf("automatic message must identify automatic completion: %s", automatic)
 	}
+
+	matchedNotification.CompletionStatus = depositNotificationAutoFailed
+	failed := formatDepositMessage(matchedNotification)
+	if !contains(failed, "TỰ ĐỘNG ĐỐI SOÁT THẤT BẠI") {
+		t.Fatalf("failed automatic message must identify failure: %s", failed)
+	}
 }
 
 func contains(value, expected string) bool {

@@ -49,6 +49,8 @@ type depositNotificationCompletionStatus string
 const (
 	depositNotificationManualReview  depositNotificationCompletionStatus = "manual_review"
 	depositNotificationAutoCompleted depositNotificationCompletionStatus = "auto_completed"
+	depositNotificationAutoFailed    depositNotificationCompletionStatus = "auto_failed"
+	depositNotificationAutoPending   depositNotificationCompletionStatus = "auto_pending"
 )
 
 type depositNotificationEvent struct {
@@ -424,9 +426,19 @@ func formatDepositMessage(notification depositNotificationEvent) string {
 	}
 
 	status := "CHỜ DUYỆT THỦ CÔNG"
-	if notification.CompletionStatus == depositNotificationAutoCompleted {
+	switch notification.CompletionStatus {
+	case depositNotificationAutoCompleted:
 		status = "ĐÃ HOÀN THÀNH TỰ ĐỘNG"
-	} else if lookup.Status == 3 {
+	case depositNotificationAutoFailed:
+		status = "TỰ ĐỘNG ĐỐI SOÁT THẤT BẠI"
+	case depositNotificationAutoPending:
+		status = "ĐANG ĐỐI SOÁT TỰ ĐỘNG"
+	default:
+		if lookup.Status == 3 {
+			status = "ĐÃ ĐƯỢC DUYỆT"
+		}
+	}
+	if notification.CompletionStatus == depositNotificationManualReview && lookup.Status == 3 {
 		status = "ĐÃ ĐƯỢC DUYỆT"
 	}
 	user := fmt.Sprintf("#%d - %s - %s", lookup.UserID, firstNonEmpty(lookup.UserName, "—"), firstNonEmpty(lookup.UserPhone, "—"))
