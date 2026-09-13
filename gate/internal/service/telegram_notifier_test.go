@@ -49,6 +49,7 @@ func TestFormatDepositMessageIncludesManualApprovalAndUnmatchedWarning(t *testin
 			t.Fatalf("matched message missing %q: %s", expected, matched)
 		}
 	}
+	matchedNotification := notification
 
 	notification.Lookup = event.DepositNotificationLookup{}
 	unmatched := formatDepositMessage(notification)
@@ -62,6 +63,13 @@ func TestFormatDepositMessageIncludesManualApprovalAndUnmatchedWarning(t *testin
 	}
 	if contains(matched, "FT26245882755059") || contains(unmatched, "FT26245882755059") {
 		t.Fatalf("telegram messages must not expose provider transaction ID: matched=%s unmatched=%s", matched, unmatched)
+	}
+
+	matchedNotification.Lookup.Status = 3
+	matchedNotification.CompletionStatus = depositNotificationAutoCompleted
+	automatic := formatDepositMessage(matchedNotification)
+	if !contains(automatic, "ĐÃ HOÀN THÀNH TỰ ĐỘNG") {
+		t.Fatalf("automatic message must identify automatic completion: %s", automatic)
 	}
 }
 

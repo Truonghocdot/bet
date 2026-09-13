@@ -16,6 +16,10 @@ type NowPaymentsCredentials struct {
 	PayCurrency   string
 	PriceCurrency string
 	Source        string
+	// SepayAutoApply is nil when the runtime snapshot predates the setting.
+	// In that case Gate keeps using the SEPAY_AUTO_APPLY environment fallback.
+	SepayAutoApply          *bool
+	SepayAutoApplyMinAmount string
 }
 
 type NowPaymentsCredentialsProvider interface {
@@ -64,6 +68,8 @@ func (p *RedisNowPaymentsCredentialsProvider) Get(ctx context.Context) (NowPayme
 		NowPaymentsPayCurrency   string `json:"nowpayments_pay_currency"`
 		NowPaymentsPriceCurrency string `json:"nowpayments_price_currency"`
 		BaseCurrency             string `json:"base_currency"`
+		SepayAutoApply           *bool  `json:"sepay_auto_apply"`
+		SepayAutoApplyMinAmount  string `json:"sepay_auto_apply_min_amount"`
 	}
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
 		return creds, fmt.Errorf("decode redis key %s failed: %w", p.redisKey, err)
@@ -100,6 +106,12 @@ func (p *RedisNowPaymentsCredentialsProvider) Get(ctx context.Context) (NowPayme
 	}
 	if priceCurrency != "" {
 		creds.PriceCurrency = strings.ToUpper(priceCurrency)
+	}
+	if payload.SepayAutoApply != nil {
+		creds.SepayAutoApply = payload.SepayAutoApply
+	}
+	if minAmount := strings.TrimSpace(payload.SepayAutoApplyMinAmount); minAmount != "" {
+		creds.SepayAutoApplyMinAmount = minAmount
 	}
 
 	log.Printf("[gate][nowpayments.credentials] source=%s api_key_present=%v ipn_secret_present=%v", creds.Source, creds.APIKey != "", creds.IPNSecret != "")

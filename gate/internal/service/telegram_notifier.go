@@ -44,14 +44,22 @@ type TelegramNotifier struct {
 	maxRetries    int
 }
 
+type depositNotificationCompletionStatus string
+
+const (
+	depositNotificationManualReview  depositNotificationCompletionStatus = "manual_review"
+	depositNotificationAutoCompleted depositNotificationCompletionStatus = "auto_completed"
+)
+
 type depositNotificationEvent struct {
-	EventKey  string                          `json:"event_key"`
-	SiteCode  string                          `json:"site_code"`
-	ClientRef string                          `json:"client_ref,omitempty"`
-	Amount    string                          `json:"amount,omitempty"`
-	Content   string                          `json:"content,omitempty"`
-	PaidAt    time.Time                       `json:"paid_at"`
-	Lookup    event.DepositNotificationLookup `json:"lookup"`
+	EventKey          string                            `json:"event_key"`
+	SiteCode          string                            `json:"site_code"`
+	CompletionStatus  depositNotificationCompletionStatus `json:"completion_status"`
+	ClientRef         string                            `json:"client_ref,omitempty"`
+	Amount            string                            `json:"amount,omitempty"`
+	Content           string                            `json:"content,omitempty"`
+	PaidAt            time.Time                         `json:"paid_at"`
+	Lookup            event.DepositNotificationLookup   `json:"lookup"`
 }
 
 type telegramUpdate struct {
@@ -163,7 +171,7 @@ func (n *TelegramNotifier) HandleWebhookUpdate(ctx context.Context, raw []byte) 
 	})
 }
 
-func (n *TelegramNotifier) EnqueueDeposit(ctx context.Context, request event.DepositApplyRequest) error {
+func (n *TelegramNotifier) EnqueueDeposit(ctx context.Context, request event.DepositApplyRequest, completionStatus depositNotificationCompletionStatus) error {
 	transferType := rawString(request.Raw, "transferType")
 	if transferType == "" {
 		transferType = rawString(request.Raw, "transfer_type")
@@ -193,15 +201,16 @@ func (n *TelegramNotifier) EnqueueDeposit(ctx context.Context, request event.Dep
 	// out of the queued Telegram payload and the message shown to operators.
 	lookup.ProviderTxnID = ""
 
-	eventKey := n.eventKey(request)
+	eventKey := n.eventKey(request) + ":" + string(completionStatus)
 	notification := depositNotificationEvent{
-		EventKey:  eventKey,
-		SiteCode:  n.siteCode,
-		ClientRef: request.ClientRef,
-		Amount:    request.Amount,
-		Content:   sanitizeLine(rawString(request.Raw, "content"), 240),
-		PaidAt:    request.PaidAt,
-		Lookup:    lookup,
+		EventKey:         eventKey,
+		SiteCode:         n.siteCode,
+		CompletionStatus: completionStatus,
+		ClientRef:        request.ClientRef,
+		Amount:           request.Amount,
+		Content:          sanitizeLine(rawString(request.Raw, "content"), 240),
+		PaidAt:           request.PaidAt,
+		Lookup:           lookup,
 	}
 	payload, err := json.Marshal(notification)
 	if err != nil {
@@ -415,7 +424,9 @@ func formatDepositMessage(notification depositNotificationEvent) string {
 	}
 
 	status := "CHỜ DUYỆT THỦ CÔNG"
-	if lookup.Status == 3 {
+	if notification.CompletionStatus == depositNotificationAutoCompleted {
+		status = "ĐÃ HOÀN THÀNH TỰ ĐỘNG"
+	} else if lookup.Status == 3 {
 		status = "ĐÃ ĐƯỢC DUYỆT"
 	}
 	user := fmt.Sprintf("#%d - %s - %s", lookup.UserID, firstNonEmpty(lookup.UserName, "—"), firstNonEmpty(lookup.UserPhone, "—"))

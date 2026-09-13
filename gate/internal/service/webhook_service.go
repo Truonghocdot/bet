@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"regexp"
 	"strings"
@@ -201,9 +202,9 @@ func (s *WebhookService) HandleDepositWebhook(
 		if err != nil {
 			return webhookEvent, err
 		}
-		if !s.sepayAutoApply {
+		if !s.isSepayAutoApplyEnabled(ctx, request.Amount) {
 			if s.telegramNotifier != nil {
-				if err := s.telegramNotifier.EnqueueDeposit(ctx, request); err != nil {
+				if err := s.telegramNotifier.EnqueueDeposit(ctx, request, depositNotificationManualReview); err != nil {
 					return webhookEvent, err
 				}
 			}
@@ -212,8 +213,14 @@ func (s *WebhookService) HandleDepositWebhook(
 		if request.ClientRef == "" && request.ProviderTxnID == "" {
 			return webhookEvent, fmt.Errorf("sepay: transaction reference is required")
 		}
-		if s.ginClient != nil {
-			if err := s.ginClient.ApplyDeposit(ctx, request); err != nil {
+		if s.ginClient == nil {
+			return webhookEvent, fmt.Errorf("gin client is unavailable")
+		}
+		if err := s.ginClient.ApplyDeposit(ctx, request); err != nil {
+			return webhookEvent, err
+		}
+		if s.telegramNotifier != nil {
+			if err := s.telegramNotifier.EnqueueDeposit(ctx, request, depositNotificationAutoCompleted); err != nil {
 				return webhookEvent, err
 			}
 		}
@@ -231,6 +238,38 @@ func (s *WebhookService) HandleDepositWebhook(
 	}
 
 	return webhookEvent, nil
+}
+
+func (s *WebhookService) isSepayAutoApplyEnabled(ctx context.Context, amount string) bool {
+	enabled := s.sepayAutoApply
+	minimumAmount := "0"
+
+	if s.credentialsProvider != nil {
+		credentials, err := s.credentialsProvider.Get(ctx)
+		if err != nil {
+			log.Printf("[gate][sepay.config.warn] using env fallback err=%v", err)
+		} else {
+			if credentials.SepayAutoApply != nil {
+				enabled = *credentials.SepayAutoApply
+			}
+			if configuredMinimum := strings.TrimSpace(credentials.SepayAutoApplyMinAmount); configuredMinimum != "" {
+				minimumAmount = configuredMinimum
+			}
+		}
+	}
+
+	if !enabled {
+		return false
+	}
+
+	paidAmount, validAmount := new(big.Rat).SetString(strings.TrimSpace(amount))
+	minimum, validMinimum := new(big.Rat).SetString(minimumAmount)
+	if !validAmount || !validMinimum || paidAmount.Sign() < 0 || minimum.Sign() < 0 {
+		log.Printf("[gate][sepay.config.warn] invalid automatic completion amount=%q minimum=%q", amount, minimumAmount)
+		return false
+	}
+
+	return paidAmount.Cmp(minimum) >= 0
 }
 
 func (s *WebhookService) verifyNowPaymentsSignature(ctx context.Context, rawBody []byte, headers http.Header) error {

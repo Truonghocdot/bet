@@ -88,6 +88,22 @@ class ExchangeRatePageForm
                 ])
                 ->columns(2),
 
+            Section::make('Thanh toán tự động')
+                ->description('Điều khiển việc tự động cộng tiền cho giao dịch chuyển khoản qua SePay.')
+                ->schema([
+                    Toggle::make('sepay_auto_apply')
+                        ->label('Tự động cộng tiền SePay')
+                        ->helperText('Chỉ áp dụng khi số tiền nạp đạt ngưỡng cấu hình bên dưới.'),
+                    TextInput::make('sepay_auto_apply_min_amount')
+                        ->label('Tự động hoàn thành từ (VND)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step('1')
+                        ->required()
+                        ->helperText('Giao dịch có số tiền lớn hơn hoặc bằng mức này sẽ được tự động hoàn thành. Nhập 0 để áp dụng cho mọi giao dịch.'),
+                ])
+                ->columns(2),
+
             Section::make('Khối Thông Tin Rút Tiền')
                 ->description('Cấu hình hiển thị trên app người chơi và số tiền rút tối thiểu/tối đa.')
                 ->schema([

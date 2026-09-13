@@ -18,7 +18,10 @@ class ExchangeRateService
     {
         $snapshot = Cache::store($this->cacheStore())->get($this->cacheKey());
 
-        if (is_array($snapshot) && $this->runtimeRedisHasSnapshot()) {
+        if (is_array($snapshot)
+            && array_key_exists('sepay_auto_apply', $snapshot)
+            && array_key_exists('sepay_auto_apply_min_amount', $snapshot)
+            && $this->runtimeRedisHasSnapshot()) {
             return $snapshot;
         }
 
@@ -54,6 +57,8 @@ class ExchangeRateService
                 'withdraw_max_times_per_day' => 3,
                 'withdraw_min_amount' => 200000,
                 'withdraw_max_amount' => 30000000,
+                'sepay_auto_apply' => null,
+                'sepay_auto_apply_min_amount' => 0,
             ],
         );
     }
@@ -74,6 +79,12 @@ class ExchangeRateService
                 'nowpayments_ipn_secret' => $data['nowpayments_ipn_secret'] ?? null,
                 'nowpayments_payout_wallet' => $data['nowpayments_payout_wallet'] ?? null,
                 'nowpayments_sandbox' => (bool) ($data['nowpayments_sandbox'] ?? false),
+                'sepay_auto_apply' => array_key_exists('sepay_auto_apply', $data)
+                    ? (bool) $data['sepay_auto_apply']
+                    : $setting->sepay_auto_apply,
+                'sepay_auto_apply_min_amount' => blank($data['sepay_auto_apply_min_amount'] ?? null)
+                    ? 0
+                    : $data['sepay_auto_apply_min_amount'],
                 'telegram_cskh_link' => $data['telegram_cskh_link'] ?? null,
                 'app_header_logo_path' => $this->normalizeStoredAssetPath($data['app_header_logo_path'] ?? null),
                 'marquee_enabled' => (bool) ($data['marquee_enabled'] ?? true),
@@ -230,6 +241,10 @@ class ExchangeRateService
             'nowpayments_ipn_secret' => $setting->nowpayments_ipn_secret,
             'nowpayments_payout_wallet' => $setting->nowpayments_payout_wallet,
             'nowpayments_sandbox' => (bool) $setting->nowpayments_sandbox,
+            'sepay_auto_apply' => $setting->sepay_auto_apply === null
+                ? null
+                : (bool) $setting->sepay_auto_apply,
+            'sepay_auto_apply_min_amount' => (string) ($setting->sepay_auto_apply_min_amount ?? 0),
             'telegram_cskh_link' => $setting->telegram_cskh_link,
             'app_header_logo_path' => $setting->app_header_logo_path,
             'app_header_logo_webp_path' => WebpImageConverter::ensurePublicDiskWebpVariant($setting->app_header_logo_path),
