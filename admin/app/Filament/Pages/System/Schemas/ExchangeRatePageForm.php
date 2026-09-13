@@ -92,7 +92,7 @@ class ExchangeRatePageForm
                 ->description('Điều khiển việc tự động cộng tiền cho giao dịch chuyển khoản qua SePay.')
                 ->schema([
                     Toggle::make('sepay_auto_apply')
-                        ->label('Tự động cộng tiền SePay')
+                        ->label('Tự động cộng tiền')
                         ->helperText('Chỉ áp dụng khi số tiền nạp đạt ngưỡng cấu hình bên dưới.'),
                     TextInput::make('sepay_auto_apply_min_amount')
                         ->label('Tự động hoàn thành từ (VND)')
